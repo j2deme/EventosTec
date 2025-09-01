@@ -1,0 +1,8 @@
+venv/
+.env
+*.pyc
+__pycache__/
+instance/
+.webassets-cache
+.env
+.DS_Store
