@@ -57,7 +57,7 @@ def create_activity():
         data = activity_schema.load(request.get_json())
 
         # Verificar que el evento exista
-        event = Event.query.get(data['event_id'])
+        event = db.session.get(Event, data['event_id'])
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
@@ -81,7 +81,7 @@ def create_activity():
 @activities_bp.route('/<int:activity_id>', methods=['GET'])
 def get_activity(activity_id):
     try:
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -98,7 +98,7 @@ def get_activity(activity_id):
 @require_admin
 def update_activity(activity_id):
     try:
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -128,7 +128,7 @@ def update_activity(activity_id):
 @require_admin
 def delete_activity(activity_id):
     try:
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -148,7 +148,7 @@ def delete_activity(activity_id):
 @jwt_required()
 def get_activity_attendances(activity_id):
     try:
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -168,7 +168,7 @@ def get_activity_attendances(activity_id):
 @jwt_required()
 def get_activity_registrations(activity_id):
     try:
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 

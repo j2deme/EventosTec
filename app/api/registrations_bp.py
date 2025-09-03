@@ -22,7 +22,6 @@ def create_registration():
             return error
 
         data = request.get_json()
-
         student_id = data.get('student_id')
         activity_id = data.get('activity_id')
 
@@ -38,16 +37,16 @@ def create_registration():
             return jsonify({'message': 'Tipo de usuario no válido'}), 400
 
         # Validar que el estudiante y actividad existan
-        student = Student.query.get(student_id)
+        student = db.session.get(Student, student_id)
         if not student:
             return jsonify({'message': 'Estudiante no encontrado'}), 404
 
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
         # Verificar si ya existe un preregistro
-        existing_registration = Registration.query.filter_by(
+        existing_registration = db.session.query(Registration).filter_by(
             student_id=student_id, activity_id=activity_id
         ).first()
 
@@ -101,7 +100,7 @@ def get_registrations():
         activity_id = request.args.get('activity_id', type=int)
         status = request.args.get('status')
 
-        query = Registration.query
+        query = db.session.query(Registration)
 
         if student_id:
             query = query.filter_by(student_id=student_id)
@@ -136,7 +135,7 @@ def get_registrations():
 @jwt_required()
 def get_registration(registration_id):
     try:
-        registration = Registration.query.get(registration_id)
+        registration = db.session.get(Registration, registration_id)
         if not registration:
             return jsonify({'message': 'Preregistro no encontrado'}), 404
 
@@ -153,7 +152,7 @@ def get_registration(registration_id):
 @require_admin
 def update_registration(registration_id):
     try:
-        registration = Registration.query.get(registration_id)
+        registration = db.session.get(Registration, registration_id)
         if not registration:
             return jsonify({'message': 'Preregistro no encontrado'}), 404
 
@@ -187,7 +186,7 @@ def update_registration(registration_id):
 @jwt_required()
 def delete_registration(registration_id):
     try:
-        registration = Registration.query.get(registration_id)
+        registration = db.session.get(Registration, registration_id)
         if not registration:
             return jsonify({'message': 'Preregistro no encontrado'}), 404
 

@@ -18,7 +18,7 @@ def get_students():
         per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '')
 
-        query = Student.query
+        query = db.session.query(Student)
 
         if search:
             search_filter = f"%{search}%"
@@ -53,7 +53,7 @@ def get_students():
 @students_bp.route('/<int:student_id>', methods=['GET'])
 def get_student(student_id):
     try:
-        student = Student.query.get(student_id)
+        student = db.session.get(Student, student_id)
         if not student:
             return jsonify({'message': 'Estudiante no encontrado'}), 404
 
@@ -107,7 +107,7 @@ def import_external_student(control_number):
                     student_info = external_data[0]
 
                     # Verificar si ya existe
-                    student = Student.query.filter_by(
+                    student = db.session.query(Student).filter_by(
                         control_number=control_number).first()
                     if not student:
                         # Crear nuevo estudiante
@@ -146,7 +146,7 @@ def import_external_student(control_number):
 @students_bp.route('/<int:student_id>/activities', methods=['GET'])
 def get_student_activities(student_id):
     try:
-        student = Student.query.get(student_id)
+        student = db.session.get(Student, student_id)
         if not student:
             return jsonify({'message': 'Estudiante no encontrado'}), 404
 

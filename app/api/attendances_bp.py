@@ -24,11 +24,11 @@ def check_in():
         activity_id = data.get('activity_id')
 
         # Validar que el estudiante y actividad existan
-        student = Student.query.get(student_id)
+        student = db.session.get(Student, student_id)
         if not student:
             return jsonify({'message': 'Estudiante no encontrado'}), 404
 
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -103,7 +103,7 @@ def check_out():
             }), 200
 
         # Obtener la actividad relacionada
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -232,7 +232,7 @@ def bulk_create_attendances():
             return jsonify({'message': 'Actividad y lista de estudiantes son requeridos'}), 400
 
         # Verificar que la actividad exista
-        activity = Activity.query.get(activity_id)
+        activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -240,12 +240,12 @@ def bulk_create_attendances():
 
         for student_id in student_ids:
             # Verificar que el estudiante exista
-            student = Student.query.get(student_id)
+            student = db.session.get(Student, student_id)
             if not student:
                 continue
 
             # Verificar si ya existe registro
-            existing_attendance = Attendance.query.filter_by(
+            existing_attendance = db.session.query(Attendance).filter_by(
                 student_id=student_id, activity_id=activity_id
             ).first()
 
@@ -285,7 +285,7 @@ def get_attendances():
         activity_id = request.args.get('activity_id', type=int)
         status = request.args.get('status')
 
-        query = Attendance.query
+        query = db.session.query(Attendance)
 
         if student_id:
             query = query.filter_by(student_id=student_id)
@@ -320,7 +320,7 @@ def get_attendances():
 @jwt_required()
 def get_attendance(attendance_id):
     try:
-        attendance = Attendance.query.get(attendance_id)
+        attendance = db.session.get(Attendance, attendance_id)
         if not attendance:
             return jsonify({'message': 'Asistencia no encontrada'}), 404
 

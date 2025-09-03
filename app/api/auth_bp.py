@@ -18,7 +18,7 @@ def login():
         data = user_login_schema.load(request.get_json())
 
         # Buscar usuario administrador
-        user = User.query.filter_by(
+        user = db.session.query(User).filter_by(
             username=data['username'], is_active=True).first()
 
         # Validar contraseña
@@ -76,7 +76,7 @@ def student_login():
                 student_info = student_data[0]
 
                 # Crear o actualizar estudiante en nuestra base de datos
-                student = Student.query.filter_by(
+                student = db.session.query(Student).filter_by(
                     control_number=control_number).first()
                 if not student:
                     student = Student(
@@ -128,14 +128,29 @@ def student_login():
 @jwt_required()
 def profile():
     try:
-        current_user = get_jwt_identity()
+        user_id = int(get_jwt_identity())
 
-        if current_user['type'] == 'admin':
-            user = User.query.get(current_user['id'])
-            if user:
-                return jsonify({'user': user.to_dict()}), 200
-            else:
-                return jsonify({'message': 'Usuario no encontrado'}), 404
+        # Primero buscar en User (admin)
+        user = db.session.get(User, user_id)
+        if user:
+            return jsonify({
+                'user': {
+                    **user.to_dict(),
+                    'type': 'admin'
+                }
+            }), 200
+
+        # Si no es admin, buscar en Student
+        student = db.session.get(Student, user_id)
+        if student:
+            return jsonify({
+                'student': {
+                    **student.to_dict(),
+                    'type': 'student'
+                }
+            }), 200
+
+        return jsonify({'message': 'Usuario no encontrado'}), 404
 
         elif current_user['type'] == 'student':
             student = Student.query.get(current_user['id'])

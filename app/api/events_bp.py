@@ -19,7 +19,7 @@ def get_events():
         per_page = request.args.get('per_page', 10, type=int)
         status = request.args.get('status')
 
-        query = Event.query
+        query = db.session.query(Event)
 
         if status:
             is_active = status.lower() == 'active'
@@ -73,7 +73,7 @@ def create_event():
 @events_bp.route('/<int:event_id>', methods=['GET'])
 def get_event(event_id):
     try:
-        event = Event.query.get(event_id)
+        event = db.session.get(Event, event_id)
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
@@ -90,7 +90,7 @@ def get_event(event_id):
 @require_admin
 def update_event(event_id):
     try:
-        event = Event.query.get(event_id)
+        event = db.session.get(Event, event_id)
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
@@ -120,7 +120,7 @@ def update_event(event_id):
 @require_admin
 def delete_event(event_id):
     try:
-        event = Event.query.get(event_id)
+        event = db.session.get(Event, event_id)
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
@@ -139,7 +139,7 @@ def delete_event(event_id):
 @events_bp.route('/<int:event_id>/activities', methods=['GET'])
 def get_event_activities(event_id):
     try:
-        event = Event.query.get(event_id)
+        event = db.session.get(Event, event_id)
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
