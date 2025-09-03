@@ -4,6 +4,7 @@ from app import db
 from app.schemas import event_schema, events_schema
 from app.models.event import Event
 from datetime import datetime
+from app.utils.auth_helpers import require_admin
 
 events_bp = Blueprint('events', __name__, url_prefix='/api/events')
 
@@ -46,6 +47,7 @@ def get_events():
 
 @events_bp.route('/', methods=['POST'])
 @jwt_required()
+@require_admin
 def create_event():
     try:
         # Validar datos de entrada
@@ -85,6 +87,7 @@ def get_event(event_id):
 
 @events_bp.route('/<int:event_id>', methods=['PUT'])
 @jwt_required()
+@require_admin
 def update_event(event_id):
     try:
         event = Event.query.get(event_id)
@@ -114,6 +117,7 @@ def update_event(event_id):
 
 @events_bp.route('/<int:event_id>', methods=['DELETE'])
 @jwt_required()
+@require_admin
 def delete_event(event_id):
     try:
         event = Event.query.get(event_id)

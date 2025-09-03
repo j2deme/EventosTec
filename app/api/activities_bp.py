@@ -4,6 +4,7 @@ from app import db
 from app.schemas import activity_schema, activities_schema
 from app.models.activity import Activity
 from app.models.event import Event
+from app.utils.auth_helpers import require_admin
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/api/activities')
 
@@ -49,6 +50,7 @@ def get_activities():
 
 @activities_bp.route('/', methods=['POST'])
 @jwt_required()
+@require_admin
 def create_activity():
     try:
         # Validar datos de entrada
@@ -93,6 +95,7 @@ def get_activity(activity_id):
 
 @activities_bp.route('/<int:activity_id>', methods=['PUT'])
 @jwt_required()
+@require_admin
 def update_activity(activity_id):
     try:
         activity = Activity.query.get(activity_id)
@@ -122,6 +125,7 @@ def update_activity(activity_id):
 
 @activities_bp.route('/<int:activity_id>', methods=['DELETE'])
 @jwt_required()
+@require_admin
 def delete_activity(activity_id):
     try:
         activity = Activity.query.get(activity_id)

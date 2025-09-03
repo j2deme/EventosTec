@@ -6,6 +6,7 @@ from app.schemas import attendance_schema, attendances_schema
 from app.models.attendance import Attendance
 from app.models.student import Student
 from app.models.activity import Activity
+from app.utils.auth_helpers import require_admin
 
 attendances_bp = Blueprint('attendances', __name__,
                            url_prefix='/api/attendances')
@@ -15,6 +16,7 @@ attendances_bp = Blueprint('attendances', __name__,
 
 @attendances_bp.route('/check-in', methods=['POST'])
 @jwt_required()
+@require_admin
 def check_in():
     try:
         data = request.get_json()
@@ -76,6 +78,7 @@ def check_in():
 
 @attendances_bp.route('/check-out', methods=['POST'])
 @jwt_required()
+@require_admin
 def check_out():
     try:
         data = request.get_json()
@@ -143,6 +146,7 @@ def check_out():
 
 @attendances_bp.route('/pause', methods=['POST'])
 @jwt_required()
+@require_admin
 def pause_attendance():
     try:
         data = request.get_json()
@@ -181,6 +185,7 @@ def pause_attendance():
 
 @attendances_bp.route('/resume', methods=['POST'])
 @jwt_required()
+@require_admin
 def resume_attendance():
     try:
         data = request.get_json()
@@ -216,6 +221,7 @@ def resume_attendance():
 
 @attendances_bp.route('/bulk-create', methods=['POST'])
 @jwt_required()
+@require_admin
 def bulk_create_attendances():
     try:
         data = request.get_json()

@@ -5,6 +5,7 @@ from app.schemas import registration_schema, registrations_schema
 from app.models.registration import Registration
 from app.models.student import Student
 from app.models.activity import Activity
+from app.utils.auth_helpers import require_admin, get_user_or_403
 
 registrations_bp = Blueprint(
     'registrations', __name__, url_prefix='/api/registrations')
@@ -16,11 +17,25 @@ registrations_bp = Blueprint(
 @jwt_required()
 def create_registration():
     try:
-        current_user = get_jwt_identity()
+        user, user_type, error = get_user_or_403()
+        if error:
+            return error
+
         data = request.get_json()
 
         student_id = data.get('student_id')
         activity_id = data.get('activity_id')
+
+        # Validar acceso
+        if user_type == 'student':
+            # Estudiante solo puede preregistrarse a sí mismo
+            if int(get_jwt_identity()) != student_id:
+                return jsonify({'message': 'Acceso denegado. No puedes preregistrar a otros estudiantes.'}), 403
+        elif user_type == 'admin':
+            # Admin puede preregistrar a cualquier estudiante
+            pass
+        else:
+            return jsonify({'message': 'Tipo de usuario no válido'}), 400
 
         # Validar que el estudiante y actividad existan
         student = Student.query.get(student_id)
@@ -76,6 +91,7 @@ def create_registration():
 
 @registrations_bp.route('/', methods=['GET'])
 @jwt_required()
+@require_admin
 def get_registrations():
     try:
         # Parámetros de filtrado
@@ -134,6 +150,7 @@ def get_registration(registration_id):
 
 @registrations_bp.route('/<int:registration_id>', methods=['PUT'])
 @jwt_required()
+@require_admin
 def update_registration(registration_id):
     try:
         registration = Registration.query.get(registration_id)
