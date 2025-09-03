@@ -28,4 +28,7 @@ def create_app(config_name=None):
     jwt.init_app(app)
     ma.init_app(app)
 
+    # Importar modelos para que Flask-Migrate los detecte
+    from app.models import Event, Activity, Student, Attendance, Registration
+
     return app
