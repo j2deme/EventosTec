@@ -24,15 +24,15 @@ def login():
         # Validar contraseña
         if user and user.check_password(data['password']):
             # Generar token JWT
-            access_token = create_access_token(
-                identity={'id': user.id, 'type': 'admin'})
+            access_token = create_access_token(identity=str(user.id))
             return jsonify({
                 'access_token': access_token,
                 'user': {
                     'id': user.id,
                     'username': user.username,
                     'email': user.email,
-                    'role': user.role
+                    'role': user.role,
+                    'type': 'admin'
                 }
             }), 200
 
@@ -97,10 +97,7 @@ def student_login():
                 db.session.commit()
 
                 # Generar token para estudiante
-                access_token = create_access_token(
-                    identity={'id': student.id,
-                              'control_number': control_number, 'type': 'student'}
-                )
+                access_token = create_access_token(identity=str(student.id))
 
                 return jsonify({
                     'access_token': access_token,
@@ -109,7 +106,8 @@ def student_login():
                         'control_number': student.control_number,
                         'full_name': student.full_name,
                         'career': student.career,
-                        'email': student.email
+                        'email': student.email,
+                        'type': 'student'
                     }
                 }), 200
             else:
@@ -151,15 +149,6 @@ def profile():
             }), 200
 
         return jsonify({'message': 'Usuario no encontrado'}), 404
-
-        elif current_user['type'] == 'student':
-            student = Student.query.get(current_user['id'])
-            if student:
-                return jsonify({'student': student.to_dict()}), 200
-            else:
-                return jsonify({'message': 'Estudiante no encontrado'}), 404
-
-        return jsonify({'message': 'Tipo de usuario no válido'}), 400
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener perfil', 'error': str(e)}), 400
