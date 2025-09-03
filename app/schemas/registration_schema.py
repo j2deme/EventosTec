@@ -12,8 +12,8 @@ class RegistrationSchema(ma.SQLAlchemyAutoSchema):
     # Validaciones
     student_id = fields.Int(required=True)
     activity_id = fields.Int(required=True)
-    status = fields.Str(missing='registered', validate=validate.OneOf([
-        'registered', 'confirmed', 'attended', 'absent', 'cancelled'
+    status = fields.Str(load_default='Registrado', validate=validate.OneOf([
+        'Registrado', 'Confirmado', 'Asistió', 'Ausente', 'Cancelado'
     ]))
     attended = fields.Bool(load_default=False)
 
