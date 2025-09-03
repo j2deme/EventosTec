@@ -31,4 +31,19 @@ def create_app(config_name=None):
     # Importar modelos para que Flask-Migrate los detecte
     from app.models import Event, Activity, Student, User, Attendance, Registration
 
+    # Registrar blueprints
+    from app.api.auth_bp import auth_bp
+    from app.api.events_bp import events_bp
+    from app.api.activities_bp import activities_bp
+    from app.api.students_bp import students_bp
+    from app.api.registrations_bp import registrations_bp
+    from app.api.attendances_bp import attendances_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(events_bp)
+    app.register_blueprint(activities_bp)
+    app.register_blueprint(students_bp)
+    app.register_blueprint(registrations_bp)
+    app.register_blueprint(attendances_bp)
+
     return app
