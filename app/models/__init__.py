@@ -1,6 +1,7 @@
 from app.models.event import Event
 from app.models.activity import Activity
 from app.models.student import Student
+from app.models.user import User  # NUEVO
 from app.models.attendance import Attendance
 from app.models.registration import Registration
 
@@ -14,5 +15,6 @@ activity_relations = db.Table('activity_relations',
                                         db.ForeignKey('activities.id'), primary_key=True)
                               )
 
-__all__ = ['Event', 'Activity', 'Student',
-           'Attendance', 'Registration', 'activity_relations']
+__all__ = [
+    'Event', 'Activity', 'Student', 'User', 'Attendance', 'Registration', 'activity_relations'
+]

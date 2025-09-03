@@ -29,6 +29,6 @@ def create_app(config_name=None):
     ma.init_app(app)
 
     # Importar modelos para que Flask-Migrate los detecte
-    from app.models import Event, Activity, Student, Attendance, Registration
+    from app.models import Event, Activity, Student, User, Attendance, Registration
 
     return app
