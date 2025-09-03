@@ -6,15 +6,15 @@ from app.models.event import Event
 class EventSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = Event
-        load_instance = True
+        load_instance = False
         include_fk = True
 
     # Validaciones
     name = fields.Str(required=True, validate=validate.Length(min=1, max=150))
-    description = fields.Str(missing=None)
+    description = fields.Str(load_default=None)
     start_date = fields.DateTime(required=True)
     end_date = fields.DateTime(required=True)
-    is_active = fields.Bool(missing=True)
+    is_active = fields.Bool(load_default=True)
 
     # Campos de solo lectura
     id = fields.Int(dump_only=True)

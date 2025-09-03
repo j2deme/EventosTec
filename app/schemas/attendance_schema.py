@@ -6,17 +6,17 @@ from app.models.attendance import Attendance
 class AttendanceSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = Attendance
-        load_instance = True
+        load_instance = False
         include_fk = True
 
     # Validaciones
     student_id = fields.Int(required=True)
     activity_id = fields.Int(required=True)
-    check_in_time = fields.DateTime(missing=None)
-    check_out_time = fields.DateTime(missing=None)
+    check_in_time = fields.DateTime(load_default=None)
+    check_out_time = fields.DateTime(load_default=None)
     attendance_percentage = fields.Float(
-        missing=0.0, validate=validate.Range(min=0, max=100))
-    status = fields.Str(missing='Ausente', validate=validate.OneOf([
+        load_default=0.0, validate=validate.Range(min=0, max=100))
+    status = fields.Str(load_default='Ausente', validate=validate.OneOf([
         'Asistió', 'Parcial', 'Ausente'
     ]))
 

@@ -6,7 +6,7 @@ from app.models.user import User
 class UserSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = User
-        load_instance = True
+        load_instance = False
         # Excluir password_hash del dump
         exclude = ('password_hash',)
 
@@ -17,7 +17,7 @@ class UserSchema(ma.SQLAlchemyAutoSchema):
     email = fields.Email(required=True, validate=validate.Length(max=120))
     role = fields.Str(
         required=True, validate=validate.OneOf(['Admin', 'Staff']))
-    is_active = fields.Bool(missing=True)
+    is_active = fields.Bool(load_default=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 

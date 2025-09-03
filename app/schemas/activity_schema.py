@@ -6,7 +6,7 @@ from app.models.activity import Activity
 class ActivitySchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = Activity
-        load_instance = True
+        load_instance = False
         include_fk = True
 
     # Validaciones
@@ -16,7 +16,7 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
     # Solo lectura, se genera automáticamente
     code = fields.Str(dump_only=True)
     name = fields.Str(required=True, validate=validate.Length(min=1, max=100))
-    description = fields.Str(missing=None)
+    description = fields.Str(load_default=None)
     start_datetime = fields.DateTime(required=True)
     end_datetime = fields.DateTime(required=True)
     duration_hours = fields.Float(
@@ -29,8 +29,9 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
     modality = fields.Str(required=True, validate=validate.OneOf([
         'Presencial', 'Virtual', 'Híbrido'
     ]))
-    requirements = fields.Str(missing=None)
-    max_capacity = fields.Int(missing=None, validate=validate.Range(min=0))
+    requirements = fields.Str(load_default=None)
+    max_capacity = fields.Int(
+        load_default=None, validate=validate.Range(min=0))
 
     # Campos de solo lectura
     id = fields.Int(dump_only=True)

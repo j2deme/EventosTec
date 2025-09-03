@@ -6,15 +6,15 @@ from app.models.student import Student
 class StudentSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = Student
-        load_instance = True
+        load_instance = False
 
     # Validaciones
     control_number = fields.Str(
         required=True, validate=validate.Length(min=1, max=20))
     full_name = fields.Str(
         required=True, validate=validate.Length(min=1, max=100))
-    career = fields.Str(missing=None, validate=validate.Length(max=100))
-    email = fields.Email(missing=None, validate=validate.Length(max=100))
+    career = fields.Str(load_default=None, validate=validate.Length(max=100))
+    email = fields.Email(load_default=None, validate=validate.Length(max=100))
 
     # Campos de solo lectura
     id = fields.Int(dump_only=True)
