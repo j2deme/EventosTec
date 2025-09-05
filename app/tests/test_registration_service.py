@@ -138,3 +138,193 @@ def test_is_registration_allowed_activity_not_found(app):
         non_existent_id = 99999
         with pytest.raises(ValueError, match="Actividad no encontrada"):
             is_registration_allowed(non_existent_id)
+
+
+def test_has_schedule_conflict_no_conflict_different_days(app, sample_data):
+    """Test que no hay conflicto si las actividades son en días diferentes."""
+    with app.app_context():
+        # Crear dos actividades en días diferentes
+        activity_a = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Actividad A',
+            start_datetime=datetime(2024, 10, 21, 10, 0, 0),  # Lunes 10:00
+            end_datetime=datetime(2024, 10, 21, 12, 0, 0),   # Lunes 12:00
+            duration_hours=2.0,
+            activity_type='Taller',
+            location='Sala 1',
+            modality='Presencial'
+        )
+        activity_b = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Actividad B',
+            start_datetime=datetime(2024, 10, 22, 11, 0, 0),  # Martes 11:00
+            end_datetime=datetime(2024, 10, 22, 13, 0, 0),   # Martes 13:00
+            duration_hours=2.0,
+            activity_type='Conferencia',
+            location='Sala 2',
+            modality='Presencial'
+        )
+        db.session.add_all([activity_a, activity_b])
+        db.session.flush()
+
+        # Crear preregistro para actividad A
+        registration_a = Registration(
+            student_id=sample_data['student_id'],
+            activity_id=activity_a.id,
+            status='Registrado'
+        )
+        db.session.add(registration_a)
+        db.session.commit()
+
+        # Verificar que no haya conflicto con actividad B
+        from app.services.registration_service import has_schedule_conflict
+        conflict_exists, message = has_schedule_conflict(
+            sample_data['student_id'], activity_b.id)
+        assert conflict_exists is False
+        assert message == ""
+
+
+def test_has_schedule_conflict_simple_overlap(app, sample_data):
+    """Test que detecta conflicto simple de horarios."""
+    with app.app_context():
+        # Crear dos actividades en el mismo día con horarios que se solapan
+        activity_a = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Actividad A',
+            start_datetime=datetime(2024, 10, 21, 10, 0, 0),  # 10:00-12:00
+            end_datetime=datetime(2024, 10, 21, 12, 0, 0),
+            duration_hours=2.0,
+            activity_type='Taller',
+            location='Sala 1',
+            modality='Presencial'
+        )
+        activity_b = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Actividad B',
+            # 11:00-13:00 (solapa con A)
+            start_datetime=datetime(2024, 10, 21, 11, 0, 0),
+            end_datetime=datetime(2024, 10, 21, 13, 0, 0),
+            duration_hours=2.0,
+            activity_type='Conferencia',
+            location='Sala 2',
+            modality='Presencial'
+        )
+        db.session.add_all([activity_a, activity_b])
+        db.session.flush()
+
+        # Crear preregistro para actividad A
+        registration_a = Registration(
+            student_id=sample_data['student_id'],
+            activity_id=activity_a.id,
+            status='Registrado'
+        )
+        db.session.add(registration_a)
+        db.session.commit()
+
+        # Verificar que haya conflicto con actividad B
+        from app.services.registration_service import has_schedule_conflict
+        conflict_exists, message = has_schedule_conflict(
+            sample_data['student_id'], activity_b.id)
+        assert conflict_exists is True
+        assert "se solapa" in message
+        assert activity_a.name in message
+        assert activity_b.name in message
+
+
+def test_has_schedule_conflict_multiday_overlap(app, sample_data):
+    """Test que detecta conflicto entre actividades multi-día."""
+    with app.app_context():
+        # Crear actividad multi-día (3 días, 9:00-17:00)
+        activity_a = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Taller 3 días',
+            # 21-23 oct, 9:00-17:00
+            start_datetime=datetime(2024, 10, 21, 9, 0, 0),
+            end_datetime=datetime(2024, 10, 23, 17, 0, 0),
+            duration_hours=8.0,  # Por día
+            activity_type='Taller',
+            location='Auditorio',
+            modality='Presencial'
+        )
+        # Crear actividad un día que se solapa con el segundo día del taller
+        activity_b = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Conferencia',
+            # 22 oct, 10:00-12:00
+            start_datetime=datetime(2024, 10, 22, 10, 0, 0),
+            end_datetime=datetime(2024, 10, 22, 12, 0, 0),
+            duration_hours=2.0,
+            activity_type='Conferencia',
+            location='Sala 2',
+            modality='Presencial'
+        )
+        db.session.add_all([activity_a, activity_b])
+        db.session.flush()
+
+        # Crear preregistro para el taller
+        registration_a = Registration(
+            student_id=sample_data['student_id'],
+            activity_id=activity_a.id,
+            status='Registrado'
+        )
+        db.session.add(registration_a)
+        db.session.commit()
+
+        # Verificar que haya conflicto con la conferencia
+        from app.services.registration_service import has_schedule_conflict
+        conflict_exists, message = has_schedule_conflict(
+            sample_data['student_id'], activity_b.id)
+        assert conflict_exists is True
+        assert "se solapa" in message
+
+
+def test_has_schedule_conflict_cancelled_registration(app, sample_data):
+    """Test que no considera actividades canceladas para conflictos."""
+    with app.app_context():
+        # Crear dos actividades en el mismo día con horarios que se solapan
+        activity_a = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Actividad A',
+            start_datetime=datetime(2024, 10, 21, 10, 0, 0),
+            end_datetime=datetime(2024, 10, 21, 12, 0, 0),
+            duration_hours=2.0,
+            activity_type='Taller',
+            location='Sala 1',
+            modality='Presencial'
+        )
+        activity_b = Activity(
+            event_id=sample_data['event_id'],
+            department='TEST',
+            name='Actividad B',
+            start_datetime=datetime(2024, 10, 21, 11, 0, 0),
+            end_datetime=datetime(2024, 10, 21, 13, 0, 0),
+            duration_hours=2.0,
+            activity_type='Conferencia',
+            location='Sala 2',
+            modality='Presencial'
+        )
+        db.session.add_all([activity_a, activity_b])
+        db.session.flush()
+
+        # Crear preregistro CANCELADO para actividad A
+        registration_a = Registration(
+            student_id=sample_data['student_id'],
+            activity_id=activity_a.id,
+            status='Cancelado'  # Actividad cancelada
+        )
+        db.session.add(registration_a)
+        db.session.commit()
+
+        # Verificar que NO haya conflicto con actividad B (porque A está cancelada)
+        from app.services.registration_service import has_schedule_conflict
+        conflict_exists, message = has_schedule_conflict(
+            sample_data['student_id'], activity_b.id)
+        assert conflict_exists is False
+        assert message == ""
