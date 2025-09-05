@@ -1,6 +1,4 @@
-# app/tests/conftest.py
 from app.models.student import Student
-from app.models.activity import Activity
 from app.models.event import Event
 from app.models.user import User
 from app import create_app, db
@@ -16,11 +14,14 @@ def app():
     """Crear aplicación de test"""
     app = create_app('testing')
     app.config['TESTING'] = True
+    # Asegurar que se crea la base de datos en memoria y las tablas
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
 
     with app.app_context():
+        # Crear todas las tablas
         db.create_all()
         yield app
+        # Limpiar al finalizar
         db.drop_all()
 
 
@@ -47,20 +48,23 @@ def auth_headers(app):
         db.session.commit()
 
         from flask_jwt_extended import create_access_token
+        # Convertir ID a string para JWT
         token = create_access_token(identity=str(user.id))
         return {'Authorization': f'Bearer {token}'}
+
+# Fixture para datos de muestra, devolviendo IDs para evitar DetachedInstanceError
 
 
 @pytest.fixture
 def sample_data(app):
-    """Datos de prueba"""
+    """Datos de prueba, devuelve diccionario con IDs"""
     with app.app_context():
         # Crear evento de prueba con objetos datetime
         event = Event(
             name='Evento de prueba',
             description='Descripción del evento',
-            start_date=datetime(2024, 1, 1, 9, 0, 0),
-            end_date=datetime(2024, 1, 1, 17, 0, 0),
+            start_date=datetime(2024, 1, 1, 9, 0, 0),  # Objeto datetime
+            end_date=datetime(2024, 1, 1, 17, 0, 0),   # Objeto datetime
             is_active=True
         )
         db.session.add(event)
@@ -75,6 +79,7 @@ def sample_data(app):
 
         db.session.commit()
 
+        # Devolver solo los IDs para evitar problemas de desvinculación
         return {
             'event_id': event.id,
             'student_id': student.id
