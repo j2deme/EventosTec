@@ -14,6 +14,9 @@ class Attendance(db.Model):
     # Solo lo necesario para conferencias magistrales
     check_in_time = db.Column(db.DateTime)
     check_out_time = db.Column(db.DateTime, nullable=True)
+    is_paused = db.Column(db.Boolean, default=False)
+    pause_time = db.Column(db.DateTime, nullable=True)
+    resume_time = db.Column(db.DateTime, nullable=True)
 
     # Campos calculados
     attendance_percentage = db.Column(db.Float, default=0.0)
@@ -38,6 +41,9 @@ class Attendance(db.Model):
             'activity_id': self.activity_id,
             'check_in_time': self.check_in_time.isoformat() if self.check_in_time else None,
             'check_out_time': self.check_out_time.isoformat() if self.check_out_time else None,
+            'is_paused': self.is_paused,
+            'pause_time': self.pause_time.isoformat() if self.pause_time else None,
+            'resume_time': self.resume_time.isoformat() if self.resume_time else None,
             'attendance_percentage': self.attendance_percentage,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,

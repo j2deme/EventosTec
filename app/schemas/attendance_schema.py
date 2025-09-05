@@ -14,6 +14,9 @@ class AttendanceSchema(ma.SQLAlchemyAutoSchema):
     activity_id = fields.Int(required=True)
     check_in_time = fields.DateTime(load_default=None)
     check_out_time = fields.DateTime(load_default=None)
+    is_paused = fields.Boolean(load_default=False)
+    pause_time = fields.DateTime(load_default=None)
+    resume_time = fields.DateTime(load_default=None)
     attendance_percentage = fields.Float(
         load_default=0.0, validate=validate.Range(min=0, max=100))
     status = fields.Str(load_default='Ausente', validate=validate.OneOf([
