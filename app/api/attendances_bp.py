@@ -7,6 +7,7 @@ from app.models.attendance import Attendance
 from app.models.student import Student
 from app.models.activity import Activity
 from app.utils.auth_helpers import require_admin
+from app.services.attendance_service import calculate_attendance_percentage
 
 attendances_bp = Blueprint('attendances', __name__,
                            url_prefix='/api/attendances')
@@ -62,6 +63,17 @@ def check_in():
             )
             db.session.add(attendance)
 
+        if activity.activity_type == 'Magistral' and activity.related_activities:
+            from app.services.attendance_service import create_related_attendances
+            try:
+                create_related_attendances(student_id, activity_id)
+                db.session.commit()  # Commit de las asistencias relacionadas
+            except Exception as e:
+                db.session.rollback()
+                # Opcional: loggear el error pero no fallar el check-in principal?
+                # Por ahora, dejamos que el error se propague
+                raise e
+
         db.session.commit()
 
         return jsonify({
@@ -80,56 +92,58 @@ def check_in():
 @jwt_required()
 @require_admin
 def check_out():
+    """
+    Registra la hora de salida (check-out) para un estudiante en una actividad magistral.
+    Calcula el porcentaje de asistencia automáticamente.
+    """
     try:
         data = request.get_json()
         student_id = data.get('student_id')
         activity_id = data.get('activity_id')
 
-        # Buscar registro de asistencia
-        attendance = Attendance.query.filter_by(
+        if not student_id or not activity_id:
+            return jsonify({'message': 'Se requieren student_id y activity_id'}), 400
+
+        # 1. Buscar registro de asistencia
+        attendance = db.session.query(Attendance).filter_by(
             student_id=student_id, activity_id=activity_id
         ).first()
 
         if not attendance:
             return jsonify({'message': 'No se encontró registro de asistencia'}), 404
 
+        # 2. Validaciones de estado
         if not attendance.check_in_time:
             return jsonify({'message': 'No se ha registrado check-in'}), 400
 
         if attendance.check_out_time:
+            # Si ya hay check-out, recalculamos por si acaso (aunque no es lo típico)
+            # O simplemente devolvemos el existente. Aquí optamos por recalcular.
+            # Esto puede ser útil si se pausó/reanudó después del primer check-out.
+            pass  # Continuamos para recalcular
+
+        # 3. Registrar check-out
+        # Importante: Usar datetime.now(timezone.utc) o datetime.utcnow() si tus modelos lo requieren.
+        # Asegúrate de la consistencia de zonas horarias.
+        attendance.check_out_time = datetime.now()
+
+        # 4. Calcular porcentaje de asistencia y estado
+        # Esta función ahora está en el servicio y considera pausas.
+        try:
+            # Pasamos el ID para que el servicio haga el query y el commit
+            calculate_attendance_percentage(attendance.id)
+            # Recargamos el objeto attendance desde la DB para tener los valores actualizados
+            # que fueron modificados por calculate_attendance_percentage
+            db.session.refresh(attendance)
+        except Exception as e:
+            # Si falla el cálculo, hacemos rollback y reportamos error
+            db.session.rollback()
             return jsonify({
-                'message': 'Ya se ha registrado el check-out',
-                'attendance': attendance_schema.dump(attendance)
-            }), 200
+                'message': 'Error al calcular el porcentaje de asistencia',
+                'error': str(e)
+            }), 500
 
-        # Obtener la actividad relacionada
-        activity = db.session.get(Activity, activity_id)
-        if not activity:
-            return jsonify({'message': 'Actividad no encontrada'}), 404
-
-        # Registrar check-out
-        attendance.check_out_time = datetime.now(timezone.utc)
-
-        # Calcular porcentaje de asistencia
-        if attendance.check_in_time and attendance.check_out_time:
-            duration_seconds = (attendance.check_out_time -
-                                attendance.check_in_time).total_seconds()
-            activity_duration_seconds = activity.duration_hours * 3600
-
-            if activity_duration_seconds > 0:
-                percentage = (duration_seconds /
-                              activity_duration_seconds) * 100
-                attendance.attendance_percentage = round(percentage, 2)
-
-                # Determinar estado final
-                if attendance.attendance_percentage >= 80:
-                    attendance.status = 'Asistió'
-                else:
-                    attendance.status = 'Parcial'
-            else:
-                attendance.attendance_percentage = 100
-                attendance.status = 'Asistió'
-
+        # 5. Guardar cambios en la base de datos
         db.session.commit()
 
         return jsonify({
@@ -139,7 +153,10 @@ def check_out():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Error al registrar check-out', 'error': str(e)}), 400
+        return jsonify({
+            'message': 'Error al registrar check-out',
+            'error': str(e)
+        }), 500
 
 # Pausar asistencia
 
@@ -167,9 +184,8 @@ def pause_attendance():
             return jsonify({'message': 'Ya se ha registrado check-out'}), 400
 
         # Registrar pausa
-        attendance.is_paused = True
-
-        db.session.commit()
+        from app.services.attendance_service import pause_attendance
+        attendance = pause_attendance(attendance.id)
 
         return jsonify({
             'message': 'Asistencia pausada exitosamente',
@@ -203,9 +219,8 @@ def resume_attendance():
             return jsonify({'message': 'La asistencia no está pausada'}), 400
 
         # Reanudar asistencia
-        attendance.is_paused = False
-
-        db.session.commit()
+        from app.services.attendance_service import resume_attendance
+        attendance = resume_attendance(attendance.id)
 
         return jsonify({
             'message': 'Asistencia reanudada exitosamente',
