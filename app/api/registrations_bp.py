@@ -57,14 +57,18 @@ def create_registration():
             }), 200
 
         # Verificar cupo disponible (para conferencias y talleres)
-        if activity.activity_type in ['Conferencia', 'Taller', 'Curso']:
+        from app.services.registration_service import is_registration_allowed
+        if not is_registration_allowed(activity_id):
+            return jsonify({'message': 'Cupo lleno para esta actividad'}), 400
+
+        '''if activity.activity_type in ['Conferencia', 'Taller', 'Curso']:
             if activity.max_capacity:
                 current_registrations = Registration.query.filter_by(
                     activity_id=activity_id, status='Registrado'
                 ).count()
 
                 if current_registrations >= activity.max_capacity:
-                    return jsonify({'message': 'Cupo lleno para esta actividad'}), 400
+                    return jsonify({'message': 'Cupo lleno para esta actividad'}), 400'''
 
         # Crear preregistro
         registration = Registration(
