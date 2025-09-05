@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Eventos Tec{% endblock %}</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tabler Icons CDN -->
+    <link rel="stylesheet" 
+          href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    
+    <!-- Alpine.js CDN -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Day.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <!-- Opcional: Plugin para formato localizado en español -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/es.min.js"></script>
+    
+    <!-- Custom styles (opcional) -->
+    <style>
+        /* Podemos agregar estilos personalizados aquí si es necesario */
+    </style>
+</head>
+<body class="bg-gray-50">
+    {% block content %}{% endblock %}
+    
+    <!-- JS -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
