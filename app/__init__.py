@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
@@ -16,7 +16,7 @@ def create_app(config_name=None):
     if config_name is None:
         config_name = os.environ.get('FLASK_CONFIG', 'default')
 
-    app = Flask(__name__)
+    app = Flask(__name__, template_folder='templates', static_folder='static')
 
     # Importar configuración
     from config import config
