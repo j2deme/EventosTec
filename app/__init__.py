@@ -46,4 +46,19 @@ def create_app(config_name=None):
     app.register_blueprint(registrations_bp)
     app.register_blueprint(attendances_bp)
 
+    # Login
+    @app.route('/')
+    def index():
+        return render_template('auth/login.html')
+
+    # Ruta temporal dashboard ADMIN
+    @app.route('/dashboard/admin')
+    def admin_dashboard():
+        return render_template('admin/dashboard.html')
+
+    # Ruta temporal dashboard ESTUDIANTE
+    @app.route('/dashboard/student')
+    def student_dashboard():
+        return "<h1>Dashboard Estudiante - En construcción</h1>"
+
     return app
