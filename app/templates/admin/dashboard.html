@@ -293,9 +293,6 @@ function adminDashboard() {
 
         async loadEvents() {
           try {
-              console.log("Iniciando carga de eventos...");
-              
-              // Corrección 1: Obtener el token correctamente
               const token = localStorage.getItem('authToken');
               if (!token) {
                   console.error('No se encontró token de autenticación');
@@ -307,19 +304,14 @@ function adminDashboard() {
               const response = await fetch('/api/events/', {
                   method: 'GET',
                   headers: {
-                      // Corrección 2: Formato correcto del header de autorización
                       'Authorization': `Bearer ${token}`,
                       'Content-Type': 'application/json'
                   }
               });
 
-              console.log("Respuesta recibida:", response);
-
               if (response.ok) {
                   const data = await response.json();
-                  console.log("Datos parseados:", data);
-                  
-                  // Corrección 3: Extraer el array 'events' del objeto paginado
+
                   // Verificar que data tenga la estructura esperada
                   if (data && Array.isArray(data.events)) {
                       this.events = data.events;
@@ -330,8 +322,6 @@ function adminDashboard() {
                       console.warn("La estructura de datos de eventos no es la esperada:", data);
                       this.events = []; // Asignar array vacío por seguridad
                   }
-                  
-                  console.log("Eventos cargados en el estado:", this.events);
               } else {
                   console.error('Error al cargar eventos. Status:', response.status);
                   // Manejar errores específicos
@@ -344,8 +334,6 @@ function adminDashboard() {
               }
           } catch (error) {
               console.error('Error de red al cargar eventos:', error);
-              // Opcional: mostrar mensaje de error al usuario
-              // this.errorMessage = 'Error de conexión al cargar eventos.';
           }
       },
 
