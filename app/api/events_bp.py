@@ -5,6 +5,7 @@ from app.schemas import event_schema, events_schema
 from app.models.event import Event
 from datetime import datetime
 from app.utils.auth_helpers import require_admin
+from sqlalchemy import asc, desc, or_
 
 events_bp = Blueprint('events', __name__, url_prefix='/api/events')
 
@@ -18,15 +19,38 @@ def get_events():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         status = request.args.get('status')
+        search = request.args.get('search', '').strip()
+        sort = request.args.get('sort', 'start_date:desc')
 
         query = db.session.query(Event)
+
+        if search:
+            query = query.filter(
+                Event.name.ilike(f'%{search}%'),
+                Event.description.ilike(f'%{search}%')
+            )
 
         if status:
             is_active = status.lower() == 'active'
             query = query.filter_by(is_active=is_active)
 
-        # Ordenar por fecha de creación (más recientes primero)
-        query = query.order_by(Event.created_at.desc())
+        # Aplicar ordenamiento
+        sort_field, sort_order = 'created_at', 'desc'  # Valores por defecto
+        if sort and ':' in sort:
+            parts = sort.split(':')
+            if len(parts) == 2:
+                sort_field, sort_order = parts
+                # Validar que el campo de ordenamiento sea seguro
+                if sort_field not in ['id', 'name', 'start_date', 'end_date', 'created_at']:
+                    sort_field = 'created_at'
+                if sort_order not in ['asc', 'desc']:
+                    sort_order = 'desc'
+
+        # Aplicar ordenamiento
+        if sort_order == 'asc':
+            query = query.order_by(asc(getattr(Event, sort_field)))
+        else:
+            query = query.order_by(desc(getattr(Event, sort_field)))
 
         events = query.paginate(
             page=page, per_page=per_page, error_out=False
@@ -36,7 +60,9 @@ def get_events():
             'events': events_schema.dump(events.items),
             'total': events.total,
             'pages': events.pages,
-            'current_page': page
+            'current_page': page,
+            'from': (page - 1) * per_page + 1 if events.total > 0 else 0,
+            'to': min(page * per_page, events.total)
         }), 200
 
     except Exception as e:
