@@ -21,6 +21,14 @@ class EventSchema(ma.SQLAlchemyAutoSchema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
+    # Campo calculado (solo para salida)
+    activities_count = fields.Method('get_activities_count', dump_only=True)
+
+    def get_activities_count(self, obj):
+        # Este campo se calculará en el endpoint si es necesario
+        # o se puede añadir un campo en el modelo Event
+        return getattr(obj, 'activities_count', 0)
+
 
 # Instancias para usar en los endpoints
 event_schema = EventSchema()
