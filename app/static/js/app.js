@@ -69,3 +69,14 @@ function formatOnlyDate(dateString) {
   return dayjs(dateString).format("D [de] MMMM [de] YYYY");
   // Ejemplo de salida: "15 de octubre de 2024"
 }
+
+function logout() {
+  if (confirm("¿Estás seguro de cerrar sesión?")) {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userType");
+    window.location.href = "/";
+  }
+}
+
+// Hacerla globalmente disponible
+window.logout = logout;
