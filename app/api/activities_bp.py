@@ -19,17 +19,33 @@ def get_activities():
         per_page = request.args.get('per_page', 10, type=int)
         event_id = request.args.get('event_id', type=int)
         activity_type = request.args.get('type')
+        search = request.args.get('search', '').strip()
+        activity_type = request.args.get('activity_type')
 
-        query = Activity.query
+        query = db.session.query(Activity).join(Event)
 
-        if event_id:
-            query = query.filter_by(event_id=event_id)
+        if search:
+            search_filter = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Activity.name.ilike(search_filter),
+                    Activity.department.ilike(search_filter),
+                    Activity.description.ilike(search_filter),
+                    Activity.location.ilike(search_filter)
+                )
+            )
 
         if activity_type:
-            query = query.filter_by(activity_type=activity_type)
+            query = query.filter(Activity.activity_type == activity_type)
 
-        # Ordenar por fecha de inicio
-        query = query.order_by(Activity.start_datetime.desc())
+        if event_id:
+            query = query.filter(Activity.event_id == event_id)
+
+        if activity_type:
+            query = query.filter(Activity.activity_type == activity_type)
+
+        # Ordenar por fecha de creación (más recientes primero)
+        query = query.order_by(Activity.created_at.desc())
 
         activities = query.paginate(
             page=page, per_page=per_page, error_out=False
@@ -39,7 +55,9 @@ def get_activities():
             'activities': activities_schema.dump(activities.items),
             'total': activities.total,
             'pages': activities.pages,
-            'current_page': page
+            'current_page': page,
+            'from': (page - 1) * per_page + 1 if activities.total > 0 else 0,
+            'to': min(page * per_page, activities.total)
         }), 200
 
     except Exception as e:
