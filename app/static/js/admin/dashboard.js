@@ -89,6 +89,7 @@ function adminDashboard() {
         "event-updated",
         "event-deleted",
         "activity-created",
+        "activity-updated",
         "activity-deleted",
       ];
       events.forEach((eventName) => {
