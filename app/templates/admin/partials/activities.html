@@ -1,0 +1,62 @@
+<!-- app/templates/admin/partials/activities.html -->
+<div>
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+        <h2 class="text-xl font-semibold text-gray-900 mb-2 sm:mb-0">Gestión de Actividades</h2>
+        <button @click="openActivityModal()" 
+                class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center justify-center sm:justify-start">
+            <i class="ti ti-plus mr-2"></i> Nueva Actividad
+        </button>
+    </div>
+
+    <!-- Activities Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <template x-for="activity in activities" :key="activity.id">
+            <div class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900" x-text="activity.name"></h3>
+                        <p class="text-sm text-gray-500" x-text="activity.department"></p>
+                    </div>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
+                          x-text="activity.activity_type">
+                    </span>
+                </div>
+                <div class="mt-4 flex items-center text-sm text-gray-500">
+                    <i class="ti ti-clock mr-1"></i>
+                    <span x-text="`${formatTime(activity.start_datetime)} - ${formatTime(activity.end_datetime)}`"></span>
+                </div>
+                <div class="mt-2 flex items-center text-sm text-gray-500">
+                    <i class="ti ti-calendar mr-1"></i>
+                    <span x-text="formatDate(activity.start_datetime)"></span>
+                </div>
+                <div class="mt-2 flex items-center text-sm text-gray-500">
+                    <i class="ti ti-map-pin mr-1"></i>
+                    <span x-text="activity.location"></span>
+                </div>
+                <div class="mt-4 flex justify-between items-center">
+                    <span class="text-sm font-medium text-gray-900" 
+                          x-text="activity.max_capacity ? `Cupo: ${getCurrentRegistrations(activity.id)}/${activity.max_capacity}` : 'Sin cupo'">
+                    </span>
+                    <div class="flex space-x-2">
+                        <button @click="editActivity(activity.id)" class="text-indigo-600 hover:text-indigo-900">
+                            <i class="ti ti-edit"></i>
+                        </button>
+                        <button @click="deleteActivity(activity.id)" class="text-red-600 hover:text-red-900">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+        
+        <!-- Empty State -->
+        <div x-show="activities.length === 0" class="col-span-full text-center py-12">
+            <i class="ti ti-book-off text-4xl text-gray-300 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 mb-1">No hay actividades</h3>
+            <p class="text-gray-500 mb-4">Comienza creando tu primera actividad.</p>
+            <button @click="openActivityModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">
+                Crear actividad
+            </button>
+        </div>
+    </div>
+</div>

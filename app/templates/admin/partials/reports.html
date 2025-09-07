@@ -1,0 +1,111 @@
+<!-- app/templates/admin/partials/reports.html -->
+<div>
+    <h2 class="text-xl font-semibold text-gray-900 mb-4">Reportes y Estadísticas</h2>
+    
+    <!-- Stats Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lg bg-indigo-100 text-indigo-600">
+                    <i class="ti ti-users text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Estudiantes</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="stats.totalStudents || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lg bg-green-100 text-green-600">
+                    <i class="ti ti-calendar-event text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Eventos Activos</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="stats.activeEvents || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-whiterounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lg bg-yellow-100 text-yellow-600">
+                    <i class="ti ti-book text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Actividades</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="stats.totalActivities || 0"></p>
+                </div>
+            </div>
+        </div>
+        <div class="bg-whiterounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="p-3 rounded-lgbg-red-100 text-red-600">
+                    <i class="ti ti-check text-xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Asistencias Hoy</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="stats.todayAttendances || 0"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Attendance by Day Chart -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Asistencias por Día</h3>
+            <div class="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
+                <div class="text-center">
+                    <i class="ti ti-chart-bar text-3xl text-gray-300 mb-2"></i>
+                    <p class="text-gray-500">Gráfico de asistencias (implementar con Chart.js)</p>
+                    <p class="text-sm text-gray-400 mt-1">Datos de ejemplo: últimos 7 días</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Registrations by Activity Type Chart -->
+        <div class="bg-whiterounded-lg shadow p-6">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Preregistro por Tipo de Actividad</h3>
+            <div class="h-64 flex items-centerjustify-center bg-gray-50rounded-lg">
+                <div class="text-center">
+                    <i class="ti ti-pie-chart text-3xl text-gray-300 mb-2"></i>
+                    <p class="text-gray-500">Gráfico circular (implementar con Chart.js)</p>
+                    <p class="text-sm text-gray-400 mt-1">Distribución por tipo</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Reports -->
+    <div class="mt-6 bg-whiterounded-lg shadow">
+        <div class="p-4 border-b">
+            <h3 class="font-medium text-gray-900">Reportes Recientes</h3>
+        </div>
+        <div class="divide-y divide-gray-200">
+            <template x-for="report in recentReports" :key="report.id">
+                <div class="p-4 hover:bg-gray-50">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="text-sm font-medium text-gray-900" x-text="report.title"></h4>
+                            <p class="text-sm text-gray-500" x-text="formatDate(report.created_at)"></p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                <i class="ti ti-file-description mr-1"></i>
+                                <span x-text="report.format"></span>
+                            </span>
+                            <button class="text-indigo-600hover:text-indigo-900">
+                                <i class="ti ti-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+            <div x-show="recentReports.length === 0" class="p-8 text-center text-gray-500">
+                <i class="ti ti-file-description text-2xl mb-2"></i>
+                <p>No hay reportes generados</p>
+            </div>
+        </div>
+    </div>
+</div>

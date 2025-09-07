@@ -1,0 +1,27 @@
+<!-- app/templates/admin/partials/sidebar.html -->
+<div x-show="sidebarOpen" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 transform translate-x-[-100%]"
+     x-transition:enter-end="opacity-100 transform translate-x-0"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100 transform translate-x-0"
+     x-transition:leave-end="opacity-0 transform translate-x-[-100%]"
+     class="fixed inset-0 z-20 md:relative md:translate-x-0 md:opacity-100 md:z-auto md:block md:w-64"
+     @click.away="sidebarOpen = false">
+    <div class="absolute inset-0 bg-black opacity-50 md:hidden" @click="sidebarOpen = false"></div>
+    <div class="relative bg-white w-64 h-full overflow-y-auto md:h-[calc(100vh-65px)]">
+        <div class="p-4 border-b md:hidden">
+            <h2 class="text-lg font-semibold">Menú</h2>
+        </div>
+        <nav class="p-2 md:p-4">
+            <template x-for="item in menuItems" :key="item.id">
+                <button @click="activeTab = item.id; sidebarOpen = false"
+                        :class="{'bg-indigo-50 text-indigo-600': activeTab === item.id}"
+                        class="w-full flex items-center px-4 py-3 text-left rounded-lg hover:bg-gray-50 transition-colors mb-1">
+                    <i :class="item.icon" class="mr-3"></i>
+                    <span x-text="item.name"></span>
+                </button>
+            </template>
+        </nav>
+    </div>
+</div>

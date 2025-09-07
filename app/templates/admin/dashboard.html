@@ -1,361 +1,43 @@
-{% extends "base.html" %}
+<!-- app/templates/admin/dashboard.html -->
+{% extends "admin/base.html" %}
 
-{% block title %}Dashboard Admin - Eventos Tec{% endblock %}
+{% block admin_title %}Dashboard - Admin Panel{% endblock %}
+{% block mobile_title %}Dashboard{% endblock %}
 
-{% block content %}
-<div class="min-h-screen bg-gray-50" x-data="adminDashboard()" x-init="loadEvents()">
-    <!-- Mobile Header -->
-    <header class="bg-white shadow sticky top-0 z-10">
-        <div class="px-4 py-4 flex justify-between items-center">
-            <div class="flex items-center">
-                <button @click="sidebarOpen = !sidebarOpen" class="md:hidden mr-3 text-gray-600">
-                    <i class="ti ti-menu-2 text-xl"></i>
-                </button>
-                <h1 class="text-lg font-bold text-gray-900">Admin Panel</h1>
-            </div>
-            <div class="flex items-center space-x-3">
-                <button @click="logout()" class="text-gray-600 hover:text-gray-900">
-                    <i class="ti ti-logout"></i>
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <div class="flex">
-        <!-- Sidebar Mobile (Offcanvas) -->
-        <div x-show="sidebarOpen" 
-             x-transition:enter="transition ease-out duration-300"
-             x-transition:enter-start="opacity-0 transform translate-x-[-100%]"
-             x-transition:enter-end="opacity-100 transform translate-x-0"
-             x-transition:leave="transition ease-in duration-200"
-             x-transition:leave-start="opacity-100 transform translate-x-0"
-             x-transition:leave-end="opacity-0 transform translate-x-[-100%]"
-             class="fixed inset-0 z-20 md:hidden">
-            <div class="absolute inset-0 bg-black opacity-50" @click="sidebarOpen = false"></div>
-            <div class="relative bg-white w-64 h-full overflow-y-auto">
-                <div class="p-4 border-b">
-                    <h2 class="text-lg font-semibold">Menú</h2>
-                </div>
-                <nav class="p-2">
-                    <template x-for="item in menuItems" :key="item.id">
-                        <button @click="activeTab = item.id; sidebarOpen = false"
-                                :class="{'bg-indigo-50 text-indigo-600': activeTab === item.id}"
-                                class="w-full flex items-center px-4 py-3 text-left rounded-lg hover:bg-gray-50 transition-colors">
-                            <i :class="item.icon" class="mr-3"></i>
-                            <span x-text="item.name"></span>
-                        </button>
-                    </template>
-                </nav>
-            </div>
-        </div>
-
-        <!-- Sidebar Desktop -->
-        <aside class="hidden md:block w-64 bg-white border-r border-gray-200 min-h-[calc(100vh-65px)]">
-            <nav class="p-4">
-                <template x-for="item in menuItems" :key="item.id">
-                    <button @click="activeTab = item.id"
-                            :class="{'bg-indigo-50 text-indigo-600': activeTab === item.id}"
-                            class="w-full flex items-center px-4 py-3 text-left rounded-lg hover:bg-gray-50 transition-colors mb-1">
-                        <i :class="item.icon" class="mr-3"></i>
-                        <span x-text="item.name"></span>
-                    </button>
-                </template>
-            </nav>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="flex-1 p-4 md:p-6 overflow-y-auto">
-            <!-- Stats Cards (Responsive Grid) -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <template x-for="stat in stats" :key="stat.id">
-                    <div class="bg-white rounded-lg shadow p-4 sm:p-6">
-                        <div class="flex items-center">
-                            <div class="p-3 rounded-lg" :class="stat.bgColor">
-                                <i :class="stat.icon" class="text-xl" :style="`color: ${stat.color}`"></i>
-                            </div>
-                            <div class="ml-4">
-                                <p class="text-xs sm:text-sm font-medium text-gray-600" x-text="stat.label"></p>
-                                <p class="text-lg sm:text-xl font-semibold text-gray-900" x-text="stat.value"></p>
-                            </div>
-                        </div>
+{% block admin_content %}
+<div>
+    <!--Stats Cards (Solo en la parte superior) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <template x-for="stat in stats" :key="stat.id">
+            <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-lg" :class="stat.bgColor">
+                        <i :class="stat.icon" class="text-xl" :style="`color: ${stat.color}`"></i>
                     </div>
-                </template>
-            </div>
-
-            <!-- Tab Content -->
-            <div x-show="activeTab === 'overview'">
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Resumen Rápido</h2>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <!-- Upcoming Events -->
-                    <div class="bg-white rounded-lg shadow">
-                        <div class="p-4 border-b">
-                            <h3 class="font-medium text-gray-900">Próximos Eventos</h3>
-                        </div>
-                        <div class="p-4">
-                            <div class="space-y-3">
-                                <template x-for="event in upcomingEvents" :key="event.id">
-                                    <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-                                        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                                            <i class="ti ti-calendar-event text-indigo-600"></i>
-                                        </div>
-                                        <div class="ml-3 flex-1">
-                                            <p class="text-sm font-medium text-gray-900" x-text="event.name"></p>
-                                            <p class="text-xs text-gray-500" x-text="event.date"></p>
-                                        </div>
-                                        <span class="text-xs px-2 py-1 bg-green-100 text-green-800 rounded-full" x-text="event.status"></span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Recent Activities -->
-                    <div class="bg-white rounded-lg shadow">
-                        <div class="p-4 border-b">
-                            <h3 class="font-medium text-gray-900">Actividades Recientes</h3>
-                        </div>
-                        <div class="p-4">
-                            <div class="space-y-3">
-                                <template x-for="activity in recentActivities" :key="activity.id">
-                                    <div class="flex items-center p-3 bg-gray-50 rounded-lg">
-                                        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                            <i class="ti ti-book text-blue-600"></i>
-                                        </div>
-                                        <div class="ml-3 flex-1">
-                                            <p class="text-sm font-medium text-gray-900" x-text="activity.name"></p>
-                                            <p class="text-xs text-gray-500" x-text="activity.type"></p>
-                                        </div>
-                                        <span class="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded-full" x-text="activity.capacity"></span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
+                    <div class="ml-4">
+                        <p class="text-xs sm:text-sm font-medium text-gray-600" x-text="stat.label"></p>
+                        <p class="text-lg sm:text-xl font-semibold text-gray-900" x-text="stat.value"></p>
                     </div>
                 </div>
             </div>
+        </template>
+    </div>
 
-            <!-- Other tabs content would go here -->
-            <div x-show="activeTab === 'events'">
-              <h2 class="text-xl font-semibold text-gray-900 mb-4">Gestión de Eventos</h2>
-              
-              <!-- Botón para crear nuevo evento -->
-              <button @click="openEventModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center mb-4">
-                  <i class="ti ti-plus mr-2"></i> Nuevo Evento
-              </button>
-
-              <!-- Mensaje cuando no hay eventos -->
-              <template x-if="events.length === 0">
-                  <div class="bg-white rounded-lg shadow p-6 text-center text-gray-500">
-                      <i class="ti ti-info-circle text-4xl mb-2"></i>
-                      <p class="text-lg">No hay eventos disponibles.</p>
-                      <p class="text-sm mt-1">Comienza creando tu primer evento.</p>
-                  </div>
-              </template>
-
-              <!-- Tabla de eventos (solo si hay eventos) -->
-              <template x-if="events.length > 0">
-                  <div class="bg-white rounded-lg shadow overflow-hidden">
-                      <div class="overflow-x-auto">
-                          <table class="min-w-full divide-y divide-gray-200">
-                              <thead class="bg-gray-50">
-                                  <tr>
-                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                                      <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                                  </tr>
-                              </thead>
-                              <tbody class="bg-white divide-y divide-gray-200">
-                                  <template x-for="event in events" :key="event.id">
-                                      <tr class="hover:bg-gray-50">
-                                          <td class="px-6 py-4 whitespace-nowrap">
-                                              <div class="text-sm font-medium text-gray-900" x-text="event.name"></div>
-                                              <div class="text-sm text-gray-500" x-text="event.description || 'Sin descripción'"></div>
-                                          </td>
-                                          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                              <div x-text="formatDate(event.start_date)"></div>
-                                          </td>
-                                          <td class="px-6 py-4 whitespace-nowrap">
-                                              <span x-text="event.is_active ? 'Activo' : 'Inactivo'" 
-                                                    :class="event.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
-                                                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
-                                              </span>
-                                          </td>
-                                          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                              <a href="#" @click.prevent="editEvent(event.id)" class="text-indigo-600 hover:text-indigo-900 mr-3">Editar</a>
-                                              <a href="#" @click.prevent="deleteEvent(event.id)" class="text-red-600 hover:text-red-900">Eliminar</a>
-                                          </td>
-                                      </tr>
-                                  </template>
-                              </tbody>
-                          </table>
-                      </div>
-                  </div>
-              </template>
-            </div>
-
-            <div x-show="activeTab === 'activities'">
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Gestión de Actividades</h2>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <p class="text-gray-600">Contenido de gestión de actividades...</p>
-                </div>
-            </div>
-
-            <div x-show="activeTab === 'reports'">
-                <h2 class="text-xl font-semibold text-gray-900 mb-4">Reportes</h2>
-                <div class="bg-white rounded-lg shadow p-6">
-                    <p class="text-gray-600">Contenido de reportes...</p>
-                </div>
-            </div>
-        </main>
+    <!-- Tab Content -->
+    <div x-show="activeTab === 'overview'">
+        {% include 'admin/partials/overview.html' %}
+    </div>
+    
+    <div x-show="activeTab === 'events'">
+        {% include 'admin/partials/events.html' %}
+    </div>
+    
+    <div x-show="activeTab === 'activities'">
+        {% include 'admin/partials/activities.html' %}
+    </div>
+    
+    <div x-show="activeTab === 'report'">
+        {% include 'admin/partials/reports.html' %}
     </div>
 </div>
-
-<script>
-function adminDashboard() {
-    return {
-        sidebarOpen: false,
-        activeTab: 'overview',
-        
-        menuItems: [
-            { id: 'overview', name: 'Resumen', icon: 'ti ti-layout-dashboard' },
-            { id: 'events', name: 'Eventos', icon: 'ti ti-calendar-event' },
-            { id: 'activities', name: 'Actividades', icon: 'ti ti-book' },
-            { id: 'reports', name: 'Reportes', icon: 'ti ti-chart-bar' }
-        ],
-        
-        stats: [
-            {
-                id: 'students',
-                label: 'Total Estudiantes',
-                value: '1,234',
-                icon: 'ti ti-users',
-                color: '#4f46e5',
-                bgColor: 'bg-indigo-100'
-            },
-            {
-                id: 'events',
-                label: 'Eventos Activos',
-                value: '5',
-                icon: 'ti ti-calendar-event',
-                color: '#10b981',
-                bgColor: 'bg-green-100'
-            },
-            {
-                id: 'activities',
-                label: 'Actividades',
-                value: '42',
-                icon: 'ti ti-book',
-                color: '#f59e0b',
-                bgColor: 'bg-yellow-100'
-            },
-            {
-                id: 'attendances',
-                label: 'Asistencias Hoy',
-                value: '245',
-                icon: 'ti ti-check',
-                color: '#ef4444',
-                bgColor: 'bg-red-100'
-            }
-        ],
-        
-        upcomingEvents: [
-            {
-                id: 1,
-                name: 'Congreso de Ingeniería 2024',
-                date: '15-17 Oct 2024',
-                status: 'Activo'
-            },
-            {
-                id: 2,
-                name: 'Seminario de IA',
-                date: '20 Oct 2024',
-                status: 'Próximo'
-            }
-        ],
-        
-        recentActivities: [
-            {
-                id: 1,
-                name: 'Conferencia Magistral 1',
-                type: 'Magistral',
-                capacity: '150/200'
-            },
-            {
-                id: 2,
-                name: 'Taller de Python',
-                type: 'Taller',
-                capacity: '25/30'
-            }
-        ],
-
-        events: [],
-
-        async loadEvents() {
-          try {
-              const token = localStorage.getItem('authToken');
-              if (!token) {
-                  console.error('No se encontró token de autenticación');
-                  // Redirigir al login o mostrar error
-                  window.location.href = '/';
-                  return;
-              }
-
-              const response = await fetch('/api/events/', {
-                  method: 'GET',
-                  headers: {
-                      'Authorization': `Bearer ${token}`,
-                      'Content-Type': 'application/json'
-                  }
-              });
-
-              if (response.ok) {
-                  const data = await response.json();
-
-                  // Verificar que data tenga la estructura esperada
-                  if (data && Array.isArray(data.events)) {
-                      this.events = data.events;
-                  } else if (Array.isArray(data)) {
-                      // Si la API a veces devuelve un array directamente
-                      this.events = data;
-                  } else {
-                      console.warn("La estructura de datos de eventos no es la esperada:", data);
-                      this.events = []; // Asignar array vacío por seguridad
-                  }
-              } else {
-                  console.error('Error al cargar eventos. Status:', response.status);
-                  // Manejar errores específicos
-                  if (response.status === 401) {
-                      // Token inválido o expirado
-                      localStorage.removeItem('authToken');
-                      localStorage.removeItem('userType');
-                      window.location.href = '/';
-                  }
-              }
-          } catch (error) {
-              console.error('Error de red al cargar eventos:', error);
-          }
-      },
-
-        editEvent(id) {
-            alert(`Editar evento ${id}`);
-        },
-        
-        deleteEvent(id) {
-            if(confirm('¿Estás seguro de eliminar este evento?')) {
-                // Lógica para eliminar el evento
-                alert(`Eliminar evento ${id}`);
-            }
-        },
-        
-        logout() {
-            if(confirm('¿Estás seguro de cerrar sesión?')) {
-                localStorage.removeItem('authToken');
-                localStorage.removeItem('userType');
-                window.location.href = '/';
-            }
-        }
-    }
-}
-</script>
 {% endblock %}
