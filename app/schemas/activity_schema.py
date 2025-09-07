@@ -1,6 +1,7 @@
 from marshmallow import Schema, fields, validate, validates_schema, ValidationError
 from app import ma
 from app.models.activity import Activity
+from app.schemas.event_schema import EventSchema
 
 
 class ActivitySchema(ma.SQLAlchemyAutoSchema):
@@ -8,6 +9,8 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
         model = Activity
         load_instance = False
         include_fk = True
+
+    event = fields.Nested(EventSchema, dump_only=True)  # Solo lectura
 
     # Validaciones
     event_id = fields.Int(required=True)
