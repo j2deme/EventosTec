@@ -78,3 +78,48 @@ function logout() {
 
 // Hacerla globalmente disponible
 window.logout = logout;
+
+function showToast(message, type = "success", duration = 3000) {
+  let backgroundColor = "#10B981"; // Verde para éxito
+  let className = "toast-success";
+
+  switch (type) {
+    case "error":
+      backgroundColor = "#EF4444"; // Rojo para error
+      className = "toast-error";
+      break;
+    case "warning":
+      backgroundColor = "#F59E0B"; // Amarillo para advertencia
+      className = "toast-warning";
+      break;
+    case "info":
+      backgroundColor = "#3B82F6"; // Azul para información
+      className = "toast-info";
+      break;
+    default:
+      backgroundColor = "#10B981"; // Verde por defecto
+  }
+
+  Toastify({
+    text: message,
+    duration: duration,
+    close: true,
+    gravity: "top", // `top` or `bottom`
+    position: "right", // `left`, `center` or `right`
+    stopOnFocus: true, // Prevents dismissing of toast on hover
+    className: className,
+    style: {
+      background: backgroundColor,
+      borderRadius: "0.5rem",
+      padding: "1rem",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+      fontWeight: "500",
+      fontSize: "0.875rem",
+      lineHeight: "1.25rem",
+    },
+    onClick: function () {}, // Callback after click
+  }).showToast();
+}
+
+// Hacer la función globalmente disponible
+window.showToast = showToast;

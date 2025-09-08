@@ -100,6 +100,7 @@ function eventsManager() {
         };
       } catch (error) {
         console.error("Error loading events:", error);
+        showToast("Error al cargar eventos", "error");
         this.errorMessage = error.message || "Error al cargar eventos";
       } finally {
         this.loading = false;
@@ -144,7 +145,6 @@ function eventsManager() {
         }
 
         const newEvent = await response.json();
-        console.log("Evento creado:", newEvent);
 
         // Cerrar modal y recargar lista
         this.closeModal();
@@ -159,11 +159,10 @@ function eventsManager() {
           })
         );
 
-        // Mostrar mensaje de éxito (opcional)
-        // Puedes usar una librería de notificaciones como Toastify
-        alert("Evento creado exitosamente");
+        showToast("Evento creado exitosamente", "success");
       } catch (error) {
         console.error("Error creating event:", error);
+        showToast("Error al crear evento", "error");
         this.errorMessage = error.message || "Error al crear evento";
       } finally {
         this.saving = false;
@@ -222,10 +221,10 @@ function eventsManager() {
           })
         );
 
-        // Mostrar mensaje de éxito
-        alert("Evento actualizado exitosamente");
+        showToast("Evento actualizado exitosamente", "success");
       } catch (error) {
         console.error("Error updating event:", error);
+        showToast("Error al actualizar evento", "error");
         this.errorMessage = error.message || "Error al actualizar evento";
       } finally {
         this.saving = false;
@@ -275,10 +274,10 @@ function eventsManager() {
           })
         );
 
-        // Mostrar mensaje de éxito
-        alert("Evento eliminado exitosamente");
+        showToast("Evento eliminado exitosamente", "success");
       } catch (error) {
         console.error("Error deleting event:", error);
+        showToast("Error al eliminar evento", "error");
         this.errorMessage = error.message || "Error al eliminar evento";
       } finally {
         this.deleting = false;

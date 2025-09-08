@@ -114,6 +114,7 @@ function activitiesManager() {
         };
       } catch (error) {
         console.error("Error loading activities:", error);
+        showToast("Error al cargar actividades", "error");
         this.errorMessage = error.message || "Error al cargar actividades";
       } finally {
         this.loading = false;
@@ -145,6 +146,7 @@ function activitiesManager() {
         this.events = Array.isArray(data) ? data : data.events || [];
       } catch (error) {
         console.error("Error loading events:", error);
+        showToast("Error al cargar eventos", "error");
         this.errorMessage = error.message || "Error al cargar eventos";
       }
     },
@@ -169,10 +171,6 @@ function activitiesManager() {
     },
 
     updateDateLimits() {
-      /*console.log(
-        "Updating date limits for event_id:",
-        this.currentActivity.event_id
-      );*/
       this.minDate = "";
       this.maxDate = "";
 
@@ -262,10 +260,10 @@ function activitiesManager() {
           })
         );
 
-        // Mostrar mensaje de éxito
-        alert("Actividad creada exitosamente");
+        showToast("Actividad creada exitosamente", "success");
       } catch (error) {
         console.error("Error creating activity:", error);
+        showToast("Error al crear actividad", "error");
         this.errorMessage = error.message || "Error al crear actividad";
       } finally {
         this.saving = false;
@@ -341,10 +339,10 @@ function activitiesManager() {
           })
         );
 
-        // Mostrar mensaje de éxito
-        alert("Actividad actualizada exitosamente");
+        showToast("Actividad actualizada exitosamente", "success");
       } catch (error) {
         console.error("Error updating activity:", error);
+        showToast("Error al actualizar actividad", "error");
         this.errorMessage = error.message || "Error al actualizar actividad";
       } finally {
         this.saving = false;
@@ -397,10 +395,10 @@ function activitiesManager() {
           })
         );
 
-        // Mostrar mensaje de éxito
-        alert("Actividad eliminada exitosamente");
+        showToast("Actividad eliminada exitosamente", "success");
       } catch (error) {
         console.error("Error deleting activity:", error);
+        showToast("Error al eliminar actividad", "error");
         this.errorMessage = error.message || "Error al eliminar actividad";
       } finally {
         this.deleting = false;
