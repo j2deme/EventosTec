@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from app import db
 from datetime import datetime
 
@@ -33,4 +34,50 @@ class Event(db.Model):
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    @classmethod
+    def get_stats(cls, event_id):
+        """Obtiene estadísticas optimizadas para un evento."""
+        from app.models.activity import Activity
+        from app.models.registration import Registration
+        from app.models.attendance import Attendance
+        from app.models.student import Student
+
+        # Usar subconsultas para mejor rendimiento
+        total_activities = db.session.query(func.count(Activity.id)).filter(
+            Activity.event_id == event_id
+        ).scalar() or 0
+
+        total_registrations = db.session.query(func.count(Registration.id)).filter(
+            Registration.activity_id.in_(
+                db.session.query(Activity.id).filter(
+                    Activity.event_id == event_id)
+            )
+        ).scalar() or 0
+
+        total_attendances = db.session.query(func.count(Attendance.id)).filter(
+            Attendance.activity_id.in_(
+                db.session.query(Activity.id).filter(
+                    Activity.event_id == event_id)
+            ),
+            Attendance.status == 'Asistió'
+        ).scalar() or 0
+
+        total_students = db.session.query(func.count(func.distinct(Student.id))).filter(
+            Student.id.in_(
+                db.session.query(Registration.student_id).filter(
+                    Registration.activity_id.in_(
+                        db.session.query(Activity.id).filter(
+                            Activity.event_id == event_id)
+                    )
+                )
+            )
+        ).scalar() or 0
+
+        return {
+            'total_activities': total_activities,
+            'total_registrations': total_registrations,
+            'total_attendances': total_attendances,
+            'total_students': total_students
         }
