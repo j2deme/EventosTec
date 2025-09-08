@@ -211,6 +211,8 @@ function adminDashboard() {
           this.loadEvents(),
           this.loadActivities(),
           this.loadStats(), // Cargar stats solo una vez
+          this.loadUpcomingEvents(),
+          this.loadRecentActivities(),
         ]);
       } catch (error) {
         console.error("Error loading dashboard ", error);
@@ -315,6 +317,77 @@ function adminDashboard() {
         console.error("Error loading stats:", error);
         // Mantener stats simulados si falla
         // Opcional: mostrar mensaje de error al usuario
+      }
+    },
+
+    async loadUpcomingEvents() {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        // Obtener eventos futuros (próximos 30 días)
+        const response = await fetch("/api/events?sort=start_date:asc", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const events = Array.isArray(data) ? data : data.events || [];
+
+          // Filtrar eventos futuros
+          const now = new Date();
+          const next30Days = new Date();
+          next30Days.setDate(now.getDate() + 30);
+
+          this.upcomingEvents = events
+            .filter((event) => {
+              const eventStart = new Date(event.start_date);
+              return eventStart >= now && eventStart <= next30Days;
+            })
+            .slice(0, 5); // Limitar a 5 eventos
+        }
+      } catch (error) {
+        console.error("Error loading upcoming events:", error);
+      }
+    },
+
+    async loadRecentActivities() {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        // Obtener actividades recientes (últimos 7 días)
+        const response = await fetch(
+          "/api/activities?sort=created_at:desc&per_page=10",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const activities = Array.isArray(data) ? data : data.activities || [];
+
+          // Filtrar actividades recientes
+          const now = new Date();
+          const last7Days = new Date();
+          last7Days.setDate(now.getDate() - 7);
+
+          this.recentActivities = activities
+            .filter((activity) => {
+              const activityCreated = new Date(activity.created_at);
+              return activityCreated >= last7Days;
+            })
+            .slice(0, 5); // Limitar a 5 actividades
+        }
+      } catch (error) {
+        console.error("Error loading recent activities:", error);
       }
     },
 
