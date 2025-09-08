@@ -1,5 +1,3 @@
-console.log("Admin Dashboard JS loaded");
-
 // Función global para el dashboard
 function adminDashboard() {
   return {
@@ -60,8 +58,6 @@ function adminDashboard() {
 
     // Inicialización
     init() {
-      console.log("Initializing admin dashboard component...");
-
       // 1. Establecer la pestaña inicial PRIMERO
       this.setInitialTab();
 
@@ -78,50 +74,43 @@ function adminDashboard() {
     setupEventListeners() {
       // Escuchar cambios en el historial (botones atrás/adelante del navegador)
       window.addEventListener("popstate", (event) => {
-        console.log("Popstate event triggered");
+        this.handleLocationChange();
+      });
+
+      // Escuchar cambios en hash (cuando se hace clic en enlaces con hash)
+      window.addEventListener("hashchange", (event) => {
         this.handleLocationChange();
       });
     },
 
     setupDataUpdateListeners() {
-      const events = [
-        "event-created",
-        "event-updated",
-        "event-deleted",
-        "activity-created",
-        "activity-updated",
-        "activity-deleted",
-      ];
-      events.forEach((eventName) => {
-        window.addEventListener(eventName, (e) => {
-          console.log(`${eventName} detected, reloading stats...`);
-          this.loadStats();
-          // Recargar datos específicos si es necesario
-          if (eventName.includes("event")) this.loadEvents();
-          if (eventName.includes("activity")) this.loadActivities();
-        });
-      });
+      window.addEventListener("event-created", () => this.loadEvents());
+      window.addEventListener("event-updated", () => this.loadEvents());
+      window.addEventListener("event-deleted", () => this.loadEvents());
+      window.addEventListener("activity-created", () => this.loadActivities());
+      window.addEventListener("activity-updated", () => this.loadActivities());
+      window.addEventListener("activity-deleted", () => this.loadActivities());
     },
 
     handleLocationChange() {
       const tabFromUrl = this.getTabFromUrl();
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
-        console.log(`Setting active tab from URL: ${tabFromUrl}`);
         this.activeTab = tabFromUrl;
       } else {
         // Si no hay hash válido, usar el guardado o por defecto
         const savedTab = localStorage.getItem("adminActiveTab");
         if (savedTab && this.isValidTab(savedTab)) {
-          console.log(`Setting active tab from localStorage: ${savedTab}`);
           this.activeTab = savedTab;
           // Actualizar URL para reflejar el estado
           if (savedTab === "overview") {
             history.replaceState(null, "", window.location.pathname);
           } else {
-            window.location.hash = savedTab;
+            // Solo actualizar hash si es diferente
+            if (window.location.hash !== `#${savedTab}`) {
+              window.location.hash = savedTab;
+            }
           }
         } else {
-          console.log("Using default tab: overview");
           this.activeTab = "overview";
         }
       }
@@ -143,14 +132,12 @@ function adminDashboard() {
       const tabFromUrl = this.getTabFromUrl();
 
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
-        console.log(`Initial tab from URL: ${tabFromUrl}`);
         this.activeTab = tabFromUrl;
         return;
       }
 
       const savedTab = localStorage.getItem("adminActiveTab");
       if (savedTab && this.isValidTab(savedTab)) {
-        console.log(`Initial tab from localStorage: ${savedTab}`);
         this.activeTab = savedTab;
 
         // Actualizar URL para reflejar el estado guardado
@@ -168,7 +155,6 @@ function adminDashboard() {
         return;
       }
 
-      console.log("Using default initial tab: overview");
       this.activeTab = "overview";
       // Asegurar que el hash se limpie para overview
       if (window.location.hash) {
@@ -183,7 +169,6 @@ function adminDashboard() {
         return;
       }
 
-      console.log(`Changing to tab: ${tabId}`);
       const previousTab = this.activeTab;
       this.activeTab = tabId;
 
@@ -216,7 +201,6 @@ function adminDashboard() {
 
     // Métodos de inicialización
     async initDashboard() {
-      console.log("Initializing admin dashboard...");
       await this.loadDashboardData();
     },
 
@@ -240,6 +224,8 @@ function adminDashboard() {
     async loadEvents() {
       try {
         const token = localStorage.getItem("authToken");
+        if (!token) return;
+
         const response = await fetch("/api/events/", {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -261,6 +247,8 @@ function adminDashboard() {
     async loadActivities() {
       try {
         const token = localStorage.getItem("authToken");
+        if (!token) return;
+
         const response = await fetch("/api/activities/", {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -283,6 +271,7 @@ function adminDashboard() {
       // Cargar estadísticas reales desde la API
       try {
         const token = localStorage.getItem("authToken");
+        if (!token) return;
 
         // Ejemplo: cargar estadísticas generales
         const statsResponse = await fetch("/api/stats/", {
@@ -376,35 +365,6 @@ function adminDashboard() {
       }
     },
 
-    // Métodos de acción
-    openEventModal() {
-      alert("Abrir modal para crear/editar evento");
-    },
-
-    editEvent(eventId) {
-      alert(`Editar evento ${eventId}`);
-    },
-
-    deleteEvent(eventId) {
-      if (confirm(`¿Estás seguro de eliminar el evento ${eventId}?`)) {
-        alert(`Eliminar evento ${eventId}`);
-      }
-    },
-
-    openActivityModal() {
-      alert("Abrir modal para crear/editar actividad");
-    },
-
-    editActivity(activityId) {
-      alert(`Editar actividad ${activityId}`);
-    },
-
-    deleteActivity(activityId) {
-      if (confirm(`¿Estás seguro de eliminar la actividad ${activityId}?`)) {
-        alert(`Eliminar actividad ${activityId}`);
-      }
-    },
-
     logout() {
       if (confirm("¿Estás seguro de cerrar sesión?")) {
         localStorage.removeItem("authToken");
@@ -417,7 +377,3 @@ function adminDashboard() {
 
 // Hacer la función globalmente disponible
 window.adminDashboard = adminDashboard;
-
-if (typeof window.eventsManager === "undefined") {
-  window.eventsManager = eventsManager;
-}
