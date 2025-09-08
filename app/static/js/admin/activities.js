@@ -11,6 +11,9 @@ function activitiesManager() {
     deleting: false,
     errorMessage: "",
     dateValidationError: "",
+    minDate: "",
+    maxDate: "",
+    calculatedDuration: 0,
 
     // Paginación
     pagination: {
@@ -42,7 +45,7 @@ function activitiesManager() {
       description: "",
       start_datetime: "",
       end_datetime: "",
-      duration_hours: 1.0,
+      duration_hours: null,
       activity_type: "",
       location: "",
       modality: "",
@@ -149,6 +152,50 @@ function activitiesManager() {
       }
     },
 
+    updateCalculatedDuration() {
+      if (
+        this.currentActivity.start_datetime &&
+        this.currentActivity.end_datetime
+      ) {
+        const start = new Date(this.currentActivity.start_datetime);
+        const end = new Date(this.currentActivity.end_datetime);
+
+        if (!isNaN(start) && !isNaN(end) && start < end) {
+          const diffMs = end - start;
+          this.calculatedDuration = diffMs / (1000 * 60 * 60); // Convertir a horas
+        } else {
+          this.calculatedDuration = 0;
+        }
+      } else {
+        this.calculatedDuration = 0;
+      }
+    },
+
+    updateDateLimits() {
+      console.log(
+        "Updating date limits for event_id:",
+        this.currentActivity.event_id
+      );
+      this.minDate = "";
+      this.maxDate = "";
+
+      if (this.currentActivity.event_id) {
+        const selectedEvent = this.events.find(
+          (e) => String(e.id) === String(this.currentActivity.event_id)
+        );
+
+        if (selectedEvent) {
+          // Formatear las fechas del evento para los inputs datetime-local
+          this.minDate = this.formatDateTimeForInput(selectedEvent.start_date);
+          this.maxDate = this.formatDateTimeForInput(selectedEvent.end_date);
+          console.log("Date limits set:", {
+            min: this.minDate,
+            max: this.maxDate,
+          });
+        }
+      }
+    },
+
     // Crear actividad
     async createActivity() {
       this.saving = true;
@@ -168,7 +215,10 @@ function activitiesManager() {
           description: this.currentActivity.description,
           start_datetime: this.currentActivity.start_datetime,
           end_datetime: this.currentActivity.end_datetime,
-          duration_hours: parseFloat(this.currentActivity.duration_hours),
+          ...(this.currentActivity.duration_hours !== null &&
+            this.currentActivity.duration_hours !== "" && {
+              duration_hours: parseFloat(this.currentActivity.duration_hours),
+            }),
           activity_type: this.currentActivity.activity_type,
           location: this.currentActivity.location,
           modality: this.currentActivity.modality,
@@ -366,6 +416,7 @@ function activitiesManager() {
 
     // Abrir modal para crear
     openCreateModal() {
+      this.calculatedDuration = 0;
       this.editingActivity = false;
       this.currentActivity = {
         id: null,
@@ -382,6 +433,8 @@ function activitiesManager() {
         requirements: "",
         max_capacity: null,
       };
+      this.minDate = "";
+      this.maxDate = "";
       this.showModal = true;
     },
 
@@ -390,8 +443,10 @@ function activitiesManager() {
       this.editingActivity = true;
       // Copiar la actividad para evitar mutaciones directas
       this.currentActivity = { ...activity };
+      this.updateDateLimits();
       this.showModal = true;
       this.dateValidationError = "";
+      this.updateCalculatedDuration();
     },
 
     // Cerrar modal
@@ -413,6 +468,10 @@ function activitiesManager() {
         requirements: "",
         max_capacity: null,
       };
+      this.dateValidationError = "";
+      this.errorMessage = "";
+      this.minDate = "";
+      this.maxDate = "";
     },
 
     // Confirmar eliminación
@@ -449,7 +508,7 @@ function activitiesManager() {
 
       // Obtener el evento seleccionado
       const selectedEvent = this.events.find(
-        (e) => e.id === activityData.event_id
+        (e) => String(e.id) === String(activityData.event_id)
       );
       if (!selectedEvent) {
         this.dateValidationError = "Por favor seleccione un evento válido";
