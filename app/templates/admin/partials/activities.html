@@ -246,15 +246,15 @@
                                         <!-- Evento -->
                                         <div>
                                             <label for="event_id" class="block text-sm font-medium text-gray-700">Evento <span class="text-red-500">*</span></label>
-                                            <select id="event_id" 
+                                            <select id="event_id"
                                                     x-model="currentActivity.event_id"
-                                                    @change="validateActivityDates(currentActivity)"
+                                                    @change="updateDateLimits(); validateActivityDates(currentActivity)"
                                                     required
                                                     class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
-                                                <option value="">Seleccionar evento</option>
-                                                <template x-for="event in events" :key="event.id">
-                                                    <option :value="event.id" x-text="event.name"></option>
-                                                </template>
+                                            <option value="">Seleccionar evento</option>
+                                            <template x-for="event in events" :key="event.id">
+                                                <option :value="event.id" x-text="event.name"></option>
+                                            </template>
                                             </select>
                                         </div>
 
@@ -262,29 +262,29 @@
                                         <div>
                                             <label for="department" class="block text-sm font-medium text-gray-700">Departamento <span class="text-red-500">*</span></label>
                                             <input type="text" 
-                                                   id="department" 
-                                                   x-model="currentActivity.department"
-                                                   required
-                                                   class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
+                                                id="department" 
+                                                x-model="currentActivity.department"
+                                                required
+                                                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
                                         </div>
 
                                         <!-- Nombre -->
                                         <div>
                                             <label for="name" class="block text-sm font-medium text-gray-700">Nombre <span class="text-red-500">*</span></label>
                                             <input type="text" 
-                                                   id="name" 
-                                                   x-model="currentActivity.name"
-                                                   required
-                                                   class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
+                                                id="name" 
+                                                x-model="currentActivity.name"
+                                                required
+                                                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
                                         </div>
 
                                         <!-- Descripción -->
                                         <div>
                                             <label for="description" class="block text-sm font-medium text-gray-700">Descripción</label>
                                             <textarea id="description" 
-                                                      x-model="currentActivity.description"
-                                                      rows="3"
-                                                      class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"></textarea>
+                                                x-model="currentActivity.description"
+                                                rows="3"
+                                                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"></textarea>
                                         </div>
 
                                         <!-- Fechas -->
@@ -294,7 +294,9 @@
                                                 <input type="datetime-local" 
                                                     id="start_datetime" 
                                                     x-model="currentActivity.start_datetime"
-                                                    @change="validateActivityDates(currentActivity)"
+                                                    :min="minDate"
+                                                    :max="maxDate"
+                                                    @change="updateCalculatedDuration(); validateActivityDates(currentActivity)"
                                                     required
                                                     class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
                                             </div>
@@ -303,7 +305,9 @@
                                                 <input type="datetime-local" 
                                                     id="end_datetime" 
                                                     x-model="currentActivity.end_datetime"
-                                                    @change="validateActivityDates(currentActivity)"
+                                                    :min="minDate"
+                                                    :max="maxDate"
+                                                    @change="updateCalculatedDuration(); validateActivityDates(currentActivity)"
                                                     required
                                                     class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
                                             </div>
@@ -313,6 +317,29 @@
                                             class="text-red-600 text-sm bg-red-50 p-3 rounded-lg flex items-center">
                                             <i class="ti ti-alert-circle mr-2"></i>
                                             <span x-text="dateValidationError"></span>
+                                        </div>
+
+                                        <div x-show="calculatedDuration != 0" class="bg-blue-50 p-3 rounded-md">
+                                        <p class="text-sm text-blue-700">
+                                            Duración calculada: <span x-text="calculatedDuration.toFixed(1)"></span> horas
+                                        </p>
+                                        </div>
+
+                                        <!-- Duración en Horas -->
+                                        <div>
+                                        <label for="duration_hours" class="block text-sm font-medium text-gray-700">
+                                            Duración en horas
+                                        </label>
+                                        <input type="number"
+                                                id="duration_hours"
+                                                x-model="currentActivity.duration_hours"
+                                                min="1"
+                                                step="1"
+                                                placeholder="Dejar en blanco para usar la calculada"
+                                                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2">
+                                        <p class="mt-1 text-xs text-gray-500">
+                                            Puedes especificar una duración menor a la calculada, pero no mayor.
+                                        </p>
                                         </div>
 
                                         <!-- Tipo y Modalidad -->
@@ -349,19 +376,19 @@
                                         <div>
                                             <label for="location" class="block text-sm font-medium text-gray-700">Ubicación</label>
                                             <input type="text" 
-                                                   id="location" 
-                                                   x-model="currentActivity.location"
-                                                   class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
+                                                id="location" 
+                                                x-model="currentActivity.location"
+                                                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
                                         </div>
 
                                         <!-- Cupo (solo para Conferencias, Talleres, Cursos) -->
                                         <div x-show="currentActivity.activity_type === 'Conferencia' || currentActivity.activity_type === 'Taller' || currentActivity.activity_type === 'Curso'">
                                             <label for="max_capacity" class="block text-sm font-medium text-gray-700">Cupo Máximo</label>
                                             <input type="number" 
-                                                   id="max_capacity" 
-                                                   x-model.number="currentActivity.max_capacity"
-                                                   min="0"
-                                                   class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
+                                                id="max_capacity" 
+                                                x-model.number="currentActivity.max_capacity"
+                                                min="0"
+                                                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
                                         </div>
                                     </div>
                                 </form>
