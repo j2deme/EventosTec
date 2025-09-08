@@ -1,5 +1,3 @@
-console.log("Events Manager JS loaded");
-
 function eventsManager() {
   return {
     // Estado
@@ -42,7 +40,6 @@ function eventsManager() {
 
     // Inicialización
     init() {
-      console.log("Initializing events manager...");
       this.showModal = false;
       this.showDeleteModal = false;
       this.eventToDelete = null;
@@ -211,7 +208,6 @@ function eventsManager() {
         }
 
         const updatedEvent = await response.json();
-        console.log("Evento actualizado:", updatedEvent);
 
         // Cerrar modal y recargar lista
         this.closeModal();
@@ -264,8 +260,6 @@ function eventsManager() {
               `Error al eliminar evento: ${response.status} ${response.statusText}`
           );
         }
-
-        console.log("Evento eliminado:", this.eventToDelete.id);
 
         // Cerrar modal y recargar lista
         this.showDeleteModal = false;

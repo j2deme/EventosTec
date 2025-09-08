@@ -1,5 +1,3 @@
-console.log("App JS loaded");
-
 // Función para obtener token de autenticación
 function getAuthToken() {
   return localStorage.getItem("authToken");

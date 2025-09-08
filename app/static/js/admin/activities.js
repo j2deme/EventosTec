@@ -1,6 +1,4 @@
 // app/static/js/admin/activities.js
-console.log("Activities Manager JS loaded");
-
 function activitiesManager() {
   return {
     // Estado
@@ -56,7 +54,6 @@ function activitiesManager() {
 
     // Inicialización
     init() {
-      console.log("Initializing activities manager...");
       this.loadEvents(); // Cargar eventos para el selector
       this.loadActivities();
     },
@@ -172,10 +169,10 @@ function activitiesManager() {
     },
 
     updateDateLimits() {
-      console.log(
+      /*console.log(
         "Updating date limits for event_id:",
         this.currentActivity.event_id
-      );
+      );*/
       this.minDate = "";
       this.maxDate = "";
 
@@ -251,7 +248,6 @@ function activitiesManager() {
         }
 
         const newActivity = await response.json();
-        console.log("Actividad creada:", newActivity);
 
         // Cerrar modal y recargar lista
         this.closeModal();
@@ -331,7 +327,6 @@ function activitiesManager() {
         }
 
         const updatedActivity = await response.json();
-        console.log("Actividad actualizada:", updatedActivity);
 
         // Cerrar modal y recargar lista
         this.closeModal();
@@ -387,8 +382,6 @@ function activitiesManager() {
         }
 
         deletedId = this.activityToDelete.id;
-
-        console.log("Actividad eliminada:", this.activityToDelete.id);
 
         // Cerrar modal y recargar lista
         this.showDeleteModal = false;
