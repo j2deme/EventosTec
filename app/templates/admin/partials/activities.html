@@ -248,8 +248,9 @@
                                             <label for="event_id" class="block text-sm font-medium text-gray-700">Evento <span class="text-red-500">*</span></label>
                                             <select id="event_id" 
                                                     x-model="currentActivity.event_id"
+                                                    @change="validateActivityDates(currentActivity)"
                                                     required
-                                                    class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
+                                                    class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
                                                 <option value="">Seleccionar evento</option>
                                                 <template x-for="event in events" :key="event.id">
                                                     <option :value="event.id" x-text="event.name"></option>
@@ -289,21 +290,29 @@
                                         <!-- Fechas -->
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
-                                                <label for="start_datetime" class="block text-sm font-medium text-gray-700">Fecha de Inicio *</label>
+                                                <label for="start_datetime" class="block text-sm font-medium text-gray-700">Fecha/Hora de Inicio <span class="text-red-500">*</span></label>
                                                 <input type="datetime-local" 
-                                                       id="start_datetime" 
-                                                       x-model="currentActivity.start_datetime"
-                                                       required
-                                                       class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
+                                                    id="start_datetime" 
+                                                    x-model="currentActivity.start_datetime"
+                                                    @change="validateActivityDates(currentActivity)"
+                                                    required
+                                                    class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
                                             </div>
                                             <div>
-                                                <label for="end_datetime" class="block text-sm font-medium text-gray-700">Fecha de Fin *</label>
+                                                <label for="end_datetime" class="block text-sm font-medium text-gray-700">Fecha/Hora de Fin <span class="text-red-500">*</span></label>
                                                 <input type="datetime-local" 
-                                                       id="end_datetime" 
-                                                       x-model="currentActivity.end_datetime"
-                                                       required
-                                                       class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
+                                                    id="end_datetime" 
+                                                    x-model="currentActivity.end_datetime"
+                                                    @change="validateActivityDates(currentActivity)"
+                                                    required
+                                                    class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
                                             </div>
+                                        </div>
+
+                                        <div x-show="dateValidationError" 
+                                            class="text-red-600 text-sm bg-red-50 p-3 rounded-lg flex items-center">
+                                            <i class="ti ti-alert-circle mr-2"></i>
+                                            <span x-text="dateValidationError"></span>
                                         </div>
 
                                         <!-- Tipo y Modalidad -->

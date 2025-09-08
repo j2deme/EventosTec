@@ -10,6 +10,7 @@ function activitiesManager() {
     saving: false,
     deleting: false,
     errorMessage: "",
+    dateValidationError: "",
 
     // Paginación
     pagination: {
@@ -177,6 +178,11 @@ function activitiesManager() {
             : null,
         };
 
+        const validationError = this.validateActivityDates(activityData);
+        if (validationError) {
+          throw new Error(validationError);
+        }
+
         const response = await fetch("/api/activities/", {
           method: "POST",
           headers: {
@@ -248,6 +254,11 @@ function activitiesManager() {
             ? parseInt(this.currentActivity.max_capacity)
             : null,
         };
+
+        const validationError = this.validateActivityDates(activityData);
+        if (validationError) {
+          throw new Error(validationError);
+        }
 
         const response = await fetch(
           `/api/activities/${this.currentActivity.id}`,
@@ -380,6 +391,7 @@ function activitiesManager() {
       // Copiar la actividad para evitar mutaciones directas
       this.currentActivity = { ...activity };
       this.showModal = true;
+      this.dateValidationError = "";
     },
 
     // Cerrar modal
@@ -430,6 +442,49 @@ function activitiesManager() {
       // Aquí podrías abrir un modal con más detalles
       // o redirigir a una página de detalle
       alert(`Ver detalles de la actividad: ${activity.name}`);
+    },
+
+    validateActivityDates(activityData) {
+      this.dateValidationError = ""; // Limpiar error anterior
+
+      // Obtener el evento seleccionado
+      const selectedEvent = this.events.find(
+        (e) => e.id === activityData.event_id
+      );
+      if (!selectedEvent) {
+        this.dateValidationError = "Por favor seleccione un evento válido";
+        return this.dateValidationError;
+      }
+
+      // Convertir fechas a objetos Date
+      const activityStart = new Date(activityData.start_datetime);
+      const activityEnd = new Date(activityData.end_datetime);
+      const eventStart = new Date(selectedEvent.start_date);
+      const eventEnd = new Date(selectedEvent.end_date);
+
+      // Validar que las fechas de la actividad estén dentro del rango del evento
+      if (activityStart < eventStart) {
+        this.dateValidationError = `La fecha de inicio de la actividad no puede ser anterior a la fecha de inicio del evento (${this.formatDateTime(
+          eventStart
+        )})`;
+        return this.dateValidationError;
+      }
+
+      if (activityEnd > eventEnd) {
+        this.dateValidationError = `La fecha de fin de la actividad no puede ser posterior a la fecha de fin del evento (${this.formatDateTime(
+          eventEnd
+        )})`;
+        return this.dateValidationError;
+      }
+
+      // Validar que la fecha de inicio sea anterior a la fecha de fin
+      if (activityStart >= activityEnd) {
+        this.dateValidationError =
+          "La fecha de inicio debe ser anterior a la fecha de fin";
+        return this.dateValidationError;
+      }
+
+      return null; // Sin errores
     },
 
     // Formatear fecha para input datetime-local

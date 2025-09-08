@@ -1,9 +1,12 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
+from marshmallow import ValidationError
 from app import db
 from app.schemas import activity_schema, activities_schema
 from app.models.activity import Activity
 from app.models.event import Event
+from app.services import activity_service
+from app.services.activity_service import create_activity, update_activity, validate_activity_dates
 from app.utils.auth_helpers import require_admin
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/api/activities')
@@ -80,15 +83,15 @@ def create_activity():
             return jsonify({'message': 'Evento no encontrado'}), 404
 
         # Crear actividad
-        activity = Activity(**data)
-        db.session.add(activity)
-        db.session.commit()
+        activity = create_activity(data)
 
         return jsonify({
             'message': 'Actividad creada exitosamente',
             'activity': activity_schema.dump(activity)
         }), 201
 
+    except ValidationError as err:
+        return jsonify({'message': 'Error de validación', 'errors': err.messages}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error al crear actividad', 'error': str(e)}), 400
@@ -123,17 +126,15 @@ def update_activity(activity_id):
         # Validar datos de entrada
         data = activity_schema.load(request.get_json(), partial=True)
 
-        # Actualizar campos
-        for key, value in data.items():
-            setattr(activity, key, value)
-
-        db.session.commit()
+        activity = activity_service.update_activity(activity_id, data)
 
         return jsonify({
             'message': 'Actividad actualizada exitosamente',
             'activity': activity_schema.dump(activity)
         }), 200
 
+    except ValidationError as err:
+        return jsonify({'message': 'Error de validación', 'errors': err.messages}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error al actualizar actividad', 'error': str(e)}), 400
