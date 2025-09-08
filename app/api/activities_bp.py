@@ -6,10 +6,39 @@ from app.schemas import activity_schema, activities_schema
 from app.models.activity import Activity
 from app.models.event import Event
 from app.services import activity_service
-from app.services.activity_service import create_activity, update_activity, validate_activity_dates
 from app.utils.auth_helpers import require_admin
+from datetime import datetime, timezone
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/api/activities')
+
+
+def parse_datetime_with_timezone(dt_string):
+    """Parsea una cadena de fecha y asegura que tenga zona horaria."""
+    if isinstance(dt_string, str):
+        # Intentar parsear con diferentes formatos
+        try:
+            # Formato ISO con zona horaria
+            dt = datetime.fromisoformat(dt_string)
+        except ValueError:
+            try:
+                # Formato alternativo
+                dt = datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                raise ValidationError(
+                    f"Formato de fecha inválido: {dt_string}")
+
+        # Si no tiene zona horaria, asignar UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        return dt
+    elif isinstance(dt_string, datetime):
+        # Si ya es datetime, asegurar zona horaria
+        if dt_string.tzinfo is None:
+            return dt_string.replace(tzinfo=timezone.utc)
+        return dt_string
+    else:
+        return dt_string
 
 # Listar actividades
 
@@ -77,13 +106,20 @@ def create_activity():
         # Validar datos de entrada
         data = activity_schema.load(request.get_json())
 
+        if 'start_datetime' in data:
+            data['start_datetime'] = parse_datetime_with_timezone(
+                data['start_datetime'])
+        if 'end_datetime' in data:
+            data['end_datetime'] = parse_datetime_with_timezone(
+                data['end_datetime'])
+
         # Verificar que el evento exista
         event = db.session.get(Event, data['event_id'])
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
         # Crear actividad
-        activity = create_activity(data)
+        activity = activity_service.create_activity(data)
 
         return jsonify({
             'message': 'Actividad creada exitosamente',
@@ -125,6 +161,14 @@ def update_activity(activity_id):
 
         # Validar datos de entrada
         data = activity_schema.load(request.get_json(), partial=True)
+
+        # Parsear fechas con zona horaria si se proporcionan
+        if 'start_datetime' in data:
+            data['start_datetime'] = parse_datetime_with_timezone(
+                data['start_datetime'])
+        if 'end_datetime' in data:
+            data['end_datetime'] = parse_datetime_with_timezone(
+                data['end_datetime'])
 
         activity = activity_service.update_activity(activity_id, data)
 
