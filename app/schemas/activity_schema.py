@@ -43,10 +43,39 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
 
     @validates_schema
     def validate_dates(self, data, **kwargs):
-        if 'start_datetime' in data and 'end_datetime' in data:
-            if data['start_datetime'] > data['end_datetime']:
-                raise ValidationError(
-                    'La fecha de inicio debe ser anterior a la fecha de fin.')
+        start = data.get('start_datetime')
+        end = data.get('end_datetime')
+
+        if start and end and start > end:
+            raise ValidationError(
+                'La fecha de inicio debe ser anterior a la fecha de fin.')
+
+    @validates_schema
+    def validate_duration(self, data, **kwargs):
+        # No validar durante la deserialización de objetos existentes (carga desde DB)
+        if not self.context.get('is_load', False):
+            start = data.get('start_datetime')
+            end = data.get('end_datetime')
+            duration = data.get('duration_hours')
+
+            # Si se proporcionan fechas y duración, validar la coherencia
+            if start and end and duration is not None:
+                calculated_duration = (end - start).total_seconds() / 3600
+                # Validar que la duración proporcionada sea mayor a 0 y menor o igual a la calculada
+                if duration <= 0:
+                    raise ValidationError(
+                        'La duración proporcionada debe ser mayor a 0 horas.'
+                    )
+                if duration > calculated_duration:
+                    raise ValidationError(
+                        f'La duración proporcionada ({duration} horas) no puede ser mayor que la calculada a partir de las fechas ({calculated_duration:.2f} horas).'
+                    )
+
+            # Si se proporcionan fechas pero no duración, calcularla automáticamente
+            elif start and end and duration is None:
+                calculated_duration = (end - start).total_seconds() / 3600
+                data['duration_hours'] = round(
+                    calculated_duration, 2)  # Redondear a 2 decimales
 
 
 activity_schema = ActivitySchema()
