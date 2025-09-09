@@ -26,59 +26,9 @@ function studentDashboard() {
     // Inicialización
     init() {
       console.log("Initializing student dashboard...");
-      if (!this.checkAuthAndLoadProfile()) {
-        return;
-      }
       this.setInitialTab();
       this.setupEventListeners();
-    },
-
-    async checkAuthAndLoadProfile() {
-      const token = localStorage.getItem("authToken");
-      const userType = localStorage.getItem("userType");
-
-      // Verificación básica
-      if (!token || userType !== "student") {
-        console.log("No autenticado como estudiante, redirigiendo al login");
-        showToast("Por favor inicia sesión como estudiante", "error");
-        this.redirectToLogin();
-        return false;
-      }
-
-      try {
-        // Verificar el token contra el endpoint protegido
-        const response = await fetch("/api/auth/profile?type=student", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          console.log("Token inválido, redirigiendo al login");
-          this.redirectToLogin();
-          return false;
-        }
-
-        const data = await response.json();
-
-        // Verificar que sea realmente un estudiante
-        if (!data.student) {
-          console.log("El perfil no es de estudiante, redirigiendo al login");
-          showToast("Acceso denegado", "error");
-          this.redirectToLogin();
-          return false;
-        }
-
-        // Cargar los datos del perfil
-        this.loadStudentProfile();
-        // console.log("Autenticación verificada exitosamente");
-        return true;
-      } catch (error) {
-        console.error("Error verificando autenticación:", error);
-        this.redirectToLogin();
-        return false;
-      }
+      this.loadStudentProfile();
     },
 
     setupEventListeners() {
@@ -182,7 +132,7 @@ function studentDashboard() {
 
       // Actualizar URL
       try {
-        if (tabFromUrl === "overview") {
+        if (tabId === "overview") {
           // Para la pestaña por defecto, limpiar el hash
           if (window.location.hash) {
             history.pushState(null, "", window.location.pathname);
@@ -198,12 +148,11 @@ function studentDashboard() {
       }
     },
 
+    // Cargar perfil del estudiante
     async loadStudentProfile() {
       try {
         const token = localStorage.getItem("authToken");
-
         if (!token) {
-          console.log("❌ No hay token, redirigiendo al login");
           this.redirectToLogin();
           return;
         }
@@ -214,43 +163,34 @@ function studentDashboard() {
 
         if (response.ok) {
           const data = await response.json();
-          //console.log("Datos de perfil completos:", data);
+          console.log("Profile ", data); // Para debugging
 
           if (data.student) {
             this.studentName = data.student.full_name || "Estudiante";
             this.studentControlNumber = data.student.control_number || "";
             this.studentCareer = data.student.career || "";
             this.studentEmail = data.student.email || "";
-            // Guardar en localStorage para uso rápido
+
+            // Guardar en localStorage para acceso rápido
             localStorage.setItem(
               "studentProfile",
               JSON.stringify(data.student)
             );
-          } else if (data.user) {
-            //console.log(
-            //  "❌ Datos de ADMINISTRADOR encontrados - discrepancia de tipo"
-            //);
-            showToast(
-              "Acceso denegado: Se requiere cuenta de estudiante",
-              "error"
-            );
-            this.redirectToLogin();
           } else {
-            // console.log("❌ Tipo de perfil desconocido");
-            showToast("Datos de perfil inválidos", "error");
+            // Si no es estudiante, redirigir al login
             this.redirectToLogin();
           }
         } else {
-          console.error("❌ Error en respuesta, status:", response.status);
+          // Si hay error de autenticación, redirigir al login
           if (response.status === 401) {
-            console.error("🔒 Error 401, redirigiendo al login");
             this.redirectToLogin();
+          } else {
+            showToast("Error al cargar el perfil del estudiante", "error");
           }
         }
       } catch (error) {
-        console.error("💥 Error loading student profile:", error);
-        showToast("Error al cargar el perfil del estudiante", "error");
-        // No redirigir inmediatamente por error de red, permitir reintentar
+        console.error("Error loading student profile:", error);
+        showToast("Error de conexión al cargar el perfil", "error");
       }
     },
 
@@ -258,6 +198,7 @@ function studentDashboard() {
     redirectToLogin() {
       localStorage.removeItem("authToken");
       localStorage.removeItem("userType");
+      localStorage.removeItem("studentProfile");
       window.location.href = "/";
     },
 
@@ -266,6 +207,7 @@ function studentDashboard() {
       if (confirm("¿Estás seguro de cerrar sesión?")) {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userType");
+        localStorage.removeItem("studentProfile");
         window.location.href = "/";
       }
     },
@@ -285,45 +227,3 @@ function studentDashboard() {
 
 // Hacer la función globalmente disponible
 window.studentDashboard = studentDashboard;
-
-// Componente para el contenido principal
-function studentDashboardContent() {
-  return {
-    activeTab: "overview",
-
-    init() {
-      // Sincronizar con el estado del dashboard principal
-      const dashboard = document.querySelector('[x-data*="studentDashboard"]');
-      if (dashboard && dashboard.__x) {
-        this.activeTab = dashboard.__x.getUnobservedData().activeTab;
-      }
-
-      // Escuchar cambios en la pestaña activa
-      window.addEventListener("hashchange", () => {
-        const dashboard = document.querySelector(
-          '[x-data*="studentDashboard"]'
-        );
-        if (dashboard && dashboard.__x) {
-          this.activeTab = dashboard.__x.getUnobservedData().activeTab;
-        }
-      });
-    },
-
-    getPageTitle() {
-      const titles = {
-        overview: "Resumen",
-        events: "Eventos Disponibles",
-        registrations: "Mis Preregistros",
-        profile: "Mi Perfil",
-      };
-      const dashboard = document.querySelector('[x-data*="studentDashboard"]');
-      if (dashboard && dashboard.__x) {
-        const activeTab = dashboard.__x.getUnobservedData().activeTab;
-        return titles[activeTab] || "Eventos Tec";
-      }
-      return "Eventos Tec";
-    },
-  };
-}
-
-window.studentDashboardContent = studentDashboardContent;

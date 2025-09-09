@@ -4,7 +4,7 @@
 {% block title %}{% block student_title %}Estudiante - Eventos Tec{% endblock %}{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50" x-data="studentDashboard()" x-init="init()">
+<div class="min-h-screen bg-gray-50" x-data="studentDashboard()">
   <!-- Header Desktop -->
   <header class="bg-white shadow hidden md:block">
     <div class="px-4 py-4 flex justify-between items-center">
@@ -205,7 +205,7 @@
     </div>
 
     <!-- Main Content -->
-    <main class="md:pl-64 flex-1 p-4 md:p-6 overflow-y-auto">
+    <main class="md:pl-72 flex-1 p-4 md:p-6 overflow-y-auto">
       {% block student_content %}{% endblock %}
     </main>
   </div>
