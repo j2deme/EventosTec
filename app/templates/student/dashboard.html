@@ -1,0 +1,39 @@
+<!-- templates/student/dashboard.html -->
+{% extends "student/base.html" %}
+
+{% block student_title %}Dashboard - Panel de Estudiante{% endblock %}
+{% block mobile_title %}Dashboard{% endblock %}
+
+{% block student_content %}
+<div x-data="studentDashboardContent()">
+  <!-- Page title -->
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900 desktop-title" x-text="getPageTitle()"></h1>
+  </div>
+
+  <!-- Content area -->
+  <div id="student-main-content">
+    <!-- Default content - overview -->
+    <div x-show="activeTab === 'overview'">
+      {% include 'student/partials/overview.html' %}
+    </div>
+    
+    <div x-show="activeTab === 'events'">
+      {% include 'student/partials/events.html' %}
+    </div>
+    
+    <div x-show="activeTab === 'registrations'">
+      {% include 'student/partials/registrations.html' %}
+    </div>
+    
+    <div x-show="activeTab === 'profile'">
+      {% include 'student/partials/profile.html' %}
+    </div>
+  </div>
+</div>
+
+<!--<script src="{{ url_for('static', filename='js/student/overview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/student/events.js') }}"></script>
+<script src="{{ url_for('static', filename='js/student/registrations.js') }}"></script>
+<script src="{{ url_for('static', filename='js/student/profile.js') }}"></script>-->
+{% endblock %}
