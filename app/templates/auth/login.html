@@ -97,7 +97,7 @@
 <script>
 function login() {
     return {
-        userType: 'admin', // Por defecto admin para pruebas
+        userType: 'student',
         credentials: {
             username: '',
             password: ''
@@ -141,6 +141,8 @@ function login() {
                     // Guardar token en localStorage
                     localStorage.setItem('authToken', data.access_token);
                     localStorage.setItem('userType', this.userType);
+
+                    showToast('Inicio de sesión exitoso', 'success');
                     
                     // Redirigir según tipo de usuario
                     if (this.userType === 'student') {
@@ -150,13 +152,20 @@ function login() {
                     }
                 } else {
                     this.errorMessage = data.message || 'Error en el inicio de sesión';
+                    showToast(this.errorMessage, 'error');
                 }
             } catch (error) {
-                this.errorMessage = 'Error de conexión. Por favor intenta de nuevo.';
                 console.error('Error:', error);
+                this.errorMessage = 'Error de conexión. Por favor intenta de nuevo.';
+                showToast(this.errorMessage, 'error');
             } finally {
                 this.isLoading = false;
             }
+        },
+        resetForm() {
+            this.credentials.username = '';
+            this.credentials.password = '';
+            this.errorMessage = '';
         }
     }
 }
