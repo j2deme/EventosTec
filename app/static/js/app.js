@@ -1,9 +1,12 @@
+// static/js/app.js
+console.log("App JS loaded");
+
 // Función para obtener token de autenticación
 function getAuthToken() {
   return localStorage.getItem("authToken");
 }
 
-// Función para verificar si el usuario está autenticado
+// Función para verificar si el usuario está autenticado (versión completa con verificación de expiración)
 function isAuthenticated() {
   const token = getAuthToken();
   if (!token) return false;
@@ -11,21 +14,131 @@ function isAuthenticated() {
   // Verificar si el token ha expirado
   try {
     const payload = JSON.parse(atob(token.split(".")[1]));
-    return payload.exp > Date.now() / 1000;
+    const isExpired = payload.exp <= Date.now() / 1000;
+    if (isExpired) {
+      // Si el token expiró, limpiar localStorage
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("userType");
+      return false;
+    }
+    return true;
   } catch (e) {
+    // Si hay error al parsear, el token es inválido
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userType");
     return false;
   }
 }
 
 // Función para hacer logout
 function logout() {
-  localStorage.removeItem("authToken");
-  localStorage.removeItem("userType");
-  window.location.href = "/";
+  if (confirm("¿Estás seguro de cerrar sesión?")) {
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userType");
+    localStorage.removeItem("studentProfile");
+    localStorage.removeItem("adminActiveTab");
+    localStorage.removeItem("studentActiveTab");
+    window.location.href = "/";
+  }
 }
+
+// Hacer logout globalmente disponible
+window.logout = logout;
+
+// Función para obtener headers con autorización
+function getAuthHeaders(additionalHeaders = {}) {
+  const token = getAuthToken();
+  const baseHeaders = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    return {
+      ...baseHeaders,
+      ...additionalHeaders,
+      Authorization: `Bearer ${token}`,
+    };
+  }
+
+  return {
+    ...baseHeaders,
+    ...additionalHeaders,
+  };
+}
+
+// Hacer getAuthHeaders globalmente disponible
+window.getAuthHeaders = getAuthHeaders;
+
+// Función para obtener el tipo de usuario
+function getUserType() {
+  return localStorage.getItem("userType") || "student";
+}
+
+// Hacer getUserType globalmente disponible
+window.getUserType = getUserType;
 
 // Función para verificar autenticación en rutas protegidas
 function checkAuth() {
+  if (!isAuthenticated()) {
+    // Solo redirigir si no estamos ya en la página de login
+    if (window.location.pathname !== "/") {
+      window.location.href = "/";
+    }
+    return false;
+  }
+  return true;
+}
+
+// ✨ INTERCEPTOR GLOBAL DE FETCH - Corregido y mejorado
+(function setupFetchInterceptor() {
+  // Guardar referencia al fetch original de forma segura
+  const _fetch = window.fetch;
+
+  // Reemplazar fetch con una versión que agrega el token automáticamente
+  window.fetch = function (input, init = {}) {
+    const token = getAuthToken();
+
+    // Si hay token, agregarlo a los headers
+    if (token) {
+      init.headers = {
+        ...init.headers,
+        Authorization: `Bearer ${token}`,
+      };
+    }
+
+    // Asegurar Content-Type si no existe y hay cuerpo
+    if (init.body && !init.headers["Content-Type"]) {
+      init.headers = {
+        ...init.headers,
+        "Content-Type": "application/json",
+      };
+    }
+
+    // console.log("Fetch interceptado:", input, init); // Para debugging
+
+    // Continuar con la solicitud original
+    return _fetch(input, init);
+  };
+
+  //console.log("Interceptor de fetch instalado correctamente");
+})();
+
+// Verificación de autenticación en rutas protegidas
+(function checkProtectedRoutes() {
+  document.addEventListener("DOMContentLoaded", () => {
+    // Verificar autenticación en páginas protegidas
+    const protectedRoutes = ["/dashboard/"];
+    const currentPath = window.location.pathname;
+
+    if (protectedRoutes.some((route) => currentPath.startsWith(route))) {
+      if (!isAuthenticated()) {
+        window.location.href = "/";
+      }
+    }
+  });
+})();
+
+function checkAuthAndRedirect() {
   if (!isAuthenticated()) {
     window.location.href = "/";
     return false;
@@ -33,53 +146,44 @@ function checkAuth() {
   return true;
 }
 
-// Interceptores para agregar token a las solicitudes
-window.addEventListener("DOMContentLoaded", () => {
-  // Verificar autenticación en páginas protegidas
-  const protectedRoutes = ["/dashboard/"];
-  const currentPath = window.location.pathname;
-
-  if (protectedRoutes.some((route) => currentPath.startsWith(route))) {
-    checkAuth();
-  }
-});
-
-dayjs.locale("es");
-
-// Función para formatear fechas
-function formatDate(dateString) {
-  if (!dateString) return "Sin fecha";
-  // Day.js puede parsear muchos formatos de fecha
-  return dayjs(dateString).format("D [de] MMMM [de] YYYY [a las] H:mm");
-  // Ejemplo de salida: "15 de octubre de 2024 a las 14:30"
-}
-
-// O con hora más corta
-function formatShortDate(dateString) {
-  if (!dateString) return "Sin fecha";
-  return dayjs(dateString).format("DD/MM/YYYY HH:mm");
-  // Ejemplo de salida: "15/10/2024 14:30"
-}
-
-// O solo fecha
-function formatOnlyDate(dateString) {
-  if (!dateString) return "Sin fecha";
-  return dayjs(dateString).format("D [de] MMMM [de] YYYY");
-  // Ejemplo de salida: "15 de octubre de 2024"
-}
-
-function logout() {
-  if (confirm("¿Estás seguro de cerrar sesión?")) {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userType");
-    window.location.href = "/";
-  }
-}
-
 // Hacerla globalmente disponible
-window.logout = logout;
+window.checkAuthAndRedirect = checkAuthAndRedirect;
 
+// Funciones para formatear fechas con dayjs
+// Asegúrate de que dayjs esté cargado antes de usar estas funciones
+if (typeof dayjs !== "undefined") {
+  dayjs.locale("es");
+
+  function formatDate(dateString) {
+    if (!dateString) return "Sin fecha";
+    return dayjs(dateString).format("D [de] MMMM [de] YYYY [a las] H:mm");
+  }
+
+  function formatShortDate(dateString) {
+    if (!dateString) return "Sin fecha";
+    return dayjs(dateString).format("DD/MM/YYYY HH:mm");
+  }
+
+  function formatOnlyDate(dateString) {
+    if (!dateString) return "Sin fecha";
+    return dayjs(dateString).format("D [de] MMMM [de] YYYY");
+  }
+
+  // Hacer las funciones de fecha globalmente disponibles
+  window.formatDate = formatDate;
+  window.formatShortDate = formatShortDate;
+  window.formatOnlyDate = formatOnlyDate;
+}
+
+// Función para mostrar notificaciones con Toastify
 function showToast(message, type = "success", duration = 3000) {
+  // Verificar que Toastify esté disponible
+  if (typeof Toastify === "undefined") {
+    console.warn("Toastify no está disponible, mostrando alerta normal");
+    alert(message);
+    return;
+  }
+
   let backgroundColor = "#10B981"; // Verde para éxito
   let className = "toast-success";
 
@@ -104,9 +208,9 @@ function showToast(message, type = "success", duration = 3000) {
     text: message,
     duration: duration,
     close: true,
-    gravity: "top", // `top` or `bottom`
-    position: "right", // `left`, `center` or `right`
-    stopOnFocus: true, // Prevents dismissing of toast on hover
+    gravity: "top",
+    position: "right",
+    stopOnFocus: true,
     className: className,
     style: {
       background: backgroundColor,
@@ -117,7 +221,7 @@ function showToast(message, type = "success", duration = 3000) {
       fontSize: "0.875rem",
       lineHeight: "1.25rem",
     },
-    onClick: function () {}, // Callback after click
+    onClick: function () {},
   }).showToast();
 }
 
