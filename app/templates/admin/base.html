@@ -122,7 +122,9 @@
 
 <!-- Modal Container (global para todos los modals) -->
 <div id="modal-container"></div>
+{% endblock %}
 
+{% block scripts %}
 <script src="{{ url_for('static', filename='js/admin/events.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/activities.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/dashboard.js') }}"></script>
