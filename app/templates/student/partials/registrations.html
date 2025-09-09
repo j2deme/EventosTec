@@ -1,0 +1,242 @@
+<!-- templates/student/partials/registrations.html -->
+<div x-data="studentRegistrationsManager()" x-init="init()">
+  <!-- Header -->
+  <div class="mb-6">
+    <p class="text-gray-600">Administra tus preregistros a actividades</p>
+  </div>
+
+  <!-- Filtros -->
+  <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <!-- Buscar por nombre de actividad -->
+      <div>
+        <label for="search" class="block text-sm font-medium text-gray-700">Buscar actividad</label>
+        <input type="text" 
+               id="search"
+               x-model="filters.search"
+               @input.debounce.300ms="loadRegistrations()"
+               placeholder="Nombre de actividad..."
+               class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+      </div>
+
+      <!-- Filtrar por estado -->
+      <div>
+        <label for="status" class="block text-sm font-medium text-gray-700">Estado</label>
+        <select id="status"
+                x-model="filters.status"
+                @change="loadRegistrations()"
+                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+          <option value="">Todos</option>
+          <option value="Registrado">Registrado</option>
+          <option value="Confirmado">Confirmado</option>
+          <option value="Asistió">Asistió</option>
+          <option value="Ausente">Ausente</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+      </div>
+
+      <!-- Ordenar por -->
+      <div>
+        <label for="sort" class="block text-sm font-medium text-gray-700">Ordenar por</label>
+        <select id="sort"
+                x-model="filters.sort"
+                @change="loadRegistrations()"
+                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+          <option value="registration_date:desc">Más recientes</option>
+          <option value="registration_date:asc">Más antiguos</option>
+          <option value="activity.name:asc">Nombre (A-Z)</option>
+          <option value="activity.name:desc">Nombre (Z-A)</option>
+        </select>
+      </div>
+
+      <!-- Botón de búsqueda -->
+      <div class="flex items-end">
+        <button @click="loadRegistrations()"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md">
+          <i class="ti ti-search mr-2"></i>
+          Buscar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mensaje de carga -->
+  <div x-show="loading" class="text-center py-12">
+    <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+    <p class="mt-2 text-gray-600">Cargando preregistros...</p>
+  </div>
+
+  <!-- Mensaje de error -->
+  <div x-show="errorMessage" class="mb-6 rounded-md bg-red-50 p-4">
+    <div class="flex">
+      <div class="flex-shrink-0">
+        <i class="ti ti-alert-circle text-red-400"></i>
+      </div>
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-red-800" x-text="errorMessage"></h3>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de preregistros -->
+  <div x-show="!loading && registrations.length > 0">
+    <div class="grid grid-cols-1 gap-4">
+      <template x-for="registration in registrations" :key="registration.id">
+        <div class="bg-white rounded-lg shadow overflow-hidden border" 
+             :class="{
+               'border-green-500': registration.status === 'Asistió',
+               'border-yellow-500': registration.status === 'Registrado' || registration.status === 'Confirmado',
+               'border-red-500': registration.status === 'Cancelado' || registration.status === 'Ausente'
+             }">
+          <div class="p-5">
+            <div class="flex justify-between items-start">
+              <div>
+                <h3 class="text-lg font-medium text-gray-900" x-text="registration.activity.name"></h3>
+                <p class="mt-1 text-sm text-gray-500">
+                  <span x-text="registration.activity.activity_type"></span> - 
+                  <span x-text="registration.activity.department"></span>
+                </p>
+                <div class="mt-2 flex items-center text-sm text-gray-500">
+                  <i class="ti ti-calendar mr-1.5"></i>
+                  <span x-text="formatDateTime(registration.activity.start_datetime)"></span>
+                  <span class="mx-2">-</span>
+                  <span x-text="formatDateTime(registration.activity.end_datetime)"></span>
+                </div>
+              </div>
+              <span :class="{
+                'bg-green-100 text-green-800': registration.status === 'Asistió',
+                'bg-yellow-100 text-yellow-800': registration.status === 'Registrado' || registration.status === 'Confirmado',
+                'bg-red-100 text-red-800': registration.status === 'Cancelado' || registration.status === 'Ausente',
+                'bg-blue-100 text-blue-800': registration.status === 'Pendiente'
+              }" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                <span x-text="registration.status"></span>
+              </span>
+            </div>
+            
+            <div class="mt-4 flex items-center text-sm text-gray-500">
+              <i class="ti ti-map-pin mr-1.5"></i>
+              <span x-text="registration.activity.location || 'Sin ubicación'"></span>
+            </div>
+            
+            <div class="mt-3 flex items-center text-sm text-gray-500">
+              <i class="ti ti-clock mr-1.5"></i>
+              <span>Registrado el: <span x-text="formatDateTime(registration.registration_date)"></span></span>
+            </div>
+          </div>
+          
+          <div class="bg-gray-50 px-5 py-3 flex justify-between items-center">
+            <div class="text-sm text-gray-500">
+              Código: <span class="font-mono" x-text="registration.activity.code || 'N/A'"></span>
+            </div>
+            <div>
+              <button x-show="canCancelRegistration(registration)" 
+                      @click="cancelRegistration(registration)"
+                      class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full text-red-700 bg-red-100 hover:bg-red-200">
+                <i class="ti ti-x mr-1"></i>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Paginación -->
+    <div class="mt-6 flex items-center justify-between">
+      <div class="text-sm text-gray-700">
+        Mostrando <span x-text="pagination.from"></span> a <span x-text="pagination.to"></span> de <span x-text="pagination.total"></span> preregistros
+      </div>
+      
+      <div class="flex space-x-2">
+        <button @click="changePage(pagination.current_page - 1)"
+                :disabled="pagination.current_page === 1"
+                :class="{
+                  'opacity-50 cursor-not-allowed': pagination.current_page === 1,
+                  'bg-indigo-600 text-white': pagination.current_page !== 1
+                }"
+                class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md">
+          Anterior
+        </button>
+        
+        <template x-for="page in pagination.pages" :key="page">
+          <button @click="changePage(page)"
+                  :class="{
+                    'bg-indigo-600 text-white': page === pagination.current_page,
+                    'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
+                  }"
+                  class="relative inline-flex items-center px-3 py-1.5 border text-sm font-medium rounded-md">
+            <span x-text="page"></span>
+          </button>
+        </template>
+        
+        <button @click="changePage(pagination.current_page + 1)"
+                :disabled="pagination.current_page === pagination.last_page"
+                :class="{
+                  'opacity-50 cursor-not-allowed': pagination.current_page === pagination.last_page,
+                  'bg-indigo-600 text-white': pagination.current_page !== pagination.last_page
+                }"
+                class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md">
+          Siguiente
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mensaje cuando no hay preregistros -->
+  <div x-show="!loading && registrations.length === 0" class="text-center py-12">
+    <i class="ti ti-bookmark-off text-4xl text-gray-400 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900">No tienes preregistros</h3>
+    <p class="mt-1 text-gray-500">Aún no te has preregistrado a ninguna actividad.</p>
+    <div class="mt-6">
+      <button @click="goToEvents()" 
+              class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        <i class="ti ti-calendar-event mr-2"></i>
+        Explorar eventos
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal de confirmación de cancelación -->
+  <div x-show="showCancelModal" class="fixed inset-0 overflow-y-auto z-50" style="display: none;">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div x-show="showCancelModal" x-transition class="fixed inset-0 transition-opacity" @click="showCancelModal = false">
+        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+      </div>
+      
+      <div x-show="showCancelModal" x-transition class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+              <i class="ti ti-alert-triangle text-red-600"></i>
+            </div>
+            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+              <h3 class="text-lg leading-6 font-medium text-gray-900">Cancelar preregistro</h3>
+              <div class="mt-2">
+                <p class="text-sm text-gray-500">
+                  ¿Estás seguro de que deseas cancelar tu preregistro a <strong x-text="registrationToCancel?.activity?.name"></strong>?
+                </p>
+                <p class="mt-2 text-sm text-gray-500">
+                  Esta acción no se puede deshacer.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button type="button" 
+                  @click="confirmCancelRegistration()"
+                  class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+            Cancelar preregistro
+          </button>
+          <button type="button" 
+                  @click="showCancelModal = false"
+                  class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+            Volver
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/student/registrations.js') }}"></script>
