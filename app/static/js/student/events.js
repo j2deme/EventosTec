@@ -28,6 +28,7 @@ function studentEventsManager() {
     // Modal
     showEventModal: false,
     currentEvent: {},
+    currentEventActivities: [],
 
     // Inicialización
     init() {
@@ -48,10 +49,12 @@ function studentEventsManager() {
         }
 
         // Construir parámetros de consulta
+        // Pedimos más eventos para tener margen al filtrar
         const params = new URLSearchParams({
           page: page,
-          per_page: 20, // Cambiado a 20 eventos por página para compensar el filtrado
+          per_page: 20, // Pedimos más para compensar el filtrado
           ...(this.filters.search && { search: this.filters.search }),
+          // Removemos status ya que lo filtraremos en el frontend
           ...(this.filters.sort && { sort: this.filters.sort }),
         });
 
@@ -71,6 +74,7 @@ function studentEventsManager() {
 
         const data = await response.json();
 
+        // Filtrar eventos: solo activos y que no hayan terminado
         const now = new Date();
         this.allEvents = data.events.filter((event) => {
           const eventEndDate = new Date(event.end_date);
@@ -90,8 +94,6 @@ function studentEventsManager() {
         }
 
         // Aplicar ordenamiento
-        // Nota: El ordenamiento debería venir del backend para ser más eficiente
-        // pero lo hacemos aquí para simplicidad
         if (this.filters.sort) {
           const [field, direction] = this.filters.sort.split(":");
           filteredEvents.sort((a, b) => {
@@ -112,7 +114,7 @@ function studentEventsManager() {
           });
         }
 
-        // ✨ Implementar paginación manual
+        // Implementar paginación manual
         const perPage = 6;
         const totalPages = Math.ceil(filteredEvents.length / perPage);
         const currentPageEvents = filteredEvents.slice(
@@ -153,9 +155,47 @@ function studentEventsManager() {
     },
 
     // Ver detalles del evento
-    viewEventDetails(event) {
+    async viewEventDetails(event) {
       this.currentEvent = { ...event };
-      this.showEventModal = true;
+
+      // Cargar actividades del evento
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+          this.redirectToLogin();
+          return;
+        }
+
+        const response = await fetch(`/api/activities?event_id=${event.id}`, {
+          headers: window.getAuthHeaders(),
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+          throw new Error(
+            `Error al cargar actividades: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+
+        // Mapear actividades y formatear fechas
+        this.currentEventActivities = data.activities.map((activity) => ({
+          ...activity,
+          start_datetime: this.formatDateTimeForInput(activity.start_datetime),
+          end_datetime: this.formatDateTimeForInput(activity.end_datetime),
+        }));
+
+        this.showEventModal = true;
+      } catch (error) {
+        console.error("Error loading event activities:", error);
+        showToast("Error al cargar actividades del evento", "error");
+        this.showEventModal = true; // Mostrar el modal aunque no se carguen las actividades
+        this.currentEventActivities = [];
+      }
     },
 
     // Ver actividades del evento
@@ -170,6 +210,97 @@ function studentEventsManager() {
             detail: { eventId: event.id },
           })
         );
+      }
+    },
+
+    // Preregistrar a una actividad
+    async registerForActivity(activity) {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+          this.redirectToLogin();
+          return;
+        }
+
+        // Obtener el ID del estudiante actual
+        const studentId = this.getCurrentStudentId();
+        if (!studentId) {
+          throw new Error("No se pudo obtener el ID del estudiante");
+        }
+
+        const registrationData = {
+          student_id: studentId,
+          activity_id: activity.id,
+        };
+
+        const response = await fetch("/api/registrations/", {
+          method: "POST",
+          headers: window.getAuthHeaders(),
+          body: JSON.stringify(registrationData),
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message ||
+              `Error al preregistrarse: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+        showToast("Preregistro realizado exitosamente", "success");
+
+        // Actualizar la actividad en la lista para reflejar que ya está registrada
+        const activityIndex = this.currentEventActivities.findIndex(
+          (a) => a.id === activity.id
+        );
+        if (activityIndex !== -1) {
+          // Podríamos actualizar el estado de la actividad si es necesario
+          // Por ahora solo mostramos el mensaje de éxito
+        }
+      } catch (error) {
+        console.error("Error registering for activity:", error);
+        showToast(
+          error.message || "Error al preregistrarse a la actividad",
+          "error"
+        );
+      }
+    },
+
+    // Verificar si ya está registrado en una actividad
+    isActivityRegistered(activity) {
+      // Esta función podría verificar contra una lista de preregistros del estudiante
+      // Por ahora, simplemente retornamos false para permitir el preregistro
+      return false;
+    },
+
+    // Verificar si se puede registrar en una actividad
+    canRegisterForActivity(activity) {
+      // Verificar si la actividad tiene cupo
+      if (activity.max_capacity !== null) {
+        return (activity.current_capacity || 0) < activity.max_capacity;
+      }
+      // Si no tiene cupo máximo, se puede registrar
+      return true;
+    },
+
+    // Obtener el ID del estudiante actual
+    getCurrentStudentId() {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return null;
+
+        // Decodificar el token JWT para obtener el ID del usuario
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        return payload.sub; // El ID del usuario está en el claim 'sub'
+      } catch (e) {
+        console.error("Error decoding token:", e);
+        return null;
       }
     },
 
