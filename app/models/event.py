@@ -73,7 +73,7 @@ class Event(db.Model):
                     )
                 )
             )
-        ).scalar() or 0
+        ).scalar() or db.session.query(Student).count()
 
         return {
             'total_activities': total_activities,
