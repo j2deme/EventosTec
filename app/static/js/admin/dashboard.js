@@ -210,7 +210,7 @@ function adminDashboard() {
         await Promise.all([
           this.loadEvents(),
           this.loadActivities(),
-          this.loadStats(), // Cargar stats solo una vez
+          this.loadStats(),
           this.loadUpcomingEvents(),
           this.loadRecentActivities(),
         ]);
@@ -266,6 +266,7 @@ function adminDashboard() {
         }
       } catch (error) {
         console.error("Error loading activities:", error);
+        showToast("Error al cargar actividades", "error");
       }
     },
 
