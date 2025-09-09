@@ -1,7 +1,7 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, url_for, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 from flask_marshmallow import Marshmallow
 import os
 
@@ -21,6 +21,11 @@ def create_app(config_name=None):
     # Importar configuración
     from config import config
     app.config.from_object(config[config_name])
+
+    # Configuración explícita de JWT
+    app.config['JWT_TOKEN_LOCATION'] = ['headers']
+    app.config['JWT_HEADER_NAME'] = 'Authorization'
+    app.config['JWT_HEADER_TYPE'] = 'Bearer'
 
     # Inicializar extensiones con la app
     db.init_app(app)
@@ -53,14 +58,20 @@ def create_app(config_name=None):
     def index():
         return render_template('auth/login.html')
 
-    # Ruta temporal dashboard ADMIN
+    # Ruta dashboard ADMIN
     @app.route('/dashboard/admin')
     def admin_dashboard():
         return render_template('admin/dashboard.html')
 
-    # Ruta temporal dashboard ESTUDIANTE
+    # Ruta dashboard ESTUDIANTE
     @app.route('/dashboard/student')
     def student_dashboard():
-        return "<h1>Dashboard Estudiante - En construcción</h1>"
+        return render_template('student/dashboard.html')
+
+    # Ruta para verificar autenticación
+    @app.route('/api/auth/check')
+    @jwt_required()
+    def check_auth():
+        return jsonify({'authenticated': True}), 200
 
     return app
