@@ -54,67 +54,80 @@ def student_login():
         if not control_number or not password:
             return jsonify({'message': 'Número de control y contraseña son requeridos'}), 400
 
-        # Validar contra sistema externo
-        external_api_url = f"http://apps.tecvalles.mx:8091/api/estudiantes?search={control_number}"
+        external_api_url = "http://apps.tecvalles.mx:8091/api/validate/student"
 
         try:
-            # Primero verificar que el estudiante exista
-            student_response = requests.get(external_api_url, timeout=10)
-            if student_response.status_code != 200:
-                return jsonify({'message': 'Error al conectar con sistema externo'}), 503
+            # Enviar credenciales al sistema externo
+            external_response = requests.post(
+                external_api_url,
+                json={
+                    'username': control_number,  # Asumiendo que username es el número de control
+                    'password': password
+                },
+                timeout=10
+            )
 
-            student_data = student_response.json()
+            if external_response.status_code == 200:
+                external_data = external_response.json()
 
-            # Aquí iría la lógica para validar la contraseña
-            # Por ahora simulamos la validación (en producción conectarías con el sistema real)
-            # validate_response = requests.post("http://apps.tecvalles.mx:8091/api/validate",
-            #                                  json={'control_number': control_number, 'password': password})
+                # Verificar que la respuesta sea exitosa
+                if external_data.get('success') and external_data.get('data'):
+                    student_info = external_data['data']
 
-            # Simulación: asumimos que es válido si el estudiante existe
-            if student_data and len(student_data) > 0:
-                # Asumimos que viene en formato array
-                student_info = student_data[0]
+                    # Crear o actualizar estudiante en nuestra base de datos
+                    student = db.session.query(Student).filter_by(
+                        control_number=control_number).first()
 
-                # Crear o actualizar estudiante en nuestra base de datos
-                student = db.session.query(Student).filter_by(
-                    control_number=control_number).first()
-                if not student:
-                    student = Student(
-                        control_number=control_number,
-                        full_name=student_info.get('nombre', ''),
-                        career=student_info.get('carrera', ''),
-                        email=student_info.get('email', '')
-                    )
-                    db.session.add(student)
+                    if not student:
+                        # Crear nuevo estudiante con todos los datos disponibles
+                        student = Student(
+                            control_number=control_number,
+                            full_name=student_info.get('name', ''),
+                            career=student_info.get('career', {}).get(
+                                'name', '') if student_info.get('career') else '',
+                            email=student_info.get('email', '')
+                        )
+                        db.session.add(student)
+                    else:
+                        # Actualizar información si es necesario
+                        student.full_name = student_info.get(
+                            'name', student.full_name)
+                        if student_info.get('career'):
+                            student.career = student_info['career'].get(
+                                'name', student.career)
+                        student.email = student_info.get(
+                            'email', student.email)
+
+                    db.session.commit()
+
+                    # Generar token para estudiante
+                    access_token = create_access_token(
+                        identity=str(student.id))
+                    return jsonify({
+                        'access_token': access_token,
+                        'student': {
+                            'id': student.id,
+                            'control_number': student.control_number,
+                            'full_name': student.full_name,
+                            'career': student.career,
+                            'email': student.email,
+                            'type': 'student'
+                        }
+                    }), 200
                 else:
-                    # Actualizar información si es necesario
-                    student.full_name = student_info.get(
-                        'nombre', student.full_name)
-                    student.career = student_info.get(
-                        'carrera', student.career)
-                    student.email = student_info.get('email', student.email)
-
-                db.session.commit()
-
-                # Generar token para estudiante
-                access_token = create_access_token(identity=str(student.id))
-
-                return jsonify({
-                    'access_token': access_token,
-                    'student': {
-                        'id': student.id,
-                        'control_number': student.control_number,
-                        'full_name': student.full_name,
-                        'career': student.career,
-                        'email': student.email,
-                        'type': 'student'
-                    }
-                }), 200
+                    return jsonify({'message': 'Credenciales inválidas'}), 401
             else:
-                return jsonify({'message': 'Estudiante no encontrado'}), 404
+                # Manejar diferentes códigos de error del sistema externo
+                if external_response.status_code == 401:
+                    return jsonify({'message': 'Credenciales inválidas'}), 401
+                else:
+                    return jsonify({'message': 'Error en la validación con sistema externo'}), 503
 
-        except requests.exceptions.RequestException:
-            return jsonify({'message': 'Error de conexión con sistema externo'}), 503
+        except requests.exceptions.RequestException as e:
+            return jsonify({'message': 'Error de conexión con sistema externo', 'error': str(e)}), 503
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'message': 'Error en el login de estudiante', 'error': str(e)}), 400
 
     except Exception as e:
         return jsonify({'message': 'Error en el login de estudiante', 'error': str(e)}), 400
@@ -128,27 +141,33 @@ def profile():
     try:
         user_id = int(get_jwt_identity())
 
-        # Primero buscar en User (admin)
-        user = db.session.get(User, user_id)
-        if user:
-            return jsonify({
-                'user': {
-                    **user.to_dict(),
-                    'type': 'admin'
-                }
-            }), 200
+        user_type = request.args.get('type')
 
-        # Si no es admin, buscar en Student
-        student = db.session.get(Student, user_id)
-        if student:
-            return jsonify({
-                'student': {
-                    **student.to_dict(),
-                    'type': 'student'
-                }
-            }), 200
+        if user_type == 'student':
+            # Buscar específicamente en Student
+            student = db.session.get(Student, user_id)
+            if student:
+                return jsonify({
+                    'student': {
+                        **student.to_dict(),
+                        'type': 'student'
+                    }
+                }), 200
+            else:
+                return jsonify({'message': 'Estudiante no encontrado'}), 404
 
-        return jsonify({'message': 'Usuario no encontrado'}), 404
+        else:
+            # Buscar específicamente en User
+            user = db.session.get(User, user_id)
+            if user:
+                return jsonify({
+                    'user': {
+                        **user.to_dict(),
+                        'type': 'admin'
+                    }
+                }), 200
+            else:
+                return jsonify({'message': 'Administrador no encontrado'}), 404
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener perfil', 'error': str(e)}), 400
@@ -160,5 +179,4 @@ def profile():
 @jwt_required()
 def logout():
     # En JWT el logout es del lado del cliente (eliminar token)
-    # Aquí podrías implementar blacklisting si es necesario
     return jsonify({'message': 'Sesión cerrada correctamente'}), 200
