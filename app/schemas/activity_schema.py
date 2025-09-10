@@ -41,6 +41,18 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
+    current_capacity = fields.Method(
+        "get_current_capacity", dump_only=True)
+
+    def get_current_capacity(self, obj):
+        # Assumes 'registrations' is a relationship on Activity model
+        if hasattr(obj, 'registrations') and obj.registrations:
+            return sum(
+                1 for r in obj.registrations
+                if getattr(r, 'status', None) not in ['Ausente', 'Cancelado']
+            )
+        return 0
+
     @validates_schema
     def validate_dates(self, data, **kwargs):
         start = data.get('start_datetime')
