@@ -33,11 +33,13 @@ function studentEventActivitiesManager() {
     async init() {
       console.log("Initializing student event activities manager...");
 
-      this.isLoadingEvent = false;
+      // Inicializar estado
+      this.loadingEvent = false;
+      this.errorMessage = "";
 
       // Escuchar el evento personalizado para cargar actividades
-      window.addEventListener("load-event-activities", async (event) => {
-        console.log("Recibido evento load-event-activities:", event.detail);
+      const loadActivitiesListener = async (event) => {
+        console.log("✅ Recibido evento load-event-activities:", event.detail);
         const { eventId, eventName } = event.detail;
 
         if (eventId) {
@@ -55,7 +57,12 @@ function studentEventActivitiesManager() {
           showToast(this.errorMessage, "error");
           this.goToEvents();
         }
-      });
+      };
+
+      window.addEventListener("load-event-activities", loadActivitiesListener);
+
+      // ✨ Guardar referencia al listener para poder removerlo si es necesario
+      this._loadActivitiesListener = loadActivitiesListener;
 
       // Manejar la inicialización desde URL (por si se recarga la página)
       const urlParams = new URLSearchParams(
@@ -68,10 +75,13 @@ function studentEventActivitiesManager() {
         this.loadActivities();
         this.loadStudentRegistrations();
       } else {
-        this.goToEvents();
+        // ✨ No redirigir inmediatamente, esperar a que se cargue el evento
+        console.log("No hay eventId en la URL, esperando evento personalizado");
+        this.goBack();
       }
     },
 
+    // ✨ Corregida función para volver a la lista de eventos
     goToEvents() {
       const dashboard = document.querySelector('[x-data*="studentDashboard"]');
       if (dashboard && dashboard.__x) {
@@ -79,9 +89,62 @@ function studentEventActivitiesManager() {
       }
     },
 
+    // ✨ Corregida función goBack para usar goToEvents
+    goBack() {
+      console.log("Intentando regresar a la lista de eventos...");
+
+      try {
+        // ✨ Método más robusto para encontrar y cambiar la pestaña
+        let dashboard = null;
+
+        // Intentar encontrar el dashboard de varias maneras
+        const possibleSelectors = [
+          '[x-data*="studentDashboard"]',
+          '[x-data^="studentDashboard"]',
+          "[x-data]",
+        ];
+
+        for (let selector of possibleSelectors) {
+          const elements = document.querySelectorAll(selector);
+          for (let element of elements) {
+            if (
+              element.__x &&
+              typeof element.__x.getUnobservedData === "function"
+            ) {
+              const data = element.__x.getUnobservedData();
+              if (data && typeof data.setActiveTab === "function") {
+                dashboard = element;
+                break;
+              }
+            }
+          }
+          if (dashboard) break;
+        }
+
+        if (dashboard && dashboard.__x) {
+          console.log("Dashboard encontrado, cambiando pestaña a events");
+          dashboard.__x.getUnobservedData().setActiveTab("events");
+        } else {
+          // ✨ Si no encontramos el dashboard, intentar navegación directa
+          console.log("Dashboard no encontrado, intentando navegación directa");
+          window.location.hash = "events";
+        }
+      } catch (error) {
+        console.error("Error al regresar a eventos:", error);
+        // ✨ Como último recurso, intentar navegación directa
+        try {
+          window.location.hash = "events";
+        } catch (fallbackError) {
+          console.error("Error en navegación de fallback:", fallbackError);
+          // Si todo falla, recargar la página en la pestaña de eventos
+          window.location.href = "/dashboard/student#events";
+        }
+      }
+    },
+
     // Cargar información del evento
     async loadEvent(eventId) {
-      this.loadingEvent = true;
+      this.loadingEvent = true; // ✨ Corregido nombre de variable
       this.errorMessage = "";
 
       try {
@@ -111,13 +174,14 @@ function studentEventActivitiesManager() {
           start_date: this.formatDateTimeForInput(data.event.start_date),
           end_date: this.formatDateTimeForInput(data.event.end_date),
         };
+        console.log("Evento cargado:", this.currentEvent);
       } catch (error) {
         console.error("Error loading event:", error);
         this.errorMessage =
           error.message || "Error al cargar información del evento";
         showToast(this.errorMessage, "error");
       } finally {
-        this.loadingEvent = false;
+        this.loadingEvent = false; // ✨ Corregido nombre de variable
       }
     },
 
@@ -171,6 +235,7 @@ function studentEventActivitiesManager() {
         // ✨ Agrupar actividades por día
         this.groupActivitiesByDay();
 
+        // Cargar preregistros del estudiante
         await this.loadStudentRegistrations();
 
         // Actualizar paginación
@@ -208,16 +273,11 @@ function studentEventActivitiesManager() {
 
         if (response.ok) {
           const data = await response.json();
-          // Almacenar solo los IDs de las actividades registradas
+          // Solo necesitamos los IDs de las actividades registradas
           this.studentRegistrations = data.registrations.map(
             (r) => r.activity_id
           );
           console.log("Preregistros cargados:", this.studentRegistrations);
-
-          // ✨ Actualizar la vista si ya tenemos actividades cargadas
-          if (this.activities.length > 0) {
-            this.groupActivitiesByDay();
-          }
         }
       } catch (error) {
         console.error("Error loading student registrations:", error);
@@ -298,32 +358,28 @@ function studentEventActivitiesManager() {
         const data = await response.json();
         showToast("Preregistro realizado exitosamente", "success");
 
-        // ✨ Actualizar visualmente el preregistro
-        // Agregar a la lista de preregistros del estudiante
+        // Actualizar la actividad en la lista para reflejar que ya está registrada
         if (!this.studentRegistrations.includes(activity.id)) {
           this.studentRegistrations.push(activity.id);
         }
 
-        // ✨ Actualizar el cupo visualmente
+        // Actualizar el cupo visualmente
         const activityIndex = this.activities.findIndex(
           (a) => a.id === activity.id
         );
         if (activityIndex !== -1) {
-          // Crear una nueva versión del objeto para asegurar reactividad
+          // Crear una nueva versión del objeto para asegurar la reactividad
           const updatedActivity = {
             ...this.activities[activityIndex],
             current_capacity:
               (this.activities[activityIndex].current_capacity || 0) + 1,
           };
-
           // Reemplazar el objeto en el array
           this.activities.splice(activityIndex, 1, updatedActivity);
 
-          // ✨ Reagrupar actividades por día para actualizar la vista
+          // Reagrupar actividades por día para actualizar la vista
           this.groupActivitiesByDay();
         }
-
-        this.loadActivities(this.pagination.current_page);
       } catch (error) {
         console.error("Error registering for activity:", error);
         showToast(
@@ -352,13 +408,6 @@ function studentEventActivitiesManager() {
       return true;
     },
 
-    // Verificar si hay conflicto de horario (simplificado)
-    hasScheduleConflict(activity) {
-      // En una implementación completa, compararías con otras actividades registradas
-      // Por ahora, retornamos false
-      return false;
-    },
-
     // Obtener el ID del estudiante actual
     getCurrentStudentId() {
       try {
@@ -371,14 +420,6 @@ function studentEventActivitiesManager() {
       } catch (e) {
         console.error("Error decoding token:", e);
         return null;
-      }
-    },
-
-    // Volver a la lista de eventos
-    goBack() {
-      const dashboard = document.querySelector('[x-data*="studentDashboard"]');
-      if (dashboard && dashboard.__x) {
-        dashboard.__x.getUnobservedData().setActiveTab("events");
       }
     },
 

@@ -28,8 +28,7 @@ function studentEventsManager() {
     // Modal
     showEventModal: false,
     currentEvent: {},
-    currentEventActivities: [],
-    studentRegistrations: [],
+    currentEventActivitiesSummary: {}, // Para almacenar el resumen de tipos
 
     // Inicialización
     init() {
@@ -51,12 +50,10 @@ function studentEventsManager() {
         }
 
         // Construir parámetros de consulta
-        // Pedimos más eventos para tener margen al filtrar
         const params = new URLSearchParams({
           page: page,
-          per_page: 20, // Pedimos más para compensar el filtrado
+          per_page: 20,
           ...(this.filters.search && { search: this.filters.search }),
-          // Removemos status ya que lo filtraremos en el frontend
           ...(this.filters.sort && { sort: this.filters.sort }),
         });
 
@@ -150,32 +147,8 @@ function studentEventsManager() {
     },
 
     async loadStudentRegistrations() {
-      try {
-        const token = localStorage.getItem("authToken");
-        if (!token) return;
-
-        const studentId = this.getCurrentStudentId();
-        if (!studentId) return;
-
-        const response = await fetch(
-          `/api/registrations?student_id=${studentId}`,
-          {
-            headers: window.getAuthHeaders(),
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          // Solo necesitamos los IDs de las actividades registradas
-          this.studentRegistrations = data.registrations.map(
-            (r) => r.activity_id
-          );
-          console.log("Preregistros cargados:", this.studentRegistrations);
-        }
-      } catch (error) {
-        console.error("Error loading student registrations:", error);
-        // No es crítico, solo para la UI
-      }
+      // Esta función puede permanecer igual o simplificarse
+      // Ya que su lógica principal está en event_activities.js
     },
 
     // Cambiar página
@@ -185,11 +158,12 @@ function studentEventsManager() {
       }
     },
 
-    // Ver detalles del evento
+    // ✨ Ver detalles del evento (SIMPLIFICADO)
     async viewEventDetails(event) {
       this.currentEvent = { ...event };
+      this.currentEventActivitiesSummary = {}; // Reiniciar resumen
 
-      // Cargar actividades del evento
+      // Cargar un resumen de tipos de actividades del evento
       try {
         const token = localStorage.getItem("authToken");
         if (!token) {
@@ -197,9 +171,13 @@ function studentEventsManager() {
           return;
         }
 
-        const response = await fetch(`/api/activities?event_id=${event.id}`, {
-          headers: window.getAuthHeaders(),
-        });
+        // Obtener todas las actividades del evento sin paginación
+        const response = await fetch(
+          `/api/activities?event_id=${event.id}&per_page=1000`,
+          {
+            headers: window.getAuthHeaders(),
+          }
+        );
 
         if (!response.ok) {
           if (response.status === 401) {
@@ -212,34 +190,70 @@ function studentEventsManager() {
         }
 
         const data = await response.json();
+        const activities = data.activities || [];
 
-        // Mapear actividades y formatear fechas
-        this.currentEventActivities = data.activities.map((activity) => ({
-          ...activity,
-          start_datetime: this.formatDateTimeForInput(activity.start_datetime),
-          end_datetime: this.formatDateTimeForInput(activity.end_datetime),
-        }));
+        // ✨ Generar resumen por tipo de actividad
+        const summary = {};
+        activities.forEach((activity) => {
+          const type = activity.activity_type || "Otro";
+          if (!summary[type]) {
+            summary[type] = 0;
+          }
+          summary[type]++;
+        });
 
+        this.currentEventActivitiesSummary = summary;
         this.showEventModal = true;
       } catch (error) {
-        console.error("Error loading event activities:", error);
-        showToast("Error al cargar actividades del evento", "error");
-        this.showEventModal = true; // Mostrar el modal aunque no se carguen las actividades
-        this.currentEventActivities = [];
+        console.error("Error loading event activities summary:", error);
+        showToast("Error al cargar resumen de actividades", "error");
+        this.currentEventActivitiesSummary = {};
+        this.showEventModal = true; // Mostrar modal aunque falle el resumen
       }
     },
 
-    // Ver actividades del evento
+    // Ver actividades del evento (NAVEGACIÓN)
     viewActivities(event) {
       console.log("Viewing activities for event:", event.id);
 
       try {
-        // Intentar cambiar la pestaña directamente
-        const setActiveTab = (tabId) => {
-          // Primero cambiar el hash
-          window.location.hash = tabId;
+        // ✨ Método más robusto para encontrar y cambiar la pestaña
+        let dashboard = null;
 
-          // Luego enviar el evento de carga
+        // Intentar encontrar el dashboard de varias maneras
+        const possibleSelectors = [
+          '[x-data*="studentDashboard"]',
+          '[x-data^="studentDashboard"]',
+          "[x-data]",
+        ];
+
+        for (let selector of possibleSelectors) {
+          const elements = document.querySelectorAll(selector);
+          for (let element of elements) {
+            if (
+              element.__x &&
+              typeof element.__x.getUnobservedData === "function"
+            ) {
+              const data = element.__x.getUnobservedData();
+              if (data && typeof data.setActiveTab === "function") {
+                dashboard = element;
+                break;
+              }
+            }
+          }
+          if (dashboard) break;
+        }
+
+        if (dashboard && dashboard.__x) {
+          console.log(
+            "Dashboard encontrado, cambiando pestaña a event_activities"
+          );
+
+          // Primero cambiar la pestaña
+          dashboard.__x.getUnobservedData().setActiveTab("event_activities");
+
+          // Luego enviar el evento para que la vista de actividades lo cargue
+          // Usamos un pequeño retraso para asegurar que la pestaña haya cambiado
           setTimeout(() => {
             window.dispatchEvent(
               new CustomEvent("load-event-activities", {
@@ -249,201 +263,46 @@ function studentEventsManager() {
                 },
               })
             );
-          }, 100);
-        };
+          }, 150); // ✨ Aumentado el retraso a 150ms
+        } else {
+          // ✨ Si no encontramos el dashboard de la manera tradicional,
+          // intentar una navegación directa
+          console.log(
+            "Dashboard no encontrado por selector, intentando navegación directa"
+          );
 
-        // Ejecutar el cambio de pestaña
-        setActiveTab("event_activities");
+          // Cambiar el hash directamente
+          window.location.hash = "event_activities";
 
-        console.log("Navegación iniciada a event_activities");
+          // También enviar el evento por si acaso
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent("load-event-activities", {
+                detail: {
+                  eventId: event.id,
+                  eventName: event.name,
+                },
+              })
+            );
+          }, 200);
+        }
       } catch (error) {
         console.error("Error al navegar a actividades:", error);
         showToast("Error al navegar a las actividades", "error");
 
-        // Como último recurso, intentar navegación directa
-        window.location.hash = `event_activities?event_id=${event.id}`;
+        // ✨ Como último recurso, intentar navegación directa
+        try {
+          window.location.hash = `event_activities?event_id=${event.id}`;
+        } catch (fallbackError) {
+          console.error("Error en navegación de fallback:", fallbackError);
+          showToast("Error al navegar a las actividades", "error");
+        }
       }
-    },
-
-    // Preregistrar a una actividad
-    async registerForActivity(activity) {
-      try {
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          this.redirectToLogin();
-          return;
-        }
-
-        // Obtener el ID del estudiante actual
-        const studentId = this.getCurrentStudentId();
-        if (!studentId) {
-          throw new Error("No se pudo obtener el ID del estudiante");
-        }
-
-        const registrationData = {
-          student_id: studentId,
-          activity_id: activity.id,
-        };
-
-        const response = await fetch("/api/registrations/", {
-          method: "POST",
-          headers: window.getAuthHeaders(),
-          body: JSON.stringify(registrationData),
-        });
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            this.redirectToLogin();
-            return;
-          }
-
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message ||
-              `Error al preregistrarse: ${response.status} ${response.statusText}`
-          );
-        }
-
-        const data = await response.json();
-        showToast("Preregistro realizado exitosamente", "success");
-
-        if (!this.studentRegistrations.includes(activity.id)) {
-          this.studentRegistrations.push(activity.id);
-        }
-
-        // Actualizar la actividad en la lista para reflejar que ya está registrada
-        const activityIndex = this.currentEventActivities.findIndex(
-          (a) => a.id === activity.id
-        );
-        if (activityIndex !== -1) {
-          // Crear una nueva versión del objeto para asegurar la reactividad de Alpine.js
-          const updatedActivity = {
-            ...this.currentEventActivities[activityIndex],
-            current_capacity:
-              (this.currentEventActivities[activityIndex].current_capacity ||
-                0) + 1,
-          };
-          // Reemplazar el objeto en el array
-          this.currentEventActivities.splice(activityIndex, 1, updatedActivity);
-        }
-      } catch (error) {
-        console.error("Error registering for activity:", error);
-        showToast(
-          error.message || "Error al preregistrarse a la actividad",
-          "error"
-        );
-      }
-    },
-
-    // Verificar si ya está registrado en una actividad
-    isActivityRegistered(activity) {
-      return this.studentRegistrations.includes(activity.id);
-    },
-
-    // Verificar si se puede registrar en una actividad
-    canRegisterForActivity(activity) {
-      // Verificar si la actividad tiene cupo
-      if (activity.max_capacity !== null) {
-        return (activity.current_capacity || 0) < activity.max_capacity;
-      }
-      // Si no tiene cupo máximo, se puede registrar
-      return true;
-    },
-
-    // Obtener el ID del estudiante actual
-    getCurrentStudentId() {
-      try {
-        const token = localStorage.getItem("authToken");
-        if (!token) return null;
-
-        // Decodificar el token JWT para obtener el ID del usuario
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        return payload.sub; // El ID del usuario está en el claim 'sub'
-      } catch (e) {
-        console.error("Error decoding token:", e);
-        return null;
-      }
-    },
-
-    // ✨ Verificar si es evento de un solo día
-    isSingleDayEvent(event) {
-      if (!event || !event.start_date || !event.end_date) return false;
-
-      const startDate = new Date(event.start_date);
-      const endDate = new Date(event.end_date);
-
-      // Comparar solo la fecha (sin hora)
-      return startDate.toDateString() === endDate.toDateString();
-    },
-
-    // ✨ Agrupar actividades por día
-    groupActivitiesByDay(activities) {
-      if (!activities || activities.length === 0) return {};
-
-      const grouped = {};
-
-      // Agrupar actividades por día
-      activities.forEach((activity) => {
-        const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = {};
-        }
-
-        const activityType = activity.activity_type || "Otro";
-        if (!grouped[dateKey][activityType]) {
-          grouped[dateKey][activityType] = [];
-        }
-
-        grouped[dateKey][activityType].push(activity);
-      });
-
-      // Ordenar actividades dentro de cada grupo por hora de inicio (ASCENDENTE)
-      Object.keys(grouped).forEach((date) => {
-        Object.keys(grouped[date]).forEach((type) => {
-          grouped[date][type].sort((a, b) => {
-            return new Date(a.start_datetime) - new Date(b.start_datetime);
-          });
-        });
-      });
-
-      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
-      const sortedDates = Object.keys(grouped).sort((a, b) => {
-        return new Date(a) - new Date(b); // Orden ascendente por fecha
-      });
-
-      // Reorganizar el objeto agrupado con los días ordenados
-      const sortedGrouped = {};
-      sortedDates.forEach((date) => {
-        sortedGrouped[date] = grouped[date];
-      });
-
-      return sortedGrouped;
-    },
-
-    // ✨ Obtener actividades ordenadas por hora (para eventos de un solo día)
-    getSortedActivitiesByTime(activities) {
-      if (!activities || activities.length === 0) return [];
-
-      return [...activities].sort((a, b) => {
-        return new Date(a.start_datetime) - new Date(b.start_datetime); // Orden ascendente
-      });
-    },
-
-    formatOnlyDate(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      const date = new Date(dateTimeString);
-      return date.toLocaleDateString("es-ES", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
     },
 
     // Formatear fecha para input datetime-local
     formatDateTimeForInput(dateTimeString) {
       if (!dateTimeString) return "";
-      // Convertir a formato YYYY-MM-DDTHH:MM
       const date = new Date(dateTimeString);
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -453,7 +312,7 @@ function studentEventsManager() {
       return `${year}-${month}-${day}T${hours}:${minutes}`;
     },
 
-    // Formatear fecha para mostrar
+    // Formatear solo fecha para mostrar
     formatDate(dateTimeString) {
       if (!dateTimeString) return "Sin fecha";
       const date = new Date(dateTimeString);
