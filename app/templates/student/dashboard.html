@@ -21,6 +21,10 @@
     <div x-show="activeTab === 'events'">
       {% include 'student/partials/events.html' %}
     </div>
+
+    <div x-show="activeTab === 'event_activities'">
+      {% include 'student/partials/event_activities.html' %}
+    </div>
     
     <div x-show="activeTab === 'registrations'">
       {% include 'student/partials/registrations.html' %}
