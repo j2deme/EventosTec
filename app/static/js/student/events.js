@@ -365,6 +365,81 @@ function studentEventsManager() {
       }
     },
 
+    // ✨ Verificar si es evento de un solo día
+    isSingleDayEvent(event) {
+      if (!event || !event.start_date || !event.end_date) return false;
+
+      const startDate = new Date(event.start_date);
+      const endDate = new Date(event.end_date);
+
+      // Comparar solo la fecha (sin hora)
+      return startDate.toDateString() === endDate.toDateString();
+    },
+
+    // ✨ Agrupar actividades por día
+    groupActivitiesByDay(activities) {
+      if (!activities || activities.length === 0) return {};
+
+      const grouped = {};
+
+      // Agrupar actividades por día
+      activities.forEach((activity) => {
+        const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = {};
+        }
+
+        const activityType = activity.activity_type || "Otro";
+        if (!grouped[dateKey][activityType]) {
+          grouped[dateKey][activityType] = [];
+        }
+
+        grouped[dateKey][activityType].push(activity);
+      });
+
+      // Ordenar actividades dentro de cada grupo por hora de inicio (ASCENDENTE)
+      Object.keys(grouped).forEach((date) => {
+        Object.keys(grouped[date]).forEach((type) => {
+          grouped[date][type].sort((a, b) => {
+            return new Date(a.start_datetime) - new Date(b.start_datetime);
+          });
+        });
+      });
+
+      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
+      const sortedDates = Object.keys(grouped).sort((a, b) => {
+        return new Date(a) - new Date(b); // Orden ascendente por fecha
+      });
+
+      // Reorganizar el objeto agrupado con los días ordenados
+      const sortedGrouped = {};
+      sortedDates.forEach((date) => {
+        sortedGrouped[date] = grouped[date];
+      });
+
+      return sortedGrouped;
+    },
+
+    // ✨ Obtener actividades ordenadas por hora (para eventos de un solo día)
+    getSortedActivitiesByTime(activities) {
+      if (!activities || activities.length === 0) return [];
+
+      return [...activities].sort((a, b) => {
+        return new Date(a.start_datetime) - new Date(b.start_datetime); // Orden ascendente
+      });
+    },
+
+    formatOnlyDate(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      const date = new Date(dateTimeString);
+      return date.toLocaleDateString("es-ES", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    },
+
     // Formatear fecha para input datetime-local
     formatDateTimeForInput(dateTimeString) {
       if (!dateTimeString) return "";
@@ -397,6 +472,15 @@ function studentEventsManager() {
         year: "numeric",
         month: "short",
         day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    },
+
+    formatTime(dateTimeString) {
+      if (!dateTimeString) return "--:--";
+      const date = new Date(dateTimeString);
+      return date.toLocaleTimeString("es-ES", {
         hour: "2-digit",
         minute: "2-digit",
       });

@@ -211,62 +211,129 @@
                 </div>
                 
                 <!-- Actividades del evento -->
-                <div class="mt-6" x-show="currentEventActivities.length > 0">
-                  <h4 class="text-md font-medium text-gray-900 mb-3">Actividades disponibles</h4>
-                  <div class="space-y-3 max-h-96 overflow-y-auto">
-                    <template x-for="activity in currentEventActivities" :key="activity.id">
-                      <div class="border border-gray-200 rounded-md p-3">
-                        <div class="flex justify-between">
-                          <div>
-                            <h5 class="text-sm font-medium text-gray-900" x-text="activity.name"></h5>
-                            <p class="text-xs text-gray-500" x-text="activity.activity_type"></p>
+                <div x-show="currentEvent.activities_count > 0 && currentEventActivities.length > 0">
+                  <!-- Verificar si es evento de un solo día -->
+                  <div x-show="isSingleDayEvent(currentEvent)">
+                    <h4 class="text-md font-medium text-gray-900 mb-3">Secuencia de Actividades</h4>
+                    <div class="space-y-3">
+                      <!-- Ordenar actividades por hora de inicio -->
+                      <template x-for="activity in getSortedActivitiesByTime(currentEventActivities)" :key="activity.id">
+                        <div class="flex items-center p-3 bg-gray-50 rounded-lg border-l-4"
+                            :class="{
+                              'border-indigo-500': activity.activity_type === 'Magistral',
+                              'border-green-500': activity.activity_type === 'Conferencia',
+                              'border-yellow-500': activity.activity_type === 'Taller',
+                              'border-blue-500': activity.activity_type === 'Curso',
+                              'border-gray-300': activity.activity_type === 'Otro'
+                            }">
+                          <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                              :class="{
+                                'bg-indigo-100 text-indigo-600': activity.activity_type === 'Magistral',
+                                'bg-green-100 text-green-600': activity.activity_type === 'Conferencia',
+                                'bg-yellow-100 text-yellow-600': activity.activity_type === 'Taller',
+                                'bg-blue-100 text-blue-600': activity.activity_type === 'Curso',
+                                'bg-gray-100 text-gray-600': activity.activity_type === 'Otro'
+                              }">
+                            <i class="ti ti-book text-sm"></i>
                           </div>
-                          <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" 
-                                x-text="activity.code || 'N/A'"></span>
+                          <div class="ml-3 flex-1">
+                            <div class="flex justify-between">
+                              <p class="text-sm font-medium text-gray-900" x-text="activity.name"></p>
+                              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800" 
+                                    x-text="activity.code || 'N/A'"></span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">
+                              <span x-text="activity.activity_type"></span> - 
+                              <span x-text="activity.department"></span>
+                            </p>
+                            <div class="flex items-center text-xs text-gray-500 mt-1">
+                              <i class="ti ti-clock mr-1"></i>
+                              <span x-text="formatTime(activity.start_datetime)"></span>
+                              <span class="mx-1">-</span>
+                              <span x-text="formatTime(activity.end_datetime)"></span>
+                              <span class="mx-2">•</span>
+                              <i class="ti ti-map-pin mr-1"></i>
+                              <span x-text="activity.location || 'Sin ubicación'"></span>
+                            </div>
+                          </div>
                         </div>
-                        <div class="mt-2 text-xs text-gray-500">
-                          <div class="flex items-center">
-                            <i class="ti ti-calendar mr-1"></i>
-                            <span x-text="formatDateTime(activity.start_datetime)"></span>
-                            <span class="mx-1">-</span>
-                            <span x-text="formatDateTime(activity.end_datetime)"></span>
-                          </div>
-                          <div class="flex items-center mt-1">
-                            <i class="ti ti-map-pin mr-1"></i>
-                            <span x-text="activity.location || 'Sin ubicación'"></span>
-                          </div>
-                          <div class="flex items-center mt-1">
-                            <i class="ti ti-users mr-1"></i>
-                            <span>
-                              <span x-text="activity.current_capacity || 0"></span>
-                              <span x-show="activity.max_capacity">/ <span x-text="activity.max_capacity"></span></span>
-                              <span x-show="!activity.max_capacity">/ ∞</span>
-                            </span>
-                          </div>
-                        </div>
-                        <div class="mt-3 flex justify-between items-center">
-                          <span class="text-xs px-2 py-1 bg-gray-100 text-gray-800 rounded-full" 
-                                x-text="activity.modality"></span>
-                          <button @click="registerForActivity(activity)" 
-                                  :disabled="isActivityRegistered(activity) || !canRegisterForActivity(activity)"
-                                  :class="{
-                                    'bg-green-600 hover:bg-green-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
-                                    'bg-gray-400 cursor-not-allowed text-white': isActivityRegistered(activity) || !canRegisterForActivity(activity)
-                                  }"
-                                  class="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded-full">
-                            <span x-show="isActivityRegistered(activity)">Registrado</span>
-                            <span x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)">Preregistrar</span>
-                            <span x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)">No disponible</span>
-                          </button>
+                      </template>
+                    </div>
+                  </div>
+
+                  <!-- Para eventos de múltiples días -->
+                  <div x-show="!isSingleDayEvent(currentEvent)">
+                    <h4 class="text-md font-medium text-gray-900 mb-3">Actividades por Día</h4>
+                    
+                    <!-- Agrupar actividades por día -->
+                    <template x-for="(dayGroup, date) in groupActivitiesByDay(currentEventActivities)" :key="date">
+                      <div class="mb-6">
+                        <h5 class="text-sm font-medium text-gray-700 mb-2 pb-1 border-b">
+                          <i class="ti ti-calendar mr-1"></i>
+                          <span x-text="formatOnlyDate(date)"></span>
+                          (<span x-text="Object.values(dayGroup).reduce((total, typeGroup) => total + typeGroup.length, 0)"></span> actividades)
+                        </h5>
+                        
+                        <!-- Agrupar por tipo de actividad -->
+                        <div class="ml-4 space-y-3">
+                          <template x-for="(typeGroup, activityType) in dayGroup" :key="activityType">
+                            <div>
+                              <div class="flex items-center mb-2">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                      :class="{
+                                        'bg-indigo-100 text-indigo-800': activityType === 'Magistral',
+                                        'bg-green-100 text-green-800': activityType === 'Conferencia',
+                                        'bg-yellow-100 text-yellow-800': activityType === 'Taller',
+                                        'bg-blue-100 text-blue-800': activityType === 'Curso',
+                                        'bg-gray-100 text-gray-800': activityType === 'Otro'
+                                      }">
+                                  <i class="ti ti-tag mr-1"></i>
+                                  <span x-text="activityType"></span>
+                                  (<span x-text="typeGroup.length"></span>)
+                                </span>
+                              </div>
+                              
+                              <!-- Lista de actividades del tipo -->
+                              <div class="ml-6 space-y-2">
+                                <template x-for="activity in typeGroup" :key="activity.id">
+                                  <div class="flex items-center p-2 bg-white rounded border">
+                                    <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center"
+                                        :class="{
+                                          'bg-indigo-100 text-indigo-600': activity.activity_type === 'Magistral',
+                                          'bg-green-100 text-green-600': activity.activity_type === 'Conferencia',
+                                          'bg-yellow-100 text-yellow-600': activity.activity_type === 'Taller',
+                                          'bg-blue-100 text-blue-600': activity.activity_type === 'Curso',
+                                          'bg-gray-100 text-gray-600': activity.activity_type === 'Otro'
+                                        }">
+                                      <i class="ti ti-book text-xs"></i>
+                                    </div>
+                                    <div class="ml-2 flex-1">
+                                      <p class="text-xs font-medium text-gray-900" x-text="activity.name"></p>
+                                      <div class="flex items-center text-xs text-gray-500 mt-1">
+                                        <i class="ti ti-clock mr-1"></i>
+                                        <span x-text="formatTime(activity.start_datetime)"></span>
+                                        <span class="mx-1">-</span>
+                                        <span x-text="formatTime(activity.end_datetime)"></span>
+                                      </div>
+                                    </div>
+                                    <div class="text-xs text-gray-500 ml-2">
+                                      <span x-text="activity.location || 'Sin ubicación'"></span>
+                                    </div>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
                         </div>
                       </div>
                     </template>
                   </div>
                 </div>
-                
-                <div x-show="currentEventActivities.length === 0" class="mt-4 text-center py-4 text-gray-500">
-                  <i class="ti ti-book-off text-xl mb-2"></i>
-                  <p>No hay actividades disponibles para este evento</p>
+
+                <!-- Mensaje cuando no hay actividades -->
+                <div x-show="currentEvent.activities_count === 0 || currentEventActivities.length === 0" class="text-center py-4 text-gray-500">
+                  <i class="ti ti-book-off text-2xl mb-2"></i>
+                  <p>No hay actividades registradas para este evento</p>
                 </div>
               </div>
             </div>
