@@ -10,6 +10,7 @@ function studentEventActivitiesManager() {
     loading: false,
     loadingEvent: false,
     errorMessage: "",
+    studentRegistrations: [],
 
     // Paginación
     pagination: {
@@ -52,6 +53,7 @@ function studentEventActivitiesManager() {
         } else {
           this.errorMessage = "No se especificó un evento válido";
           showToast(this.errorMessage, "error");
+          this.goToEvents();
         }
       });
 
@@ -64,6 +66,16 @@ function studentEventActivitiesManager() {
       if (eventId) {
         await this.loadEvent(eventId);
         this.loadActivities();
+        this.loadStudentRegistrations();
+      } else {
+        this.goToEvents();
+      }
+    },
+
+    goToEvents() {
+      const dashboard = document.querySelector('[x-data*="studentDashboard"]');
+      if (dashboard && dashboard.__x) {
+        dashboard.__x.getUnobservedData().setActiveTab("events");
       }
     },
 
@@ -159,6 +171,8 @@ function studentEventActivitiesManager() {
         // ✨ Agrupar actividades por día
         this.groupActivitiesByDay();
 
+        await this.loadStudentRegistrations();
+
         // Actualizar paginación
         this.pagination = {
           current_page: data.current_page || 1,
@@ -174,6 +188,40 @@ function studentEventActivitiesManager() {
         showToast(this.errorMessage, "error");
       } finally {
         this.loading = false;
+      }
+    },
+
+    async loadStudentRegistrations() {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        const studentId = this.getCurrentStudentId();
+        if (!studentId) return;
+
+        const response = await fetch(
+          `/api/registrations?student_id=${studentId}`,
+          {
+            headers: window.getAuthHeaders(),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          // Almacenar solo los IDs de las actividades registradas
+          this.studentRegistrations = data.registrations.map(
+            (r) => r.activity_id
+          );
+          console.log("Preregistros cargados:", this.studentRegistrations);
+
+          // ✨ Actualizar la vista si ya tenemos actividades cargadas
+          if (this.activities.length > 0) {
+            this.groupActivitiesByDay();
+          }
+        }
+      } catch (error) {
+        console.error("Error loading student registrations:", error);
+        // No es crítico, solo para la UI
       }
     },
 
@@ -250,8 +298,31 @@ function studentEventActivitiesManager() {
         const data = await response.json();
         showToast("Preregistro realizado exitosamente", "success");
 
-        // Actualizar la actividad en la lista para reflejar que ya está registrada
-        // Esto se hace recargando las actividades, ya que el backend actualiza el current_capacity
+        // ✨ Actualizar visualmente el preregistro
+        // Agregar a la lista de preregistros del estudiante
+        if (!this.studentRegistrations.includes(activity.id)) {
+          this.studentRegistrations.push(activity.id);
+        }
+
+        // ✨ Actualizar el cupo visualmente
+        const activityIndex = this.activities.findIndex(
+          (a) => a.id === activity.id
+        );
+        if (activityIndex !== -1) {
+          // Crear una nueva versión del objeto para asegurar reactividad
+          const updatedActivity = {
+            ...this.activities[activityIndex],
+            current_capacity:
+              (this.activities[activityIndex].current_capacity || 0) + 1,
+          };
+
+          // Reemplazar el objeto en el array
+          this.activities.splice(activityIndex, 1, updatedActivity);
+
+          // ✨ Reagrupar actividades por día para actualizar la vista
+          this.groupActivitiesByDay();
+        }
+
         this.loadActivities(this.pagination.current_page);
       } catch (error) {
         console.error("Error registering for activity:", error);
@@ -264,10 +335,7 @@ function studentEventActivitiesManager() {
 
     // Verificar si ya está registrado en una actividad
     isActivityRegistered(activity) {
-      // Esta función debería verificar contra una lista de preregistros del estudiante
-      // Por ahora, simplemente retornamos false para permitir el preregistro
-      // En una implementación completa, cargarías los preregistros del estudiante
-      return false;
+      return this.studentRegistrations.includes(activity.id);
     },
 
     // Verificar si se puede registrar en una actividad
