@@ -29,11 +29,13 @@ function studentEventsManager() {
     showEventModal: false,
     currentEvent: {},
     currentEventActivities: [],
+    studentRegistrations: [],
 
     // Inicialización
     init() {
       console.log("Initializing student events manager...");
       this.loadEvents();
+      this.loadStudentRegistrations();
     },
 
     // Cargar eventos
@@ -147,6 +149,35 @@ function studentEventsManager() {
       }
     },
 
+    async loadStudentRegistrations() {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        const studentId = this.getCurrentStudentId();
+        if (!studentId) return;
+
+        const response = await fetch(
+          `/api/registrations?student_id=${studentId}`,
+          {
+            headers: window.getAuthHeaders(),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          // Solo necesitamos los IDs de las actividades registradas
+          this.studentRegistrations = data.registrations.map(
+            (r) => r.activity_id
+          );
+          console.log("Preregistros cargados:", this.studentRegistrations);
+        }
+      } catch (error) {
+        console.error("Error loading student registrations:", error);
+        // No es crítico, solo para la UI
+      }
+    },
+
     // Cambiar página
     changePage(page) {
       if (page >= 1 && page <= this.pagination.last_page) {
@@ -200,16 +231,37 @@ function studentEventsManager() {
 
     // Ver actividades del evento
     viewActivities(event) {
-      // Cambiar a la pestaña de actividades con el filtro del evento
-      const dashboard = document.querySelector('[x-data*="studentDashboard"]');
-      if (dashboard && dashboard.__x) {
-        dashboard.__x.getUnobservedData().setActiveTab("registrations");
-        // Aquí podrías pasar el event_id al componente de actividades
-        window.dispatchEvent(
-          new CustomEvent("filter-activities-by-event", {
-            detail: { eventId: event.id },
-          })
-        );
+      console.log("Viewing activities for event:", event.id);
+
+      try {
+        // Intentar cambiar la pestaña directamente
+        const setActiveTab = (tabId) => {
+          // Primero cambiar el hash
+          window.location.hash = tabId;
+
+          // Luego enviar el evento de carga
+          setTimeout(() => {
+            window.dispatchEvent(
+              new CustomEvent("load-event-activities", {
+                detail: {
+                  eventId: event.id,
+                  eventName: event.name,
+                },
+              })
+            );
+          }, 100);
+        };
+
+        // Ejecutar el cambio de pestaña
+        setActiveTab("event_activities");
+
+        console.log("Navegación iniciada a event_activities");
+      } catch (error) {
+        console.error("Error al navegar a actividades:", error);
+        showToast("Error al navegar a las actividades", "error");
+
+        // Como último recurso, intentar navegación directa
+        window.location.hash = `event_activities?event_id=${event.id}`;
       }
     },
 
@@ -255,13 +307,24 @@ function studentEventsManager() {
         const data = await response.json();
         showToast("Preregistro realizado exitosamente", "success");
 
+        if (!this.studentRegistrations.includes(activity.id)) {
+          this.studentRegistrations.push(activity.id);
+        }
+
         // Actualizar la actividad en la lista para reflejar que ya está registrada
         const activityIndex = this.currentEventActivities.findIndex(
           (a) => a.id === activity.id
         );
         if (activityIndex !== -1) {
-          // Podríamos actualizar el estado de la actividad si es necesario
-          // Por ahora solo mostramos el mensaje de éxito
+          // Crear una nueva versión del objeto para asegurar la reactividad de Alpine.js
+          const updatedActivity = {
+            ...this.currentEventActivities[activityIndex],
+            current_capacity:
+              (this.currentEventActivities[activityIndex].current_capacity ||
+                0) + 1,
+          };
+          // Reemplazar el objeto en el array
+          this.currentEventActivities.splice(activityIndex, 1, updatedActivity);
         }
       } catch (error) {
         console.error("Error registering for activity:", error);
@@ -274,9 +337,7 @@ function studentEventsManager() {
 
     // Verificar si ya está registrado en una actividad
     isActivityRegistered(activity) {
-      // Esta función podría verificar contra una lista de preregistros del estudiante
-      // Por ahora, simplemente retornamos false para permitir el preregistro
-      return false;
+      return this.studentRegistrations.includes(activity.id);
     },
 
     // Verificar si se puede registrar en una actividad
