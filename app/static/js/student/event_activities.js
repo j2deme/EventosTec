@@ -225,15 +225,20 @@ function studentEventActivitiesManager() {
 
         const data = await response.json();
 
-        // Mapear actividades y formatear fechas
-        this.activities = data.activities.map((activity) => ({
+        // ✨ Guardar actividades originales (sin modificar para presentación)
+        this.originalActivities = data.activities.map((activity) => ({
           ...activity,
           start_datetime: this.formatDateTimeForInput(activity.start_datetime),
           end_datetime: this.formatDateTimeForInput(activity.end_datetime),
         }));
 
-        // ✨ Agrupar actividades por día
-        this.groupActivitiesByDay();
+        // Mapear actividades y formatear fechas (para uso general)
+        this.activities = this.originalActivities.map((activity) => ({
+          ...activity,
+        }));
+
+        // ✨ Agrupar actividades por día para presentación visual
+        this.groupActivitiesByDayForDisplay();
 
         // Cargar preregistros del estudiante
         await this.loadStudentRegistrations();
@@ -318,7 +323,31 @@ function studentEventActivitiesManager() {
 
     // Preregistrar a una actividad
     async registerForActivity(activity) {
+      console.log("🎯 Intentando preregistrar a actividad:", activity);
+
+      // ✨ Obtener la actividad original para verificación precisa
+      const originalActivity = this.getOriginalActivityById(activity.id);
+      console.log("📋 Actividad original para verificación:", originalActivity);
+
       try {
+        // ✨ Verificar si es una actividad multídias usando los datos originales
+        if (originalActivity && this.isMultiDayActivity(originalActivity)) {
+          console.log("⚠️ Mostrando confirmación para actividad multídias");
+          const confirmed = await this.showMultiDayConfirmation(
+            originalActivity
+          );
+          if (!confirmed) {
+            // Usuario canceló la confirmación
+            console.log(
+              "❌ Usuario canceló el preregistro a actividad multídias"
+            );
+            return;
+          }
+          console.log(
+            "✅ Usuario confirmó el preregistro a actividad multídias"
+          );
+        }
+
         const token = localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
@@ -333,7 +362,7 @@ function studentEventActivitiesManager() {
 
         const registrationData = {
           student_id: studentId,
-          activity_id: activity.id,
+          activity_id: activity.id, // Usar el ID de la actividad original
         };
 
         const response = await fetch("/api/registrations/", {
@@ -358,12 +387,13 @@ function studentEventActivitiesManager() {
         const data = await response.json();
         showToast("Preregistro realizado exitosamente", "success");
 
-        // Actualizar la actividad en la lista para reflejar que ya está registrada
+        // ✨ Actualizar visualmente el preregistro
+        // Agregar a la lista de preregistros del estudiante
         if (!this.studentRegistrations.includes(activity.id)) {
           this.studentRegistrations.push(activity.id);
         }
 
-        // Actualizar el cupo visualmente
+        // ✨ Actualizar el cupo visualmente
         const activityIndex = this.activities.findIndex(
           (a) => a.id === activity.id
         );
@@ -377,8 +407,8 @@ function studentEventActivitiesManager() {
           // Reemplazar el objeto en el array
           this.activities.splice(activityIndex, 1, updatedActivity);
 
-          // Reagrupar actividades por día para actualizar la vista
-          this.groupActivitiesByDay();
+          // ✨ Reagrupar actividades por día para actualizar la vista
+          this.groupActivitiesByDayForDisplay();
         }
       } catch (error) {
         console.error("Error registering for activity:", error);
@@ -387,6 +417,94 @@ function studentEventActivitiesManager() {
           "error"
         );
       }
+    },
+
+    // ✨ Agrupar actividades por día SOLO para presentación visual (sin modificar actividades originales)
+    groupActivitiesByDayForDisplay() {
+      if (!this.originalActivities || this.originalActivities.length === 0) {
+        this.activitiesByDay = [];
+        return;
+      }
+
+      const grouped = {};
+
+      this.originalActivities.forEach((activity) => {
+        const startDate = new Date(activity.start_datetime);
+        const endDate = new Date(activity.end_datetime);
+
+        // ✨ Para actividades multídias: crear entradas para cada día
+        if (this.isMultiDayActivity(activity)) {
+          // Generar fechas para cada día
+          const datesInBetween = this.getDatesBetween(startDate, endDate);
+
+          datesInBetween.forEach((dateObj) => {
+            const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+
+            if (!grouped[dateStr]) {
+              grouped[dateStr] = [];
+            }
+
+            // Crear una "vista" de la actividad para este día específico
+            const dailyActivityView = {
+              ...activity,
+              _expanded_for_date: dateStr,
+              // ✨ Añadir información sobre el día actual dentro de la actividad multidia
+              day_in_series: this.getDayInSeries(
+                activity.start_datetime,
+                activity.end_datetime,
+                dateStr
+              ),
+              total_days: this.getTotalDays(
+                activity.start_datetime,
+                activity.end_datetime
+              ),
+              // ✨ Marcar como actividad expandida para diferenciar en la UI
+              is_expanded_view: true,
+            };
+
+            grouped[dateStr].push(dailyActivityView);
+          });
+        } else {
+          // Actividad normal (un solo día)
+          const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
+          if (!grouped[dateKey]) {
+            grouped[dateKey] = [];
+          }
+
+          grouped[dateKey].push(activity);
+        }
+      });
+
+      // Ordenar actividades dentro de cada grupo por hora de inicio (ASCENDENTE)
+      Object.keys(grouped).forEach((date) => {
+        grouped[date].sort((a, b) => {
+          // ✨ Comparar solo las horas de inicio (ignorando la fecha)
+          const timeA =
+            new Date(a.start_datetime).getHours() * 60 +
+            new Date(a.start_datetime).getMinutes();
+          const timeB =
+            new Date(b.start_datetime).getHours() * 60 +
+            new Date(b.start_datetime).getMinutes();
+          return timeA - timeB;
+        });
+      });
+
+      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
+      const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
+        return new Date(a) - new Date(b);
+      });
+
+      // Reorganizar el objeto agrupado con los días ordenados
+      const sortedGrouped = {};
+      sortedDateKeys.forEach((dateKey) => {
+        sortedGrouped[dateKey] = grouped[dateKey];
+      });
+
+      // Convertir a array para el template
+      this.activitiesByDay = Object.keys(sortedGrouped).map((date) => ({
+        date: date,
+        activities: sortedGrouped[date],
+      }));
     },
 
     // Verificar si ya está registrado en una actividad
@@ -421,6 +539,96 @@ function studentEventActivitiesManager() {
         console.error("Error decoding token:", e);
         return null;
       }
+    },
+
+    showMultiDayConfirmation(activity) {
+      // Crear un elemento modal de confirmación
+      const modalHtml = `
+        <div id="multiday-confirm-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+          <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                  <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <i class="ti ti-alert-triangle text-yellow-600"></i>
+                  </div>
+                  <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">Confirmar Preregistro</h3>
+                    <div class="mt-2">
+                      <p class="text-sm text-gray-500">
+                        La actividad <strong>${
+                          activity.name
+                        }</strong> es una actividad multídias.
+                      </p>
+                      <p class="mt-2 text-sm text-gray-500">
+                        Esto significa que tendrás sesiones los días:
+                      </p>
+                      <div class="mt-2 p-2 bg-gray-50 rounded-md">
+                        <p class="text-xs font-medium text-gray-700">
+                          Del ${this.formatOnlyDate(activity.start_datetime)} 
+                          al ${this.formatOnlyDate(activity.end_datetime)}
+                        </p>
+                      </div>
+                      <p class="mt-3 text-sm text-gray-500">
+                        ¿Estás seguro de que deseas preregistrarte a todas las sesiones de esta actividad?
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" 
+                        id="confirm-multiday-register"
+                        class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">
+                  Sí, preregistrarme
+                </button>
+                <button type="button" 
+                        id="cancel-multiday-register"
+                        class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Agregar el modal al body
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+      // Mostrar el modal
+      const modal = document.getElementById("multiday-confirm-modal");
+      modal.style.display = "block";
+
+      // Retornar una promesa que se resuelve cuando el usuario confirma o cancela
+      return new Promise((resolve) => {
+        const confirmBtn = document.getElementById("confirm-multiday-register");
+        const cancelBtn = document.getElementById("cancel-multiday-register");
+        const closeModal = () => {
+          modal.remove();
+          resolve(false);
+        };
+
+        confirmBtn.onclick = () => {
+          modal.remove();
+          resolve(true);
+        };
+
+        cancelBtn.onclick = closeModal;
+
+        // También cerrar con Escape
+        document.onkeydown = (e) => {
+          if (e.key === "Escape") {
+            closeModal();
+          }
+        };
+      });
     },
 
     // Formatear fecha para input datetime-local
@@ -468,22 +676,53 @@ function studentEventActivitiesManager() {
 
     // ✨ Verificar si una actividad es multídias
     isMultiDayActivity(activity) {
-      if (!activity.start_datetime || !activity.end_datetime) return false;
-
-      const startDate = new Date(activity.start_datetime);
-      const endDate = new Date(activity.end_datetime);
-      const startDay = new Date(
-        startDate.getFullYear(),
-        startDate.getMonth(),
-        startDate.getDate()
+      // Usar los datos originales para la verificación
+      const originalActivity = this.originalActivities.find(
+        (a) => a.id === activity.id
       );
-      const endDay = new Date(
-        endDate.getFullYear(),
-        endDate.getMonth(),
-        endDate.getDate()
-      );
+      const activityToCheck = originalActivity || activity; // Fallback al activity pasado si no se encuentra el original
 
-      return startDay.getTime() !== endDay.getTime();
+      if (!activityToCheck.start_datetime || !activityToCheck.end_datetime) {
+        return false;
+      }
+
+      try {
+        const startDate = new Date(activityToCheck.start_datetime);
+        const endDate = new Date(activityToCheck.end_datetime);
+
+        // Comparar solo las fechas (sin horas)
+        const startDay = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate()
+        );
+        const endDay = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate()
+        );
+
+        const isMultiDay = startDay.getTime() !== endDay.getTime();
+        console.log(
+          `🔍 Actividad ${activityToCheck.id} (${activityToCheck.name}) es multídias: ${isMultiDay}`,
+          {
+            originalStart: activityToCheck.start_datetime,
+            originalEnd: activityToCheck.end_datetime,
+            startDay: startDay,
+            endDay: endDay,
+          }
+        );
+
+        return isMultiDay;
+      } catch (e) {
+        console.error("Error al verificar si es actividad multídias:", e);
+        return false;
+      }
+    },
+
+    // ✨ Obtener actividad original por ID
+    getOriginalActivityById(activityId) {
+      return this.originalActivities.find((a) => a.id === activityId);
     },
 
     // ✨ Verificar si es evento de un solo día
