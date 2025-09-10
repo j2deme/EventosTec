@@ -1,0 +1,77 @@
+<!-- templates/student/partials/profile.html -->
+<div x-data="studentProfileManager()" x-init="init()">
+  <!-- Header -->
+  <div class="mb-6">
+    <p class="text-gray-600">Información de tu cuenta de estudiante</p>
+  </div>
+
+  <!-- Profile Card -->
+  <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="px-4 py-5 sm:px-6 border-b border-gray-200">
+      <h3 class="text-lg leading-6 font-medium text-gray-900">Información Personal</h3>
+      <p class="mt-1 max-w-2xl text-sm text-gray-500">Detalles de tu perfil de estudiante.</p>
+    </div>
+    
+    <div class="px-4 py-5 sm:p-6">
+      <!-- Loading State -->
+      <div x-show="loading" class="text-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+        <p class="mt-2 text-gray-600">Cargando información del perfil...</p>
+      </div>
+
+      <!-- Error State -->
+      <div x-show="errorMessage && !loading" class="rounded-md bg-red-50 p-4 mb-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <i class="ti ti-alert-circle text-red-400"></i>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-red-800" x-text="errorMessage"></h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Content -->
+      <div x-show="!loading && !errorMessage">
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <!-- Full Name -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Nombre Completo</label>
+            <div class="mt-1 block w-full sm:text-sm text-gray-900" x-text="studentData.full_name || 'No disponible'"></div>
+          </div>
+
+          <!-- Control Number -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Número de Control</label>
+            <div class="mt-1 block w-full sm:text-sm text-gray-900 font-mono" x-text="studentData.control_number || 'No disponible'"></div>
+          </div>
+
+          <!-- Career -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Carrera</label>
+            <div class="mt-1 block w-full sm:text-sm text-gray-900" x-text="studentData.career || 'No disponible'"></div>
+          </div>
+
+          <!-- Email -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+            <div class="mt-1 block w-full sm:text-sm text-gray-900" x-text="studentData.email || 'No disponible'"></div>
+          </div>
+        </div>
+
+        <!-- Last Updated Info -->
+        <div class="mt-6 pt-6 border-t border-gray-200">
+          <div class="flex items-center text-sm text-gray-500">
+            <i class="ti ti-info-circle mr-2"></i>
+            <span>La información se actualiza automáticamente desde el sistema institucional</span>
+          </div>
+          <div class="mt-2 text-xs text-gray-400" x-show="lastUpdated">
+            Última actualización: <span x-text="formatDateTime(lastUpdated)"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/student/profile.js') }}"></script>
