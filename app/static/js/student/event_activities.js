@@ -465,6 +465,188 @@ function studentEventActivitiesManager() {
       localStorage.removeItem("studentProfile");
       window.location.href = "/";
     },
+
+    // ✨ Verificar si una actividad es multídias
+    isMultiDayActivity(activity) {
+      if (!activity || !activity.start_datetime || !activity.end_datetime)
+        return false;
+
+      const startDate = new Date(activity.start_datetime);
+      const endDate = new Date(activity.end_datetime);
+
+      // Comparar solo la fecha (sin hora)
+      return startDate.toDateString() !== endDate.toDateString();
+    },
+
+    // ✨ Verificar si es evento de un solo día
+    isSingleDayEvent(event) {
+      if (!event || !event.start_date || !event.end_date) return false;
+
+      const startDate = new Date(event.start_date);
+      const endDate = new Date(event.end_date);
+
+      // Comparar solo la fecha (sin hora)
+      return startDate.toDateString() === endDate.toDateString();
+    },
+
+    // ✨ Agrupar actividades por día para el cronograma
+    groupActivitiesByDayForTimeline(activities) {
+      if (!activities || activities.length === 0) return {};
+
+      const grouped = {};
+
+      activities.forEach((activity) => {
+        const startDate = new Date(activity.start_datetime);
+        const endDate = new Date(activity.end_datetime);
+
+        // ✨ Para actividades multídias: crear entradas para cada día
+        if (this.isMultiDayActivity(activity)) {
+          // Generar fechas para cada día
+          const datesInBetween = this.getDatesBetween(startDate, endDate);
+
+          datesInBetween.forEach((dateStr) => {
+            if (!grouped[dateStr]) {
+              grouped[dateStr] = [];
+            }
+
+            // Crear una "vista" de la actividad para este día específico
+            const dailyActivityView = {
+              ...activity,
+              _expanded_for_date: dateStr,
+              // ✨ Añadir información sobre el día actual dentro de la actividad multidia
+              day_in_series: this.getDayInSeries(startDate, endDate, dateStr),
+              total_days: this.getTotalDays(startDate, endDate),
+            };
+
+            grouped[dateStr].push(dailyActivityView);
+          });
+        } else {
+          // Actividad normal (un solo día)
+          const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
+          if (!grouped[dateKey]) {
+            grouped[dateKey] = [];
+          }
+
+          grouped[dateKey].push(activity);
+        }
+      });
+
+      // Ordenar actividades dentro de cada grupo por hora de inicio (ASCENDENTE)
+      Object.keys(grouped).forEach((date) => {
+        grouped[date].sort((a, b) => {
+          // ✨ Comparar solo las horas de inicio (ignorando la fecha)
+          const timeA =
+            new Date(a.start_datetime).getHours() * 60 +
+            new Date(a.start_datetime).getMinutes();
+          const timeB =
+            new Date(b.start_datetime).getHours() * 60 +
+            new Date(b.start_datetime).getMinutes();
+          return timeA - timeB;
+        });
+      });
+
+      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
+      const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
+        return new Date(a) - new Date(b); // Orden ascendente por fecha
+      });
+
+      // Reorganizar el objeto agrupado con los días ordenados
+      const sortedGrouped = {};
+      sortedDateKeys.forEach((dateKey) => {
+        sortedGrouped[dateKey] = grouped[dateKey];
+      });
+
+      return sortedGrouped;
+    },
+
+    // ✨ Obtener todas las fechas entre dos fechas (inclusive)
+    getDatesBetween(startDate, endDate) {
+      const dates = [];
+      const currentDate = new Date(startDate);
+      const finalDate = new Date(endDate);
+
+      currentDate.setHours(0, 0, 0, 0);
+      finalDate.setHours(0, 0, 0, 0);
+
+      while (currentDate <= finalDate) {
+        dates.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      return dates;
+    },
+
+    // ✨ Obtener el número del día actual dentro de la serie multidia (1/3, 2/3, etc.)
+    getDayInSeries(startDate, endDate, currentDay) {
+      const startDay = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate()
+      );
+      const endDay = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate()
+      );
+      const currentDayDate = new Date(currentDay);
+
+      // Calcular el número de días desde el inicio
+      const daysFromStart =
+        Math.floor((currentDayDate - startDay) / (1000 * 60 * 60 * 24)) + 1;
+
+      return daysFromStart;
+    },
+
+    // ✨ Obtener el total de días de la actividad multidia
+    getTotalDays(startDate, endDate) {
+      const startDay = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate()
+      );
+      const endDay = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate()
+      );
+
+      // Calcular la diferencia en días
+      const totalDays =
+        Math.floor((endDay - startDay) / (1000 * 60 * 60 * 24)) + 1;
+
+      return totalDays;
+    },
+
+    // ✨ Obtener actividades ordenadas por hora (para eventos de un solo día)
+    getSortedActivitiesByTime(activities) {
+      if (!activities || activities.length === 0) return [];
+
+      return [...activities].sort((a, b) => {
+        return new Date(a.start_datetime) - new Date(b.start_datetime); // Orden ascendente
+      });
+    },
+
+    // ✨ Formatear solo fecha para mostrar
+    formatOnlyDate(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      const date = new Date(dateTimeString);
+      return date.toLocaleDateString("es-ES", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    },
+
+    // ✨ Formatear solo hora para mostrar
+    formatTime(dateTimeString) {
+      if (!dateTimeString) return "--:--";
+      const date = new Date(dateTimeString);
+      return date.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    },
   };
 }
 
