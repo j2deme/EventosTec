@@ -25,9 +25,8 @@ class EventSchema(ma.SQLAlchemyAutoSchema):
     activities_count = fields.Method('get_activities_count', dump_only=True)
 
     def get_activities_count(self, obj):
-        # Este campo se calculará en el endpoint si es necesario
-        # o se puede añadir un campo en el modelo Event
-        return getattr(obj, 'activities_count', 0)
+        # Calcula el número de actividades relacionadas usando la relación del modelo Event
+        return len(obj.activities) if hasattr(obj, 'activities') and obj.activities is not None else 0
 
 
 # Instancias para usar en los endpoints
