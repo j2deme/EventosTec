@@ -2,6 +2,7 @@ from app.models.registration import Registration
 from app.models.activity import Activity
 from datetime import datetime, time, timedelta
 from sqlalchemy import and_
+from app import db
 
 
 def _get_daily_sessions(activity):
@@ -33,61 +34,125 @@ def _get_daily_sessions(activity):
 
 def has_schedule_conflict(student_id, new_activity_id):
     """
-    Verifica si una nueva actividad tiene un horario que se solapa 
-    con otras actividades en las que el estudiante ya está preregistrado.
-
-    Args:
-        student_id (int): ID del estudiante.
-        new_activity_id (int): ID de la nueva actividad a verificar.
-
-    Returns:
-        tuple: (bool, str) - (True/False si hay conflicto, mensaje descriptivo del conflicto o "").
+    Verifica si hay conflicto de horario para una nueva actividad.
+    Maneja correctamente actividades multídias.
     """
-    from app import db
-    from app.models.activity import Activity
-    from app.models.registration import Registration
+    try:
+        new_activity = db.session.get(Activity, new_activity_id)
+        if not new_activity:
+            return False, "Actividad no encontrada"
 
-    new_activity = db.session.get(Activity, new_activity_id)
-    if not new_activity:
-        return False, "Actividad nueva no encontrada."
-
-    # Obtener sesiones diarias de la nueva actividad
-    new_sessions = _get_daily_sessions(new_activity)
-    if not new_sessions:
-        # Si no se pueden calcular sesiones, asumimos que no hay conflicto o se maneja como error.
-        return False, ""
-
-    # Buscar actividades ya registradas (no canceladas)
-    existing_registrations = db.session.query(Registration).filter(
-        and_(
+        # Obtener todas las actividades registradas del estudiante
+        registered_activities = db.session.query(Activity).join(
+            Registration
+        ).filter(
             Registration.student_id == student_id,
-            Registration.status != 'Cancelado'  # Ajustar según tu enum
-        )
-    ).all()
+            Registration.status.in_(['Registrado', 'Confirmado'])
+        ).all()
 
-    for reg in existing_registrations:
-        existing_activity = reg.activity
-        if not existing_activity or existing_activity.id == new_activity_id:
-            continue  # Saltar si no existe o es la misma actividad
+        new_start = new_activity.start_datetime
+        new_end = new_activity.end_datetime
 
-        existing_sessions = _get_daily_sessions(existing_activity)
-        if not existing_sessions:
-            continue
+        for existing_activity in registered_activities:
+            existing_start = existing_activity.start_datetime
+            existing_end = existing_activity.end_datetime
 
-        # Comparar cada sesion nueva contra cada sesion existente
-        for new_start, new_end in new_sessions:
-            for existing_start, existing_end in existing_sessions:
-                # Formula estandar de solapamiento
-                if new_start < existing_end and existing_start < new_end:
-                    conflict_msg = (
-                        f"Conflicto de horario: La actividad '{new_activity.name}' "
-                        f"({new_start.strftime('%Y-%m-%d %H:%M')} - {new_end.strftime('%H:%M')}) "
-                        f"se solapa con la actividad ya registrada '{existing_activity.name}' "
-                        f"({existing_start.strftime('%Y-%m-%d %H:%M')} - {existing_end.strftime('%H:%M')})."
-                    )
-                    return True, conflict_msg
+            # ✨ Manejar actividades multídias
+            if is_multi_day_activity(new_start, new_end) or is_multi_day_activity(existing_start, existing_end):
+                # Verificar solapamiento día por día
+                if check_multiday_overlap(new_start, new_end, existing_start, existing_end):
+                    return True, f"Conflicto de horario con '{existing_activity.name}'"
+            else:
+                # Verificación de solapamiento normal
+                if check_normal_overlap(new_start, new_end, existing_start, existing_end):
+                    return True, f"Conflicto de horario con '{existing_activity.name}'"
 
-    return False, ""
+        return False, ""
+    except Exception as e:
+        return False, f"Error al verificar conflictos: {str(e)}"
+
+
+def is_multi_day_activity(start_datetime, end_datetime):
+    """Verifica si una actividad abarca múltiples días."""
+    start_date = start_datetime.date()
+    end_date = end_datetime.date()
+    return start_date != end_date
+
+
+def check_multiday_overlap(start1, end1, start2, end2):
+    """
+    Verifica solapamiento entre actividades multídias.
+    Divide cada actividad en días y verifica solapamiento día por día.
+    """
+    # Obtener días de cada actividad
+    days1 = get_days_between(start1, end1)
+    days2 = get_days_between(start2, end2)
+
+    # Verificar si hay días en común
+    common_days = set(days1) & set(days2)
+
+    if not common_days:
+        return False
+
+    # Para cada día común, verificar solapamiento de horarios
+    for common_day in common_days:
+        # Obtener horario de cada actividad para ese día
+        range1_start, range1_end = get_daily_range(common_day, start1, end1)
+        range2_start, range2_end = get_daily_range(common_day, start2, end2)
+
+        # Verificar solapamiento en ese día
+        if check_normal_overlap(range1_start, range1_end, range2_start, range2_end):
+            return True
+
+    return False
+
+
+def get_days_between(start_datetime, end_datetime):
+    """Obtiene lista de fechas (YYYY-MM-DD) entre dos fechas."""
+    from datetime import timedelta
+
+    days = []
+    current_date = start_datetime.date()
+    end_date = end_datetime.date()
+
+    while current_date <= end_date:
+        days.append(current_date.strftime('%Y-%m-%d'))
+        current_date += timedelta(days=1)
+
+    return days
+
+
+def get_daily_range(target_date_str, activity_start, activity_end):
+    """
+    Obtiene el rango de horas para una actividad en un día específico.
+    target_date_str: 'YYYY-MM-DD'
+    """
+    from datetime import datetime, time
+
+    target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    activity_start_date = activity_start.date()
+    activity_end_date = activity_end.date()
+
+    if target_date == activity_start_date:
+        # Primer día: usar hora de inicio de la actividad
+        range_start = activity_start
+    else:
+        # Días intermedios: usar inicio del día (00:00)
+        range_start = datetime.combine(target_date, time(0, 0))
+
+    if target_date == activity_end_date:
+        # Último día: usar hora de fin de la actividad
+        range_end = activity_end
+    else:
+        # Días intermedios: usar fin del día (23:59)
+        range_end = datetime.combine(target_date, time(23, 59))
+
+    return range_start, range_end
+
+
+def check_normal_overlap(start1, end1, start2, end2):
+    """Verificación de solapamiento normal."""
+    return max(start1, start2) < min(end1, end2)
 
 
 def is_registration_allowed(activity_id):
