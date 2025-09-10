@@ -110,94 +110,7 @@
       </div>
     </div>
 
-    <!-- ✨ Vista para eventos de un solo día: Secuencia lineal -->
-    <div x-show="!loading && activitiesByDay.length > 0 && isSingleDayEvent(currentEvent)">
-      <h3 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">
-        <i class="ti ti-list mr-2"></i>
-        Secuencia de Actividades
-        <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="activities.length"></span> actividades)</span>
-      </h3>
-      
-      <div class="space-y-4">
-        <template x-for="(dayGroup, index) in activitiesByDay" :key="index">
-          <template x-for="activity in dayGroup.activities" :key="activity.id">
-            <div class="flex items-center p-4 bg-white rounded-lg shadow border-l-4"
-                 :class="{
-                   'border-indigo-500': activity.activity_type === 'Magistral',
-                   'border-green-500': activity.activity_type === 'Conferencia',
-                   'border-yellow-500': activity.activity_type === 'Taller',
-                   'border-blue-500': activity.activity_type === 'Curso',
-                   'border-gray-300': activity.activity_type === 'Otro'
-                 }">
-              <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                   :class="{
-                     'bg-indigo-100 text-indigo-600': activity.activity_type === 'Magistral',
-                     'bg-green-100 text-green-600': activity.activity_type === 'Conferencia',
-                     'bg-yellow-100 text-yellow-600': activity.activity_type === 'Taller',
-                     'bg-blue-100 text-blue-600': activity.activity_type === 'Curso',
-                     'bg-gray-100 text-gray-600': activity.activity_type === 'Otro'
-                   }">
-                <i class="ti ti-book text-sm"></i>
-              </div>
-              <div class="ml-4 flex-1">
-                <div class="flex justify-between">
-                  <h4 class="text-md font-medium text-gray-900" x-text="activity.name"></h4>
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800" 
-                        x-text="activity.code || 'N/A'"></span>
-                </div>
-                <p class="mt-1 text-sm text-gray-500">
-                  <span x-text="activity.activity_type"></span> - 
-                  <span x-text="activity.department"></span>
-                </p>
-                <div class="mt-2 flex items-center text-sm text-gray-500">
-                  <i class="ti ti-clock mr-1.5"></i>
-                  <span x-text="formatTime(activity.start_datetime)"></span>
-                  <span class="mx-1">-</span>
-                  <span x-text="formatTime(activity.end_datetime)"></span>
-                  <span class="mx-2">•</span>
-                  <i class="ti ti-map-pin mr-1.5"></i>
-                  <span x-text="activity.location || 'Sin ubicación'"></span>
-                </div>
-                <div class="mt-2 flex items-center text-sm text-gray-500">
-                  <i class="ti ti-users mr-1.5"></i>
-                  <span>
-                    <span x-text="activity.current_capacity || 0"></span>
-                    <span x-show="activity.max_capacity">/ <span x-text="activity.max_capacity"></span></span>
-                    <span x-show="!activity.max_capacity">/ ∞</span>
-                  </span>
-                  <span class="mx-2">•</span>
-                  <i class="ti ti-layout-grid mr-1.5"></i>
-                  <span x-text="activity.modality"></span>
-                </div>
-              </div>
-              <div class="ml-4">
-                <button 
-                  @click="registerForActivity(activity)" 
-                  :disabled="!canRegisterForActivity(activity)"
-                  :class="{
-                    'bg-green-600 hover:bg-green-700 text-white': isActivityRegistered(activity),
-                    'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
-                    'bg-gray-400 cursor-not-allowed text-white': !canRegisterForActivity(activity)
-                  }"
-                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full">
-                  <span x-show="isActivityRegistered(activity)">
-                    <i class="ti ti-check mr-1"></i> Registrado
-                  </span>
-                  <span x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)">
-                    <i class="ti ti-bookmark mr-1"></i> Preregistrar
-                  </span>
-                  <span x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)">
-                    <i class="ti ti-x mr-1"></i> No disponible
-                  </span>
-                </button>
-              </div>
-            </div>
-          </template>
-        </template>
-      </div>
-    </div>
-
-    <!-- ✨ Vista para eventos multídias: Cronograma agrupado por días -->
+    <!-- ✨ Vista para eventos multídias: Cronograma agrupado por días con bloques diarios -->
     <div x-show="!loading && activitiesByDay.length > 0 && !isSingleDayEvent(currentEvent)">
       <template x-for="(dayGroup, index) in activitiesByDay" :key="index">
         <div class="mb-8">
@@ -238,33 +151,34 @@
                     <span x-text="activity.department"></span>
                   </p>
                   
-                  <!-- ✨ Indicador de día en serie para actividades multídias -->
-                  <div x-show="activity.total_days > 1" class="mt-1 flex items-center text-xs text-gray-400">
-                    <i class="ti ti-tag mr-1"></i>
-                    <span x-text="`Día ${activity.day_in_series} / ${activity.total_days}`"></span>
-                  </div>
-                  
-                  <div class="mt-2 flex items-center text-sm text-gray-500">
-                    <i class="ti ti-clock mr-1.5"></i>
-                    <span x-text="formatTime(activity.start_datetime)"></span>
-                    <span class="mx-1">-</span>
-                    <span x-text="formatTime(activity.end_datetime)"></span>
-                    <span class="mx-2">•</span>
-                    <i class="ti ti-map-pin mr-1.5"></i>
-                    <span x-text="activity.location || 'Sin ubicación'"></span>
-                  </div>
-                  <div class="mt-2 flex items-center text-sm text-gray-500">
-                    <i class="ti ti-users mr-1.5"></i>
-                    <span>
-                      <span x-text="activity.current_capacity || 0"></span>
-                      <span x-show="activity.max_capacity">/ <span x-text="activity.max_capacity"></span></span>
-                      <span x-show="!activity.max_capacity">/ ∞</span>
-                    </span>
-                    <span class="mx-2">•</span>
-                    <i class="ti ti-layout-grid mr-1.5"></i>
-                    <span x-text="activity.modality"></span>
+                  <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                    <div class="flex items-center text-gray-500">
+                      <i class="ti ti-clock mr-1.5"></i>
+                      <span>
+                        <span x-text="formatTime(activity.start_datetime)"></span>
+                        <span class="mx-1">-</span>
+                        <span x-text="formatTime(activity.end_datetime)"></span>
+                      </span>
+                    </div>
+                    <div class="flex items-center text-gray-500">
+                      <i class="ti ti-map-pin mr-1.5"></i>
+                      <span x-text="activity.location || 'Sin ubicación'"></span>
+                    </div>
+                    <div class="flex items-center text-gray-500">
+                      <i class="ti ti-users mr-1.5"></i>
+                      <span>
+                        <span x-text="activity.current_capacity || 0"></span>
+                        <span x-show="activity.max_capacity">/ <span x-text="activity.max_capacity"></span></span>
+                        <span x-show="!activity.max_capacity">/ ∞</span>
+                      </span>
+                    </div>
+                    <div class="flex items-center text-gray-500">
+                      <i class="ti ti-layout-grid mr-1.5"></i>
+                      <span x-text="activity.modality"></span>
+                    </div>
                   </div>
                 </div>
+                
                 <div class="ml-4">
                   <button 
                     @click="registerForActivity(activity)" 
@@ -274,7 +188,7 @@
                       'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
                       'bg-gray-400 cursor-not-allowed text-white': !canRegisterForActivity(activity)
                     }"
-                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full">
+                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full w-full justify-center">
                     <span x-show="isActivityRegistered(activity)">
                       <i class="ti ti-check mr-1"></i> Registrado
                     </span>
@@ -285,12 +199,113 @@
                       <i class="ti ti-x mr-1"></i> No disponible
                     </span>
                   </button>
+                  
+                  <!-- ✨ Indicador de día en serie para actividades multídias (más visible) -->
+                  <div x-show="activity.total_days > 1" class="mt-2 text-xs text-gray-500 text-center">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                      <i class="ti ti-calendar mr-1"></i>
+                      <span x-text="`Sesión ${activity.day_in_series + 1} / ${activity.total_days}`"></span>
+                    </span>
+                  </div>
                 </div>
               </div>
             </template>
           </div>
         </div>
       </template>
+    </div>
+
+    <!-- ✨ Vista para eventos de un solo día: Secuencia lineal (opcional, si quieres mantenerla) -->
+    <div x-show="!loading && activitiesByDay.length > 0 && isSingleDayEvent(currentEvent)">
+      <h3 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">
+        <i class="ti ti-list mr-2"></i>
+        Secuencia de Actividades
+        <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="activities.length"></span> actividades)</span>
+      </h3>
+      
+      <div class="space-y-4">
+        <template x-for="(dayGroup, index) in activitiesByDay" :key="index">
+          <template x-for="activity in dayGroup.activities" :key="activity.id">
+            <div class="flex items-center p-4 bg-white rounded-lg shadow border-l-4"
+                 :class="{
+                   'border-indigo-500': activity.activity_type === 'Magistral',
+                   'border-green-500': activity.activity_type === 'Conferencia',
+                   'border-yellow-500': activity.activity_type === 'Taller',
+                   'border-blue-500': activity.activity_type === 'Curso',
+                   'border-gray-300': activity.activity_type === 'Otro'
+                 }">
+              <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                   :class="{
+                     'bg-indigo-100 text-indigo-600': activity.activity_type === 'Magistral',
+                     'bg-green-100 text-green-600': activity.activity_type === 'Conferencia',
+                     'bg-yellow-100 text-yellow-600': activity.activity_type === 'Taller',
+                     'bg-blue-100 text-blue-600': activity.activity_type === 'Curso',
+                     'bg-gray-100 text-gray-600': activity.activity_type === 'Otro'
+                   }">
+                <i class="ti ti-book text-sm"></i>
+              </div>
+              <div class="ml-4 flex-1">
+                <div class="flex justify-between">
+                  <h4 class="text-md font-medium text-gray-900" x-text="activity.name"></h4>
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800" 
+                        x-text="activity.code || 'N/A'"></span>
+                </div>
+                <p class="mt-1 text-sm text-gray-500">
+                  <span x-text="activity.activity_type"></span> - 
+                  <span x-text="activity.department"></span>
+                </p>
+                <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                  <div class="flex items-center text-gray-500">
+                    <i class="ti ti-clock mr-1.5"></i>
+                    <span>
+                      <span x-text="formatTime(activity.start_datetime)"></span>
+                      <span class="mx-1">-</span>
+                      <span x-text="formatTime(activity.end_datetime)"></span>
+                    </span>
+                  </div>
+                  <div class="flex items-center text-gray-500">
+                    <i class="ti ti-map-pin mr-1.5"></i>
+                    <span x-text="activity.location || 'Sin ubicación'"></span>
+                  </div>
+                  <div class="flex items-center text-gray-500">
+                    <i class="ti ti-users mr-1.5"></i>
+                    <span>
+                      <span x-text="activity.current_capacity || 0"></span>
+                      <span x-show="activity.max_capacity">/ <span x-text="activity.max_capacity"></span></span>
+                      <span x-show="!activity.max_capacity">/ ∞</span>
+                    </span>
+                  </div>
+                  <div class="flex items-center text-gray-500">
+                    <i class="ti ti-layout-grid mr-1.5"></i>
+                    <span x-text="activity.modality"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="ml-4">
+                <button 
+                  @click="registerForActivity(activity)" 
+                  :disabled="!canRegisterForActivity(activity)"
+                  :class="{
+                    'bg-green-600 hover:bg-green-700 text-white': isActivityRegistered(activity),
+                    'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
+                    'bg-gray-400 cursor-not-allowed text-white': !canRegisterForActivity(activity)
+                  }"
+                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full">
+                  <span x-show="isActivityRegistered(activity)">
+                    <i class="ti ti-check mr-1"></i> Registrado
+                  </span>
+                  <span x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)">
+                    <i class="ti ti-bookmark mr-1"></i> Preregistrar
+                  </span>
+                  <span x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)">
+                    <i class="ti ti-x mr-1"></i> No disponible
+                  </span>
+                </button>
+              </div>
+            </div>
+          </template>
+        </template>
+      </div>
     </div>
 
     <!-- Mensaje cuando no hay actividades -->
