@@ -19,6 +19,12 @@ function studentDashboard() {
     menuItems: [
       { id: "overview", name: "Resumen", icon: "ti ti-layout-dashboard" },
       { id: "events", name: "Eventos", icon: "ti ti-calendar-event" },
+      {
+        id: "event_activities",
+        name: "Actividades",
+        icon: "ti ti-book",
+        hidden: true,
+      },
       { id: "registrations", name: "Mis Preregistros", icon: "ti ti-bookmark" },
       { id: "profile", name: "Mi Perfil", icon: "ti ti-user" },
     ],
@@ -73,7 +79,13 @@ function studentDashboard() {
 
     // Validar si una pestaña es válida
     isValidTab(tabId) {
-      return ["overview", "events", "registrations", "profile"].includes(tabId);
+      return [
+        "overview",
+        "events",
+        "registrations",
+        "profile",
+        "event_activities",
+      ].includes(tabId);
     },
 
     // Establecer pestaña inicial
