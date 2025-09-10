@@ -16,7 +16,7 @@
                x-model="filters.search"
                @input.debounce.300ms="loadEvents()"
                placeholder="Nombre del evento..."
-               class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+               class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2">
       </div>
 
       <!-- Filtrar por estado -->
@@ -38,7 +38,7 @@
         <select id="sort"
                 x-model="filters.sort"
                 @change="loadEvents()"
-                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md">
+                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2">
           <option value="created_at:desc">Más recientes</option>
           <option value="created_at:asc">Más antiguos</option>
           <option value="name:asc">Nombre (A-Z)</option>
