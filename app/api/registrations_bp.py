@@ -120,6 +120,13 @@ def get_registrations():
             page=page, per_page=per_page, error_out=False
         )
 
+        for registration in registrations.items:
+            # Cargar la relación con la actividad
+            if not registration.activity:
+                # Si no hay relación, intentar cargarla
+                registration.activity = db.session.get(
+                    Activity, registration.activity_id)
+
         return jsonify({
             'registrations': registrations_schema.dump(registrations.items),
             'total': registrations.total,
