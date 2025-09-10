@@ -176,13 +176,15 @@
           </div>
           <nav class="mt-5 flex-1 px-2 bg-white space-y-1">
             <template x-for="item in menuItems" :key="item.id">
-              <a :href="`#${item.id}`"
-                 @click="setActiveTab(item.id)"
-                 :class="activeTab === item.id ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'"
-                 class="group flex items-center px-2 py-2 text-sm font-medium rounded-md">
-                <i :class="item.icon" class="mr-3 text-lg"></i>
-                <span x-text="item.name"></span>
-              </a>
+                <template x-if="!item.hidden">
+                <a :href="`#${item.id}`"
+                   @click="setActiveTab(item.id)"
+                   :class="activeTab === item.id ? 'bg-indigo-100 text-indigo-800' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'"
+                   class="group flex items-center px-2 py-2 text-sm font-medium rounded-md">
+                  <i :class="item.icon" class="mr-3 text-lg"></i>
+                  <span x-text="item.name"></span>
+                </a>
+                </template>
             </template>
           </nav>
         </div>
