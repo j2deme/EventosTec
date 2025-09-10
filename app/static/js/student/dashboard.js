@@ -206,6 +206,123 @@ function studentDashboard() {
       }
     },
 
+    async viewEventDetails(event) {
+      this.currentEvent = { ...event };
+
+      // Cargar actividades del evento
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+          this.redirectToLogin();
+          return;
+        }
+
+        const response = await fetch(`/api/activities?event_id=${event.id}`, {
+          headers: window.getAuthHeaders(),
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+          throw new Error(
+            `Error al cargar actividades: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+
+        // Mapear actividades y formatear fechas
+        this.currentEventActivities = data.activities.map((activity) => ({
+          ...activity,
+          start_datetime: this.formatDateTimeForInput(activity.start_datetime),
+          end_datetime: this.formatDateTimeForInput(activity.end_datetime),
+        }));
+
+        this.showEventModal = true;
+      } catch (error) {
+        console.error("Error loading event activities:", error);
+        showToast("Error al cargar actividades del evento", "error");
+        this.showEventModal = true; // Mostrar el modal aunque no se carguen las actividades
+        this.currentEventActivities = [];
+      }
+    },
+
+    // ✨ Verificar si es evento de un solo día
+    isSingleDayEvent(event) {
+      if (!event || !event.start_date || !event.end_date) return false;
+
+      const startDate = new Date(event.start_date);
+      const endDate = new Date(event.end_date);
+
+      // Comparar solo la fecha (sin hora)
+      return startDate.toDateString() === endDate.toDateString();
+    },
+
+    // ✨ Agrupar actividades por día
+    groupActivitiesByDay(activities) {
+      if (!activities || activities.length === 0) return {};
+
+      const grouped = {};
+
+      activities.forEach((activity) => {
+        const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = {};
+        }
+
+        const activityType = activity.activity_type || "Otro";
+        if (!grouped[dateKey][activityType]) {
+          grouped[dateKey][activityType] = [];
+        }
+
+        grouped[dateKey][activityType].push(activity);
+      });
+
+      // Ordenar actividades dentro de cada grupo por hora de inicio
+      Object.keys(grouped).forEach((date) => {
+        Object.keys(grouped[date]).forEach((type) => {
+          grouped[date][type].sort((a, b) => {
+            return new Date(a.start_datetime) - new Date(b.start_datetime);
+          });
+        });
+      });
+
+      return grouped;
+    },
+
+    // ✨ Obtener actividades ordenadas por hora (para eventos de un solo día)
+    getSortedActivitiesByTime(activities) {
+      if (!activities || activities.length === 0) return [];
+
+      return [...activities].sort((a, b) => {
+        return new Date(a.start_datetime) - new Date(b.start_datetime);
+      });
+    },
+
+    // ✨ Formatear solo fecha para mostrar
+    formatOnlyDate(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      const date = new Date(dateTimeString);
+      return date.toLocaleDateString("es-ES", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    },
+
+    // ✨ Formatear solo hora para mostrar
+    formatDateTimeForInput(dateTimeString) {
+      if (!dateTimeString) return "--:--";
+      const date = new Date(dateTimeString);
+      return date.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    },
+
     // Redirigir al login
     redirectToLogin() {
       localStorage.removeItem("authToken");
