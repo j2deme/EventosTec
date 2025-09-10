@@ -87,21 +87,27 @@ function studentRegistrationsManager() {
         const data = await response.json();
 
         // Mapear preregistros y formatear fechas
-        this.registrations = data.registrations.map((registration) => ({
-          ...registration,
-          registration_date: this.formatDateTimeForInput(
-            registration.registration_date
-          ),
-          activity: {
-            ...registration.activity,
-            start_datetime: this.formatDateTimeForInput(
-              registration.activity.start_datetime
-            ),
-            end_datetime: this.formatDateTimeForInput(
-              registration.activity.end_datetime
-            ),
-          },
-        }));
+        this.registrations = data.registrations.map((registration) => {
+          // Asegurar que 'activity' exista
+          const activity = registration.activity || {};
+
+          return {
+            ...registration,
+            registration_date: registration.registration_date
+              ? this.formatDateTimeForInput(registration.registration_date)
+              : "",
+            activity: {
+              ...activity,
+              // Solo formatear si las fechas existen
+              start_datetime: activity.start_datetime
+                ? this.formatDateTimeForInput(activity.start_datetime)
+                : "",
+              end_datetime: activity.end_datetime
+                ? this.formatDateTimeForInput(activity.end_datetime)
+                : "",
+            },
+          };
+        });
 
         // Actualizar paginación
         this.pagination = {
