@@ -32,11 +32,88 @@ function studentRegistrationsManager() {
       console.log("Initializing student registrations manager...");
       this.loadRegistrations();
 
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && this.isActiveTab()) {
+          console.log("🔄 Refrescando al volver a la pestaña...");
+          this.loadRegistrations(this.pagination.current_page);
+        }
+      });
+
+      // ✨ Refrescar al enfocar la ventana (opcional)
+      window.addEventListener("focus", () => {
+        if (this.isActiveTab()) {
+          console.log("🔄 Refrescando al enfocar la ventana...");
+          this.loadRegistrations(this.pagination.current_page);
+        }
+      });
+
       // Escuchar evento para filtrar por evento (desde la vista de eventos)
       window.addEventListener("filter-activities-by-event", (event) => {
         // Podríamos implementar filtrado por evento si es necesario
         console.log("Filtrar por evento:", event.detail);
       });
+    },
+
+    isActiveTab() {
+      try {
+        // ✨ Usar selectores más específicos y robustos
+        const possibleSelectors = [
+          '[x-data*="studentDashboard"]', // Selector original
+          '[x-data^="studentDashboard"]', // Comienza con studentDashboard
+          '[x-data*="studentDashboard()"]', // Incluye studentDashboard()
+          '[x-data="studentDashboard()"]', // Exactamente studentDashboard()
+          '[data-x-data*="studentDashboard"]', // En caso de que sea data-x-data
+        ];
+
+        let dashboard = null;
+        let dashboardData = null;
+
+        // Intentar encontrar el dashboard con diferentes selectores
+        for (let selector of possibleSelectors) {
+          const elements = document.querySelectorAll(selector);
+          for (let element of elements) {
+            if (
+              element.__x &&
+              typeof element.__x.getUnobservedData === "function"
+            ) {
+              const data = element.__x.getUnobservedData();
+              if (data && typeof data.activeTab !== "undefined") {
+                dashboard = element;
+                dashboardData = data;
+                console.log(
+                  `✅ Dashboard encontrado con selector: ${selector}`
+                );
+                break;
+              }
+            }
+          }
+          if (dashboard) break;
+        }
+
+        // Si encontramos el dashboard, verificar la pestaña activa
+        if (dashboard && dashboardData) {
+          const isActive = dashboardData.activeTab === "registrations";
+          console.log(
+            `📊 Pestaña actual: ${dashboardData.activeTab}, ¿Es 'registrations'? ${isActive}`
+          );
+          return isActive;
+        }
+
+        // ✨ Fallback: verificar el hash de la URL
+        console.log("🔄 Verificando fallback con hash de URL");
+        const hash = window.location.hash.substring(1);
+        return hash === "registrations";
+      } catch (e) {
+        console.warn("⚠️ No se pudo determinar si es pestaña activa:", e);
+        // ✨ Fallback adicional: verificar hash de URL
+        try {
+          const hash = window.location.hash.substring(1);
+          return hash === "registrations";
+        } catch (fallbackError) {
+          console.error("💥 Error en fallback de isActiveTab:", fallbackError);
+          return true; // Por defecto, asumir que sí para no perder actualizaciones
+        }
+      }
     },
 
     // Cargar preregistros
