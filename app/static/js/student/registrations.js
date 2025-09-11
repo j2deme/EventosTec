@@ -1,8 +1,11 @@
 // static/js/student/registrations.js
+console.log("Student Registrations Manager JS loaded");
+
 function studentRegistrationsManager() {
   return {
     // Estado
     registrations: [],
+    registrationsByDay: [], // ✨ Para agrupar preregistros por día
     loading: false,
     errorMessage: "",
     showCancelModal: false,
@@ -27,78 +30,14 @@ function studentRegistrationsManager() {
 
     // Inicialización
     init() {
+      console.log("Initializing student registrations manager...");
       this.loadRegistrations();
 
-      // document.addEventListener("visibilitychange", () => {
-      //   if (document.visibilityState === "visible" && this.isActiveTab()) {
-      //     this.loadRegistrations(this.pagination.current_page);
-      //   }
-      // });
-
-      // ✨ Refrescar al enfocar la ventana (opcional)
-      // window.addEventListener("focus", () => {
-      //   if (this.isActiveTab()) {
-      //     this.loadRegistrations(this.pagination.current_page);
-      //   }
-      // });
-
+      // Escuchar evento para filtrar por evento (desde la vista de eventos)
       window.addEventListener("filter-activities-by-event", (event) => {
+        // Podríamos implementar filtrado por evento si es necesario
         console.log("Filtrar por evento:", event.detail);
       });
-    },
-
-    isActiveTab() {
-      try {
-        // ✨ Usar selectores más específicos y robustos
-        const possibleSelectors = [
-          '[x-data*="studentDashboard"]', // Selector original
-          '[x-data^="studentDashboard"]', // Comienza con studentDashboard
-          '[x-data*="studentDashboard()"]', // Incluye studentDashboard()
-          '[x-data="studentDashboard()"]', // Exactamente studentDashboard()
-          '[data-x-data*="studentDashboard"]', // En caso de que sea data-x-data
-        ];
-
-        let dashboard = null;
-        let dashboardData = null;
-
-        // Intentar encontrar el dashboard con diferentes selectores
-        for (let selector of possibleSelectors) {
-          const elements = document.querySelectorAll(selector);
-          for (let element of elements) {
-            if (
-              element.__x &&
-              typeof element.__x.getUnobservedData === "function"
-            ) {
-              const data = element.__x.getUnobservedData();
-              if (data && typeof data.activeTab !== "undefined") {
-                dashboard = element;
-                dashboardData = data;
-                break;
-              }
-            }
-          }
-          if (dashboard) break;
-        }
-
-        // Si encontramos el dashboard, verificar la pestaña activa
-        if (dashboard && dashboardData) {
-          const isActive = dashboardData.activeTab === "registrations";
-          return isActive;
-        }
-
-        const hash = window.location.hash.substring(1);
-        return hash === "registrations";
-      } catch (e) {
-        console.warn("⚠️ No se pudo determinar si es pestaña activa:", e);
-        // ✨ Fallback adicional: verificar hash de URL
-        try {
-          const hash = window.location.hash.substring(1);
-          return hash === "registrations";
-        } catch (fallbackError) {
-          console.error("💥 Error en fallback de isActiveTab:", fallbackError);
-          return true; // Por defecto, asumir que sí para no perder actualizaciones
-        }
-      }
     },
 
     // Cargar preregistros
@@ -149,27 +88,24 @@ function studentRegistrationsManager() {
         const data = await response.json();
 
         // Mapear preregistros y formatear fechas
-        this.registrations = data.registrations.map((registration) => {
-          // Asegurar que 'activity' exista
-          const activity = registration.activity || {};
+        this.registrations = data.registrations.map((registration) => ({
+          ...registration,
+          registration_date: this.formatDateTimeForInput(
+            registration.registration_date
+          ),
+          activity: {
+            ...registration.activity,
+            start_datetime: this.formatDateTimeForInput(
+              registration.activity.start_datetime
+            ),
+            end_datetime: this.formatDateTimeForInput(
+              registration.activity.end_datetime
+            ),
+          },
+        }));
 
-          return {
-            ...registration,
-            registration_date: registration.registration_date
-              ? this.formatDateTimeForInput(registration.registration_date)
-              : "",
-            activity: {
-              ...activity,
-              // Solo formatear si las fechas existen
-              start_datetime: activity.start_datetime
-                ? this.formatDateTimeForInput(activity.start_datetime)
-                : "",
-              end_datetime: activity.end_datetime
-                ? this.formatDateTimeForInput(activity.end_datetime)
-                : "",
-            },
-          };
-        });
+        // ✨ Agrupar preregistros por día
+        this.groupRegistrationsByDay();
 
         // Actualizar paginación
         this.pagination = {
@@ -189,19 +125,183 @@ function studentRegistrationsManager() {
       }
     },
 
-    // Obtener el ID del estudiante actual
-    getCurrentStudentId() {
-      try {
-        const token = localStorage.getItem("authToken");
-        if (!token) return null;
-
-        // Decodificar el token JWT para obtener el ID del usuario
-        const payload = JSON.parse(atob(token.split(".")[1]));
-        return payload.sub; // El ID del usuario está en el claim 'sub'
-      } catch (e) {
-        console.error("Error decoding token:", e);
-        return null;
+    // ✨ Agrupar preregistros por día (con manejo de actividades multídias como bloques diarios)
+    groupRegistrationsByDay() {
+      if (!this.registrations || this.registrations.length === 0) {
+        this.registrationsByDay = [];
+        return;
       }
+
+      const grouped = {};
+
+      this.registrations.forEach((registration) => {
+        const activity = registration.activity;
+
+        // ✨ Verificar si es una actividad multídias
+        if (this.isMultiDayActivity(activity)) {
+          // ✨ Generar bloques diarios para la actividad multídias
+          const dailyBlocks = this.generateDailyBlocksForActivity(activity);
+
+          // ✨ Agregar cada bloque diario al grupo correspondiente
+          dailyBlocks.forEach((block) => {
+            const dateKey = block.block_date; // YYYY-MM-DD
+            if (!grouped[dateKey]) {
+              grouped[dateKey] = [];
+            }
+
+            // Crear una "vista" del preregistro para este día específico
+            const dailyRegistrationView = {
+              ...registration,
+              activity: {
+                ...activity,
+                // ✨ Sobrescribir fechas con las del bloque diario
+                start_datetime: block.start_datetime,
+                end_datetime: block.end_datetime,
+                // ✨ Añadir información sobre el día actual dentro de la actividad multidia
+                day_in_series: block.day_in_series,
+                total_days: block.total_days,
+                is_daily_block: true, // Marcar como bloque diario
+              },
+            };
+
+            grouped[dateKey].push(dailyRegistrationView);
+          });
+        } else {
+          // Actividad normal (un solo día)
+          const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
+          if (!grouped[dateKey]) {
+            grouped[dateKey] = [];
+          }
+
+          grouped[dateKey].push(registration);
+        }
+      });
+
+      // Ordenar preregistros dentro de cada grupo por hora de inicio (ASCENDENTE)
+      Object.keys(grouped).forEach((date) => {
+        grouped[date].sort((a, b) => {
+          // ✨ Comparar solo las horas de inicio (ignorando la fecha)
+          const timeA =
+            new Date(a.activity.start_datetime).getHours() * 60 +
+            new Date(a.activity.start_datetime).getMinutes();
+          const timeB =
+            new Date(b.activity.start_datetime).getHours() * 60 +
+            new Date(b.activity.start_datetime).getMinutes();
+          return timeA - timeB;
+        });
+      });
+
+      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
+      const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
+        return new Date(a) - new Date(b);
+      });
+
+      // Reorganizar el objeto agrupado con los días ordenados
+      const sortedGrouped = {};
+      sortedDateKeys.forEach((dateKey) => {
+        sortedGrouped[dateKey] = grouped[dateKey];
+      });
+
+      // Convertir a array para el template
+      this.registrationsByDay = Object.keys(sortedGrouped).map((date) => ({
+        date: date,
+        registrations: sortedGrouped[date],
+      }));
+    },
+
+    // ✨ Verificar si una actividad es multídias
+    isMultiDayActivity(activity) {
+      if (!activity.start_datetime || !activity.end_datetime) return false;
+
+      try {
+        const startDate = new Date(activity.start_datetime);
+        const endDate = new Date(activity.end_datetime);
+
+        // Comparar solo las fechas (sin horas)
+        const startDay = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate()
+        );
+        const endDay = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate()
+        );
+
+        return startDay.getTime() !== endDay.getTime();
+      } catch (e) {
+        console.error("Error al verificar si es actividad multídias:", e);
+        return false;
+      }
+    },
+
+    // ✨ Generar bloques diarios para una actividad multídias
+    generateDailyBlocksForActivity(activity) {
+      if (!activity.start_datetime || !activity.end_datetime) return [];
+
+      try {
+        const startDate = new Date(activity.start_datetime);
+        const endDate = new Date(activity.end_datetime);
+
+        // Extraer horas y minutos del rango original
+        const startTime = {
+          hours: startDate.getHours(),
+          minutes: startDate.getMinutes(),
+        };
+        const endTime = {
+          hours: endDate.getHours(),
+          minutes: endDate.getMinutes(),
+        };
+
+        // Generar fechas para cada día
+        const datesInBetween = this.getDatesBetween(startDate, endDate);
+
+        // Calcular el número total de días
+        const totalDays = datesInBetween.length;
+
+        // Crear bloques diarios
+        const dailyBlocks = datesInBetween.map((dateObj, index) => {
+          const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+
+          // Crear fechas diarias con las horas del rango original
+          const dailyStart = new Date(dateObj);
+          dailyStart.setHours(startTime.hours, startTime.minutes, 0, 0);
+
+          const dailyEnd = new Date(dateObj);
+          dailyEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
+
+          return {
+            block_date: dateStr,
+            start_datetime: dailyStart.toISOString(),
+            end_datetime: dailyEnd.toISOString(),
+            day_in_series: index + 1,
+            total_days: totalDays,
+          };
+        });
+
+        return dailyBlocks;
+      } catch (e) {
+        console.error("Error generating daily blocks for activity:", e);
+        return [];
+      }
+    },
+
+    // ✨ Obtener todas las fechas entre dos fechas (inclusive)
+    getDatesBetween(startDate, endDate) {
+      const dates = [];
+      const currentDate = new Date(startDate);
+      const finalDate = new Date(endDate);
+
+      currentDate.setHours(0, 0, 0, 0);
+      finalDate.setHours(0, 0, 0, 0);
+
+      while (currentDate <= finalDate) {
+        dates.push(new Date(currentDate));
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      return dates;
     },
 
     // Cambiar página
@@ -217,8 +317,19 @@ function studentRegistrationsManager() {
       return (
         registration.status !== "Asistió" &&
         registration.status !== "Cancelado" &&
+        registration.status !== "Ausente" &&
         !registration.attended
       );
+    },
+
+    // Verificar si se puede re-registrar en una actividad
+    canReRegisterForActivity(activity) {
+      // Verificar si la actividad tiene cupo
+      if (activity.max_capacity !== null) {
+        return (activity.current_capacity || 0) < activity.max_capacity;
+      }
+      // Si no tiene cupo máximo, se puede registrar
+      return true;
     },
 
     // Solicitar cancelación de preregistro
@@ -270,12 +381,91 @@ function studentRegistrationsManager() {
       }
     },
 
+    // ✨ Re-registrar a una actividad (después de cancelar)
+    async reRegisterForActivity(activity) {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+          this.redirectToLogin();
+          return;
+        }
+
+        // Obtener el ID del estudiante actual
+        const studentId = this.getCurrentStudentId();
+        if (!studentId) {
+          throw new Error("No se pudo obtener el ID del estudiante");
+        }
+
+        const registrationData = {
+          student_id: studentId,
+          activity_id: activity.id,
+        };
+
+        const response = await fetch("/api/registrations/", {
+          method: "POST",
+          headers: window.getAuthHeaders(),
+          body: JSON.stringify(registrationData),
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message ||
+              `Error al re-registrarse: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+
+        // ✨ Mostrar mensaje de éxito basado en la respuesta del backend
+        if (data.message && data.message.includes("Reactivación")) {
+          showToast(
+            "Reactivación del registro realizada exitosamente",
+            "success"
+          );
+        } else if (data.message && data.message.includes("Ya existe")) {
+          showToast("Ya estás registrado en esta actividad", "info");
+        } else {
+          showToast("Registro actualizado exitosamente", "success");
+        }
+
+        // Recargar la lista de preregistros
+        this.loadRegistrations();
+      } catch (error) {
+        console.error("Error registering for activity:", error);
+        showToast(
+          error.message || "Error al re-registrarse a la actividad",
+          "error"
+        );
+      }
+    },
+
     // Ir a la vista de eventos
     goToEvents() {
       // Cambiar a la pestaña de eventos
       const dashboard = document.querySelector('[x-data*="studentDashboard"]');
       if (dashboard && dashboard.__x) {
         dashboard.__x.getUnobservedData().setActiveTab("events");
+      }
+    },
+
+    // Obtener el ID del estudiante actual
+    getCurrentStudentId() {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return null;
+
+        // Decodificar el token JWT para obtener el ID del usuario
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        return payload.sub; // El ID del usuario está en el claim 'sub'
+      } catch (e) {
+        console.error("Error decoding token:", e);
+        return null;
       }
     },
 
@@ -292,14 +482,25 @@ function studentRegistrationsManager() {
       return `${year}-${month}-${day}T${hours}:${minutes}`;
     },
 
-    // Formatear fecha para mostrar
-    formatDate(dateTimeString) {
+    // Formatear solo fecha para mostrar
+    formatOnlyDate(dateTimeString) {
       if (!dateTimeString) return "Sin fecha";
       const date = new Date(dateTimeString);
       return date.toLocaleDateString("es-ES", {
+        weekday: "long",
         year: "numeric",
-        month: "short",
+        month: "long",
         day: "numeric",
+      });
+    },
+
+    // Formatear solo hora para mostrar
+    formatTime(dateTimeString) {
+      if (!dateTimeString) return "--:--";
+      const date = new Date(dateTimeString);
+      return date.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
       });
     },
 
@@ -314,79 +515,6 @@ function studentRegistrationsManager() {
         hour: "2-digit",
         minute: "2-digit",
       });
-    },
-
-    // Formatear solo fecha para mostrar (día completo)
-    formatOnlyDate(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      try {
-        const date = new Date(dateTimeString);
-        return date.toLocaleDateString("es-ES", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
-      } catch (e) {
-        return dateTimeString;
-      }
-    },
-
-    // Formatear solo hora para mostrar
-    formatTime(dateTimeString) {
-      if (!dateTimeString) return "--:--";
-      try {
-        const date = new Date(dateTimeString);
-        return date.toLocaleTimeString("es-ES", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } catch (e) {
-        return "--:--";
-      }
-    },
-
-    // Formatear fecha y hora para mostrar
-    formatDateTime(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      try {
-        const date = new Date(dateTimeString);
-        return date.toLocaleString("es-ES", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } catch (e) {
-        return dateTimeString;
-      }
-    },
-
-    isMultiDayActivity(activity) {
-      if (!activity.start_datetime || !activity.end_datetime) return false;
-
-      try {
-        const startDate = new Date(activity.start_datetime);
-        const endDate = new Date(activity.end_datetime);
-
-        // Comparar solo las fechas (sin horas)
-        const startDay = new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          startDate.getDate()
-        );
-        const endDay = new Date(
-          endDate.getFullYear(),
-          endDate.getMonth(),
-          endDate.getDate()
-        );
-
-        return startDay.getTime() !== endDay.getTime();
-      } catch (e) {
-        console.error("Error al verificar si es actividad multídias:", e);
-        return false;
-      }
     },
 
     // Redirigir al login

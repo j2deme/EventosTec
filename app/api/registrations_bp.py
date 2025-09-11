@@ -51,10 +51,39 @@ def create_registration():
         ).first()
 
         if existing_registration:
-            return jsonify({
-                'message': 'Ya existe un preregistro para esta actividad',
-                'registration': registration_schema.dump(existing_registration)
-            }), 200
+            # ✨ Si existe y está cancelado, permitir re-registro
+            if existing_registration.status == 'Cancelado':
+                # Verificar conflictos de horario
+                from app.services.registration_service import has_schedule_conflict
+                conflict_exists, conflict_message = has_schedule_conflict(
+                    student_id, activity_id)
+                if conflict_exists:
+                    # 409 Conflict
+                    return jsonify({'message': conflict_message}), 409
+
+                # Verificar cupo
+                from app.services.registration_service import is_registration_allowed
+                if not is_registration_allowed(activity_id):
+                    return jsonify({'message': 'Cupo lleno para esta actividad.'}), 400
+
+                # ✨ Re-registrar: actualizar estado y datos
+                existing_registration.status = 'Registrado'
+                existing_registration.registration_date = db.func.now()
+                existing_registration.confirmation_date = None
+                existing_registration.attended = False
+
+                db.session.commit()
+
+                return jsonify({
+                    'message': 'Reactivación del registro realizado exitosamente',
+                    'registration': registration_schema.dump(existing_registration)
+                }), 200
+            else:
+                # Si ya está registrado y no cancelado, no permitir nuevo preregistro
+                return jsonify({
+                    'message': 'Ya existe un preregistro para esta actividad',
+                    'registration': registration_schema.dump(existing_registration)
+                }), 200
 
         # Verificar conflictos de horario
         from app.services.registration_service import has_schedule_conflict
