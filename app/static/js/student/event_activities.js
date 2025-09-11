@@ -261,13 +261,21 @@ function studentEventActivitiesManager() {
 
         if (response.ok) {
           const data = await response.json();
+
+          if (!Array.isArray(this.studentRegistrations)) {
+            this.studentRegistrations = [];
+          }
           // Solo necesitamos los IDs de las actividades registradas
           this.studentRegistrations = data.registrations.map(
             (r) => r.activity_id
           );
+          this.groupActivitiesByDay();
         }
       } catch (error) {
         console.error("Error loading student registrations:", error);
+        if (!Array.isArray(this.studentRegistrations)) {
+          this.studentRegistrations = [];
+        }
       }
     },
 
@@ -499,6 +507,15 @@ function studentEventActivitiesManager() {
 
     // Verificar si ya está registrado en una actividad
     isActivityRegistered(activity) {
+      // ✨ Asegurar que studentRegistrations sea un array
+      if (!Array.isArray(this.studentRegistrations)) {
+        console.warn(
+          "studentRegistrations no es un array en isActivityRegistered"
+        );
+        this.studentRegistrations = [];
+        return false;
+      }
+
       return this.studentRegistrations.includes(activity.id);
     },
 
