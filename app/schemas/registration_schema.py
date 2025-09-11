@@ -25,6 +25,8 @@ class RegistrationSchema(ma.SQLAlchemyAutoSchema):
     updated_at = fields.DateTime(dump_only=True)
 
     activity = fields.Nested('ActivitySchema', dump_only=True)
+    student = fields.Nested('StudentSchema', dump_only=True,
+                            exclude=('registrations', 'attendances'))
 
 
 registration_schema = RegistrationSchema()

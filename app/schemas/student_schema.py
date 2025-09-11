@@ -21,6 +21,10 @@ class StudentSchema(ma.SQLAlchemyAutoSchema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
+    registrations = fields.Nested(
+        'RegistrationSchema', many=True, dump_only=True)
+    attendances = fields.Nested('AttendanceSchema', many=True, dump_only=True)
+
 
 student_schema = StudentSchema()
 students_schema = StudentSchema(many=True)
