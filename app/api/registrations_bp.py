@@ -102,7 +102,13 @@ def get_registrations():
         activity_id = request.args.get('activity_id', type=int)
         status = request.args.get('status')
 
-        query = db.session.query(Registration)
+        from sqlalchemy.orm import joinedload
+
+        # Modificar la consulta para cargar relaciones de forma eager
+        query = db.session.query(Registration).options(
+            joinedload(Registration.activity),
+            joinedload(Registration.student)
+        )
 
         if student_id:
             query = query.filter_by(student_id=student_id)
@@ -168,6 +174,19 @@ def update_registration(registration_id):
         data = request.get_json()
         new_status = data.get('status')
         attended = data.get('attended')
+
+        valid_transitions = {
+            'Registrado': ['Confirmado', 'Cancelado'],
+            'Confirmado': ['Asistió', 'Ausente'],
+            'Asistió': [],  # No se puede cambiar una vez asistido
+            'Ausente': [],
+            'Cancelado': ['Registrado']  # Permitir reactivar un cancelado
+        }
+
+        current_status = registration.status
+        if new_status and new_status != current_status:
+            if new_status not in valid_transitions.get(current_status, []):
+                return jsonify({'message': f'Transición de estado no permitida: {current_status} -> {new_status}'}), 400
 
         if new_status:
             registration.status = new_status
