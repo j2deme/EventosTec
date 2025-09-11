@@ -1,4 +1,6 @@
 // static/js/student/dashboard.js
+console.log("Student Dashboard JS loaded");
+
 function studentDashboard() {
   return {
     // Estado del componente
@@ -29,32 +31,61 @@ function studentDashboard() {
 
     // Inicialización
     init() {
+      console.log("=== INITIALIZING STUDENT DASHBOARD ===");
+      console.log("Current URL:", window.location.href);
+      console.log("Current hash:", window.location.hash);
+      console.log(
+        "localStorage - studentActiveTab:",
+        localStorage.getItem("studentActiveTab")
+      );
+
+      // Verificar autenticación
+      if (!window.checkAuthAndRedirect()) {
+        console.log("❌ Authentication failed, redirecting to login");
+        return;
+      }
+
+      // Establecer pestaña inicial
       this.setInitialTab();
+
+      // Configurar escucha de cambios en el historial
       this.setupEventListeners();
+
+      // Cargar perfil del estudiante
       this.loadStudentProfile();
     },
 
     setupEventListeners() {
+      console.log("Setting up event listeners...");
+
       // Escuchar cambios en el historial (botones atrás/adelante del navegador)
       window.addEventListener("popstate", () => {
+        console.log("Popstate event detected");
         this.handleLocationChange();
       });
 
       // Escuchar cambios en hash
       window.addEventListener("hashchange", () => {
+        console.log("Hashchange event detected");
         this.handleLocationChange();
       });
     },
 
+    // Manejar cambio de ubicación
     handleLocationChange() {
+      console.log("Handling location change...");
       const tabFromUrl = this.getTabFromUrl();
+
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
+        console.log(`✅ Setting active tab from URL: ${tabFromUrl}`);
         this.activeTab = tabFromUrl;
+        localStorage.setItem("studentActiveTab", tabFromUrl);
       } else {
         // Si no hay hash válido, usar el guardado o por defecto
         const savedTab = localStorage.getItem("studentActiveTab");
         if (savedTab && this.isValidTab(savedTab)) {
           this.activeTab = savedTab;
+          console.log(`✅ Using saved tab: ${savedTab}`);
           // Actualizar URL para reflejar el estado
           if (savedTab === "overview") {
             history.replaceState(null, "", window.location.pathname);
@@ -63,60 +94,96 @@ function studentDashboard() {
           }
         } else {
           this.activeTab = "overview";
+          console.log("✅ Using default tab: overview");
         }
       }
     },
 
-    // Obtener pestaña de la URL
+    // ✨ Corregida función para obtener pestaña de la URL
     getTabFromUrl() {
       const hash = window.location.hash.substring(1); // Remover #
+      console.log("Getting tab from URL hash:", `'${hash}'`);
+
+      // ✨ Manejar correctamente el hash vacío
+      if (hash === "") {
+        // Si el hash está vacío, no asumir "overview"
+        // Dejar que otras funciones decidan
+        return null;
+      }
+
       return this.isValidTab(hash) ? hash : null;
     },
 
     // Validar si una pestaña es válida
     isValidTab(tabId) {
-      return [
+      const validTabs = [
         "overview",
         "events",
+        "event_activities",
         "registrations",
         "profile",
-        "event_activities",
-      ].includes(tabId);
+      ];
+      const isValid = validTabs.includes(tabId);
+      console.log("Validating tab:", `'${tabId}'`, "Result:", isValid);
+      return isValid;
     },
 
     // Establecer pestaña inicial
     setInitialTab() {
-      const tabFromUrl = this.getTabFromUrl();
+      console.log("=== SETTING INITIAL TAB ===");
+      console.log("Current URL:", window.location.href);
+      console.log("Current hash:", window.location.hash);
+      console.log(
+        "localStorage - studentActiveTab:",
+        localStorage.getItem("studentActiveTab")
+      );
 
-      if (tabFromUrl && this.isValidTab(tabFromUrl)) {
-        this.activeTab = tabFromUrl;
-        return;
-      }
+      try {
+        // 1. Primero intentar obtener la pestaña de la URL (hash)
+        const tabFromUrl = this.getTabFromUrl();
+        console.log("Tab from URL:", tabFromUrl);
 
-      const savedTab = localStorage.getItem("studentActiveTab");
-      if (savedTab && this.isValidTab(savedTab)) {
-        this.activeTab = savedTab;
+        if (tabFromUrl && this.isValidTab(tabFromUrl)) {
+          console.log("✅ Using tab from URL:", tabFromUrl);
+          this.activeTab = tabFromUrl;
+          localStorage.setItem("studentActiveTab", tabFromUrl);
+          return;
+        }
 
-        // Actualizar URL para reflejar el estado guardado
-        if (savedTab === "overview") {
-          // Para overview, limpiar el hash si existe
-          if (window.location.hash) {
+        // 2. Si no hay tab en URL, intentar obtener del localStorage
+        const savedTab = localStorage.getItem("studentActiveTab");
+        console.log("Saved tab from localStorage:", savedTab);
+
+        if (savedTab && this.isValidTab(savedTab)) {
+          console.log("✅ Using saved tab:", savedTab);
+          this.activeTab = savedTab;
+
+          // Actualizar URL para reflejar el estado guardado
+          this.updateLocationAndStorage(savedTab);
+          return;
+        }
+
+        // 3. Si no hay tab guardada, usar la por defecto
+        console.log("✅ Using default tab: overview");
+        this.activeTab = "overview";
+        localStorage.setItem("studentActiveTab", "overview");
+
+        // Limpiar hash para overview
+        if (window.location.hash && window.location.hash !== "#overview") {
+          try {
             history.replaceState(null, "", window.location.pathname);
-          }
-        } else {
-          // Para otras pestañas, asegurar que el hash esté presente
-          if (window.location.hash !== `#${savedTab}`) {
-            window.location.hash = savedTab;
+          } catch (e) {
+            console.warn("Could not clear hash:", e);
           }
         }
-        return;
+      } catch (error) {
+        console.error("❌ Error setting initial tab:", error);
+        // Fallback: usar overview por defecto
+        this.activeTab = "overview";
+        localStorage.setItem("studentActiveTab", "overview");
       }
 
-      this.activeTab = "overview";
-      // Asegurar que el hash se limpie para overview
-      if (window.location.hash) {
-        history.replaceState(null, "", window.location.pathname);
-      }
+      console.log("Final activeTab:", this.activeTab);
     },
 
     // Cambiar pestaña
@@ -190,6 +257,8 @@ function studentDashboard() {
 
     // Actualizar URL y almacenamiento local
     updateLocationAndStorage(tabId) {
+      console.log("Updating location and storage for tab:", tabId);
+
       // Guardar en localStorage
       localStorage.setItem("studentActiveTab", tabId);
 
@@ -197,7 +266,7 @@ function studentDashboard() {
       try {
         if (tabId === "overview") {
           // Para la pestaña por defecto, limpiar el hash
-          if (window.location.hash) {
+          if (window.location.hash && window.location.hash !== "") {
             history.pushState(null, "", window.location.pathname);
           }
         } else {
@@ -224,35 +293,36 @@ function studentDashboard() {
           headers: window.getAuthHeaders(),
         });
 
-        if (response.ok) {
-          const data = await response.json();
-
-          if (data.student) {
-            this.studentName = data.student.full_name || "Estudiante";
-            this.studentControlNumber = data.student.control_number || "";
-            this.studentCareer = data.student.career || "";
-            this.studentEmail = data.student.email || "";
-
-            // Guardar en localStorage para acceso rápido
-            localStorage.setItem(
-              "studentProfile",
-              JSON.stringify(data.student)
-            );
-          } else {
-            // Si no es estudiante, redirigir al login
-            this.redirectToLogin();
-          }
-        } else {
-          // Si hay error de autenticación, redirigir al login
+        if (!response.ok) {
           if (response.status === 401) {
             this.redirectToLogin();
-          } else {
-            showToast("Error al cargar el perfil del estudiante", "error");
+            return;
           }
+          throw new Error(
+            `Error al cargar perfil: ${response.status} ${response.statusText}`
+          );
+        }
+
+        const data = await response.json();
+        console.log("Profile ", data);
+
+        if (data.student) {
+          this.studentName = data.student.full_name || "Estudiante";
+          this.studentControlNumber = data.student.control_number || "";
+          this.studentCareer = data.student.career || "";
+          this.studentEmail = data.student.email || "";
+
+          // Guardar en localStorage para acceso rápido
+          localStorage.setItem("studentProfile", JSON.stringify(data.student));
+        } else {
+          // Si no es estudiante, redirigir al login
+          this.redirectToLogin();
         }
       } catch (error) {
         console.error("Error loading student profile:", error);
-        showToast("Error de conexión al cargar el perfil", "error");
+        this.errorMessage =
+          error.message || "Error al cargar perfil del estudiante";
+        showToast(this.errorMessage, "error");
       }
     },
 
@@ -293,7 +363,9 @@ function studentDashboard() {
         this.showEventModal = true;
       } catch (error) {
         console.error("Error loading event activities:", error);
-        showToast("Error al cargar actividades del evento", "error");
+        this.errorMessage =
+          error.message || "Error al cargar actividades del evento";
+        showToast(this.errorMessage, "error");
         this.showEventModal = true; // Mostrar el modal aunque no se carguen las actividades
         this.currentEventActivities = [];
       }
@@ -317,29 +389,142 @@ function studentDashboard() {
       const grouped = {};
 
       activities.forEach((activity) => {
-        const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = {};
-        }
+        const startDate = new Date(activity.start_datetime);
+        const endDate = new Date(activity.end_datetime);
 
-        const activityType = activity.activity_type || "Otro";
-        if (!grouped[dateKey][activityType]) {
-          grouped[dateKey][activityType] = [];
-        }
+        // ✨ Para actividades multídias: crear entradas para cada día
+        if (this.isMultiDayActivity(startDate, endDate)) {
+          // Generar fechas para cada día
+          const datesInBetween = this.getDatesBetween(startDate, endDate);
 
-        grouped[dateKey][activityType].push(activity);
+          datesInBetween.forEach((dateStr) => {
+            if (!grouped[dateStr]) {
+              grouped[dateStr] = [];
+            }
+
+            // Crear una "vista" de la actividad para este día específico
+            const dailyActivityView = {
+              ...activity,
+              _expanded_for_date: dateStr,
+              // ✨ Añadir información sobre el día actual dentro de la actividad multidia
+              day_in_series: this.getDayInSeries(startDate, endDate, dateStr),
+              total_days: this.getTotalDays(startDate, endDate),
+              // ✨ Marcar como actividad expandida
+              is_expanded_view: true,
+            };
+
+            grouped[dateStr].push(dailyActivityView);
+          });
+        } else {
+          // Actividad normal (un solo día)
+          const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
+          if (!grouped[dateKey]) {
+            grouped[dateKey] = [];
+          }
+
+          grouped[dateKey].push(activity);
+        }
       });
 
-      // Ordenar actividades dentro de cada grupo por hora de inicio
+      // Ordenar actividades dentro de cada grupo por hora de inicio (ASCENDENTE)
       Object.keys(grouped).forEach((date) => {
-        Object.keys(grouped[date]).forEach((type) => {
-          grouped[date][type].sort((a, b) => {
-            return new Date(a.start_datetime) - new Date(b.start_datetime);
-          });
+        grouped[date].sort((a, b) => {
+          // ✨ Comparar solo las horas de inicio (ignorando la fecha)
+          const timeA =
+            new Date(a.start_datetime).getHours() * 60 +
+            new Date(a.start_datetime).getMinutes();
+          const timeB =
+            new Date(b.start_datetime).getHours() * 60 +
+            new Date(b.start_datetime).getMinutes();
+          return timeA - timeB;
         });
       });
 
-      return grouped;
+      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
+      const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
+        return new Date(a) - new Date(b);
+      });
+
+      // Reorganizar el objeto agrupado con los días ordenados
+      const sortedGrouped = {};
+      sortedDateKeys.forEach((dateKey) => {
+        sortedGrouped[dateKey] = grouped[dateKey];
+      });
+
+      return sortedGrouped;
+    },
+
+    // ✨ Verificar si una actividad es multídias
+    isMultiDayActivity(startDate, endDate) {
+      const startDay = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate()
+      );
+      const endDay = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate()
+      );
+      return startDay.getTime() !== endDay.getTime();
+    },
+
+    // ✨ Obtener todas las fechas entre dos fechas (inclusive)
+    getDatesBetween(startDate, endDate) {
+      const dates = [];
+      const currentDate = new Date(startDate);
+      const finalDate = new Date(endDate);
+
+      currentDate.setHours(0, 0, 0, 0);
+      finalDate.setHours(0, 0, 0, 0);
+
+      while (currentDate <= finalDate) {
+        dates.push(currentDate.toISOString().split("T")[0]); // YYYY-MM-DD
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      return dates;
+    },
+
+    // ✨ Obtener el número del día actual dentro de la serie multidia (1/3, 2/3, etc.)
+    getDayInSeries(startDate, endDate, currentDateStr) {
+      const startDay = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate()
+      );
+      const endDay = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate()
+      );
+      const currentDay = new Date(currentDateStr);
+
+      // Calcular el número de días desde el inicio
+      const timeDiff = currentDay.getTime() - startDay.getTime();
+      const daysFromStart = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+
+      return daysFromStart;
+    },
+
+    // ✨ Obtener el total de días de la actividad multidia
+    getTotalDays(startDate, endDate) {
+      const startDay = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate()
+      );
+      const endDay = new Date(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate()
+      );
+
+      // Calcular la diferencia en días
+      const timeDiff = endDay.getTime() - startDay.getTime();
+      const totalDays = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
+
+      return totalDays;
     },
 
     // ✨ Obtener actividades ordenadas por hora (para eventos de un solo día)
@@ -347,11 +532,10 @@ function studentDashboard() {
       if (!activities || activities.length === 0) return [];
 
       return [...activities].sort((a, b) => {
-        return new Date(a.start_datetime) - new Date(b.start_datetime);
+        return new Date(a.start_datetime) - new Date(b.start_datetime); // Orden ascendente
       });
     },
 
-    // ✨ Formatear solo fecha para mostrar
     formatOnlyDate(dateTimeString) {
       if (!dateTimeString) return "Sin fecha";
       const date = new Date(dateTimeString);
@@ -363,8 +547,44 @@ function studentDashboard() {
       });
     },
 
-    // ✨ Formatear solo hora para mostrar
+    // Formatear fecha para input datetime-local
     formatDateTimeForInput(dateTimeString) {
+      if (!dateTimeString) return "";
+      // Convertir a formato YYYY-MM-DDTHH:MM
+      const date = new Date(dateTimeString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      const hours = String(date.getHours()).padStart(2, "0");
+      const minutes = String(date.getMinutes()).padStart(2, "0");
+      return `${year}-${month}-${day}T${hours}:${minutes}`;
+    },
+
+    // Formatear fecha para mostrar
+    formatDate(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      const date = new Date(dateTimeString);
+      return date.toLocaleDateString("es-ES", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    },
+
+    // Formatear fecha y hora para mostrar
+    formatDateTime(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      const date = new Date(dateTimeString);
+      return date.toLocaleString("es-ES", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    },
+
+    formatTime(dateTimeString) {
       if (!dateTimeString) return "--:--";
       const date = new Date(dateTimeString);
       return date.toLocaleTimeString("es-ES", {
@@ -391,17 +611,6 @@ function studentDashboard() {
       }
     },
 
-    // Obtener título de la página
-    getPageTitle() {
-      const titles = {
-        overview: "Resumen",
-        events: "Eventos Disponibles",
-        registrations: "Mis Preregistros",
-        profile: "Mi Perfil",
-      };
-      return titles[this.activeTab] || "Eventos Tec";
-    },
-
     async refreshRegistrations() {
       try {
         // Intentar encontrar el componente de preregistros y refrescarlo
@@ -424,6 +633,17 @@ function studentDashboard() {
         console.error("❌ Error refrescando preregistros:", error);
         return false;
       }
+    },
+
+    getPageTitle() {
+      const titles = {
+        overview: "Resumen",
+        events: "Eventos Disponibles",
+        event_activities: "Actividades del Evento",
+        registrations: "Mis Preregistros",
+        profile: "Mi Perfil",
+      };
+      return titles[this.activeTab] || "Eventos Tec";
     },
   };
 }
