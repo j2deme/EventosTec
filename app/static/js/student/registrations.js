@@ -1,6 +1,4 @@
 // static/js/student/registrations.js
-console.log("Student Registrations Manager JS loaded");
-
 function studentRegistrationsManager() {
   return {
     // Estado
@@ -29,27 +27,22 @@ function studentRegistrationsManager() {
 
     // Inicialización
     init() {
-      console.log("Initializing student registrations manager...");
       this.loadRegistrations();
 
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible" && this.isActiveTab()) {
-          console.log("🔄 Refrescando al volver a la pestaña...");
-          this.loadRegistrations(this.pagination.current_page);
-        }
-      });
+      // document.addEventListener("visibilitychange", () => {
+      //   if (document.visibilityState === "visible" && this.isActiveTab()) {
+      //     this.loadRegistrations(this.pagination.current_page);
+      //   }
+      // });
 
       // ✨ Refrescar al enfocar la ventana (opcional)
-      window.addEventListener("focus", () => {
-        if (this.isActiveTab()) {
-          console.log("🔄 Refrescando al enfocar la ventana...");
-          this.loadRegistrations(this.pagination.current_page);
-        }
-      });
+      // window.addEventListener("focus", () => {
+      //   if (this.isActiveTab()) {
+      //     this.loadRegistrations(this.pagination.current_page);
+      //   }
+      // });
 
-      // Escuchar evento para filtrar por evento (desde la vista de eventos)
       window.addEventListener("filter-activities-by-event", (event) => {
-        // Podríamos implementar filtrado por evento si es necesario
         console.log("Filtrar por evento:", event.detail);
       });
     },
@@ -80,9 +73,6 @@ function studentRegistrationsManager() {
               if (data && typeof data.activeTab !== "undefined") {
                 dashboard = element;
                 dashboardData = data;
-                console.log(
-                  `✅ Dashboard encontrado con selector: ${selector}`
-                );
                 break;
               }
             }
@@ -93,14 +83,9 @@ function studentRegistrationsManager() {
         // Si encontramos el dashboard, verificar la pestaña activa
         if (dashboard && dashboardData) {
           const isActive = dashboardData.activeTab === "registrations";
-          console.log(
-            `📊 Pestaña actual: ${dashboardData.activeTab}, ¿Es 'registrations'? ${isActive}`
-          );
           return isActive;
         }
 
-        // ✨ Fallback: verificar el hash de la URL
-        console.log("🔄 Verificando fallback con hash de URL");
         const hash = window.location.hash.substring(1);
         return hash === "registrations";
       } catch (e) {
@@ -329,6 +314,79 @@ function studentRegistrationsManager() {
         hour: "2-digit",
         minute: "2-digit",
       });
+    },
+
+    // Formatear solo fecha para mostrar (día completo)
+    formatOnlyDate(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      try {
+        const date = new Date(dateTimeString);
+        return date.toLocaleDateString("es-ES", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+      } catch (e) {
+        return dateTimeString;
+      }
+    },
+
+    // Formatear solo hora para mostrar
+    formatTime(dateTimeString) {
+      if (!dateTimeString) return "--:--";
+      try {
+        const date = new Date(dateTimeString);
+        return date.toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      } catch (e) {
+        return "--:--";
+      }
+    },
+
+    // Formatear fecha y hora para mostrar
+    formatDateTime(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      try {
+        const date = new Date(dateTimeString);
+        return date.toLocaleString("es-ES", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      } catch (e) {
+        return dateTimeString;
+      }
+    },
+
+    isMultiDayActivity(activity) {
+      if (!activity.start_datetime || !activity.end_datetime) return false;
+
+      try {
+        const startDate = new Date(activity.start_datetime);
+        const endDate = new Date(activity.end_datetime);
+
+        // Comparar solo las fechas (sin horas)
+        const startDay = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate()
+        );
+        const endDay = new Date(
+          endDate.getFullYear(),
+          endDate.getMonth(),
+          endDate.getDate()
+        );
+
+        return startDay.getTime() !== endDay.getTime();
+      } catch (e) {
+        console.error("Error al verificar si es actividad multídias:", e);
+        return false;
+      }
     },
 
     // Redirigir al login

@@ -1,6 +1,4 @@
 // static/js/student/events.js
-console.log("Student Events Manager JS loaded");
-
 function studentEventsManager() {
   return {
     // Estado
@@ -32,9 +30,7 @@ function studentEventsManager() {
 
     // Inicialización
     init() {
-      console.log("Initializing student events manager...");
       this.loadEvents();
-      this.loadStudentRegistrations();
     },
 
     // Cargar eventos
@@ -146,11 +142,6 @@ function studentEventsManager() {
       }
     },
 
-    async loadStudentRegistrations() {
-      // Esta función puede permanecer igual o simplificarse
-      // Ya que su lógica principal está en event_activities.js
-    },
-
     // Cambiar página
     changePage(page) {
       if (page >= 1 && page <= this.pagination.last_page) {
@@ -158,7 +149,6 @@ function studentEventsManager() {
       }
     },
 
-    // ✨ Ver detalles del evento (SIMPLIFICADO)
     async viewEventDetails(event) {
       this.currentEvent = { ...event };
       this.currentEventActivitiesSummary = {}; // Reiniciar resumen
@@ -192,7 +182,6 @@ function studentEventsManager() {
         const data = await response.json();
         const activities = data.activities || [];
 
-        // ✨ Generar resumen por tipo de actividad
         const summary = {};
         activities.forEach((activity) => {
           const type = activity.activity_type || "Otro";
@@ -214,10 +203,7 @@ function studentEventsManager() {
 
     // Ver actividades del evento (NAVEGACIÓN)
     viewActivities(event) {
-      console.log("Viewing activities for event:", event.id);
-
       try {
-        // ✨ Método más robusto para encontrar y cambiar la pestaña
         let dashboard = null;
 
         // Intentar encontrar el dashboard de varias maneras
@@ -245,10 +231,6 @@ function studentEventsManager() {
         }
 
         if (dashboard && dashboard.__x) {
-          console.log(
-            "Dashboard encontrado, cambiando pestaña a event_activities"
-          );
-
           // Primero cambiar la pestaña
           dashboard.__x.getUnobservedData().setActiveTab("event_activities");
 
@@ -263,14 +245,8 @@ function studentEventsManager() {
                 },
               })
             );
-          }, 150); // ✨ Aumentado el retraso a 150ms
+          }, 150);
         } else {
-          // ✨ Si no encontramos el dashboard de la manera tradicional,
-          // intentar una navegación directa
-          console.log(
-            "Dashboard no encontrado por selector, intentando navegación directa"
-          );
-
           // Cambiar el hash directamente
           window.location.hash = "event_activities";
 
@@ -290,7 +266,6 @@ function studentEventsManager() {
         console.error("Error al navegar a actividades:", error);
         showToast("Error al navegar a las actividades", "error");
 
-        // ✨ Como último recurso, intentar navegación directa
         try {
           window.location.hash = `event_activities?event_id=${event.id}`;
         } catch (fallbackError) {

@@ -1,6 +1,4 @@
 // static/js/student/dashboard.js
-console.log("Student Dashboard JS loaded");
-
 function studentDashboard() {
   return {
     // Estado del componente
@@ -31,7 +29,6 @@ function studentDashboard() {
 
     // Inicialización
     init() {
-      console.log("Initializing student dashboard...");
       this.setInitialTab();
       this.setupEventListeners();
       this.loadStudentProfile();
@@ -52,7 +49,6 @@ function studentDashboard() {
     handleLocationChange() {
       const tabFromUrl = this.getTabFromUrl();
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
-        console.log(`Setting active tab from URL: ${tabFromUrl}`);
         this.activeTab = tabFromUrl;
       } else {
         // Si no hay hash válido, usar el guardado o por defecto
@@ -142,10 +138,6 @@ function studentDashboard() {
 
     // ✨ Refrescar contenido automáticamente cuando se cambia de pestaña
     async refreshTabContent(currentTab, previousTab) {
-      console.log(
-        `🔄 Refrescando contenido para pestaña: ${currentTab} (desde: ${previousTab})`
-      );
-
       try {
         switch (currentTab) {
           case "registrations":
@@ -164,7 +156,6 @@ function studentDashboard() {
                 await eventsManager.loadEvents(
                   eventsManager.pagination.current_page || 1
                 );
-                console.log("✅ Eventos refrescados exitosamente");
               }
             }
             break;
@@ -182,18 +173,12 @@ function studentDashboard() {
                 "function"
               ) {
                 await activitiesManager.refreshCurrentEventActivities();
-                console.log(
-                  "✅ Actividades del evento refrescadas exitosamente"
-                );
               }
             }
             break;
 
           default:
-            // Para otras pestañas, no hacer nada especial
-            console.log(
-              `ℹ️ No se requiere refresco especial para pestaña: ${currentTab}`
-            );
+          // Para otras pestañas, no hacer nada especial
         }
       } catch (error) {
         console.error(
@@ -241,7 +226,6 @@ function studentDashboard() {
 
         if (response.ok) {
           const data = await response.json();
-          console.log("Profile ", data); // Para debugging
 
           if (data.student) {
             this.studentName = data.student.full_name || "Estudiante";
@@ -419,8 +403,6 @@ function studentDashboard() {
     },
 
     async refreshRegistrations() {
-      console.log("🔄 Refrescando preregistros del estudiante...");
-
       try {
         // Intentar encontrar el componente de preregistros y refrescarlo
         const registrationsElement = document.querySelector(
@@ -434,13 +416,9 @@ function studentDashboard() {
             await registrationsManager.loadRegistrations(
               registrationsManager.pagination.current_page || 1
             );
-            console.log("✅ Preregistros refrescados exitosamente");
             return true;
           }
         }
-        console.log(
-          "ℹ️ Componente de preregistros no encontrado o no tiene método loadRegistrations"
-        );
         return false;
       } catch (error) {
         console.error("❌ Error refrescando preregistros:", error);

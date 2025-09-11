@@ -1,6 +1,4 @@
 // static/js/student/event_activities.js
-console.log("Student Event Activities Manager JS loaded");
-
 function studentEventActivitiesManager() {
   return {
     // Estado
@@ -31,15 +29,12 @@ function studentEventActivitiesManager() {
 
     // Inicialización
     async init() {
-      console.log("Initializing student event activities manager...");
-
       // Inicializar estado
       this.loadingEvent = false;
       this.errorMessage = "";
 
       // Escuchar el evento personalizado para cargar actividades
       const loadActivitiesListener = async (event) => {
-        console.log("✅ Recibido evento load-event-activities:", event.detail);
         const { eventId, eventName } = event.detail;
 
         if (eventId) {
@@ -61,7 +56,6 @@ function studentEventActivitiesManager() {
 
       window.addEventListener("load-event-activities", loadActivitiesListener);
 
-      // ✨ Guardar referencia al listener para poder removerlo si es necesario
       this._loadActivitiesListener = loadActivitiesListener;
 
       // Manejar la inicialización desde URL (por si se recarga la página)
@@ -75,13 +69,10 @@ function studentEventActivitiesManager() {
         this.loadActivities();
         this.loadStudentRegistrations();
       } else {
-        // ✨ No redirigir inmediatamente, esperar a que se cargue el evento
-        console.log("No hay eventId en la URL, esperando evento personalizado");
         this.goBack();
       }
     },
 
-    // ✨ Corregida función para volver a la lista de eventos
     goToEvents() {
       const dashboard = document.querySelector('[x-data*="studentDashboard"]');
       if (dashboard && dashboard.__x) {
@@ -91,10 +82,7 @@ function studentEventActivitiesManager() {
 
     // ✨ Corregida función goBack para usar goToEvents
     goBack() {
-      console.log("Intentando regresar a la lista de eventos...");
-
       try {
-        // ✨ Método más robusto para encontrar y cambiar la pestaña
         let dashboard = null;
 
         // Intentar encontrar el dashboard de varias maneras
@@ -122,11 +110,8 @@ function studentEventActivitiesManager() {
         }
 
         if (dashboard && dashboard.__x) {
-          console.log("Dashboard encontrado, cambiando pestaña a events");
           dashboard.__x.getUnobservedData().setActiveTab("events");
         } else {
-          // ✨ Si no encontramos el dashboard, intentar navegación directa
-          console.log("Dashboard no encontrado, intentando navegación directa");
           window.location.hash = "events";
         }
       } catch (error) {
@@ -137,14 +122,14 @@ function studentEventActivitiesManager() {
         } catch (fallbackError) {
           console.error("Error en navegación de fallback:", fallbackError);
           // Si todo falla, recargar la página en la pestaña de eventos
-          window.location.href = "/dashboard/student#events";
+          window.location.href = "/dashboard/student";
         }
       }
     },
 
     // Cargar información del evento
     async loadEvent(eventId) {
-      this.loadingEvent = true; // ✨ Corregido nombre de variable
+      this.loadingEvent = true;
       this.errorMessage = "";
 
       try {
@@ -174,7 +159,6 @@ function studentEventActivitiesManager() {
           start_date: this.formatDateTimeForInput(data.event.start_date),
           end_date: this.formatDateTimeForInput(data.event.end_date),
         };
-        console.log("Evento cargado:", this.currentEvent);
       } catch (error) {
         console.error("Error loading event:", error);
         this.errorMessage =
@@ -225,7 +209,6 @@ function studentEventActivitiesManager() {
 
         const data = await response.json();
 
-        // ✨ Guardar actividades originales (sin modificar para presentación)
         this.originalActivities = data.activities.map((activity) => ({
           ...activity,
           start_datetime: this.formatDateTimeForInput(activity.start_datetime),
@@ -282,11 +265,9 @@ function studentEventActivitiesManager() {
           this.studentRegistrations = data.registrations.map(
             (r) => r.activity_id
           );
-          console.log("Preregistros cargados:", this.studentRegistrations);
         }
       } catch (error) {
         console.error("Error loading student registrations:", error);
-        // No es crítico, solo para la UI
       }
     },
 
@@ -323,29 +304,19 @@ function studentEventActivitiesManager() {
 
     // Preregistrar a una actividad
     async registerForActivity(activity) {
-      console.log("🎯 Intentando preregistrar a actividad:", activity);
-
       // ✨ Obtener la actividad original para verificación precisa
       const originalActivity = this.getOriginalActivityById(activity.id);
-      console.log("📋 Actividad original para verificación:", originalActivity);
 
       try {
         // ✨ Verificar si es una actividad multídias usando los datos originales
         if (originalActivity && this.isMultiDayActivity(originalActivity)) {
-          console.log("⚠️ Mostrando confirmación para actividad multídias");
           const confirmed = await this.showMultiDayConfirmation(
             originalActivity
           );
           if (!confirmed) {
             // Usuario canceló la confirmación
-            console.log(
-              "❌ Usuario canceló el preregistro a actividad multídias"
-            );
             return;
           }
-          console.log(
-            "✅ Usuario confirmó el preregistro a actividad multídias"
-          );
         }
 
         const token = localStorage.getItem("authToken");
@@ -387,7 +358,6 @@ function studentEventActivitiesManager() {
         const data = await response.json();
         showToast("Preregistro realizado exitosamente", "success");
 
-        // ✨ Actualizar visualmente el preregistro
         try {
           // Intentar encontrar el manager de preregistros y recargar
           const registrationsManagerElement = document.querySelector(
@@ -398,7 +368,6 @@ function studentEventActivitiesManager() {
               registrationsManagerElement.__x.getUnobservedData();
             // Solo recargar si ya se han cargado preregistros alguna vez
             if (typeof registrationsManager.loadRegistrations === "function") {
-              console.log("🔄 Actualizando lista de preregistros...");
               // Recargar en la página actual o primera página
               await registrationsManager.loadRegistrations(
                 registrationsManager.pagination.current_page
@@ -413,13 +382,10 @@ function studentEventActivitiesManager() {
           // No es crítico, solo para la UX
         }
 
-        // ✨ También actualizar visualmente en esta vista (opcional, para feedback inmediato)
-        // Agregar a la lista de preregistros del estudiante (para indicador visual)
         if (!this.studentRegistrations.includes(activity.id)) {
           this.studentRegistrations.push(activity.id);
         }
 
-        // ✨ Actualizar el cupo visualmente
         const activityIndex = this.activities.findIndex(
           (a) => a.id === activity.id
         );
@@ -474,7 +440,6 @@ function studentEventActivitiesManager() {
             const dailyActivityView = {
               ...activity,
               _expanded_for_date: dateStr,
-              // ✨ Añadir información sobre el día actual dentro de la actividad multidia
               day_in_series: this.getDayInSeries(
                 activity.start_datetime,
                 activity.end_datetime,
@@ -484,7 +449,6 @@ function studentEventActivitiesManager() {
                 activity.start_datetime,
                 activity.end_datetime
               ),
-              // ✨ Marcar como actividad expandida para diferenciar en la UI
               is_expanded_view: true,
             };
 
@@ -729,15 +693,6 @@ function studentEventActivitiesManager() {
         );
 
         const isMultiDay = startDay.getTime() !== endDay.getTime();
-        console.log(
-          `🔍 Actividad ${activityToCheck.id} (${activityToCheck.name}) es multídias: ${isMultiDay}`,
-          {
-            originalStart: activityToCheck.start_datetime,
-            originalEnd: activityToCheck.end_datetime,
-            startDay: startDay,
-            endDay: endDay,
-          }
-        );
 
         return isMultiDay;
       } catch (e) {
@@ -1051,7 +1006,6 @@ function studentEventActivitiesManager() {
                 activity.start_datetime,
                 activity.end_datetime
               ),
-              // ✨ Marcar como actividad expandida
               is_expanded_multiday: true,
             };
 
@@ -1101,16 +1055,12 @@ function studentEventActivitiesManager() {
     },
 
     async refreshCurrentEventActivities() {
-      console.log("🔄 Refrescando actividades del evento actual...");
-
       if (!this.currentEvent || !this.currentEvent.id) {
-        console.log("ℹ️ No hay evento actual para refrescar");
         return false;
       }
 
       try {
         await this.loadActivities();
-        console.log("✅ Actividades del evento refrescadas exitosamente");
         return true;
       } catch (error) {
         console.error("❌ Error refrescando actividades del evento:", error);

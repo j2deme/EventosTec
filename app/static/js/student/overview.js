@@ -1,6 +1,4 @@
 // static/js/student/overview.js
-console.log("Student Overview Manager JS loaded");
-
 function studentOverviewManager() {
   return {
     // Datos del estudiante
@@ -51,7 +49,6 @@ function studentOverviewManager() {
 
     // Inicialización
     init() {
-      console.log("Initializing student overview manager...");
       this.loadStudentProfile();
       this.loadStats();
       this.loadUpcomingEvents();
@@ -241,8 +238,6 @@ function studentOverviewManager() {
 
     // Navegar a la vista de preregistros
     goToRegistrations() {
-      console.log("Intentando navegar a preregistros...");
-
       try {
         // Método más robusto para encontrar y cambiar la pestaña
         let dashboard = null;
@@ -273,14 +268,10 @@ function studentOverviewManager() {
         }
 
         if (dashboard && dashboard.__x) {
-          console.log(
-            "Dashboard encontrado, cambiando a pestaña 'registrations'"
-          );
           dashboard.__x.getUnobservedData().setActiveTab("registrations");
         } else {
           // Si no encontramos el dashboard de la manera tradicional,
           // intentar una navegación directa mediante el hash
-          console.log("Dashboard no encontrado, intentando navegación directa");
           window.location.hash = "registrations";
 
           // También intentar disparar un evento personalizado por si acaso

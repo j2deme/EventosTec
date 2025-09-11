@@ -1,6 +1,4 @@
 // static/js/student/profile.js
-console.log("Student Profile Manager JS loaded");
-
 function studentProfileManager() {
   return {
     // Estado
@@ -21,7 +19,6 @@ function studentProfileManager() {
 
     // Inicialización
     init() {
-      console.log("Initializing student profile manager...");
       this.loadProfile();
     },
 
