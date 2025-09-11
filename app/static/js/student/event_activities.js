@@ -388,7 +388,33 @@ function studentEventActivitiesManager() {
         showToast("Preregistro realizado exitosamente", "success");
 
         // ✨ Actualizar visualmente el preregistro
-        // Agregar a la lista de preregistros del estudiante
+        try {
+          // Intentar encontrar el manager de preregistros y recargar
+          const registrationsManagerElement = document.querySelector(
+            '[x-data*="studentRegistrationsManager"]'
+          );
+          if (registrationsManagerElement && registrationsManagerElement.__x) {
+            const registrationsManager =
+              registrationsManagerElement.__x.getUnobservedData();
+            // Solo recargar si ya se han cargado preregistros alguna vez
+            if (typeof registrationsManager.loadRegistrations === "function") {
+              console.log("🔄 Actualizando lista de preregistros...");
+              // Recargar en la página actual o primera página
+              await registrationsManager.loadRegistrations(
+                registrationsManager.pagination.current_page
+              );
+            }
+          }
+        } catch (refreshError) {
+          console.warn(
+            "No se pudo actualizar automáticamente la lista de preregistros:",
+            refreshError
+          );
+          // No es crítico, solo para la UX
+        }
+
+        // ✨ También actualizar visualmente en esta vista (opcional, para feedback inmediato)
+        // Agregar a la lista de preregistros del estudiante (para indicador visual)
         if (!this.studentRegistrations.includes(activity.id)) {
           this.studentRegistrations.push(activity.id);
         }
@@ -1072,6 +1098,24 @@ function studentEventActivitiesManager() {
         date: date,
         activities: sortedGrouped[date],
       }));
+    },
+
+    async refreshCurrentEventActivities() {
+      console.log("🔄 Refrescando actividades del evento actual...");
+
+      if (!this.currentEvent || !this.currentEvent.id) {
+        console.log("ℹ️ No hay evento actual para refrescar");
+        return false;
+      }
+
+      try {
+        await this.loadActivities();
+        console.log("✅ Actividades del evento refrescadas exitosamente");
+        return true;
+      } catch (error) {
+        console.error("❌ Error refrescando actividades del evento:", error);
+        return false;
+      }
     },
 
     // ✨ Formatear solo fecha para mostrar
