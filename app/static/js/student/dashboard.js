@@ -133,8 +133,74 @@ function studentDashboard() {
       const previousTab = this.activeTab;
       this.activeTab = tabId;
 
+      // ✨ Refrescar contenido automáticamente cuando se cambia a ciertas pestañas
+      this.refreshTabContent(tabId, previousTab);
+
       // Actualizar URL y localStorage
       this.updateLocationAndStorage(tabId);
+    },
+
+    // ✨ Refrescar contenido automáticamente cuando se cambia de pestaña
+    async refreshTabContent(currentTab, previousTab) {
+      console.log(
+        `🔄 Refrescando contenido para pestaña: ${currentTab} (desde: ${previousTab})`
+      );
+
+      try {
+        switch (currentTab) {
+          case "registrations":
+            // Refrescar preregistros cuando se cambia a la pestaña de preregistros
+            await this.refreshRegistrations();
+            break;
+
+          case "events":
+            // Refrescar eventos cuando se cambia a la pestaña de eventos
+            const eventsElement = document.querySelector(
+              '[x-data*="studentEventsManager"]'
+            );
+            if (eventsElement && eventsElement.__x) {
+              const eventsManager = eventsElement.__x.getUnobservedData();
+              if (typeof eventsManager.loadEvents === "function") {
+                await eventsManager.loadEvents(
+                  eventsManager.pagination.current_page || 1
+                );
+                console.log("✅ Eventos refrescados exitosamente");
+              }
+            }
+            break;
+
+          case "event_activities":
+            // Refrescar actividades del evento actual cuando se cambia a la pestaña de actividades
+            const activitiesElement = document.querySelector(
+              '[x-data*="studentEventActivitiesManager"]'
+            );
+            if (activitiesElement && activitiesElement.__x) {
+              const activitiesManager =
+                activitiesElement.__x.getUnobservedData();
+              if (
+                typeof activitiesManager.refreshCurrentEventActivities ===
+                "function"
+              ) {
+                await activitiesManager.refreshCurrentEventActivities();
+                console.log(
+                  "✅ Actividades del evento refrescadas exitosamente"
+                );
+              }
+            }
+            break;
+
+          default:
+            // Para otras pestañas, no hacer nada especial
+            console.log(
+              `ℹ️ No se requiere refresco especial para pestaña: ${currentTab}`
+            );
+        }
+      } catch (error) {
+        console.error(
+          `❌ Error refrescando contenido para pestaña ${currentTab}:`,
+          error
+        );
+      }
     },
 
     // Actualizar URL y almacenamiento local
@@ -350,6 +416,36 @@ function studentDashboard() {
         profile: "Mi Perfil",
       };
       return titles[this.activeTab] || "Eventos Tec";
+    },
+
+    async refreshRegistrations() {
+      console.log("🔄 Refrescando preregistros del estudiante...");
+
+      try {
+        // Intentar encontrar el componente de preregistros y refrescarlo
+        const registrationsElement = document.querySelector(
+          '[x-data*="studentRegistrationsManager"]'
+        );
+        if (registrationsElement && registrationsElement.__x) {
+          const registrationsManager =
+            registrationsElement.__x.getUnobservedData();
+          if (typeof registrationsManager.loadRegistrations === "function") {
+            // Refrescar en la página actual o primera página
+            await registrationsManager.loadRegistrations(
+              registrationsManager.pagination.current_page || 1
+            );
+            console.log("✅ Preregistros refrescados exitosamente");
+            return true;
+          }
+        }
+        console.log(
+          "ℹ️ Componente de preregistros no encontrado o no tiene método loadRegistrations"
+        );
+        return false;
+      } catch (error) {
+        console.error("❌ Error refrescando preregistros:", error);
+        return false;
+      }
     },
   };
 }
