@@ -429,8 +429,19 @@ function activitiesManager() {
       this.showModal = true;
     },
 
+    // Actividades relacionadas
+    relatedActivities: [],
+    selectedToLink: "",
+    async loadRelatedActivities(activityId) {
+      try {
+        this.relatedActivities = await this.getRelatedActivities(activityId);
+      } catch (error) {
+        this.relatedActivities = [];
+      }
+    },
+
     // Abrir modal para editar
-    openEditModal(activity) {
+    async openEditModal(activity) {
       this.editingActivity = true;
       // Copiar la actividad para evitar mutaciones directas
       this.currentActivity = { ...activity };
@@ -438,6 +449,9 @@ function activitiesManager() {
       this.showModal = true;
       this.dateValidationError = "";
       this.updateCalculatedDuration();
+      if (activity.id) {
+        await this.loadRelatedActivities(activity.id);
+      }
     },
 
     // Cerrar modal
@@ -572,6 +586,47 @@ function activitiesManager() {
         hour: "2-digit",
         minute: "2-digit",
       });
+    },
+
+    // Consultar actividades relacionadas
+    async getRelatedActivities(activityId) {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`/api/activities/${activityId}/related`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok)
+        throw new Error("Error al obtener actividades relacionadas");
+      const data = await response.json();
+      return data.related_activities || [];
+    },
+
+    // Enlazar actividad
+    async linkActivity(activityId, relatedId) {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`/api/activities/${activityId}/related`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ related_activity_id: relatedId }),
+      });
+      if (!response.ok) throw new Error("Error al enlazar actividades");
+      showToast("Actividades enlazadas exitosamente", "success");
+    },
+
+    // Desenlazar actividad
+    async unlinkActivity(activityId, relatedId) {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(
+        `/api/activities/${activityId}/related/${relatedId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (!response.ok) throw new Error("Error al desenlazar actividades");
+      showToast("Actividades desenlazadas exitosamente", "success");
     },
   };
 }

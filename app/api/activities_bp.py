@@ -224,9 +224,8 @@ def get_activity_attendances(activity_id):
     except Exception as e:
         return jsonify({'message': 'Error al obtener asistencias', 'error': str(e)}), 500
 
+
 # Obtener preregistros de una actividad
-
-
 @activities_bp.route('/<int:activity_id>/registrations', methods=['GET'])
 @jwt_required()
 def get_activity_registrations(activity_id):
@@ -243,3 +242,77 @@ def get_activity_registrations(activity_id):
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener preregistros', 'error': str(e)}), 500
+
+
+@activities_bp.route('/<int:activity_id>/related', methods=['GET'])
+@jwt_required()
+@require_admin
+def get_related_activities(activity_id):
+    """Devuelve las actividades relacionadas con una actividad."""
+    activity = db.session.get(Activity, activity_id)
+    if not activity:
+        return jsonify({'message': 'Actividad no encontrada'}), 404
+    from app.schemas import activities_schema
+    return jsonify({
+        'related_activities': activities_schema.dump(activity.related_activities)
+    }), 200
+
+
+@activities_bp.route('/<int:activity_id>/related', methods=['POST'])
+@jwt_required()
+@require_admin
+def add_related_activity(activity_id):
+    """Enlaza una actividad con otra, manejando errores de concurrencia."""
+    import pymysql
+    data = request.get_json()
+    related_id = data.get('related_activity_id')
+    if not related_id:
+        return jsonify({'message': 'Falta el ID de la actividad a enlazar'}), 400
+    if activity_id == related_id:
+        return jsonify({'message': 'No se puede enlazar una actividad consigo misma'}), 400
+    activity = db.session.get(Activity, activity_id)
+    related = db.session.get(Activity, related_id)
+    if not activity or not related:
+        return jsonify({'message': 'Una o ambas actividades no existen'}), 404
+    if related in activity.related_activities:
+        return jsonify({'message': 'Las actividades ya están enlazadas'}), 400
+    try:
+        activity.related_activities.append(related)
+        db.session.commit()
+    except pymysql.err.OperationalError as e:
+        # Error 1020: Record has changed since last read
+        if e.args[0] == 1020:
+            db.session.rollback()
+            # Reintentar una vez
+            try:
+                db.session.refresh(activity)
+                db.session.refresh(related)
+                activity.related_activities.append(related)
+                db.session.commit()
+                return jsonify({'message': 'Actividades enlazadas exitosamente (reintento)'}), 200
+            except Exception as e2:
+                db.session.rollback()
+                return jsonify({'message': f'Error de concurrencia al enlazar actividades: {str(e2)}'}), 500
+        else:
+            db.session.rollback()
+            return jsonify({'message': f'Error al enlazar actividades: {str(e)}'}), 500
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Error al enlazar actividades: {str(e)}'}), 500
+    return jsonify({'message': 'Actividades enlazadas exitosamente'}), 200
+
+
+@activities_bp.route('/<int:activity_id>/related/<int:related_id>', methods=['DELETE'])
+@jwt_required()
+@require_admin
+def remove_related_activity(activity_id, related_id):
+    """Desenlaza dos actividades."""
+    activity = db.session.get(Activity, activity_id)
+    related = db.session.get(Activity, related_id)
+    if not activity or not related:
+        return jsonify({'message': 'Una o ambas actividades no existen'}), 404
+    if related not in activity.related_activities:
+        return jsonify({'message': 'Las actividades no están enlazadas'}), 400
+    activity.related_activities.remove(related)
+    db.session.commit()
+    return jsonify({'message': 'Actividades desenlazadas exitosamente'}), 200
