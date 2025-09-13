@@ -608,7 +608,10 @@
                               <option value="">
                                 Selecciona actividad para enlazar
                               </option>
-                              <template x-for="act in activities" :key="act.id">
+                              <template
+                                x-for="act in activities.filter(a => a.event_id === currentActivity.event_id)"
+                                :key="act.id"
+                              >
                                 <option
                                   :value="act.id"
                                   x-text="act.name"

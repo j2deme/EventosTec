@@ -274,6 +274,9 @@ def add_related_activity(activity_id):
     related = db.session.get(Activity, related_id)
     if not activity or not related:
         return jsonify({'message': 'Una o ambas actividades no existen'}), 404
+    # Solo permitir enlazar actividades del mismo evento
+    if activity.event_id != related.event_id:
+        return jsonify({'message': 'Solo se pueden enlazar actividades del mismo evento.'}), 400
     if related in activity.related_activities:
         return jsonify({'message': 'Las actividades ya están enlazadas'}), 400
     try:
