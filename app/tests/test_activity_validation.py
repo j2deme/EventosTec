@@ -90,7 +90,8 @@ def test_validate_activity_dates_end_after_event(app, sample_event, sample_activ
             validate_activity_dates(sample_activity_data)
 
     # Mensaje actual indica que debe estar dentro del rango del evento
-    assert 'La fecha de fin de la actividad debe estar dentro del rango del evento' in str(exc_info.value)
+    assert 'La fecha de fin de la actividad debe estar dentro del rango del evento' in str(
+        exc_info.value)
 
 
 def test_validate_activity_dates_start_after_end(app, sample_event, sample_activity_data):
@@ -108,7 +109,8 @@ def test_validate_activity_dates_start_after_end(app, sample_event, sample_activ
             validate_activity_dates(sample_activity_data)
 
     # Mensaje actual indica que la fecha de inicio no puede ser posterior a la de fin
-    assert 'La fecha de inicio no puede ser posterior a la fecha de fin' in str(exc_info.value)
+    assert 'La fecha de inicio no puede ser posterior a la fecha de fin' in str(
+        exc_info.value)
 
 
 def test_validate_activity_dates_event_not_found(app, sample_activity_data):
@@ -187,7 +189,8 @@ def test_update_activity_valid_dates(app, sample_event, sample_activity_data):
             # convertir expected a naive
             assert saved == update_data['start_datetime'].replace(tzinfo=None)
         else:
-            assert saved == update_data['start_datetime'].replace(tzinfo=saved.tzinfo)
+            assert saved == update_data['start_datetime'].replace(
+                tzinfo=saved.tzinfo)
 
 
 def test_update_activity_invalid_dates(app, sample_event, sample_activity_data):

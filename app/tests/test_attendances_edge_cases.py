@@ -29,7 +29,8 @@ def test_check_out_without_check_in_endpoint(client, auth_headers, sample_data, 
     activity_id = activity.id
 
     # Crear attendance sin check_in_time
-    attendance = Attendance(student_id=sample_data['student_id'], activity_id=activity_id)
+    attendance = Attendance(
+        student_id=sample_data['student_id'], activity_id=activity_id)
     db.session.add(attendance)
     db.session.commit()
 
@@ -79,7 +80,8 @@ def test_double_check_in_endpoint(client, auth_headers, sample_data, app):
 
     assert res.status_code == 200
     data = json.loads(res.data)
-    assert 'Ya se ha registrado el check-in' in data.get('message', '') or 'attendance' in data
+    assert 'Ya se ha registrado el check-in' in data.get(
+        'message', '') or 'attendance' in data
 
 
 def test_pause_without_check_in_endpoint(client, auth_headers, sample_data, app):
@@ -100,7 +102,8 @@ def test_pause_without_check_in_endpoint(client, auth_headers, sample_data, app)
     db.session.commit()
     activity_id = activity.id
 
-    attendance = Attendance(student_id=sample_data['student_id'], activity_id=activity_id)
+    attendance = Attendance(
+        student_id=sample_data['student_id'], activity_id=activity_id)
     db.session.add(attendance)
     db.session.commit()
 
@@ -180,7 +183,7 @@ def test_bulk_create_skips_existing(client, auth_headers, sample_data, app):
 
     # Crear asistencia ya existente para el estudiante existente
     existing_att = Attendance(student_id=existing_student_id, activity_id=activity_id,
-                  attendance_percentage=100.0, status='Asistió')
+                              attendance_percentage=100.0, status='Asistió')
     db.session.add(existing_att)
     db.session.commit()
 
@@ -225,7 +228,8 @@ def test_percentage_pause_longer_than_duration_service(app, sample_data):
             activity_id=activity.id,
             check_in_time=datetime(2024, 1, 6, 10, 0, 0, tzinfo=timezone.utc),
             pause_time=datetime(2024, 1, 6, 10, 1, 0, tzinfo=timezone.utc),
-            resume_time=datetime(2024, 1, 6, 11, 0, 0, tzinfo=timezone.utc),  # Pausa de ~59 min
+            resume_time=datetime(2024, 1, 6, 11, 0, 0,
+                                 tzinfo=timezone.utc),  # Pausa de ~59 min
             check_out_time=datetime(2024, 1, 6, 10, 15, 0, tzinfo=timezone.utc)
         )
         db.session.add(attendance)
