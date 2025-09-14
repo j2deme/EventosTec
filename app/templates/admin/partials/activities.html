@@ -58,7 +58,6 @@
             class="focus:ring-indigo-500 focus:border-indigo-500 block w-full py-2 sm:text-sm border-gray-300 rounded-md"
           >
             <option value="">Todos los eventos</option>
-            <!-- Este select se llenará dinámicamente -->
             <template x-for="event in events" :key="event.id">
               <option :value="event.id" x-text="event.name"></option>
             </template>
@@ -186,12 +185,12 @@
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span
                     :class="{
-                                        'bg-indigo-100 text-indigo-800': activity.activity_type === 'Magistral',
-                                        'bg-green-100 text-green-800': activity.activity_type === 'Conferencia',
-                                        'bg-yellow-100 text-yellow-800': activity.activity_type === 'Taller',
-                                        'bg-orange-100 text-orange-800': activity.activity_type === 'Curso',
-                                        'bg-gray-100 text-gray-800': activity.activity_type === 'Otro'
-                                    }"
+                      'bg-indigo-100 text-indigo-800': activity.activity_type === 'Magistral',
+                      'bg-green-100 text-green-800': activity.activity_type === 'Conferencia',
+                      'bg-yellow-100 text-yellow-800': activity.activity_type === 'Taller',
+                      'bg-orange-100 text-orange-800': activity.activity_type === 'Curso',
+                      'bg-gray-100 text-gray-800': activity.activity_type === 'Otro'
+                    }"
                     class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                   >
                     <span x-text="activity.activity_type"></span>
@@ -199,7 +198,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <span
-                    x-text="activity.max_capacity ? `${activity.current_registrations || 0}/${activity.max_capacity}` : 'Sin cupo'"
+                    x-text="activity.max_capacity ? `${activity.current_registrations || 0}/${activity.max_capacity}` : 'A demanda'"
                   ></span>
                 </td>
                 <td
@@ -279,9 +278,9 @@
         <button
           @click="changePage(page)"
           :class="{
-                            'bg-indigo-600 text-white': page === pagination.current_page,
-                            'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
-                        }"
+            'bg-indigo-600 text-white': page === pagination.current_page,
+            'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
+          }"
           class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md"
         >
           <span x-text="page"></span>
@@ -557,7 +556,7 @@
 
                     <!-- Cupo (solo para Conferencias, Talleres, Cursos) -->
                     <div
-                      x-show="currentActivity.activity_type === 'Conferencia' || currentActivity.activity_type === 'Taller' || currentActivity.activity_type === 'Curso'"
+                      x-show="['Conferencia', 'Taller', 'Curso'].includes(currentActivity.activity_type)"
                     >
                       <label
                         for="max_capacity"
@@ -573,63 +572,112 @@
                       />
                     </div>
 
-                    <!-- Actividades relacionadas -->
-                    <div class="mt-6">
-                      <h3 class="text-lg font-semibold mb-2">
-                        Actividades relacionadas
-                      </h3>
-                      <template x-if="currentActivity.id">
-                        <div>
-                          <!-- Listar actividades relacionadas -->
-                          <ul class="mb-2">
-                            <template
-                              x-for="rel in relatedActivities"
-                              :key="rel.id"
-                            >
-                              <li
-                                class="flex items-center justify-between py-1"
-                              >
-                                <span x-text="rel.name"></span>
-                                <button
-                                  class="text-red-500 hover:underline ml-2"
-                                  @click="unlinkActivity(currentActivity.id, rel.id).then(() => loadRelatedActivities(currentActivity.id))"
-                                >
-                                  Desenlazar
-                                </button>
-                              </li>
-                            </template>
-                          </ul>
-                          <!-- Selector para enlazar nueva actividad -->
-                          <div class="flex items-center gap-2">
-                            <select
-                              x-model="selectedToLink"
-                              class="border rounded px-2 py-1"
-                            >
-                              <option value="">
-                                Selecciona actividad para enlazar
-                              </option>
+                    <!-- Actividades relacionadas (solo en edición) -->
+                    <template x-if="currentActivity.id">
+                      <div class="mt-6">
+                        <!-- Listar actividades relacionadas existentes -->
+                        <template x-if="relatedActivities.length > 0">
+                          <div class="mb-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">
+                              Actividades enlazadas:
+                            </h4>
+                            <ul class="space-y-2">
                               <template
-                                x-for="act in activities.filter(a => a.event_id === currentActivity.event_id)"
-                                :key="act.id"
+                                x-for="rel in relatedActivities"
+                                :key="rel.id"
                               >
-                                <option
-                                  :value="act.id"
-                                  x-text="act.name"
-                                  :disabled="act.id === currentActivity.id || relatedActivities.some(r => r.id === act.id)"
-                                ></option>
+                                <li
+                                  class="flex items-center justify-between bg-gray-50 p-2 rounded"
+                                >
+                                  <span x-text="rel.name"></span>
+                                  <button
+                                    type="button"
+                                    @click="unlinkActivity(currentActivity.id, rel.id).then(() => loadRelatedActivities(currentActivity.id))"
+                                    class="text-red-500 hover:text-red-700 text-sm"
+                                  >
+                                    Desenlazar
+                                  </button>
+                                </li>
                               </template>
-                            </select>
+                            </ul>
+                          </div>
+                        </template>
+                        <template x-if="currentActivity.linked_by.length > 0">
+                          <div class="mb-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">
+                              Actividades enlazadas:
+                            </h4>
+                            <ul class="space-y-2">
+                              <template
+                                x-for="rel in currentActivity.linked_by"
+                                :key="rel.id"
+                              >
+                                <li
+                                  class="flex items-center justify-between bg-gray-50 p-2 rounded"
+                                >
+                                  <span x-text="rel.name"></span>
+                                  <button
+                                    type="button"
+                                    @click="unlinkActivity(rel.id, currentActivity.id).then(() => loadRelatedActivities(currentActivity.id))"
+                                    class="text-red-500 hover:text-red-700 text-sm"
+                                  >
+                                    Desenlazar
+                                  </button>
+                                </li>
+                              </template>
+                            </ul>
+                          </div>
+                        </template>
+
+                        <!-- Selector para enlazar nueva actividad -->
+                        <template
+                          x-if="relatedActivities.length === 0 && currentActivity.linked_by.length == 0"
+                        >
+                          <div class="flex items-end gap-2">
+                            <div class="flex-1">
+                              <label
+                                class="block text-sm font-medium text-gray-700 mb-1"
+                              >
+                                Enlazar con otra actividad
+                              </label>
+                              <select
+                                x-model="selectedToLink"
+                                class="focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
+                              >
+                                <option value="">Seleccionar actividad</option>
+                                <template
+                                  x-for="act in getAvailableActivities().filter(a => a.id !== currentActivity.id)"
+                                  :key="act.id"
+                                >
+                                  <option
+                                    :value="act.id"
+                                    x-text="act.name"
+                                    :disabled="act.id === currentActivity.id"
+                                  ></option>
+                                </template>
+                              </select>
+                            </div>
                             <button
-                              class="bg-blue-500 text-white px-3 py-1 rounded"
+                              type="button"
                               @click="linkActivity(currentActivity.id, selectedToLink).then(() => { selectedToLink=''; loadRelatedActivities(currentActivity.id); })"
                               :disabled="!selectedToLink"
+                              class="bg-indigo-600 text-white px-3 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               Enlazar
                             </button>
                           </div>
-                        </div>
-                      </template>
-                    </div>
+                        </template>
+
+                        <template
+                          x-if="relatedActivities.length > 0 || currentActivity.linked_by.length > 0"
+                        >
+                          <p class="text-sm text-gray-500 italic mt-2">
+                            Esta actividad ya está relacionada con otra.
+                            Desenlázala primero para poder enlazar una nueva.
+                          </p>
+                        </template>
+                      </div>
+                    </template>
                   </div>
                 </form>
               </div>

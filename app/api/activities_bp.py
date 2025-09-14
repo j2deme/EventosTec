@@ -319,3 +319,27 @@ def remove_related_activity(activity_id, related_id):
     activity.related_activities.remove(related)
     db.session.commit()
     return jsonify({'message': 'Actividades desenlazadas exitosamente'}), 200
+
+
+@activities_bp.route('/relations', methods=['GET'])
+def get_activity_relations():
+    try:
+        activities = db.session.query(Activity).all()
+        result = []
+        for activity in activities:
+            result.append({
+                'id': activity.id,
+                'name': activity.name,
+                'event_id': activity.event_id,
+                'related_activities': [
+                    {'id': a.id, 'name': a.name, 'event_id': a.event_id}
+                    for a in activity.related_activities
+                ],
+                'linked_by': [
+                    {'id': a.id, 'name': a.name, 'event_id': a.event_id}
+                    for a in activity.related_to_activities
+                ]
+            })
+        return jsonify({'activities': result}), 200
+    except Exception as e:
+        return jsonify({'message': 'Error al obtener relaciones', 'error': str(e)}), 500

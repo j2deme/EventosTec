@@ -3,6 +3,7 @@ function activitiesManager() {
   return {
     // Estado
     activities: [],
+    activityRelations: [],
     events: [], // Para el selector de eventos
     loading: false,
     saving: false,
@@ -54,8 +55,9 @@ function activitiesManager() {
 
     // Inicialización
     init() {
-      this.loadEvents(); // Cargar eventos para el selector
+      this.loadEvents();
       this.loadActivities();
+      this.loadActivityRelations();
     },
 
     // Cargar actividades
@@ -183,10 +185,6 @@ function activitiesManager() {
           // Formatear las fechas del evento para los inputs datetime-local
           this.minDate = this.formatDateTimeForInput(selectedEvent.start_date);
           this.maxDate = this.formatDateTimeForInput(selectedEvent.end_date);
-          console.log("Date limits set:", {
-            min: this.minDate,
-            max: this.maxDate,
-          });
         }
       }
     },
@@ -627,6 +625,39 @@ function activitiesManager() {
       );
       if (!response.ok) throw new Error("Error al desenlazar actividades");
       showToast("Actividades desenlazadas exitosamente", "success");
+    },
+    getAvailableActivities() {
+      // Usar activityRelations para saber si una actividad está enlazada como A o B
+      const linkedIds = new Set();
+      this.activityRelations.forEach((act) => {
+        if (
+          (act.related_activities && act.related_activities.length > 0) ||
+          (act.linked_by && act.linked_by.length > 0)
+        ) {
+          linkedIds.add(act.id);
+        }
+        if (Array.isArray(act.related_activities)) {
+          act.related_activities.forEach((rel) => linkedIds.add(rel.id));
+        }
+        if (Array.isArray(act.linked_by)) {
+          act.linked_by.forEach((rel) => linkedIds.add(rel.id));
+        }
+      });
+      return this.activityRelations.filter(
+        (a) =>
+          a.event_id === this.currentActivity.event_id && !linkedIds.has(a.id)
+      );
+    },
+
+    // Cargar relaciones de actividades (A y B)
+    async loadActivityRelations() {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch("/api/activities/relations", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("Error al obtener relaciones");
+      const data = await response.json();
+      this.activityRelations = data.activities || [];
     },
   };
 }

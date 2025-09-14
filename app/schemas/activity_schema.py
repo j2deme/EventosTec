@@ -89,6 +89,18 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
                 data['duration_hours'] = round(
                     calculated_duration, 2)  # Redondear a 2 decimales
 
+    # Actividades que enlazan a esta actividad (como B)
+    linked_by = fields.Method("get_linked_by", dump_only=True)
+
+    def get_linked_by(self, obj):
+        # Buscar actividades que tengan a esta como relacionada
+        if not hasattr(obj, 'related_to_activities'):
+            return []
+        return [
+            {"id": a.id, "name": a.name, "event_id": a.event_id}
+            for a in obj.related_to_activities
+        ]
+
 
 activity_schema = ActivitySchema()
 activities_schema = ActivitySchema(many=True)
