@@ -1,6 +1,6 @@
 # app/tests/test_attendance_service.py
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app import db
 from app.models.activity import Activity
 from app.models.attendance import Attendance
@@ -27,8 +27,8 @@ def setup_attendance_test_data(app, sample_data):
             department='TEST',
             name='Actividad de Prueba para Asistencia',
             description='Descripción de prueba',
-            start_datetime=datetime(2024, 1, 1, 10, 0, 0),
-            end_datetime=datetime(2024, 1, 1, 11, 0, 0),
+            start_datetime=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
             duration_hours=1.0,
             activity_type='Magistral',
             location='Auditorio de Prueba',
@@ -62,9 +62,10 @@ def test_calculate_attendance_percentage_full_attendance(app, setup_attendance_t
 
         # Simular check-in y check-out completos
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         attendance.check_out_time = datetime(
-            2024, 1, 1, 11, 0, 0)  # 1 hora exacta
+            2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc)  # 1 hora exacta
         db.session.commit()
 
         # Calcular porcentaje
@@ -83,9 +84,10 @@ def test_calculate_attendance_percentage_partial_attendance(app, setup_attendanc
         attendance_id = setup_attendance_test_data['attendance_id']
 
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         attendance.check_out_time = datetime(
-            2024, 1, 1, 10, 30, 0)  # 30 minutos
+            2024, 1, 1, 10, 30, 0, tzinfo=timezone.utc)  # 30 minutos
         db.session.commit()
 
         percentage = calculate_attendance_percentage(attendance_id)
@@ -105,7 +107,8 @@ def test_pause_attendance_valid(app, setup_attendance_test_data):
         attendance_id = setup_attendance_test_data['attendance_id']
 
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         db.session.commit()
 
         paused_attendance = pause_attendance(attendance_id)
@@ -120,9 +123,11 @@ def test_resume_attendance_valid(app, setup_attendance_test_data):
         attendance_id = setup_attendance_test_data['attendance_id']
 
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         attendance.is_paused = True
-        attendance.pause_time = datetime(2024, 1, 1, 10, 15, 0)
+        attendance.pause_time = datetime(
+            2024, 1, 1, 10, 15, 0, tzinfo=timezone.utc)
         db.session.commit()
 
         resumed_attendance = resume_attendance(attendance_id)
@@ -139,9 +144,10 @@ def test_calculate_net_duration_seconds_no_pauses(app, setup_attendance_test_dat
         attendance_id = setup_attendance_test_data['attendance_id']
 
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         attendance.check_out_time = datetime(
-            2024, 1, 1, 10, 30, 0)  # 30 minutos
+            2024, 1, 1, 10, 30, 0, tzinfo=timezone.utc)  # 30 minutos
 
         net_duration = calculate_net_duration_seconds(attendance)
 
@@ -157,13 +163,14 @@ def test_calculate_attendance_percentage_with_pauses(app, setup_attendance_test_
         attendance_id = setup_attendance_test_data['attendance_id']
 
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         attendance.pause_time = datetime(
-            2024, 1, 1, 10, 20, 0)  # Pausa a los 20 mins
+            2024, 1, 1, 10, 20, 0, tzinfo=timezone.utc)  # Pausa a los 20 mins
         attendance.resume_time = datetime(
-            2024, 1, 1, 10, 35, 0)  # Reanuda a los 35 mins
+            2024, 1, 1, 10, 35, 0, tzinfo=timezone.utc)  # Reanuda a los 35 mins
         attendance.check_out_time = datetime(
-            2024, 1, 1, 11, 0, 0)  # Termina a la 1hr
+            2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc)  # Termina a la 1hr
         db.session.commit()
 
         percentage = calculate_attendance_percentage(attendance_id)
@@ -187,9 +194,11 @@ def test_pause_attendance_already_paused(app, setup_attendance_test_data):
         attendance_id = setup_attendance_test_data['attendance_id']
 
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         attendance.is_paused = True
-        attendance.pause_time = datetime(2024, 1, 1, 10, 15, 0)
+        attendance.pause_time = datetime(
+            2024, 1, 1, 10, 15, 0, tzinfo=timezone.utc)
         db.session.commit()
 
         with pytest.raises(ValueError, match="La asistencia ya está pausada"):
@@ -202,7 +211,8 @@ def test_resume_attendance_not_paused(app, setup_attendance_test_data):
         attendance_id = setup_attendance_test_data['attendance_id']
 
         attendance = db.session.get(Attendance, attendance_id)
-        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0)
+        attendance.check_in_time = datetime(
+            2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
         # No se pausa
         db.session.commit()
 

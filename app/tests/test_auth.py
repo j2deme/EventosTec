@@ -34,10 +34,11 @@ def test_student_login_external_api_mock(client, mocker):
     # Mockear la respuesta de la API externa
     mock_response = mocker.Mock()
     mock_response.status_code = 200
-    mock_response.json.return_value = [
-        {'nombre': 'Juan Pérez', 'carrera': 'Sistemas'}]
+    # El endpoint externo del código espera un JSON con 'success' y 'data'
+    mock_response.json.return_value = {'success': True, 'data': {'name': 'Juan Pérez', 'career': {'name': 'Sistemas'}, 'email': 'juan@example.com'}}
 
-    mocker.patch('requests.get', return_value=mock_response)
+    # El código hace requests.post, no get
+    mocker.patch('requests.post', return_value=mock_response)
 
     response = client.post('/api/auth/student-login',
                            json={'control_number': '12345678', 'password': 'testpass'})

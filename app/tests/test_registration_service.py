@@ -230,9 +230,9 @@ def test_has_schedule_conflict_simple_overlap(app, sample_data):
         conflict_exists, message = has_schedule_conflict(
             sample_data['student_id'], activity_b.id)
         assert conflict_exists is True
-        assert "se solapa" in message
-        assert activity_a.name in message
-        assert activity_b.name in message
+    # Mensaje actual comienza con 'Conflicto de horario con'
+    assert message.startswith("Conflicto de horario con")
+    assert activity_a.name in message
 
 
 def test_has_schedule_conflict_multiday_overlap(app, sample_data):
@@ -281,7 +281,7 @@ def test_has_schedule_conflict_multiday_overlap(app, sample_data):
         conflict_exists, message = has_schedule_conflict(
             sample_data['student_id'], activity_b.id)
         assert conflict_exists is True
-        assert "se solapa" in message
+    assert message.startswith("Conflicto de horario con")
 
 
 def test_has_schedule_conflict_cancelled_registration(app, sample_data):

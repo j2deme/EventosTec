@@ -1,6 +1,6 @@
 import pytest
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def test_check_in_magistral(client, auth_headers, sample_data):
@@ -14,8 +14,8 @@ def test_check_in_magistral(client, auth_headers, sample_data):
             event_id=sample_data['event_id'],
             department='ISC',
             name='Conferencia Magistral',
-            start_datetime=datetime(2024, 1, 1, 10, 0, 0),
-            end_datetime=datetime(2024, 1, 1, 11, 0, 0),
+            start_datetime=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
             duration_hours=1.0,
             activity_type='Magistral',  # Importante: debe ser Magistral
             location='Auditorio Principal',
@@ -52,8 +52,8 @@ def test_check_in_non_magistral(client, auth_headers, sample_data):
             event_id=sample_data['event_id'],
             department='ISC',
             name='Taller Normal',
-            start_datetime=datetime(2024, 1, 1, 10, 0, 0),
-            end_datetime=datetime(2024, 1, 1, 11, 0, 0),
+            start_datetime=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc),
             duration_hours=1.0,
             activity_type='Taller',  # No es Magistral
             location='Laboratorio A',
