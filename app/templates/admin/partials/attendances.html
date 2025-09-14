@@ -1,0 +1,110 @@
+<div x-data="attendancesAdmin()" x-init="init()" class="max-w-4xl mx-auto">
+  <div class="bg-white p-4 rounded shadow">
+    <h2 class="text-lg font-semibold mb-4">Gestión de Asistencias (Admin)</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <div class="col-span-2">
+        <label class="block text-sm font-medium text-gray-700"
+          >Buscar estudiante</label
+        >
+        <input
+          x-model="query"
+          @keydown.enter.prevent="search()"
+          id="student-search"
+          type="text"
+          placeholder="Número de control o nombre"
+          class="mt-1 block w-full rounded-md border-gray-300"
+        />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Actividad</label>
+        <select
+          x-model="activityId"
+          id="activity-select"
+          class="mt-1 block w-full rounded-md border-gray-300"
+        >
+          <option value="">-- Seleccionar actividad --</option>
+          <template x-for="a in activities" :key="a.id">
+            <option
+              :value="a.id"
+              x-text="a.name + ' (Evento ' + a.event_id + ')'"
+            >
+              Option
+            </option>
+          </template>
+        </select>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-end space-x-2">
+      <button
+        @click="search()"
+        class="px-4 py-2 bg-indigo-600 text-white rounded"
+      >
+        Buscar
+      </button>
+      <button
+        @click="openRegister()"
+        class="px-4 py-2 bg-green-600 text-white rounded"
+      >
+        Registrar asistencia
+      </button>
+    </div>
+
+    <div id="search-results" class="mt-6" x-html="resultsHtml"></div>
+  </div>
+
+  <!-- Modal simple para registrar -->
+  <div
+    x-show="showModal"
+    x-cloak
+    class="fixed inset-0 z-50 flex items-center justify-center"
+  >
+    <div
+      x-cloak
+      class="bg-black bg-opacity-50 absolute inset-0"
+      @click="closeModal()"
+    ></div>
+    <div x-cloak class="bg-white rounded p-6 z-10 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Registrar asistencia</h3>
+      <div class="mb-3">
+        <label class="block text-sm">Estudiante ID</label>
+        <input
+          x-model="modalStudentId"
+          id="modal-student-id"
+          class="mt-1 block w-full rounded border-gray-300"
+        />
+      </div>
+      <div class="mb-3">
+        <label class="block text-sm">Actividad ID</label>
+        <input
+          x-model="modalActivityId"
+          id="modal-activity-id"
+          class="mt-1 block w-full rounded border-gray-300"
+        />
+      </div>
+      <div class="mb-3">
+        <label class="inline-flex items-center">
+          <input
+            x-model="modalMarkPresent"
+            id="modal-mark-present"
+            type="checkbox"
+            class="form-checkbox"
+          />
+          <span class="ml-2">Marcar como presente (100%)</span>
+        </label>
+      </div>
+      <div class="flex justify-end space-x-2">
+        <button @click="closeModal()" class="px-3 py-2 bg-gray-200 rounded">
+          Cancelar
+        </button>
+        <button
+          @click="submitModal()"
+          class="px-3 py-2 bg-indigo-600 text-white rounded"
+        >
+          Registrar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
