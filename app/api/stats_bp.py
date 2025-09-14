@@ -14,17 +14,30 @@ stats_bp = Blueprint('stats', __name__, url_prefix='/api/stats')
 def get_general_stats():
     """Devuelve estadísticas generales del sistema."""
     # Get the latest event (by start date or id)
-    latest_event = db.session.query(Event).order_by(
-        Event.start_date.desc()).first()
+    active_events = db.session.query(Event).filter_by(is_active=True).all()
 
-    stats_data = Event.get_stats(latest_event.id) if latest_event else {
-        'total_activities': 0,
-        'total_registrations': 0,
-        'total_attendances': 0,
-        'total_students': 0
-    }
+    if len(active_events) == 1:
+        stats_data = Event.get_stats(active_events[0].id)
+    elif len(active_events) > 1:
+        stats_data = {
+            'total_activities': 0,
+            'total_registrations': 0,
+            'total_attendances': 0,
+        }
+        for event in active_events:
+            event_stats = Event.get_stats(event.id)
+            for key in stats_data:
+                stats_data[key] += event_stats.get(key, 0)
+    else:
+        stats_data = {
+            'total_activities': 0,
+            'total_registrations': 0,
+            'total_attendances': 0,
+        }
 
     stats_data['active_events'] = db.session.query(
         Event).filter_by(is_active=True).count()
+
+    stats_data['total_students'] = db.session.query(Student).count()
 
     return jsonify(stats_data), 200

@@ -11,7 +11,7 @@ function adminDashboard() {
     stats: [
       {
         id: "students",
-        label: "Total Estudiantes",
+        label: "Estudiantes Registrados",
         value: "0",
         icon: "ti ti-users",
         color: "#4f46e5",
@@ -27,7 +27,7 @@ function adminDashboard() {
       },
       {
         id: "activities",
-        label: "Actividades",
+        label: "Actividades Disponibles",
         value: "0",
         icon: "ti ti-book",
         color: "#f59e0b",
@@ -285,7 +285,7 @@ function adminDashboard() {
         });
 
         if (statsResponse.ok) {
-          const statsData = await statsResponse.json(); // Esto es un OBJETO, no un arreglo
+          const statsData = await statsResponse.json();
 
           // Mapear las propiedades del objeto statsData a las etiquetas de this.stats
           this.stats = this.stats.map((stat) => {
@@ -312,12 +312,10 @@ function adminDashboard() {
           });
         } else {
           console.error("Error fetching stats, status:", statsResponse.status);
-          // Opcional: manejar errores de respuesta no ok
         }
       } catch (error) {
         console.error("Error loading stats:", error);
         // Mantener stats simulados si falla
-        // Opcional: mostrar mensaje de error al usuario
       }
     },
 
@@ -393,17 +391,7 @@ function adminDashboard() {
     },
 
     updateStats() {
-      // Actualizar valores basados en datos cargados
-      this.stats = this.stats.map((stat) => {
-        switch (stat.id) {
-          case "events":
-            return { ...stat, value: this.events.length.toString() };
-          case "activities":
-            return { ...stat, value: this.activities.length.toString() };
-          default:
-            return stat;
-        }
-      });
+      this.loadStats();
     },
 
     // Métodos de navegación

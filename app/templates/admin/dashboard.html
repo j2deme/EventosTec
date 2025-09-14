@@ -1,43 +1,50 @@
 <!-- app/templates/admin/dashboard.html -->
-{% extends "admin/base.html" %}
-
-{% block admin_title %}Dashboard - Admin Panel{% endblock %}
-{% block mobile_title %}Dashboard{% endblock %}
-
-{% block admin_content %}
+{% extends "admin/base.html" %} {% block admin_title %}Dashboard - Admin Panel{%
+endblock %} {% block mobile_title %}Dashboard{% endblock %} {% block
+admin_content %}
 <div>
-    <!--Stats Cards (Solo en la parte superior) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <template x-for="stat in stats" :key="stat.id">
-            <div class="bg-white rounded-lg shadow p-4 sm:p-6">
-                <div class="flex items-center">
-                    <div class="p-3 rounded-lg" :class="stat.bgColor">
-                        <i :class="stat.icon" class="text-xl" :style="`color: ${stat.color}`"></i>
-                    </div>
-                    <div class="ml-4">
-                        <p class="text-xs sm:text-sm font-medium text-gray-600" x-text="stat.label"></p>
-                        <p class="text-lg sm:text-xl font-semibold text-gray-900" x-text="stat.value"></p>
-                    </div>
-                </div>
-            </div>
-        </template>
-    </div>
+  <!--Stats Cards -->
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <template x-for="stat in stats" :key="stat.id">
+      <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div class="flex items-center">
+          <div class="p-3 rounded-lg" :class="stat.bgColor">
+            <i
+              :class="stat.icon"
+              class="text-xl"
+              :style="`color: ${stat.color}`"
+            ></i>
+          </div>
+          <div class="ml-4">
+            <p
+              class="text-xs sm:text-sm font-medium text-gray-600"
+              x-text="stat.label"
+            ></p>
+            <p
+              class="text-lg sm:text-xl font-semibold text-gray-900"
+              x-text="stat.value"
+            ></p>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
 
-    <!-- Tab Content -->
-    <div x-show="activeTab === 'overview'">
-        {% include 'admin/partials/overview.html' %}
-    </div>
-    
-    <div x-show="activeTab === 'events'">
-        {% include 'admin/partials/events.html' %}
-    </div>
-    
-    <div x-show="activeTab === 'activities'">
-        {% include 'admin/partials/activities.html' %}
-    </div>
-    
-    <div x-show="activeTab === 'report'">
-        {% include 'admin/partials/reports.html' %}
-    </div>
+  <!-- Tab Content -->
+  <div x-show="activeTab === 'overview'">
+    {% include 'admin/partials/overview.html' %}
+  </div>
+
+  <div x-show="activeTab === 'events'">
+    {% include 'admin/partials/events.html' %}
+  </div>
+
+  <div x-show="activeTab === 'activities'">
+    {% include 'admin/partials/activities.html' %}
+  </div>
+
+  <div x-show="activeTab === 'report'">
+    {% include 'admin/partials/reports.html' %}
+  </div>
 </div>
 {% endblock %}
