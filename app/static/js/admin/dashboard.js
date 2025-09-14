@@ -47,6 +47,7 @@ function adminDashboard() {
       { id: "overview", name: "Resumen", icon: "ti ti-layout-dashboard" },
       { id: "events", name: "Eventos", icon: "ti ti-calendar-event" },
       { id: "activities", name: "Actividades", icon: "ti ti-book" },
+      { id: "attendances", name: "Asistencias", icon: "ti ti-check" },
       { id: "registrations", name: "Registros", icon: "ti ti-clipboard-list" },
       { id: "reports", name: "Reportes", icon: "ti ti-chart-bar" },
     ],
@@ -131,6 +132,7 @@ function adminDashboard() {
         "activities",
         "registrations",
         "reports",
+        "attendances",
       ].includes(tabId);
     },
 
