@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models.attendance import Attendance
 from app.models.activity import Activity
 
@@ -17,7 +17,7 @@ def pause_attendance(attendance_id):
         raise ValueError("La asistencia ya está pausada")
 
     attendance.is_paused = True
-    attendance.pause_time = datetime.now()
+    attendance.pause_time = datetime.now(timezone.utc)
     db.session.commit()
     return attendance
 
@@ -32,7 +32,7 @@ def resume_attendance(attendance_id):
         raise ValueError("La asistencia no está pausada")
 
     attendance.is_paused = False
-    attendance.resume_time = datetime.now()
+    attendance.resume_time = datetime.now(timezone.utc)
     db.session.commit()
     return attendance
 
@@ -45,13 +45,13 @@ def calculate_net_duration_seconds(attendance):
         return 0
 
     # Si no hay check-out, usar ahora
-    end_time = attendance.check_out_time or datetime.now()
+    end_time = attendance.check_out_time or datetime.now(timezone.utc)
 
     total_paused_seconds = 0
     if attendance.pause_time:
         # Sumar todas las pausas. Asumimos una sola pausa por ahora.
         # Para múltiples pausas, se necesitaría una estructura diferente (ej: lista de pausas)
-        resume_or_now = attendance.resume_time or datetime.now()
+        resume_or_now = attendance.resume_time or datetime.now(timezone.utc)
         total_paused_seconds = (
             resume_or_now - attendance.pause_time).total_seconds()
 

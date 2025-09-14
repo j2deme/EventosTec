@@ -123,10 +123,10 @@ def check_out():
             # Esto puede ser útil si se pausó/reanudó después del primer check-out.
             pass  # Continuamos para recalcular
 
-        # 3. Registrar check-out
-        # Importante: Usar datetime.now(timezone.utc) o datetime.utcnow() si tus modelos lo requieren.
-        # Asegúrate de la consistencia de zonas horarias.
-        attendance.check_out_time = datetime.now()
+            # 3. Registrar check-out
+            # Importante: Usar datetime.now(timezone.utc) o datetime.utcnow() si tus modelos lo requieren.
+            # Asegúrate de la consistencia de zonas horarias.
+            attendance.check_out_time = datetime.now(timezone.utc)
 
         # 4. Calcular porcentaje de asistencia y estado
         # Esta función ahora está en el servicio y considera pausas.
@@ -354,3 +354,35 @@ def get_attendance(attendance_id):
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener asistencia', 'error': str(e)}), 500
+
+
+@attendances_bp.route('/<int:attendance_id>', methods=['DELETE'])
+@jwt_required()
+@require_admin
+def delete_attendance(attendance_id):
+    try:
+        attendance = db.session.get(Attendance, attendance_id)
+        if not attendance:
+            return jsonify({'message': 'Asistencia no encontrada'}), 404
+
+        # Intentar sincronizar con preregistro si existe
+        registration = db.session.query(Registration).filter_by(
+            student_id=attendance.student_id, activity_id=attendance.activity_id
+        ).first()
+
+        if registration:
+            # Revertir el preregistro a estado 'Registrado' y limpiar confirmation_date/attended
+            registration.attended = False
+            registration.confirmation_date = None
+            registration.status = 'Registrado'
+            db.session.add(registration)
+
+        # Borrado físico de la asistencia
+        db.session.delete(attendance)
+        db.session.commit()
+
+        return jsonify({'message': 'Asistencia eliminada exitosamente'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error al eliminar asistencia', 'error': str(e)}), 500
