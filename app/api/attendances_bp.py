@@ -8,6 +8,7 @@ from app.models.student import Student
 from app.models.activity import Activity
 from app.utils.auth_helpers import require_admin
 from app.services.attendance_service import calculate_attendance_percentage
+from app.models.registration import Registration
 
 attendances_bp = Blueprint('attendances', __name__,
                            url_prefix='/api/attendances')
@@ -135,6 +136,16 @@ def check_out():
             # Recargamos el objeto attendance desde la DB para tener los valores actualizados
             # que fueron modificados por calculate_attendance_percentage
             db.session.refresh(attendance)
+            # Sincronizar con preregistro si existe: si la asistencia resultó en 'Asistió', actualizar Registration
+            if attendance.status == 'Asistió':
+                registration = db.session.query(Registration).filter_by(
+                    student_id=attendance.student_id, activity_id=attendance.activity_id
+                ).first()
+                if registration:
+                    registration.attended = True
+                    registration.status = 'Asistió'
+                    registration.confirmation_date = db.func.now()
+                    db.session.add(registration)
         except Exception as e:
             # Si falla el cálculo, hacemos rollback y reportamos error
             db.session.rollback()

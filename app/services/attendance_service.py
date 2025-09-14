@@ -133,5 +133,18 @@ def create_related_attendances(student_id, activity_id):
                 status='Asistió'  # O un estado especial como 'Relacionada' si lo prefieres
             )
             db.session.add(auto_attendance)
+            # Sincronizar con preregistro si existe
+            from app.models.registration import Registration
+
+            registration = db.session.query(Registration).filter_by(
+                student_id=student_id,
+                activity_id=related_activity.id
+            ).first()
+
+            if registration:
+                registration.attended = True
+                registration.status = 'Asistió'
+                registration.confirmation_date = db.func.now()
+                db.session.add(registration)
     # Si esta función se llama desde un endpoint, el commit del endpoint debe ser suficiente.
     db.session.commit()

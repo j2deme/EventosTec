@@ -5,6 +5,7 @@ from app.schemas import registration_schema, registrations_schema
 from app.models.registration import Registration
 from app.models.student import Student
 from app.models.activity import Activity
+from app.models.attendance import Attendance
 from app.utils.auth_helpers import require_admin, get_user_or_403
 
 registrations_bp = Blueprint(
@@ -205,10 +206,11 @@ def update_registration(registration_id):
         attended = data.get('attended')
 
         valid_transitions = {
-            'Registrado': ['Confirmado', 'Cancelado'],
-            'Confirmado': ['Asistió', 'Ausente'],
+            'Registrado': ['Confirmado', 'Cancelado', 'Asistió', 'Ausente'],
+            'Confirmado': ['Registrado', 'Asistió', 'Ausente', 'Cancelado'],
             'Asistió': [],  # No se puede cambiar una vez asistido
-            'Ausente': [],
+            # Esto puede ser útil si el estudiante llega tarde y se confirma su asistencia, o si regresa después de haber sido marcado como ausente.
+            'Ausente': ['Registrado', 'Confirmado'],
             'Cancelado': ['Registrado']  # Permitir reactivar un cancelado
         }
 
@@ -223,7 +225,28 @@ def update_registration(registration_id):
         if attended is not None:
             registration.attended = attended
             if attended:
+                # Marcar asistencia en el preregistro y setear fecha de confirmacion
+                registration.status = 'Asistió'
                 registration.confirmation_date = db.func.now()
+
+                # Sincronizar con Attendance: crear o actualizar registro de asistencia asociado
+                attendance = db.session.query(Attendance).filter_by(
+                    student_id=registration.student_id, activity_id=registration.activity_id
+                ).first()
+                if attendance:
+                    attendance.attendance_percentage = 100.0
+                    attendance.status = 'Asistió'
+                else:
+                    attendance = Attendance(
+                        student_id=registration.student_id,
+                        activity_id=registration.activity_id,
+                        attendance_percentage=100.0,
+                        status='Asistió'
+                    )
+                    db.session.add(attendance)
+            else:
+                # Si se desmarca attended, limpiar confirmation_date para mantener consistencia
+                registration.confirmation_date = None
 
         db.session.commit()
 
