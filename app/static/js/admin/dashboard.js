@@ -47,6 +47,7 @@ function adminDashboard() {
       { id: "overview", name: "Resumen", icon: "ti ti-layout-dashboard" },
       { id: "events", name: "Eventos", icon: "ti ti-calendar-event" },
       { id: "activities", name: "Actividades", icon: "ti ti-book" },
+      { id: "registrations", name: "Registros", icon: "ti ti-clipboard-list" },
       { id: "reports", name: "Reportes", icon: "ti ti-chart-bar" },
     ],
 
@@ -124,7 +125,13 @@ function adminDashboard() {
 
     // Validar si una pestaña es válida
     isValidTab(tabId) {
-      return ["overview", "events", "activities", "reports"].includes(tabId);
+      return [
+        "overview",
+        "events",
+        "activities",
+        "registrations",
+        "reports",
+      ].includes(tabId);
     },
 
     // Establecer pestaña inicial

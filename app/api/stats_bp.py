@@ -5,6 +5,8 @@ from app.models.event import Event
 from app.models.activity import Activity
 from app.models.attendance import Attendance
 from app.models.student import Student
+from app.models.registration import Registration
+from datetime import datetime
 
 
 stats_bp = Blueprint('stats', __name__, url_prefix='/api/stats')
@@ -39,5 +41,13 @@ def get_general_stats():
         Event).filter_by(is_active=True).count()
 
     stats_data['total_students'] = db.session.query(Student).count()
+
+    # Agregar estadísticas específicas de registros
+    today = datetime.now().date()
+
+    # Asistencias de hoy
+    stats_data['today_attendances'] = db.session.query(Attendance).filter(
+        db.func.date(Attendance.created_at) == today
+    ).count()
 
     return jsonify(stats_data), 200
