@@ -274,7 +274,7 @@
                     <div>
                       <div
                         class="text-sm font-medium text-gray-900"
-                        x-text="registration.student?.name || 'Estudiante desconocido'"
+                        x-text="registration.student?.full_name || registration.student?.name || 'Estudiante desconocido'"
                       ></div>
                       <div
                         class="text-sm text-gray-500"
@@ -534,7 +534,7 @@
                       <template x-for="student in students" :key="student.id">
                         <option
                           :value="student.id"
-                          x-text="`${student.control_number} - ${student.name}`"
+                          x-text="`${student.control_number} - ${student.full_name || student.name}`"
                         ></option>
                       </template>
                     </select>
