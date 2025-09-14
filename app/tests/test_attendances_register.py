@@ -4,11 +4,12 @@ from app.models.attendance import Attendance
 from app.models.registration import Registration
 from app.models.activity import Activity
 from app.models.event import Event
+from datetime import datetime, timedelta, timezone
 
 
 def create_activity_for_event(event_id):
-    from datetime import datetime, timedelta
-    start = datetime.utcnow()
+    now = datetime.now(timezone.utc)
+    start = now
     end = start + timedelta(hours=1)
     activity = Activity(
         name='Actividad Test',

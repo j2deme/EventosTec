@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timezone
+from marshmallow import ValidationError
 from app.utils.datetime_utils import parse_datetime_with_timezone
 from app import db
 from app.schemas import attendance_schema, attendances_schema
@@ -428,23 +429,28 @@ def register_attendance():
 
         now = datetime.now(timezone.utc)
 
+        created = False
         if attendance:
             # actualizar campos si se proporcionan
             if check_in:
                 try:
                     attendance.check_in_time = parse_datetime_with_timezone(
                         check_in)
+                except ValidationError as ve:
+                    return jsonify({'message': 'Formato de check_in_time inválido', 'error': str(ve)}), 400
                 except Exception:
                     attendance.check_in_time = now
             if check_out:
                 try:
                     attendance.check_out_time = parse_datetime_with_timezone(
                         check_out)
+                except ValidationError as ve:
+                    return jsonify({'message': 'Formato de check_out_time inválido', 'error': str(ve)}), 400
                 except Exception:
                     attendance.check_out_time = now
             if mark_present:
                 attendance.attendance_percentage = 100.0
-                attendance.status = 'Asisti\u00f3'
+                attendance.status = 'Asistió'
                 if not attendance.check_in_time:
                     attendance.check_in_time = now
                 if not attendance.check_out_time:
@@ -452,28 +458,61 @@ def register_attendance():
 
             db.session.add(attendance)
         else:
+            created = True
             # crear nuevo registro
             if mark_present:
                 attendance = Attendance(
                     student_id=student_id,
                     activity_id=activity_id,
                     attendance_percentage=100.0,
-                    status='Asisti\u00f3',
-                    check_in_time=parse_datetime_with_timezone(
-                        check_in) if check_in else now,
-                    check_out_time=parse_datetime_with_timezone(
-                        check_out) if check_out else now
+                    status='Asistió',
+                    check_in_time=None,
+                    check_out_time=None
                 )
+                if check_in:
+                    try:
+                        attendance.check_in_time = parse_datetime_with_timezone(
+                            check_in)
+                    except ValidationError as ve:
+                        return jsonify({'message': 'Formato de check_in_time inválido', 'error': str(ve)}), 400
+                    except Exception:
+                        attendance.check_in_time = now
+                else:
+                    attendance.check_in_time = now
+                if check_out:
+                    try:
+                        attendance.check_out_time = parse_datetime_with_timezone(
+                            check_out)
+                    except ValidationError as ve:
+                        return jsonify({'message': 'Formato de check_out_time inválido', 'error': str(ve)}), 400
+                    except Exception:
+                        attendance.check_out_time = now
+                else:
+                    attendance.check_out_time = now
             else:
                 attendance = Attendance(
                     student_id=student_id,
                     activity_id=activity_id,
-                    check_in_time=parse_datetime_with_timezone(
-                        check_in) if check_in else None,
-                    check_out_time=parse_datetime_with_timezone(
-                        check_out) if check_out else None,
+                    check_in_time=None,
+                    check_out_time=None,
                     status='Parcial' if check_in and not check_out else 'Ausente'
                 )
+                if check_in:
+                    try:
+                        attendance.check_in_time = parse_datetime_with_timezone(
+                            check_in)
+                    except ValidationError as ve:
+                        return jsonify({'message': 'Formato de check_in_time inválido', 'error': str(ve)}), 400
+                    except Exception:
+                        attendance.check_in_time = now
+                if check_out:
+                    try:
+                        attendance.check_out_time = parse_datetime_with_timezone(
+                            check_out)
+                    except ValidationError as ve:
+                        return jsonify({'message': 'Formato de check_out_time inválido', 'error': str(ve)}), 400
+                    except Exception:
+                        attendance.check_out_time = now
             db.session.add(attendance)
 
         # Sincronizar con preregistro si existe y si se marca presente
@@ -483,13 +522,15 @@ def register_attendance():
             ).first()
             if registration:
                 registration.attended = True
-                registration.status = 'Asisti\u00f3'
+                registration.status = 'Asistió'
                 registration.confirmation_date = db.func.now()
                 db.session.add(registration)
 
         db.session.commit()
 
-        return jsonify({'message': 'Asistencia registrada', 'attendance': attendance_schema.dump(attendance)}), 201
+        status_code = 201 if created else 200
+        message = 'Asistencia creada' if created else 'Asistencia actualizada'
+        return jsonify({'message': message, 'attendance': attendance_schema.dump(attendance)}), status_code
 
     except Exception as e:
         db.session.rollback()
