@@ -315,10 +315,13 @@
                 >
                   <div class="flex items-center justify-end space-x-2">
                     <!-- Cambiar estado -->
-                    <div class="relative inline-block text-left">
+                    <div
+                      class="relative inline-block text-left"
+                      @click.away="showStatusDropdown = null"
+                    >
                       <button
                         type="button"
-                        @click="showStatusDropdown = showStatusDropdown === registration.id ? null : registration.id"
+                        @click.stop="showStatusDropdown = showStatusDropdown === registration.id ? null : registration.id"
                         class="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         Estado
@@ -327,24 +330,25 @@
 
                       <!-- Dropdown menu -->
                       <div
+                        x-cloak
                         x-show="showStatusDropdown === registration.id"
-                        @click.away="showStatusDropdown = null"
+                        @click.stop
                         x-transition:enter="transition ease-out duration-100"
                         x-transition:enter-start="transform opacity-0 scale-95"
                         x-transition:enter-end="transform opacity-100 scale-100"
                         x-transition:leave="transition ease-in duration-75"
                         x-transition:leave-start="transform opacity-100 scale-100"
                         x-transition:leave-end="transform opacity-0 scale-95"
-                        class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10"
+                        class="origin-top-right absolute right-0 mt-2 min-w-max w-auto rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50"
                       >
-                        <div class="py-1" role="menu">
+                        <div class="py-1 flex flex-col" role="menu">
                           <template
                             x-for="statusOption in getAvailableStatusTransitions(registration.status)"
                             :key="statusOption"
                           >
                             <button
                               @click="changeRegistrationStatus(registration.id, statusOption); showStatusDropdown = null"
-                              class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                              class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                               role="menuitem"
                             >
                               <span x-text="statusOption"></span>
@@ -472,6 +476,7 @@
 
   <!-- Modal de Crear/Editar Registro -->
   <div
+    x-cloak
     x-show="showModal"
     class="fixed inset-0 z-10 overflow-y-auto"
     aria-labelledby="modal-title"
@@ -483,6 +488,7 @@
     >
       <!-- Fondo del modal -->
       <div
+        x-cloak
         x-show="showModal"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0"
@@ -641,6 +647,7 @@
 
   <!-- Modal de confirmación de eliminación -->
   <div
+    x-cloak
     x-show="showDeleteModal"
     class="fixed inset-0 z-10 overflow-y-auto"
     aria-labelledby="modal-title"
@@ -652,6 +659,7 @@
     >
       <!-- Fondo del modal -->
       <div
+        x-cloak
         x-show="showDeleteModal"
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0"
