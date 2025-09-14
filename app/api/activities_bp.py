@@ -8,37 +8,9 @@ from app.models.event import Event
 from app.services import activity_service
 from app.utils.auth_helpers import require_admin
 from datetime import datetime, timezone
+from app.utils.datetime_utils import parse_datetime_with_timezone
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/api/activities')
-
-
-def parse_datetime_with_timezone(dt_string):
-    """Parsea una cadena de fecha y asegura que tenga zona horaria."""
-    if isinstance(dt_string, str):
-        # Intentar parsear con diferentes formatos
-        try:
-            # Formato ISO con zona horaria
-            dt = datetime.fromisoformat(dt_string)
-        except ValueError:
-            try:
-                # Formato alternativo
-                dt = datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S')
-            except ValueError:
-                raise ValidationError(
-                    f"Formato de fecha inválido: {dt_string}")
-
-        # Si no tiene zona horaria, asignar UTC
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-
-        return dt
-    elif isinstance(dt_string, datetime):
-        # Si ya es datetime, asegurar zona horaria
-        if dt_string.tzinfo is None:
-            return dt_string.replace(tzinfo=timezone.utc)
-        return dt_string
-    else:
-        return dt_string
 
 # Listar actividades
 

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timezone
+from app.utils.datetime_utils import parse_datetime_with_timezone
 from app import db
 from app.schemas import attendance_schema, attendances_schema
 from app.models.attendance import Attendance
@@ -386,3 +387,110 @@ def delete_attendance(attendance_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error al eliminar asistencia', 'error': str(e)}), 500
+
+
+@attendances_bp.route('/register', methods=['POST'])
+@jwt_required()
+@require_admin
+def register_attendance():
+    """
+    Endpoint para que el administrador registre manualmente una asistencia.
+    Payload esperado (JSON):
+      - student_id (int)
+      - activity_id (int)
+      - mark_present (bool) opcional -> si true marca 100% y status 'Asistió'
+      - check_in_time / check_out_time (ISO strings) opcionales
+    Si existe un preregistro asociado, se sincroniza (attended=True, status='Asistió').
+    """
+    try:
+        data = request.get_json() or {}
+        student_id = data.get('student_id')
+        activity_id = data.get('activity_id')
+        mark_present = data.get('mark_present', False)
+        check_in = data.get('check_in_time')
+        check_out = data.get('check_out_time')
+
+        if not student_id or not activity_id:
+            return jsonify({'message': 'student_id y activity_id son requeridos'}), 400
+
+        student = db.session.get(Student, student_id)
+        if not student:
+            return jsonify({'message': 'Estudiante no encontrado'}), 404
+
+        activity = db.session.get(Activity, activity_id)
+        if not activity:
+            return jsonify({'message': 'Actividad no encontrada'}), 404
+
+        # Buscar o crear attendance
+        attendance = db.session.query(Attendance).filter_by(
+            student_id=student_id, activity_id=activity_id
+        ).first()
+
+        now = datetime.now(timezone.utc)
+
+        if attendance:
+            # actualizar campos si se proporcionan
+            if check_in:
+                try:
+                    attendance.check_in_time = parse_datetime_with_timezone(
+                        check_in)
+                except Exception:
+                    attendance.check_in_time = now
+            if check_out:
+                try:
+                    attendance.check_out_time = parse_datetime_with_timezone(
+                        check_out)
+                except Exception:
+                    attendance.check_out_time = now
+            if mark_present:
+                attendance.attendance_percentage = 100.0
+                attendance.status = 'Asisti\u00f3'
+                if not attendance.check_in_time:
+                    attendance.check_in_time = now
+                if not attendance.check_out_time:
+                    attendance.check_out_time = now
+
+            db.session.add(attendance)
+        else:
+            # crear nuevo registro
+            if mark_present:
+                attendance = Attendance(
+                    student_id=student_id,
+                    activity_id=activity_id,
+                    attendance_percentage=100.0,
+                    status='Asisti\u00f3',
+                    check_in_time=parse_datetime_with_timezone(
+                        check_in) if check_in else now,
+                    check_out_time=parse_datetime_with_timezone(
+                        check_out) if check_out else now
+                )
+            else:
+                attendance = Attendance(
+                    student_id=student_id,
+                    activity_id=activity_id,
+                    check_in_time=parse_datetime_with_timezone(
+                        check_in) if check_in else None,
+                    check_out_time=parse_datetime_with_timezone(
+                        check_out) if check_out else None,
+                    status='Parcial' if check_in and not check_out else 'Ausente'
+                )
+            db.session.add(attendance)
+
+        # Sincronizar con preregistro si existe y si se marca presente
+        if mark_present:
+            registration = db.session.query(Registration).filter_by(
+                student_id=student_id, activity_id=activity_id
+            ).first()
+            if registration:
+                registration.attended = True
+                registration.status = 'Asisti\u00f3'
+                registration.confirmation_date = db.func.now()
+                db.session.add(registration)
+
+        db.session.commit()
+
+        return jsonify({'message': 'Asistencia registrada', 'attendance': attendance_schema.dump(attendance)}), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error al registrar asistencia', 'error': str(e)}), 500
