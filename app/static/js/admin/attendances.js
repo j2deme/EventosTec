@@ -171,21 +171,32 @@ function attendancesAdmin() {
   };
 }
 
-// Delegación global para botones dinámicos
-document.addEventListener("click", function (e) {
-  var btn = e.target.closest ? e.target.closest(".quick-register") : null;
-  if (!btn) return;
-  var sid = btn.dataset.studentId;
-  var alpineRoot = document.querySelector("[x-data]");
-  if (
-    alpineRoot &&
-    alpineRoot.__x &&
-    alpineRoot.__x.$data &&
-    typeof alpineRoot.__x.$data.openQuickRegister === "function"
-  ) {
-    alpineRoot.__x.$data.openQuickRegister(Number(sid));
-  }
-});
+// Delegación global para botones dinámicos (protegida en entornos sin DOM)
+try {
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest(".quick-register") : null;
+    if (!btn) return;
+    var sid = btn.dataset.studentId;
+    var alpineRoot = document.querySelector("[x-data]");
+    if (
+      alpineRoot &&
+      alpineRoot.__x &&
+      alpineRoot.__x.$data &&
+      typeof alpineRoot.__x.$data.openQuickRegister === "function"
+    ) {
+      alpineRoot.__x.$data.openQuickRegister(Number(sid));
+    }
+  });
+} catch (e) {
+  // En entornos sin DOM (ej. Node/Jest) evitamos fallos al importar el módulo
+}
 
-// Exportar la fábrica para Alpine
-window.attendancesAdmin = attendancesAdmin;
+// Exportar la fábrica para Alpine (navegador)
+if (typeof window !== "undefined") {
+  window.attendancesAdmin = attendancesAdmin;
+}
+
+// Exportar para Node/Jest si se requiere (CommonJS)
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = attendancesAdmin;
+}
