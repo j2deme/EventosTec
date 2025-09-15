@@ -1,0 +1,19 @@
+{
+  "name": "eventostec",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistema de control de asistencias para institución educativa.",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --config=jest.config.js --runInBand",
+    "test:watch": "jest --config=jest.config.js --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@testing-library/dom": "^8.20.0",
+    "jest": "29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  }
+}
