@@ -63,15 +63,30 @@ function attendancesList() {
       if (this.selectedStudent) url += `student_id=${this.selectedStudent.id}&`;
       const res = await fetch(url);
       if (res.ok) {
-        const data = await res.json();
-        this.attendances = data.map((att) => ({
-          id: att.id,
-          student_name: att.student_name || att.student?.full_name || "",
-          activity_name: att.activity_name || att.activity?.name || "",
-          event_name: att.event_name || att.activity?.event?.name || "",
-          date: att.check_in ? att.check_in.split("T")[0] : "",
-          status: att.status,
-        }));
+        try {
+          const data = await res.json();
+          // Accept either an array or common wrapper objects
+          let items = [];
+          if (Array.isArray(data)) {
+            items = data;
+          } else if (data && Array.isArray(data.attendances)) {
+            items = data.attendances;
+          } else if (data && Array.isArray(data.data)) {
+            items = data.data;
+          }
+
+          this.attendances = items.map((att) => ({
+            id: att.id,
+            student_name: att.student_name || att.student?.full_name || "",
+            activity_name: att.activity_name || att.activity?.name || "",
+            event_name: att.event_name || att.activity?.event?.name || "",
+            date: att.check_in ? att.check_in.split("T")[0] : "",
+            status: att.status,
+          }));
+        } catch (e) {
+          // If parsing or mapping fails, keep an empty list to avoid runtime errors
+          this.attendances = [];
+        }
       }
     },
   };

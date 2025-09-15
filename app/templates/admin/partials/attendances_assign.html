@@ -10,7 +10,7 @@
         class="border rounded px-2 py-1 w-full"
       >
         <option value="">Selecciona evento</option>
-        <template x-for="event in events" :key="event.id">
+        <template x-for="(event, idx) in events" :key="event.id ?? idx">
           <option :value="event.id" x-text="event.name"></option>
         </template>
       </select>
@@ -22,7 +22,10 @@
         class="border rounded px-2 py-1 w-full"
       >
         <option value="">Selecciona actividad</option>
-        <template x-for="activity in activities" :key="activity.id">
+        <template
+          x-for="(activity, idx) in activities"
+          :key="activity.id ?? idx"
+        >
           <option :value="activity.id" x-text="activity.name"></option>
         </template>
       </select>
@@ -41,7 +44,10 @@
         class="bg-white border rounded shadow mt-1"
         x-show="studentResults.length"
       >
-        <template x-for="student in studentResults" :key="student.id">
+        <template
+          x-for="(student, idx) in studentResults"
+          :key="student.id ?? idx"
+        >
           <div
             @click="selectStudent(student)"
             class="px-2 py-1 cursor-pointer hover:bg-blue-100"
@@ -52,7 +58,10 @@
     </div>
     <div class="mb-2" x-show="selectedStudent">
       <span class="font-semibold">Estudiante seleccionado:</span>
-      <span x-text="selectedStudent.full_name" class="ml-2"></span>
+      <span
+        x-text="selectedStudent ? selectedStudent.full_name : ''"
+        class="ml-2"
+      ></span>
     </div>
     <button
       type="submit"

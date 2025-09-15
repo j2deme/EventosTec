@@ -10,7 +10,7 @@
         class="border rounded px-2 py-1"
       >
         <option value="">Todos</option>
-        <template x-for="event in events" :key="event.id">
+        <template x-for="(event, idx) in events" :key="event.id ?? idx">
           <option :value="event.id" x-text="event.name"></option>
         </template>
       </select>
@@ -19,7 +19,10 @@
       <label class="block font-semibold">Actividad</label>
       <select x-model="selectedActivity" class="border rounded px-2 py-1">
         <option value="">Todas</option>
-        <template x-for="activity in activities" :key="activity.id">
+        <template
+          x-for="(activity, idx) in activities"
+          :key="activity.id ?? idx"
+        >
           <option :value="activity.id" x-text="activity.name"></option>
         </template>
       </select>
@@ -38,7 +41,10 @@
         class="bg-white border rounded shadow mt-1"
         x-show="studentResults.length"
       >
-        <template x-for="student in studentResults" :key="student.id">
+        <template
+          x-for="(student, idx) in studentResults"
+          :key="student.id ?? idx"
+        >
           <div
             @click="selectStudent(student)"
             class="px-2 py-1 cursor-pointer hover:bg-blue-100"
@@ -67,7 +73,7 @@
         </tr>
       </thead>
       <tbody>
-        <template x-for="att in attendances" :key="att.id">
+        <template x-for="(att, idx) in attendances" :key="att.id ?? idx">
           <tr>
             <td class="border px-2 py-1" x-text="att.student_name"></td>
             <td class="border px-2 py-1" x-text="att.activity_name"></td>
