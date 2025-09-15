@@ -18,7 +18,6 @@ def pause_attendance(attendance_id):
 
     attendance.is_paused = True
     attendance.pause_time = datetime.now(timezone.utc)
-    db.session.commit()
     return attendance
 
 
@@ -33,7 +32,6 @@ def resume_attendance(attendance_id):
 
     attendance.is_paused = False
     attendance.resume_time = datetime.now(timezone.utc)
-    db.session.commit()
     return attendance
 
 # Función auxiliar para calcular duración neta (considerando pausas)
@@ -89,14 +87,13 @@ def calculate_attendance_percentage(attendance_id):
             attendance.status = 'Parcial'
         else:
             attendance.status = 'Ausente'
-
-        db.session.commit()
+        # No hacer commit aquí; el endpoint debe encargarse de commit/rollback
         return attendance.attendance_percentage
     else:
         # Si la duración es 0 o inválida, asumir 100% si hubo check-in/out
         attendance.attendance_percentage = 100.0
         attendance.status = 'Asistió'
-        db.session.commit()
+        # No hacer commit aquí; el endpoint debe encargarse de commit/rollback
         return 100.0
 
 
@@ -126,12 +123,11 @@ def create_related_attendances(student_id, activity_id):
             # Crear asistencia automática.
             # La asistencia automática no copia tiempos de otra asistencia.
             # Se marca como asistida por la relación.
-            auto_attendance = Attendance(
-                student_id=student_id,
-                activity_id=related_activity.id,
-                attendance_percentage=100.0,  # Se asume completa por relación
-                status='Asistió'  # O un estado especial como 'Relacionada' si lo prefieres
-            )
+            auto_attendance = Attendance()
+            auto_attendance.student_id = student_id
+            auto_attendance.activity_id = related_activity.id
+            auto_attendance.attendance_percentage = 100.0
+            auto_attendance.status = 'Asistió'
             db.session.add(auto_attendance)
             # Sincronizar con preregistro si existe
             from app.models.registration import Registration
@@ -147,4 +143,4 @@ def create_related_attendances(student_id, activity_id):
                 registration.confirmation_date = db.func.now()
                 db.session.add(registration)
     # Si esta función se llama desde un endpoint, el commit del endpoint debe ser suficiente.
-    db.session.commit()
+    # No hacer commit aquí; el endpoint será responsable de la transacción.

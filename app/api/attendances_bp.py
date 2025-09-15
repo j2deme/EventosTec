@@ -133,10 +133,11 @@ def check_out():
         # 4. Calcular porcentaje de asistencia y estado
         # Esta función ahora está en el servicio y considera pausas.
         try:
-            # Pasamos el ID para que el servicio haga el query y el commit
+            # Pasamos el ID para que el servicio haga el query y actualice el objeto
             calculate_attendance_percentage(attendance.id)
+            # Commit que antes hacía el servicio
+            db.session.commit()
             # Recargamos el objeto attendance desde la DB para tener los valores actualizados
-            # que fueron modificados por calculate_attendance_percentage
             db.session.refresh(attendance)
             # Sincronizar con preregistro si existe: si la asistencia resultó en 'Asistió', actualizar Registration
             if attendance.status == 'Asistió':
@@ -199,6 +200,8 @@ def pause_attendance():
         # Registrar pausa
         from app.services.attendance_service import pause_attendance
         attendance = pause_attendance(attendance.id)
+        db.session.add(attendance)
+        db.session.commit()
 
         return jsonify({
             'message': 'Asistencia pausada exitosamente',
@@ -234,6 +237,8 @@ def resume_attendance():
         # Reanudar asistencia
         from app.services.attendance_service import resume_attendance
         attendance = resume_attendance(attendance.id)
+        db.session.add(attendance)
+        db.session.commit()
 
         return jsonify({
             'message': 'Asistencia reanudada exitosamente',
