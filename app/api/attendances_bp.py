@@ -287,6 +287,15 @@ def bulk_create_attendances():
                 )
                 db.session.add(attendance)
                 created_attendances.append(attendance)
+                # Sincronizar con preregistro si existe
+                registration = db.session.query(Registration).filter_by(
+                    student_id=student_id, activity_id=activity_id
+                ).first()
+                if registration:
+                    registration.attended = True
+                    registration.status = 'Asistió'
+                    registration.confirmation_date = db.func.now()
+                    db.session.add(registration)
 
         db.session.commit()
 
