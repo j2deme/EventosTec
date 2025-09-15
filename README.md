@@ -110,3 +110,51 @@ Si quieres que haga alguno de estos puntos ahora (por ejemplo: exportar registro
 ## Recursos y contacto
 
 Consulta el resto de la estructura del proyecto en la carpeta `app/`. Si necesitas ayuda para desplegar en producción o configurar la base de datos MySQL, indícamelo y preparo una guía de despliegue.
+
+## Mocking de fetch y `safeFetch` (Jest)
+
+Nota breve: se centralizó la lógica HTTP en un helper global `safeFetch` (`app/static/js/app.js`) que agrega headers de autorización y Content-Type. Para prevenir una recursión accidental en el navegador (cuando `window.fetch` es reemplazado por un wrapper), `safeFetch` prioriza la referencia original a `fetch` capturada al cargar el módulo. Esto afecta la forma en que los tests pueden espiar o mockear `fetch`.
+
+Ejemplos de cómo mockear en Jest (en español):
+
+- Mockear `global.fetch` antes de requerir el módulo (recomendado cuando el test necesita que el interceptor capture el mock):
+
+```javascript
+// test.js
+jest.resetModules(); // importante para que el require recapture mocks
+
+// instalar mock antes de require
+global.fetch = jest.fn((input, init) =>
+  Promise.resolve({ ok: true, json: () => Promise.resolve({ data: [] }) })
+);
+
+const adminModule = require('../admin/activities');
+// ahora las llamadas dentro de adminModule usarán el mock
+
+test('usa global.fetch', async () => {
+  await adminModule.loadActivities();
+  expect(global.fetch).toHaveBeenCalled();
+});
+```
+
+- Mockear `window.safeFetch` directamente (recomendado cuando quieres controlar la inyección de headers o tests más aislados):
+
+```javascript
+// test_safeFetch.js
+const safeFetchMock = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
+window.safeFetch = safeFetchMock;
+
+const adminModule = require('../admin/events');
+
+test('usa window.safeFetch', async () => {
+  await adminModule.loadEvents();
+  expect(window.safeFetch).toHaveBeenCalled();
+});
+```
+
+- Notas rápidas:
+  - Si mockeas `global.fetch` después de requerir `app/static/js/app.js`, ten en cuenta que `safeFetch` podría estar usando la referencia original a `fetch` tomada en carga; por eso la estrategia de `jest.resetModules()` + mock antes de require es la más robusta.
+  - Otra opción es mockear `window.safeFetch` en lugar de `fetch` si quieres evitar tocar la captura inicial.
+  - La implementación actual prioriza seguridad en runtime (evitar recursión en navegador). Si decides cambiar a un modelo donde `safeFetch` delegue siempre en `global.fetch`, habrá que actualizar tests y la documentación.
+
+Si quieres, puedo añadir un archivo `app/static/js/TESTING.md` con esos ejemplos y más patrones usados en este repo (por ejemplo, cómo mockear `localStorage` y `Toastify` en jsdom).
