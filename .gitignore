@@ -10,3 +10,4 @@ instance/
 node_modules/
 # Coverage reports
 coverage/
+scripts/references/
