@@ -162,9 +162,9 @@ function studentEventsManager() {
           return;
         }
 
-        // Obtener todas las actividades del evento sin paginación
+        // Solicitar actividades filtradas para estudiantes (excluir 'Magistral')
         const response = await fetch(
-          `/api/activities?event_id=${event.id}&per_page=1000`,
+          `/api/activities?event_id=${event.id}&per_page=1000&for_student=true`,
           {
             headers: window.getAuthHeaders(),
           }
@@ -181,7 +181,10 @@ function studentEventsManager() {
         }
 
         const data = await response.json();
-        const activities = data.activities || [];
+        // Defensive filter: ensure forbidden activity types are removed
+        const activities = (data.activities || []).filter(
+          (a) => String(a.activity_type).toLowerCase() !== "magistral"
+        );
 
         const summary = {};
         activities.forEach((activity) => {

@@ -25,6 +25,8 @@ def get_activities():
         activity_type = request.args.get('type')
         search = request.args.get('search', '').strip()
         activity_type = request.args.get('activity_type')
+        for_student = request.args.get('for_student', default=None)
+        exclude_types = request.args.get('exclude_types', default=None)
 
         query = db.session.query(Activity).join(Event)
 
@@ -44,6 +46,19 @@ def get_activities():
 
         if event_id:
             query = query.filter(Activity.event_id == event_id)
+
+        if for_student is not None:
+            fs_val = str(for_student).lower()
+            if fs_val in ('1', 'true', 'yes'):
+                # Define excluded types for students here
+                excluded = ['Magistral']
+                query = query.filter(~Activity.activity_type.in_(excluded))
+
+        if exclude_types:
+            types_list = [t.strip()
+                          for t in exclude_types.split(',') if t.strip()]
+            if types_list:
+                query = query.filter(~Activity.activity_type.in_(types_list))
 
         if activity_type:
             query = query.filter(Activity.activity_type == activity_type)

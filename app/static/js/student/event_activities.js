@@ -193,6 +193,8 @@ function studentEventActivitiesManager() {
           ...(this.filters.sort && { sort: this.filters.sort }),
         });
 
+        // Add for_student flag so backend can exclude forbidden activity types
+        params.append("for_student", "true");
         const response = await fetch(`/api/activities?${params.toString()}`, {
           headers: window.getAuthHeaders(),
         });
@@ -209,13 +211,19 @@ function studentEventActivitiesManager() {
 
         const data = await response.json();
 
-        this.originalActivities = data.activities.map((activity) => ({
+        // Defensive client-side filter: ensure forbidden activity types are removed
+        const filtered = (data.activities || []).filter(
+          (a) => String(a.activity_type).toLowerCase() !== "magistral"
+        );
+
+        this.originalActivities = filtered.map((activity) => ({
           ...activity,
           start_datetime: this.formatDateTimeForInput(activity.start_datetime),
           end_datetime: this.formatDateTimeForInput(activity.end_datetime),
         }));
 
         // Mapear actividades y formatear fechas (para uso general)
+        // Copiar array de actividades (ya filtradas)
         this.activities = this.originalActivities.map((activity) => ({
           ...activity,
         }));

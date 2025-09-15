@@ -324,9 +324,13 @@ function studentDashboard() {
           return;
         }
 
-        const response = await fetch(`/api/activities?event_id=${event.id}`, {
-          headers: window.getAuthHeaders(),
-        });
+        // Solicitar actividades visibles para estudiantes
+        const response = await fetch(
+          `/api/activities?event_id=${event.id}&for_student=true`,
+          {
+            headers: window.getAuthHeaders(),
+          }
+        );
 
         if (!response.ok) {
           if (response.status === 401) {
@@ -340,8 +344,13 @@ function studentDashboard() {
 
         const data = await response.json();
 
+        // Defensive client-side filter: ensure forbidden activity types are removed
+        const filtered = (data.activities || []).filter(
+          (a) => String(a.activity_type).toLowerCase() !== "magistral"
+        );
+
         // Mapear actividades y formatear fechas
-        this.currentEventActivities = data.activities.map((activity) => ({
+        this.currentEventActivities = filtered.map((activity) => ({
           ...activity,
           start_datetime: this.formatDateTimeForInput(activity.start_datetime),
           end_datetime: this.formatDateTimeForInput(activity.end_datetime),
