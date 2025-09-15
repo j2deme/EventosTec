@@ -1,5 +1,4 @@
 // static/js/app.js
-console.log("App JS loaded");
 
 // Función para obtener token de autenticación
 function getAuthToken() {
@@ -8,7 +7,7 @@ function getAuthToken() {
 
 // Función para verificar si el usuario está autenticado (versión completa con verificación de expiración)
 function isAuthenticated() {
-  const token = getAuthToken();
+  const token = localStorage.getItem("authToken");
   if (!token) return false;
 
   // Verificar si el token ha expirado
@@ -51,7 +50,7 @@ window.isAuthenticated = isAuthenticated;
 
 // Función para obtener headers con autorización
 function getAuthHeaders(additionalHeaders = {}) {
-  const token = getAuthToken();
+  const token = localStorage.getItem("authToken");
   const baseHeaders = {
     "Content-Type": "application/json",
   };
@@ -100,7 +99,7 @@ function checkAuth() {
 
   // Reemplazar fetch con una versión que agrega el token automáticamente
   window.fetch = function (input, init = {}) {
-    const token = getAuthToken();
+    const token = localStorage.getItem("authToken");
 
     // Si hay token, agregarlo a los headers
     if (token) {
