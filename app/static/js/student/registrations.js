@@ -228,29 +228,27 @@ function studentRegistrationsManager() {
     },
 
     formatDateTimeForInput(dateTimeString) {
-      if (!dateTimeString) return "";
-      const date = new Date(dateTimeString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+      return window.formatDateTimeForInput
+        ? window.formatDateTimeForInput(dateTimeString)
+        : "";
     },
 
     formatOnlyDate(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      const date = new Date(dateTimeString);
-      return date.toLocaleDateString("es-ES", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      return window.formatOnlyDate
+        ? window.formatOnlyDate(dateTimeString)
+        : "Sin fecha";
     },
 
     formatTime(dateTimeString) {
       if (!dateTimeString) return "--:--";
+      // Reuse formatDateTime/time helpers if available
+      if (window.formatDateTime) {
+        const dt = new Date(dateTimeString);
+        return dt.toLocaleTimeString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
       const date = new Date(dateTimeString);
       return date.toLocaleTimeString("es-ES", {
         hour: "2-digit",
@@ -259,15 +257,9 @@ function studentRegistrationsManager() {
     },
 
     formatDateTime(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      const date = new Date(dateTimeString);
-      return date.toLocaleString("es-ES", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      return window.formatDateTime
+        ? window.formatDateTime(dateTimeString)
+        : "Sin fecha";
     },
 
     redirectToLogin() {

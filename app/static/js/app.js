@@ -151,29 +151,78 @@ window.checkAuthAndRedirect = checkAuthAndRedirect;
 
 // Funciones para formatear fechas con dayjs
 // Asegúrate de que dayjs esté cargado antes de usar estas funciones
-if (typeof dayjs !== "undefined") {
-  dayjs.locale("es");
+// Exponer helpers de fecha globales.
+// Usar dayjs si está disponible, si no caer en implementaciones basadas en Date.
+(function exposeDateHelpers() {
+  const hasDayjs = typeof dayjs !== "undefined";
+  if (hasDayjs) dayjs.locale("es");
 
   function formatDate(dateString) {
     if (!dateString) return "Sin fecha";
-    return dayjs(dateString).format("D [de] MMMM [de] YYYY [a las] H:mm");
+    if (hasDayjs)
+      return dayjs(dateString).format("D [de] MMMM [de] YYYY [a las] H:mm");
+    const date = new Date(dateString);
+    return date.toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   }
 
   function formatShortDate(dateString) {
     if (!dateString) return "Sin fecha";
-    return dayjs(dateString).format("DD/MM/YYYY HH:mm");
+    if (hasDayjs) return dayjs(dateString).format("DD/MM/YYYY HH:mm");
+    const date = new Date(dateString);
+    const d = String(date.getDate()).padStart(2, "0");
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mm = String(date.getMinutes()).padStart(2, "0");
+    return `${d}/${m}/${date.getFullYear()} ${hh}:${mm}`;
   }
 
   function formatOnlyDate(dateString) {
     if (!dateString) return "Sin fecha";
-    return dayjs(dateString).format("D [de] MMMM [de] YYYY");
+    if (hasDayjs) return dayjs(dateString).format("D [de] MMMM [de] YYYY");
+    const date = new Date(dateString);
+    return date.toLocaleDateString("es-ES", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   }
 
-  // Hacer las funciones de fecha globalmente disponibles
+  function formatDateTime(dateString) {
+    if (!dateString) return "Sin fecha";
+    if (hasDayjs)
+      return dayjs(dateString).format("D [de] MMMM [de] YYYY [a las] H:mm");
+    const date = new Date(dateString);
+    return date.toLocaleString("es-ES", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatDateTimeForInput(dateTimeString) {
+    if (!dateTimeString) return "";
+    const date = new Date(dateTimeString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
+
+  // Exponer en window para que los módulos puedan delegar en estas funciones.
   window.formatDate = formatDate;
   window.formatShortDate = formatShortDate;
   window.formatOnlyDate = formatOnlyDate;
-}
+  window.formatDateTime = formatDateTime;
+  window.formatDateTimeForInput = formatDateTimeForInput;
+})();
 
 // Función para mostrar notificaciones con Toastify
 function showToast(message, type = "success", duration = 3000) {

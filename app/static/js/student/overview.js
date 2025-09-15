@@ -221,6 +221,13 @@ function studentOverviewManager() {
       }
     },
 
+    // Delegar formateo de fechas a helpers globales (por compatibilidad con templates)
+    formatDate(dateTimeString) {
+      return window.formatDate
+        ? window.formatDate(dateTimeString)
+        : "Sin fecha";
+    },
+
     // Obtener el ID del estudiante actual
     getCurrentStudentId() {
       try {

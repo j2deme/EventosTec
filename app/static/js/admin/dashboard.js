@@ -408,32 +408,18 @@ function adminDashboard() {
       this.sidebarOpen = !this.sidebarOpen;
     },
 
-    // Métodos de utilidad
+    // Métodos de utilidad: delegar formateo a helpers globales
     formatDate(dateString) {
-      if (!dateString) return "Sin fecha";
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("es-ES", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        });
-      } catch (e) {
-        return dateString;
-      }
+      return window.formatDate ? window.formatDate(dateString) : "Sin fecha";
     },
 
     formatTime(dateString) {
       if (!dateString) return "--:--";
-      try {
-        const date = new Date(dateString);
-        return date.toLocaleTimeString("es-ES", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } catch (e) {
-        return "--:--";
-      }
+      const dt = new Date(dateString);
+      return dt.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     },
 
     logout() {

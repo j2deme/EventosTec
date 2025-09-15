@@ -81,22 +81,12 @@ function studentProfileManager() {
       }
     },
 
-    // Formatear fecha y hora
+    // Delegar formateo de fecha y hora a helper global
     formatDateTime(dateTimeString) {
       if (!dateTimeString) return "No disponible";
-
-      try {
-        const date = new Date(dateTimeString);
-        return date.toLocaleString("es-ES", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } catch (e) {
-        return dateTimeString;
-      }
+      return window.formatDateTime
+        ? window.formatDateTime(dateTimeString)
+        : dateTimeString;
     },
 
     // Cerrar sesión

@@ -349,41 +349,23 @@ function eventsManager() {
       alert(`Ver detalles del evento: ${event.name}`);
     },
 
-    // Formatear fecha para input datetime-local
+    // Delegar formateo de fechas a helpers globales (expuestos en app.js)
     formatDateTimeForInput(dateTimeString) {
-      if (!dateTimeString) return "";
-      // Convertir a formato YYYY-MM-DDTHH:MM
-      const date = new Date(dateTimeString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+      return window.formatDateTimeForInput
+        ? window.formatDateTimeForInput(dateTimeString)
+        : "";
     },
 
-    // Formatear fecha para mostrar
     formatDate(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      const date = new Date(dateTimeString);
-      return date.toLocaleDateString("es-ES", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
+      return window.formatDate
+        ? window.formatDate(dateTimeString)
+        : "Sin fecha";
     },
 
-    // Formatear fecha y hora para mostrar
     formatDateTime(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      const date = new Date(dateTimeString);
-      return date.toLocaleString("es-ES", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      return window.formatDateTime
+        ? window.formatDateTime(dateTimeString)
+        : "Sin fecha";
     },
   };
 }

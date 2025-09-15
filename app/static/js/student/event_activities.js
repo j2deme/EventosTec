@@ -638,36 +638,23 @@ function studentEventActivitiesManager() {
       });
     },
 
-    // Formatear fecha para input datetime-local
+    // Delegar formateo de fechas/hora a los helpers globales
     formatDateTimeForInput(dateTimeString) {
-      if (!dateTimeString) return "";
-      // Convertir a formato YYYY-MM-DDTHH:MM
-      const date = new Date(dateTimeString);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      const hours = String(date.getHours()).padStart(2, "0");
-      const minutes = String(date.getMinutes()).padStart(2, "0");
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
+      return window.formatDateTimeForInput
+        ? window.formatDateTimeForInput(dateTimeString)
+        : "";
     },
 
-    // Formatear solo fecha para mostrar
     formatOnlyDate(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      const date = new Date(dateTimeString);
-      return date.toLocaleDateString("es-ES", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      return window.formatOnlyDate
+        ? window.formatOnlyDate(dateTimeString)
+        : "Sin fecha";
     },
 
-    // Formatear solo hora para mostrar
     formatTime(dateTimeString) {
       if (!dateTimeString) return "--:--";
-      const date = new Date(dateTimeString);
-      return date.toLocaleTimeString("es-ES", {
+      const dt = new Date(dateTimeString);
+      return dt.toLocaleTimeString("es-ES", {
         hour: "2-digit",
         minute: "2-digit",
       });
