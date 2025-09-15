@@ -75,7 +75,7 @@ function registrationsManager() {
         const response = await f(`/api/registrations?${params.toString()}`);
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar registros: ${response && response.status}`,
+            `Error al cargar registros: ${response && response.status}`
           );
 
         const data = await response.json();
@@ -289,7 +289,7 @@ function registrationsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear registro: ${response.status} ${response.statusText}`,
+              `Error al crear registro: ${response.status} ${response.statusText}`
           );
         }
 
@@ -338,14 +338,14 @@ function registrationsManager() {
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(
           `/api/registrations/${this.currentRegistration.id}`,
-          { method: "PUT", body: JSON.stringify(registrationData) },
+          { method: "PUT", body: JSON.stringify(registrationData) }
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar registro: ${response.status} ${response.statusText}`,
+              `Error al actualizar registro: ${response.status} ${response.statusText}`
           );
         }
 
@@ -382,7 +382,7 @@ function registrationsManager() {
         }
 
         const registration = this.registrations.find(
-          (r) => r.id === registrationId,
+          (r) => r.id === registrationId
         );
         if (!registration) {
           throw new Error("Registro no encontrado");
@@ -405,7 +405,7 @@ function registrationsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al cambiar estado: ${response.status} ${response.statusText}`,
+              `Error al cambiar estado: ${response.status} ${response.statusText}`
           );
         }
 
@@ -464,14 +464,14 @@ function registrationsManager() {
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(
           `/api/registrations/${this.registrationToDelete.id}`,
-          { method: "DELETE" },
+          { method: "DELETE" }
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar registro: ${response.status} ${response.statusText}`,
+              `Error al eliminar registro: ${response.status} ${response.statusText}`
           );
         }
 
@@ -499,21 +499,17 @@ function registrationsManager() {
       }
     },
 
-    // Formatear fecha
+    // Formatear fecha (delegar a helper central cuando esté disponible)
     formatDate(dateString) {
-      if (!dateString) return "N/A";
-
       try {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("es-ES", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      } catch (error) {
-        return "Fecha inválida";
+        const helpers = require("../helpers/dateHelpers");
+        return helpers.formatDate(dateString);
+      } catch (e) {
+        return window.formatDate
+          ? window.formatDate(dateString)
+          : dateString
+          ? "N/A"
+          : "N/A";
       }
     },
   };

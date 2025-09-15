@@ -337,23 +337,38 @@ function eventsManager() {
       alert(`Ver detalles del evento: ${event.name}`);
     },
 
-    // Delegar formateo de fechas a helpers globales (expuestos en app.js)
+    // Delegar formateo de fechas a helpers centralizados
     formatDateTimeForInput(dateTimeString) {
-      return window.formatDateTimeForInput
-        ? window.formatDateTimeForInput(dateTimeString)
-        : "";
+      try {
+        const helpers = require("../helpers/dateHelpers");
+        return helpers.formatDateTimeForInput(dateTimeString);
+      } catch (e) {
+        return window.formatDateTimeForInput
+          ? window.formatDateTimeForInput(dateTimeString)
+          : "";
+      }
     },
 
     formatDate(dateTimeString) {
-      return window.formatDate
-        ? window.formatDate(dateTimeString)
-        : "Sin fecha";
+      try {
+        const helpers = require("../helpers/dateHelpers");
+        return helpers.formatDate(dateTimeString);
+      } catch (e) {
+        return window.formatDate
+          ? window.formatDate(dateTimeString)
+          : "Sin fecha";
+      }
     },
 
     formatDateTime(dateTimeString) {
-      return window.formatDateTime
-        ? window.formatDateTime(dateTimeString)
-        : "Sin fecha";
+      try {
+        const helpers = require("../helpers/dateHelpers");
+        return helpers.formatDateTime(dateTimeString);
+      } catch (e) {
+        return window.formatDateTime
+          ? window.formatDateTime(dateTimeString)
+          : "Sin fecha";
+      }
     },
   };
 }

@@ -17,7 +17,7 @@ function attendancesStudent() {
       try {
         const sf = window.safeFetch || fetch;
         const res = await sf(
-          `/api/students?search=${encodeURIComponent(q)}&per_page=1`,
+          `/api/students?search=${encodeURIComponent(q)}&per_page=1`
         );
         if (!res.ok) throw new Error("Error al buscar estudiante");
         const data = await res.json().catch(() => ({}));
@@ -42,7 +42,7 @@ function attendancesStudent() {
       const sf = window.safeFetch || fetch;
       try {
         const res = await sf(
-          `/api/registrations?student_id=${studentId}&per_page=1000`,
+          `/api/registrations?student_id=${studentId}&per_page=1000`
         );
         if (!res.ok) throw new Error("Error al cargar preregistros");
         const data = await res.json().catch(() => ({}));

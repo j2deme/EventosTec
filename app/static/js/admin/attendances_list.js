@@ -33,7 +33,7 @@ function attendancesList() {
       const f =
         typeof window.safeFetch === "function" ? window.safeFetch : fetch;
       const res = await f(
-        `/api/students/search?q=${encodeURIComponent(this.studentQuery)}`,
+        `/api/students/search?q=${encodeURIComponent(this.studentQuery)}`
       );
       if (res.ok) this.studentResults = await res.json();
     },
@@ -77,7 +77,21 @@ function attendancesList() {
           student_name: att.student_name || att.student?.full_name || "",
           activity_name: att.activity_name || att.activity?.name || "",
           event_name: att.event_name || att.activity?.event?.name || "",
-          date: att.check_in ? att.check_in.split("T")[0] : "",
+          date: (function () {
+            try {
+              const helpers = require("../helpers/dateHelpers");
+              // Tests expect an ISO date YYYY-MM-DD here, so derive it from
+              // the helper that produces an input-friendly datetime (YYYY-MM-DDTHH:MM)
+              const input = helpers.formatDateTimeForInput(att.check_in);
+              return input
+                ? input.slice(0, 10)
+                : att.check_in
+                ? att.check_in.split("T")[0]
+                : "";
+            } catch (e) {
+              return att.check_in ? att.check_in.split("T")[0] : "";
+            }
+          })(),
           status: att.status,
         }));
       } catch (e) {

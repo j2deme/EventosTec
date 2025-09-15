@@ -34,7 +34,7 @@ function attendancesRoster() {
       const sf = window.safeFetch || fetch;
       try {
         const res = await sf(
-          `/api/activities?event_id=${this.selectedEvent}&per_page=1000`,
+          `/api/activities?event_id=${this.selectedEvent}&per_page=1000`
         );
         if (!res.ok) throw new Error("No se pudieron cargar actividades");
         const data = await res.json().catch(() => ({}));
@@ -54,7 +54,7 @@ function attendancesRoster() {
       this.loading = true;
       try {
         const res = await sf(
-          `/api/registrations?activity_id=${this.selectedActivity}&per_page=1000`,
+          `/api/registrations?activity_id=${this.selectedActivity}&per_page=1000`
         );
         if (!res.ok) throw new Error("Error al cargar preregistros");
         const data = await res.json().catch(() => ({}));
@@ -110,7 +110,7 @@ function attendancesRoster() {
       if (studentIds.length === 0) {
         showToast(
           "No se encontró estudiante para los preregistros seleccionados",
-          "error",
+          "error"
         );
         return;
       }
@@ -152,9 +152,9 @@ function attendancesRoster() {
         })
         .join("");
 
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Roster</title><style>table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px}</style></head><body><h3>Roster - ${
-        this.activities.find((a) => a.id == this.selectedActivity)?.name || ""
-      }</h3><table><thead><tr><th>Estudiante</th><th>Control</th><th>Actividad</th><th>Firma</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+      const activityName =
+        this.activities.find((a) => a.id == this.selectedActivity)?.name || "";
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Roster</title><style>table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px}</style></head><body><h3>Roster - ${activityName}</h3><table><thead><tr><th>Estudiante</th><th>Control</th><th>Actividad</th><th>Firma</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
       const w = window.open("", "_blank");
       w.document.write(html);
       w.document.close();

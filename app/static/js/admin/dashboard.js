@@ -47,8 +47,8 @@ function adminDashboard() {
       { id: "overview", name: "Resumen", icon: "ti ti-layout-dashboard" },
       { id: "events", name: "Eventos", icon: "ti ti-calendar-event" },
       { id: "activities", name: "Actividades", icon: "ti ti-book" },
-      { id: "attendances", name: "Asistencias", icon: "ti ti-check" },
       { id: "registrations", name: "Registros", icon: "ti ti-clipboard-list" },
+      { id: "attendances", name: "Asistencias", icon: "ti ti-check" },
       { id: "reports", name: "Reportes", icon: "ti ti-chart-bar" },
     ],
 
@@ -325,17 +325,50 @@ function adminDashboard() {
           const data = await response.json();
           const events = Array.isArray(data) ? data : data.events || [];
 
-          // Filtrar eventos futuros
+          // Filtrar eventos futuros y añadir campos formateados para las vistas
           const now = new Date();
           const next30Days = new Date();
           next30Days.setDate(now.getDate() + 30);
 
-          this.upcomingEvents = events
+          const filtered = events
             .filter((event) => {
               const eventStart = new Date(event.start_date);
               return eventStart >= now && eventStart <= next30Days;
             })
             .slice(0, 5); // Limitar a 5 eventos
+
+          // Añadir campos formateados para evitar que las plantillas muestren ISO crudo
+          const dh =
+            (typeof window !== "undefined" && window.dateHelpers) ||
+            (function () {
+              try {
+                return require("../helpers/dateHelpers");
+              } catch (e) {
+                return null;
+              }
+            })();
+
+          this.upcomingEvents = filtered.map((ev) => {
+            const startIso = ev.start_date || ev.start || null;
+            const createdIso = ev.created_at || ev.created || null;
+            return {
+              ...ev,
+              start_date_formatted:
+                (dh && dh.formatDateTime && dh.formatDateTime(startIso)) ||
+                (startIso ? String(startIso) : "Sin fecha"),
+              start_date_for_input:
+                (dh &&
+                  dh.formatDateTimeForInput &&
+                  dh.formatDateTimeForInput(startIso)) ||
+                (startIso ? String(startIso).slice(0, 16) : ""),
+              start_time_formatted:
+                (dh && dh.formatTime && dh.formatTime(startIso)) ||
+                (startIso ? new Date(startIso).toLocaleTimeString() : ""),
+              created_at_formatted:
+                (dh && dh.formatDateTime && dh.formatDateTime(createdIso)) ||
+                (createdIso ? String(createdIso) : ""),
+            };
+          });
         }
       } catch (error) {
         console.error("Error loading upcoming events:", error);
@@ -351,7 +384,7 @@ function adminDashboard() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(
-          "/api/activities?sort=created_at:desc&per_page=10",
+          "/api/activities?sort=created_at:desc&per_page=10"
         );
         if (response && response.ok) {
           const data = await response.json();
@@ -362,12 +395,35 @@ function adminDashboard() {
           const last7Days = new Date();
           last7Days.setDate(now.getDate() - 7);
 
-          this.recentActivities = activities
+          const recent = activities
             .filter((activity) => {
               const activityCreated = new Date(activity.created_at);
               return activityCreated >= last7Days;
             })
             .slice(0, 5); // Limitar a 5 actividades
+
+          const dh =
+            (typeof window !== "undefined" && window.dateHelpers) ||
+            (function () {
+              try {
+                return require("../helpers/dateHelpers");
+              } catch (e) {
+                return null;
+              }
+            })();
+
+          this.recentActivities = recent.map((a) => {
+            const createdIso = a.created_at || a.created || null;
+            return {
+              ...a,
+              created_at_formatted:
+                (dh && dh.formatDateTime && dh.formatDateTime(createdIso)) ||
+                (createdIso ? String(createdIso) : "Sin fecha"),
+              created_time_formatted:
+                (dh && dh.formatTime && dh.formatTime(createdIso)) ||
+                (createdIso ? new Date(createdIso).toLocaleTimeString() : ""),
+            };
+          });
         }
       } catch (error) {
         console.error("Error loading recent activities:", error);
@@ -385,10 +441,47 @@ function adminDashboard() {
 
     // Métodos de utilidad: delegar formateo a helpers globales
     formatDate(dateString) {
-      return window.formatDate ? window.formatDate(dateString) : "Sin fecha";
+      // Preferir dateHelpers canonical (evitar ambigüedad con globals)
+      // Compatibilidad: si existe override dinámico en window, usarlo (tests lo esperan)
+      if (
+        typeof window !== "undefined" &&
+        typeof window.formatDate === "function"
+      ) {
+        return window.formatDate(dateString);
+      }
+
+      try {
+        const dh =
+          (typeof window !== "undefined" && window.dateHelpers) ||
+          require("../helpers/dateHelpers");
+        if (dh && typeof dh.formatDate === "function")
+          return dh.formatDate(dateString);
+      } catch (e) {
+        // fallthrough
+      }
+
+      return "Sin fecha";
     },
 
     formatTime(dateString) {
+      // Compatibilidad: si existe override dinámico en window, usarlo (tests lo esperan)
+      if (
+        typeof window !== "undefined" &&
+        typeof window.formatTime === "function"
+      ) {
+        return window.formatTime(dateString);
+      }
+
+      try {
+        const dh =
+          (typeof window !== "undefined" && window.dateHelpers) ||
+          require("../helpers/dateHelpers");
+        if (dh && typeof dh.formatTime === "function")
+          return dh.formatTime(dateString);
+      } catch (e) {
+        // fallthrough
+      }
+
       if (!dateString) return "--:--";
       const dt = new Date(dateString);
       return dt.toLocaleTimeString("es-ES", {

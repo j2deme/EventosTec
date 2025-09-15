@@ -80,7 +80,7 @@ function activitiesManager() {
         const response = await f(`/api/activities?${params.toString()}`);
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar actividades: ${response && response.status}`,
+            `Error al cargar actividades: ${response && response.status}`
           );
 
         const data = await response.json();
@@ -125,7 +125,7 @@ function activitiesManager() {
         const response = await f("/api/events/");
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar eventos: ${response && response.status}`,
+            `Error al cargar eventos: ${response && response.status}`
           );
         const data = await response.json();
         this.events = Array.isArray(data) ? data : data.events || [];
@@ -161,7 +161,7 @@ function activitiesManager() {
 
       if (this.currentActivity.event_id) {
         const selectedEvent = this.events.find(
-          (e) => String(e.id) === String(this.currentActivity.event_id),
+          (e) => String(e.id) === String(this.currentActivity.event_id)
         );
 
         if (selectedEvent) {
@@ -220,7 +220,7 @@ function activitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear actividad: ${response.status} ${response.statusText}`,
+              `Error al crear actividad: ${response.status} ${response.statusText}`
           );
         }
 
@@ -236,7 +236,7 @@ function activitiesManager() {
               action: "created",
               eventId: newActivity.id,
             },
-          }),
+          })
         );
 
         showToast("Actividad creada exitosamente", "success");
@@ -294,7 +294,7 @@ function activitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar actividad: ${response.status} ${response.statusText}`,
+              `Error al actualizar actividad: ${response.status} ${response.statusText}`
           );
         }
 
@@ -310,7 +310,7 @@ function activitiesManager() {
               action: "updated",
               eventId: updatedActivity.id,
             },
-          }),
+          })
         );
 
         showToast("Actividad actualizada exitosamente", "success");
@@ -338,14 +338,14 @@ function activitiesManager() {
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(
           `/api/activities/${this.activityToDelete.id}`,
-          { method: "DELETE" },
+          { method: "DELETE" }
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar actividad: ${response.status} ${response.statusText}`,
+              `Error al eliminar actividad: ${response.status} ${response.statusText}`
           );
         }
 
@@ -362,7 +362,7 @@ function activitiesManager() {
               action: "deleted",
               eventId: deletedId,
             },
-          }),
+          })
         );
 
         showToast("Actividad eliminada exitosamente", "success");
@@ -483,7 +483,7 @@ function activitiesManager() {
 
       // Obtener el evento seleccionado
       const selectedEvent = this.events.find(
-        (e) => String(e.id) === String(activityData.event_id),
+        (e) => String(e.id) === String(activityData.event_id)
       );
       if (!selectedEvent) {
         this.dateValidationError = "Por favor seleccione un evento válido";
@@ -499,14 +499,14 @@ function activitiesManager() {
       // Validar que las fechas de la actividad estén dentro del rango del evento
       if (activityStart < eventStart) {
         this.dateValidationError = `La fecha de inicio de la actividad no puede ser anterior a la fecha de inicio del evento (${this.formatDateTime(
-          eventStart,
+          eventStart
         )})`;
         return this.dateValidationError;
       }
 
       if (activityEnd > eventEnd) {
         this.dateValidationError = `La fecha de fin de la actividad no puede ser posterior a la fecha de fin del evento (${this.formatDateTime(
-          eventEnd,
+          eventEnd
         )})`;
         return this.dateValidationError;
       }
@@ -521,61 +521,37 @@ function activitiesManager() {
       return null; // Sin errores
     },
 
-    // Delegar formateo de fechas a helpers globales (expuestos en app.js)
+    // Delegar formateo de fechas a helpers centralizados cuando estén disponibles
     formatDateTimeForInput(dateTimeString) {
-      if (window.formatDateTimeForInput) {
-        return window.formatDateTimeForInput(dateTimeString);
+      try {
+        const helpers = require("../helpers/dateHelpers");
+        return helpers.formatDateTimeForInput(dateTimeString);
+      } catch (e) {
+        return window.formatDateTimeForInput
+          ? window.formatDateTimeForInput(dateTimeString)
+          : "";
       }
-      // Fallback: generar YYYY-MM-DDTHH:MM en zona local
-      if (!dateTimeString) return "";
-      const d = new Date(dateTimeString);
-      if (isNaN(d)) return "";
-      const pad = (n) => String(n).padStart(2, "0");
-      const y = d.getFullYear();
-      const m = pad(d.getMonth() + 1);
-      const day = pad(d.getDate());
-      const hh = pad(d.getHours());
-      const mm = pad(d.getMinutes());
-      return `${y}-${m}-${day}T${hh}:${mm}`;
     },
 
     formatDate(dateTimeString) {
-      if (window.formatDate) return window.formatDate(dateTimeString);
-      if (!dateTimeString) return "Sin fecha";
-      const d = new Date(dateTimeString);
-      if (isNaN(d)) return "Sin fecha";
-      // Formato local largo en español (día de mes de año a las HH:MM)
       try {
-        const opts = {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        };
-        // Usar 'es-ES' para consistencia; algunos entornos pueden ignorarlo
-        return d.toLocaleString("es-ES", opts).replace("", "");
+        const helpers = require("../helpers/dateHelpers");
+        return helpers.formatDate(dateTimeString);
       } catch (e) {
-        return d.toString();
+        return window.formatDate
+          ? window.formatDate(dateTimeString)
+          : "Sin fecha";
       }
     },
 
     formatDateTime(dateTimeString) {
-      if (window.formatDateTime) return window.formatDateTime(dateTimeString);
-      if (!dateTimeString) return "Sin fecha";
-      const d = new Date(dateTimeString);
-      if (isNaN(d)) return "Sin fecha";
       try {
-        const opts = {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        };
-        return d.toLocaleString("es-ES", opts);
+        const helpers = require("../helpers/dateHelpers");
+        return helpers.formatDateTime(dateTimeString);
       } catch (e) {
-        return d.toString();
+        return window.formatDateTime
+          ? window.formatDateTime(dateTimeString)
+          : "Sin fecha";
       }
     },
 
@@ -610,7 +586,7 @@ function activitiesManager() {
         typeof window.safeFetch === "function" ? window.safeFetch : fetch;
       const response = await f(
         `/api/activities/${activityId}/related/${relatedId}`,
-        { method: "DELETE" },
+        { method: "DELETE" }
       );
       if (!response || !response.ok)
         throw new Error("Error al desenlazar actividades");
@@ -636,7 +612,7 @@ function activitiesManager() {
       });
       return this.activityRelations.filter(
         (a) =>
-          a.event_id === this.currentActivity.event_id && !linkedIds.has(a.id),
+          a.event_id === this.currentActivity.event_id && !linkedIds.has(a.id)
       );
     },
 
