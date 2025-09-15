@@ -93,9 +93,12 @@ describe("attendancesList consolidated", () => {
     });
     const spy = jest.spyOn(mgr, "loadAttendances");
     await mgr.loadActivities();
-    expect(global.fetch).toHaveBeenCalledWith(
-      `/api/activities?event_id=${mgr.selectedEvent}`
-    );
+    // Accept additional query params (e.g., for_student) — ensure base call was made
+    expect(global.fetch).toHaveBeenCalled();
+    const calledUrl = global.fetch.mock.calls[0][0];
+    expect(
+      calledUrl.startsWith(`/api/activities?event_id=${mgr.selectedEvent}`)
+    ).toBe(true);
     expect(mgr.activities.length).toBe(1);
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
