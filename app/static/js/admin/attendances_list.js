@@ -76,4 +76,14 @@ function attendancesList() {
     },
   };
 }
-window.attendancesList = attendancesList;
+// Make the factory available to Alpine in the browser
+try {
+  window.attendancesList = attendancesList;
+} catch (e) {
+  // non-browser (tests)
+}
+
+// Export for Node/Jest
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = attendancesList;
+}

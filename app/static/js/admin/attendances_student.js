@@ -105,4 +105,14 @@ function attendancesStudent() {
   };
 }
 
-window.attendancesStudent = attendancesStudent;
+// Expose to browser
+try {
+  window.attendancesStudent = attendancesStudent;
+} catch (e) {
+  // non-browser
+}
+
+// Export for Node/Jest
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = attendancesStudent;
+}

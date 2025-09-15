@@ -160,4 +160,14 @@ function attendancesRoster() {
 }
 
 // Export factory for Alpine
-window.attendancesRoster = attendancesRoster;
+// Expose for browser
+try {
+  window.attendancesRoster = attendancesRoster;
+} catch (e) {
+  // tests/no window
+}
+
+// Export for Node/Jest
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = attendancesRoster;
+}

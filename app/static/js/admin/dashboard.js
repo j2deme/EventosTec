@@ -446,5 +446,16 @@ function adminDashboard() {
   };
 }
 
-// Hacer la función globalmente disponible
-window.adminDashboard = adminDashboard;
+// Hacer la función globalmente disponible en navegador
+try {
+  if (typeof window !== "undefined") {
+    window.adminDashboard = adminDashboard;
+  }
+} catch (e) {
+  // no-op in non-browser env
+}
+
+// Exportar para Node/Jest (CommonJS)
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = adminDashboard;
+}
