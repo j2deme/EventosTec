@@ -291,7 +291,6 @@ function studentDashboard() {
         }
 
         const data = await response.json();
-        console.log("Profile ", data);
 
         if (data.student) {
           this.studentName = data.student.full_name || "Estudiante";
