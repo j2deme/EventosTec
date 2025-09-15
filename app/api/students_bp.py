@@ -4,6 +4,7 @@ import requests
 from app import db
 from app.schemas import student_schema, students_schema
 from app.models.student import Student
+from app.utils.auth_helpers import require_admin
 
 students_bp = Blueprint('students', __name__, url_prefix='/api/students')
 
@@ -31,7 +32,7 @@ def get_students():
         per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '')
 
-        query = db.session.query(Student)
+        query = Student.query
 
         if search:
             search_filter = f"%{search}%"
@@ -106,6 +107,7 @@ def search_external_student():
 
 @students_bp.route('/import-external/<control_number>', methods=['POST'])
 @jwt_required()
+@require_admin
 def import_external_student(control_number):
     try:
         # Consultar sistema externo
@@ -124,12 +126,11 @@ def import_external_student(control_number):
                         control_number=control_number).first()
                     if not student:
                         # Crear nuevo estudiante
-                        student = Student(
-                            control_number=control_number,
-                            full_name=student_info.get('nombre', ''),
-                            career=student_info.get('carrera', ''),
-                            email=student_info.get('email', '')
-                        )
+                        student = Student()
+                        student.control_number = control_number
+                        student.full_name = student_info.get('nombre', '')
+                        student.career = student_info.get('carrera', '')
+                        student.email = student_info.get('email', '')
                         db.session.add(student)
                         db.session.commit()
 

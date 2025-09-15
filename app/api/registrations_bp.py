@@ -99,11 +99,10 @@ def create_registration():
             return jsonify({'message': 'Cupo lleno para esta actividad.'}), 400
 
         # Sino hubo conflictos, crear preregistro
-        registration = Registration(
-            student_id=student_id,
-            activity_id=activity_id,
-            status='Registrado'
-        )
+        registration = Registration()
+        registration.student_id = student_id
+        registration.activity_id = activity_id
+        registration.status = 'Registrado'
 
         db.session.add(registration)
         db.session.commit()
@@ -135,9 +134,9 @@ def get_registrations():
         from sqlalchemy.orm import joinedload
 
         # Modificar la consulta para cargar relaciones de forma eager
-        query = db.session.query(Registration).options(
-            joinedload(Registration.activity),
-            joinedload(Registration.student)
+        query = Registration.query.options(
+            joinedload(getattr(Registration, 'activity')),
+            joinedload(getattr(Registration, 'student'))
         )
 
         if student_id:
@@ -184,7 +183,19 @@ def get_registration(registration_id):
         if not registration:
             return jsonify({'message': 'Preregistro no encontrado'}), 404
 
-        return jsonify({'registration': registration_schema.dump(registration)}), 200
+        # Control de acceso: admin puede ver cualquiera; student solo el suyo
+        user, user_type, err = get_user_or_403()
+        if err:
+            return err
+
+        if user_type == 'admin':
+            return jsonify({'registration': registration_schema.dump(registration)}), 200
+        elif user_type == 'student' and user is not None:
+            if registration.student_id != user.id:
+                return jsonify({'message': 'Acceso denegado'}), 403
+            return jsonify({'registration': registration_schema.dump(registration)}), 200
+        else:
+            return jsonify({'message': 'Acceso denegado'}), 403
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener preregistro', 'error': str(e)}), 500
@@ -237,12 +248,11 @@ def update_registration(registration_id):
                     attendance.attendance_percentage = 100.0
                     attendance.status = 'Asistió'
                 else:
-                    attendance = Attendance(
-                        student_id=registration.student_id,
-                        activity_id=registration.activity_id,
-                        attendance_percentage=100.0,
-                        status='Asistió'
-                    )
+                    attendance = Attendance()
+                    attendance.student_id = registration.student_id
+                    attendance.activity_id = registration.activity_id
+                    attendance.attendance_percentage = 100.0
+                    attendance.status = 'Asistió'
                     db.session.add(attendance)
             else:
                 # Si se desmarca attended, limpiar confirmation_date para mantener consistencia
@@ -269,6 +279,15 @@ def delete_registration(registration_id):
         registration = db.session.get(Registration, registration_id)
         if not registration:
             return jsonify({'message': 'Preregistro no encontrado'}), 404
+
+        # Control de acceso: admin puede eliminar cualquiera; student solo su propio preregistro
+        user, user_type, err = get_user_or_403()
+        if err:
+            return err
+
+        if user_type == 'student' and user is not None:
+            if registration.student_id != user.id:
+                return jsonify({'message': 'Acceso denegado'}), 403
 
         # Solo permitir cancelación si no ha asistido
         if registration.attended:
