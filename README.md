@@ -128,10 +128,10 @@ global.fetch = jest.fn((input, init) =>
   Promise.resolve({ ok: true, json: () => Promise.resolve({ data: [] }) })
 );
 
-const adminModule = require('../admin/activities');
+const adminModule = require("../admin/activities");
 // ahora las llamadas dentro de adminModule usarán el mock
 
-test('usa global.fetch', async () => {
+test("usa global.fetch", async () => {
   await adminModule.loadActivities();
   expect(global.fetch).toHaveBeenCalled();
 });
@@ -141,12 +141,14 @@ test('usa global.fetch', async () => {
 
 ```javascript
 // test_safeFetch.js
-const safeFetchMock = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }));
+const safeFetchMock = jest.fn(() =>
+  Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+);
 window.safeFetch = safeFetchMock;
 
-const adminModule = require('../admin/events');
+const adminModule = require("../admin/events");
 
-test('usa window.safeFetch', async () => {
+test("usa window.safeFetch", async () => {
   await adminModule.loadEvents();
   expect(window.safeFetch).toHaveBeenCalled();
 });
