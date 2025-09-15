@@ -1,10 +1,10 @@
-## **Resumen del Proyecto: "Eventos Tec"**
+# **Resumen del Proyecto: "Eventos Tec"**
 
-### **1. Descripción General**
+## **1. Descripción General**
 
 Una aplicación web para gestionar y controlar la asistencia de estudiantes a eventos académicos (conferencias, talleres, cursos, actividades magistrales) en una institución educativa. Los estudiantes pueden preregistrarse y registrar su asistencia, mientras los administradores gestionan eventos, actividades y generan reportes.
 
-### **2. Tecnologías Utilizadas**
+## **2. Tecnologías Utilizadas**
 
 - **Backend:** Python 3.13
 - **Framework Web:** Flask
@@ -16,7 +16,7 @@ Una aplicación web para gestionar y controlar la asistencia de estudiantes a ev
 - **Frontend:** HTML, Tailwind CSS (CDN), Alpine.js (CDN), Tabler Icons (CDN)
 - **Gestión de Migraciones:** Flask-Migrate (Alembic)
 
-### **3. Estado Actual del Desarrollo**
+## **3. Estado Actual del Desarrollo**
 
 - **✅ Fase 1: Análisis y Diseño:** Completada. Se definieron entidades, relaciones y reglas de negocio.
 - **✅ Fase 2: Backend y Lógica:** Completada.
@@ -49,7 +49,7 @@ Una aplicación web para gestionar y controlar la asistencia de estudiantes a ev
   - Reportes y estadísticas avanzadas.
   - Finalización e integración completa del frontend (gestión completa de asistencias para estudiantes).
 
-### **4. Estructura del Proyecto (Backend/Frontend)**
+## **4. Estructura del Proyecto (Backend/Frontend)**
 
 ```bash
 app/
@@ -137,7 +137,7 @@ tests/ # Suite de pruebas Pytest
 └── ...
 ```
 
-### **5. Funcionalidades Clave Implementadas**
+## **5. Funcionalidades Clave Implementadas**
 
 - **Autenticación:** Login separado para estudiantes (validación contra API externa) y administradores (usuarios locales). Protección de endpoints con JWT.
 - **Gestión de Eventos/Actividades:** CRUD completo para eventos y actividades. Actividades pueden ser de tipo Magistral, Conferencia, Taller, Curso, Otro. Incluyen relaciones.
@@ -161,7 +161,7 @@ tests/ # Suite de pruebas Pytest
   - **Gestión de preregistros personales.**
   - **Perfil de estudiante (lectura).**
 
-### **6. Mejoras Visuales Implementadas para Actividades Multídias**
+## **6. Mejoras Visuales Implementadas para Actividades Multídias**
 
 - **Representación Visual Precisa de Actividades Multídias:**
   - Una actividad del `2025-10-08 10:00` al `2025-10-10 17:00` se muestra como **tres bloques separados**:
@@ -183,7 +183,7 @@ tests/ # Suite de pruebas Pytest
   - Los preregistros se ordenan por fecha y hora de inicio dentro de cada bloque diario.
   - Los bloques diarios se ordenan cronológicamente.
 
-### **7. Problemas/Pendientes Conocidos**
+## **7. Problemas/Pendientes Conocidos**
 
 - Funcionalidades como generación de constancias y reportes avanzados aún no están implementadas.
 - Funcionalidades como la conexión con la API externa para validación de estudiantes están simuladas en algunos entornos.
