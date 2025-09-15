@@ -7,6 +7,19 @@ from app.models.student import Student
 
 students_bp = Blueprint('students', __name__, url_prefix='/api/students')
 
+
+@students_bp.route('/search', methods=['GET'])
+def search_students():
+    q = request.args.get('q', '').strip()
+    if not q or len(q) < 2:
+        return jsonify([])
+    results = Student.query.filter(
+        Student.full_name.ilike(f'%{q}%')).limit(10).all()
+    return jsonify([
+        {'id': s.id, 'full_name': s.full_name, 'control_number': s.control_number}
+        for s in results
+    ])
+
 # Listar estudiantes (con búsqueda)
 
 
