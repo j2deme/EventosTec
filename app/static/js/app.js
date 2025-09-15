@@ -94,8 +94,8 @@ function checkAuth() {
 
 // ✨ INTERCEPTOR GLOBAL DE FETCH - Corregido y mejorado
 (function setupFetchInterceptor() {
-  // Guardar referencia al fetch original de forma segura
-  const _fetch = window.fetch;
+  // Guardar referencia al fetch original de forma segura (si existe)
+  const _fetch = typeof window.fetch === "function" ? window.fetch : undefined;
 
   // Reemplazar fetch con una versión que agrega el token automáticamente
   window.fetch = function (input, init = {}) {
@@ -110,7 +110,7 @@ function checkAuth() {
     }
 
     // Asegurar Content-Type si no existe y hay cuerpo
-    if (init.body && !init.headers["Content-Type"]) {
+    if (init.body && !(init.headers && init.headers["Content-Type"])) {
       init.headers = {
         ...init.headers,
         "Content-Type": "application/json",
@@ -119,7 +119,14 @@ function checkAuth() {
 
     // console.log("Fetch interceptado:", input, init); // Para debugging
 
-    // Continuar con la solicitud original
+    // Usar únicamente la referencia original capturada al cargar el módulo.
+    // Esto evita recursión si reemplazamos global.fetch.
+    if (typeof _fetch !== "function") {
+      return Promise.reject(
+        new Error("fetch no está disponible en este entorno")
+      );
+    }
+
     return _fetch(input, init);
   };
 
