@@ -6,8 +6,9 @@ from app.schemas import activity_schema, activities_schema
 from app.models.activity import Activity
 from app.models.event import Event
 from app.services import activity_service
-from app.utils.auth_helpers import require_admin
+from app.utils.auth_helpers import require_admin, get_user_or_403
 from datetime import datetime, timezone
+from typing import cast, Iterable
 from app.utils.datetime_utils import parse_datetime_with_timezone
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/api/activities')
@@ -28,7 +29,8 @@ def get_activities():
         for_student = request.args.get('for_student', default=None)
         exclude_types = request.args.get('exclude_types', default=None)
 
-        query = db.session.query(Activity).join(Event)
+        # Usar Activity.query para compatibilidad con Flask-SQLAlchemy
+        query = Activity.query.join(Event)
 
         if search:
             search_filter = f"%{search}%"
@@ -70,13 +72,15 @@ def get_activities():
             page=page, per_page=per_page, error_out=False
         )
 
+        total = activities.total or 0
+
         return jsonify({
             'activities': activities_schema.dump(activities.items),
-            'total': activities.total,
+            'total': total,
             'pages': activities.pages,
             'current_page': page,
-            'from': (page - 1) * per_page + 1 if activities.total > 0 else 0,
-            'to': min(page * per_page, activities.total)
+            'from': (page - 1) * per_page + 1 if total > 0 else 0,
+            'to': min(page * per_page, total)
         }), 200
 
     except Exception as e:
@@ -202,11 +206,22 @@ def get_activity_attendances(activity_id):
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
-        attendances = activity.attendances
+        # Control de acceso: admin ve todas; estudiante solo ve sus propias asistencias
+        user, user_type, err = get_user_or_403()
+        if err:
+            return err
+
         from app.schemas import attendances_schema
-        return jsonify({
-            'attendances': attendances_schema.dump(attendances)
-        }), 200
+        if user_type == 'admin':
+            attendances = list(cast(Iterable, activity.attendances))
+            return jsonify({'attendances': attendances_schema.dump(attendances)}), 200
+        elif user_type == 'student' and user is not None:
+            # filtrar asistencias por student_id
+            attendances = [a for a in list(
+                cast(Iterable, activity.attendances)) if a.student_id == user.id]
+            return jsonify({'attendances': attendances_schema.dump(attendances)}), 200
+        else:
+            return jsonify({'message': 'Acceso denegado'}), 403
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener asistencias', 'error': str(e)}), 500
@@ -221,11 +236,21 @@ def get_activity_registrations(activity_id):
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
-        registrations = activity.registrations
+        # Control de acceso: admin ve todos los preregistros; student solo los suyos
+        user, user_type, err = get_user_or_403()
+        if err:
+            return err
+
         from app.schemas import registrations_schema
-        return jsonify({
-            'registrations': registrations_schema.dump(registrations)
-        }), 200
+        if user_type == 'admin':
+            registrations = list(cast(Iterable, activity.registrations))
+            return jsonify({'registrations': registrations_schema.dump(registrations)}), 200
+        elif user_type == 'student' and user is not None:
+            registrations = [r for r in list(
+                cast(Iterable, activity.registrations)) if r.student_id == user.id]
+            return jsonify({'registrations': registrations_schema.dump(registrations)}), 200
+        else:
+            return jsonify({'message': 'Acceso denegado'}), 403
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener preregistros', 'error': str(e)}), 500
@@ -264,7 +289,7 @@ def add_related_activity(activity_id):
     # Solo permitir enlazar actividades del mismo evento
     if activity.event_id != related.event_id:
         return jsonify({'message': 'Solo se pueden enlazar actividades del mismo evento.'}), 400
-    if related in activity.related_activities:
+    if related in list(cast(Iterable, activity.related_activities)):
         return jsonify({'message': 'Las actividades ya están enlazadas'}), 400
     try:
         activity.related_activities.append(related)
@@ -301,7 +326,7 @@ def remove_related_activity(activity_id, related_id):
     related = db.session.get(Activity, related_id)
     if not activity or not related:
         return jsonify({'message': 'Una o ambas actividades no existen'}), 404
-    if related not in activity.related_activities:
+    if related not in list(cast(Iterable, activity.related_activities)):
         return jsonify({'message': 'Las actividades no están enlazadas'}), 400
     activity.related_activities.remove(related)
     db.session.commit()
@@ -314,17 +339,20 @@ def get_activity_relations():
         activities = db.session.query(Activity).all()
         result = []
         for activity in activities:
+            related_list = list(cast(Iterable, activity.related_activities))
+            linked_by_list = list(cast(Iterable, getattr(
+                activity, 'related_to_activities', [])))
             result.append({
                 'id': activity.id,
                 'name': activity.name,
                 'event_id': activity.event_id,
                 'related_activities': [
                     {'id': a.id, 'name': a.name, 'event_id': a.event_id}
-                    for a in activity.related_activities
+                    for a in related_list
                 ],
                 'linked_by': [
                     {'id': a.id, 'name': a.name, 'event_id': a.event_id}
-                    for a in activity.related_to_activities
+                    for a in linked_by_list
                 ]
             })
         return jsonify({'activities': result}), 200
