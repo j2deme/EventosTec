@@ -7,3 +7,4 @@ instance/
 .env
 .DS_Store
 .pytest_cache/
+node_modules/
