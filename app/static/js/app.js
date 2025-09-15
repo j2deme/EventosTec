@@ -45,6 +45,10 @@ function logout() {
 // Hacer logout globalmente disponible
 window.logout = logout;
 
+// Exponer funciones de autenticación para tests y otros módulos
+window.getAuthToken = getAuthToken;
+window.isAuthenticated = isAuthenticated;
+
 // Función para obtener headers con autorización
 function getAuthHeaders(additionalHeaders = {}) {
   const token = getAuthToken();
