@@ -14,6 +14,20 @@ function attendancesAdmin() {
 
     init() {
       this.loadActivities();
+      // Registrar listeners globales una sola vez
+      try {
+        window.addEventListener("open-assign-modal", () => {
+          const c = document.getElementById("attendances-assign-container");
+          if (c) c.style.display = "";
+        });
+        window.addEventListener("open-list-tab", () => {
+          const c = document.getElementById("attendances-list-container");
+          if (c) c.style.display = "";
+        });
+      } catch (e) {
+        // en entornos de test sin DOM esto puede fallar silenciosamente
+        // console.warn(e);
+      }
     },
 
     async loadActivities() {

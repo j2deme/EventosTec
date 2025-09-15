@@ -49,9 +49,29 @@
       >
         Registrar asistencia
       </button>
+      <button
+        @click="$dispatch('open-assign-modal')"
+        class="px-4 py-2 bg-blue-600 text-white rounded"
+      >
+        Asignar manual
+      </button>
+      <button
+        @click="$dispatch('open-list-tab')"
+        class="px-4 py-2 bg-gray-600 text-white rounded"
+      >
+        Ver listado
+      </button>
     </div>
 
     <div id="search-results" class="mt-6" x-html="resultsHtml"></div>
+  </div>
+  <!-- Insertar partials admin adicionales (ocultos por defecto) -->
+  <div id="attendances-assign-container" class="mt-6" style="display: none">
+    {% include 'admin/partials/attendances_assign.html' %}
+  </div>
+
+  <div id="attendances-list-container" class="mt-6" style="display: none">
+    {% include 'admin/partials/attendances_list.html' %}
   </div>
 
   <!-- Modal simple para registrar -->
