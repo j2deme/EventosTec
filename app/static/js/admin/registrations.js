@@ -509,3 +509,12 @@ function registrationsManager() {
     },
   };
 }
+// Hacer la función globalmente disponible en navegador
+if (typeof window !== "undefined") {
+  window.registrationsManager = registrationsManager;
+}
+
+// Exportar para Node/Jest (CommonJS)
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = registrationsManager;
+}

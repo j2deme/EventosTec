@@ -388,5 +388,12 @@ function eventsManager() {
   };
 }
 
-// Hacer la función globalmente disponible
-window.eventsManager = eventsManager;
+// Hacer la función globalmente disponible en navegador
+if (typeof window !== "undefined") {
+  window.eventsManager = eventsManager;
+}
+
+// Exportar para Node/Jest (CommonJS)
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = eventsManager;
+}
