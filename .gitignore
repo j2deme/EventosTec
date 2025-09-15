@@ -8,3 +8,5 @@ instance/
 .DS_Store
 .pytest_cache/
 node_modules/
+# Coverage reports
+coverage/
