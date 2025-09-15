@@ -1,0 +1,18 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Flask (run.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}\\run.py",
+      "console": "integratedTerminal",
+      "env": {
+        "FLASK_ENV": "development",
+        "FLASK_DEBUG": "1",
+        "PORT": "5001"
+      },
+      "justMyCode": true
+    }
+  ]
+}

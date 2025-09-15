@@ -1,0 +1,96 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run pytest (venv)",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/python -m pytest -q",
+      "windows": {
+        "command": "${workspaceFolder}\\venv\\Scripts\\python.exe -m pytest -q"
+      },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Flask (venv)",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/python ${workspaceFolder}/run.py",
+      "windows": {
+        "command": "${workspaceFolder}\\venv\\Scripts\\python.exe ${workspaceFolder}\\run.py"
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Jest (frontend)",
+      "type": "shell",
+      "command": "npx jest --colors --runInBand \"app/static/js/admin/__tests__\"",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Jest (watch)",
+      "type": "shell",
+      "command": "npx jest --watch",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Start dev server (flask run)",
+      "type": "shell",
+      "command": "FLASK_APP=run.py FLASK_ENV=development ${workspaceFolder}/venv/bin/python -m flask run",
+      "windows": {
+        "command": "$env:FLASK_APP='run.py'; $env:FLASK_ENV='development'; ${workspaceFolder}\\venv\\Scripts\\python.exe -m flask run"
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Format (black + isort)",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/python -m black ${workspaceFolder} && ${workspaceFolder}/venv/bin/python -m isort ${workspaceFolder}",
+      "windows": {
+        "command": "${workspaceFolder}\\venv\\Scripts\\python.exe -m black ${workspaceFolder} && ${workspaceFolder}\\venv\\Scripts\\python.exe -m isort ${workspaceFolder}"
+      },
+      "presentation": { "reveal": "silent", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Lint (ruff)",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/python -m ruff check ${workspaceFolder}",
+      "windows": {
+        "command": "${workspaceFolder}\\venv\\Scripts\\python.exe -m ruff check ${workspaceFolder}"
+      },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Install dev dependencies",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/python -m pip install --upgrade pip && ${workspaceFolder}/venv/bin/python -m pip install -r requirements-dev.txt",
+      "windows": {
+        "command": "${workspaceFolder}\\venv\\Scripts\\python.exe -m pip install --upgrade pip && ${workspaceFolder}\\venv\\Scripts\\python.exe -m pip install -r requirements-dev.txt"
+      },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Install JS deps (npm ci)",
+      "type": "shell",
+      "command": "npm ci",
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Install pre-commit hooks",
+      "type": "shell",
+      "command": "${workspaceFolder}/venv/bin/python -m pip install pre-commit && ${workspaceFolder}/venv/bin/pre-commit install",
+      "windows": {
+        "command": "${workspaceFolder}\\venv\\Scripts\\python.exe -m pip install pre-commit && ${workspaceFolder}\\venv\\Scripts\\pre-commit.exe install"
+      },
+      "presentation": { "reveal": "always", "panel": "new" },
+      "problemMatcher": []
+    }
+  ]
+}
