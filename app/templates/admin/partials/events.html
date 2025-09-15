@@ -1,399 +1,578 @@
 <!-- app/templates/admin/partials/events.html -->
 <div x-data="eventsManager()" x-init="init()">
-    <!-- Header con título y botón de crear -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+  <!-- Header con título y botón de crear -->
+  <div
+    class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6"
+  >
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900">Gestión de Eventos</h2>
+      <p class="mt-1 text-sm text-gray-600">
+        Administra los eventos del sistema
+      </p>
+    </div>
+    <button
+      @click="openCreateModal()"
+      class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+    >
+      <i class="ti ti-plus mr-2"></i>
+      Nuevo Evento
+    </button>
+  </div>
+
+  <!-- Filtros y búsqueda -->
+  <div class="mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="md:col-span-2">
+          <label
+            for="search"
+            class="block text-sm font-medium text-gray-700 mb-1"
+            >Buscar</label
+          >
+          <div class="relative rounded-md shadow-sm">
+            <div
+              class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+            >
+              <i class="ti ti-search text-gray-400"></i>
+            </div>
+            <input
+              type="text"
+              id="search"
+              x-model="filters.search"
+              @input.debounce.300ms="loadEvents()"
+              class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 py-2 sm:text-sm border-gray-300 rounded-md"
+              placeholder="Nombre, descripción..."
+            />
+          </div>
+        </div>
         <div>
-            <h2 class="text-2xl font-bold text-gray-900">Gestión de Eventos</h2>
-            <p class="mt-1 text-sm text-gray-600">Administra los eventos del sistema</p>
+          <label
+            for="status"
+            class="block text-sm font-medium text-gray-700 mb-1"
+            >Estado</label
+          >
+          <select
+            id="status"
+            x-model="filters.status"
+            @change="loadEvents()"
+            class="focus:ring-indigo-500 focus:border-indigo-500 block w-full py-2 sm:text-sm border-gray-300 rounded-md"
+          >
+            <option value="">Todos</option>
+            <option value="active">Activos</option>
+            <option value="inactive">Inactivos</option>
+          </select>
         </div>
-        <button @click="openCreateModal()" 
-                class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-            <i class="ti ti-plus mr-2"></i>
-            Nuevo Evento
-        </button>
+        <div>
+          <label for="sort" class="block text-sm font-medium text-gray-700 mb-1"
+            >Ordenar por</label
+          >
+          <select
+            id="sort"
+            x-model="filters.sort"
+            @change="loadEvents()"
+            class="focus:ring-indigo-500 focus:border-indigo-500 block w-full py-2 sm:text-sm border-gray-300 rounded-md"
+          >
+            <option value="start_date:desc">Más recientes</option>
+            <option value="start_date:asc">Más antiguos</option>
+            <option value="name:asc">Nombre (A-Z)</option>
+            <option value="name:desc">Nombre (Z-A)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mensaje de error -->
+  <div x-show="errorMessage" class="mb-6 rounded-md bg-red-50 p-4">
+    <div class="flex">
+      <div class="flex-shrink-0">
+        <i class="ti ti-alert-circle text-red-400"></i>
+      </div>
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-red-800" x-text="errorMessage"></h3>
+      </div>
+      <div class="ml-auto pl-3">
+        <div class="-mx-1.5 -my-1.5">
+          <button
+            @click="errorMessage = ''"
+            type="button"
+            class="inline-flex bg-red-50 rounded-md p-1.5 text-red-500 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-red-50 focus:ring-red-600"
+          >
+            <span class="sr-only">Cerrar</span>
+            <i class="ti ti-x text-xl"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabla de eventos -->
+  <div class="bg-white shadow overflow-hidden rounded-lg">
+    <!-- Loading spinner -->
+    <div x-show="loading" class="flex justify-center items-center py-12">
+      <div
+        class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"
+      ></div>
     </div>
 
-    <!-- Filtros y búsqueda -->
-    <div class="mb-6">
-        <div class="bg-white rounded-lg shadow p-4">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="md:col-span-2">
-                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
-                    <div class="relative rounded-md shadow-sm">
-                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <i class="ti ti-search text-gray-400"></i>
-                        </div>
-                        <input type="text" 
-                               id="search" 
-                               x-model="filters.search"
-                               @input.debounce.300ms="loadEvents()"
-                               class="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 py-2 sm:text-sm border-gray-300 rounded-md"
-                               placeholder="Nombre, descripción...">
-                    </div>
-                </div>
-                <div>
-                    <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                    <select id="status" 
-                            x-model="filters.status"
-                            @change="loadEvents()"
-                            class="focus:ring-indigo-500 focus:border-indigo-500 block w-full py-2 sm:text-sm border-gray-300 rounded-md">
-                        <option value="">Todos</option>
-                        <option value="active">Activos</option>
-                        <option value="inactive">Inactivos</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="sort" class="block text-sm font-medium text-gray-700 mb-1">Ordenar por</label>
-                    <select id="sort" 
-                            x-model="filters.sort"
-                            @change="loadEvents()"
-                            class="focus:ring-indigo-500 focus:border-indigo-500 block w-full py-2 sm:text-sm border-gray-300 rounded-md">
-                        <option value="start_date:desc">Más recientes</option>
-                        <option value="start_date:asc">Más antiguos</option>
-                        <option value="name:asc">Nombre (A-Z)</option>
-                        <option value="name:desc">Nombre (Z-A)</option>
-                    </select>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Mensaje de error -->
-    <div x-show="errorMessage" 
-         class="mb-6 rounded-md bg-red-50 p-4">
-        <div class="flex">
-            <div class="flex-shrink-0">
-                <i class="ti ti-alert-circle text-red-400"></i>
-            </div>
-            <div class="ml-3">
-                <h3 class="text-sm font-medium text-red-800" x-text="errorMessage"></h3>
-            </div>
-            <div class="ml-auto pl-3">
-                <div class="-mx-1.5 -my-1.5">
-                    <button @click="errorMessage = ''" type="button" class="inline-flex bg-red-50 rounded-md p-1.5 text-red-500 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-red-50 focus:ring-red-600">
-                        <span class="sr-only">Cerrar</span>
-                        <i class="ti ti-x text-xl"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tabla de eventos -->
-    <div class="bg-white shadow overflow-hidden rounded-lg">
-        <!-- Loading spinner -->
-        <div x-show="loading" class="flex justify-center items-center py-12">
-            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-        </div>
-
-        <!-- Tabla (cuando no está cargando) -->
-        <div x-show="!loading">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fechas</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actividades</th>
-                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <template x-for="event in events" :key="event.id">
-                            <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-gray-900" x-text="event.name"></div>
-                                    <div class="text-sm text-gray-500 mt-1" x-text="event.description || 'Sin descripción'"></div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-gray-900">
-                                        <span class="font-medium">Inicio:</span> 
-                                        <span x-text="formatDate(event.start_date)"></span>
-                                    </div>
-                                    <div class="text-sm text-gray-900 mt-1">
-                                        <span class="font-medium">Fin:</span> 
-                                        <span x-text="formatDate(event.end_date)"></span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span :class="{
+    <!-- Tabla (cuando no está cargando) -->
+    <div x-show="!loading">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Nombre
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Fechas
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Estado
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Actividades
+              </th>
+              <th
+                scope="col"
+                class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Acciones
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <template x-for="event in events" :key="event.id">
+              <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div
+                    class="text-sm font-medium text-gray-900"
+                    x-text="event.name"
+                  ></div>
+                  <div
+                    class="text-sm text-gray-500 mt-1"
+                    x-text="event.description || 'Sin descripción'"
+                  ></div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div class="text-sm text-gray-900">
+                    <span class="font-medium">Inicio:</span>
+                    <span
+                      x-text="event.start_date_formatted || (window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(event.start_date) : formatDate(event.start_date))"
+                    ></span>
+                  </div>
+                  <div class="text-sm text-gray-900 mt-1">
+                    <span class="font-medium">Fin:</span>
+                    <span
+                      x-text="event.end_date_formatted || (window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(event.end_date) : formatDate(event.end_date))"
+                    ></span>
+                  </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span
+                    :class="{
                                         'bg-green-100 text-green-800': event.is_active,
                                         'bg-red-100 text-red-800': !event.is_active
-                                    }" 
-                                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
-                                        <span x-text="event.is_active ? 'Activo' : 'Inactivo'"></span>
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <span x-text="event.activities_count || 0"></span> actividades
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <div class="flex justify-end space-x-2">
-                                        <button @click="viewEvent(event)" 
-                                                class="text-indigo-600 hover:text-indigo-900"
-                                                title="Ver detalles">
-                                            <i class="ti ti-eye"></i>
-                                        </button>
-                                        <button @click="openEditModal(event)" 
-                                                class="text-indigo-600 hover:text-indigo-900"
-                                                title="Editar">
-                                            <i class="ti ti-edit"></i>
-                                        </button>
-                                        <button @click="confirmDelete(event)" 
-                                                class="text-red-600 hover:text-red-900"
-                                                title="Eliminar">
-                                            <i class="ti ti-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </template>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Mensaje cuando no hay eventos -->
-            <div x-show="events.length === 0 && !loading" class="text-center py-12">
-                <i class="ti ti-calendar-off text-4xl text-gray-300 mx-auto"></i>
-                <h3 class="mt-2 text-sm font-medium text-gray-900">No hay eventos</h3>
-                <p class="mt-1 text-sm text-gray-500">Empieza creando un nuevo evento.</p>
-                <div class="mt-6">
-                    <button @click="openCreateModal()" 
-                            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        <i class="ti ti-plus mr-2"></i>
-                        Crear primer evento
+                                    }"
+                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                  >
+                    <span
+                      x-text="event.is_active ? 'Activo' : 'Inactivo'"
+                    ></span>
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span x-text="event.activities_count || 0"></span> actividades
+                </td>
+                <td
+                  class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+                >
+                  <div class="flex justify-end space-x-2">
+                    <button
+                      @click="viewEvent(event)"
+                      class="text-indigo-600 hover:text-indigo-900"
+                      title="Ver detalles"
+                    >
+                      <i class="ti ti-eye"></i>
                     </button>
-                </div>
-            </div>
-        </div>
-    </div>
+                    <button
+                      @click="openEditModal(event)"
+                      class="text-indigo-600 hover:text-indigo-900"
+                      title="Editar"
+                    >
+                      <i class="ti ti-edit"></i>
+                    </button>
+                    <button
+                      @click="confirmDelete(event)"
+                      class="text-red-600 hover:text-red-900"
+                      title="Eliminar"
+                    >
+                      <i class="ti ti-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
 
-    <!-- Paginación -->
-    <div class="mt-6 flex items-center justify-between">
-        <div class="text-sm text-gray-700">
-            Mostrando <span x-text="pagination.from"></span> a <span x-text="pagination.to"></span> de 
-            <span x-text="pagination.total"></span> resultados
+      <!-- Mensaje cuando no hay eventos -->
+      <div x-show="events.length === 0 && !loading" class="text-center py-12">
+        <i class="ti ti-calendar-off text-4xl text-gray-300 mx-auto"></i>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No hay eventos</h3>
+        <p class="mt-1 text-sm text-gray-500">
+          Empieza creando un nuevo evento.
+        </p>
+        <div class="mt-6">
+          <button
+            @click="openCreateModal()"
+            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <i class="ti ti-plus mr-2"></i>
+            Crear primer evento
+          </button>
         </div>
-        <div class="flex space-x-2">
-            <button @click="changePage(pagination.current_page - 1)"
-                    :disabled="pagination.current_page === 1"
-                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                Anterior
-            </button>
-            <template x-for="page in pagination.pages" :key="page">
-                <button @click="changePage(page)"
-                        :class="{
+      </div>
+    </div>
+  </div>
+
+  <!-- Paginación -->
+  <div class="mt-6 flex items-center justify-between">
+    <div class="text-sm text-gray-700">
+      Mostrando <span x-text="pagination.from"></span> a
+      <span x-text="pagination.to"></span> de
+      <span x-text="pagination.total"></span> resultados
+    </div>
+    <div class="flex space-x-2">
+      <button
+        @click="changePage(pagination.current_page - 1)"
+        :disabled="pagination.current_page === 1"
+        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Anterior
+      </button>
+      <template x-for="page in pagination.pages" :key="page">
+        <button
+          @click="changePage(page)"
+          :class="{
                             'bg-indigo-600 text-white': page === pagination.current_page,
                             'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
                         }"
-                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md">
-                    <span x-text="page"></span>
-                </button>
+          class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md"
+        >
+          <span x-text="page"></span>
+        </button>
+      </template>
+      <button
+        @click="changePage(pagination.current_page + 1)"
+        :disabled="pagination.current_page === pagination.last_page"
+        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Siguiente
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal para Crear/Editar Evento -->
+  <div
+    x-show="showModal"
+    x-cloak
+    class="fixed inset-0 z-50 overflow-y-auto"
+    aria-labelledby="modal-title"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div
+      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+    >
+      <!-- Overlay -->
+      <div
+        x-show="showModal"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+        @click="closeModal()"
+      ></div>
+
+      <!-- Contenido del modal -->
+      <div
+        x-show="showModal"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full"
+      >
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+              <h3
+                class="text-lg leading-6 font-medium text-gray-900"
+                id="modal-title"
+                x-text="editingEvent ? 'Editar Evento' : 'Crear Nuevo Evento'"
+              ></h3>
+              <div class="mt-4">
+                <!-- Formulario de evento -->
+                <form id="event-form" @submit.prevent="saveEvent()">
+                  <div class="space-y-4">
+                    <!-- Nombre -->
+                    <div>
+                      <label
+                        for="name"
+                        class="block text-sm font-medium text-gray-700"
+                        >Nombre <span class="text-red-500">*</span></label
+                      >
+                      <input
+                        type="text"
+                        id="name"
+                        x-model="currentEvent.name"
+                        required
+                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+                      />
+                    </div>
+
+                    <!-- Descripción -->
+                    <div>
+                      <label
+                        for="description"
+                        class="block text-sm font-medium text-gray-700"
+                        >Descripción</label
+                      >
+                      <textarea
+                        id="description"
+                        x-model="currentEvent.description"
+                        rows="3"
+                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+                      ></textarea>
+                    </div>
+
+                    <!-- Fechas -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label
+                          for="start_date"
+                          class="block text-sm font-medium text-gray-700"
+                          >Fecha de Inicio *</label
+                        >
+                        <input
+                          type="datetime-local"
+                          id="start_date"
+                          x-model="currentEvent.start_date"
+                          required
+                          class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+                        />
+                      </div>
+                      <div>
+                        <label
+                          for="end_date"
+                          class="block text-sm font-medium text-gray-700"
+                          >Fecha de Fin *</label
+                        >
+                        <input
+                          type="datetime-local"
+                          id="end_date"
+                          x-model="currentEvent.end_date"
+                          required
+                          class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+                        />
+                      </div>
+                    </div>
+
+                    <!-- Estado -->
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Estado</label
+                      >
+                      <div class="mt-1 flex items-center">
+                        <label class="inline-flex items-center">
+                          <input
+                            type="checkbox"
+                            x-model="currentEvent.is_active"
+                            class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 accent-indigo-600"
+                          />
+                          <span class="ml-2">Activo</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button
+            type="submit"
+            form="event-form"
+            :disabled="saving"
+            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <template x-if="saving">
+              <span class="flex items-center">
+                <svg
+                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Guardando...
+              </span>
             </template>
-            <button @click="changePage(pagination.current_page + 1)"
-                    :disabled="pagination.current_page === pagination.last_page"
-                    class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                Siguiente
-            </button>
+            <template x-if="!saving">
+              <span>Guardar</span>
+            </template>
+          </button>
+          <button
+            type="button"
+            @click="closeModal()"
+            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            Cancelar
+          </button>
         </div>
+      </div>
     </div>
+  </div>
 
-    <!-- Modal para Crear/Editar Evento -->
-    <div x-show="showModal"
-        x-cloak 
-        class="fixed inset-0 z-50 overflow-y-auto"
-        aria-labelledby="modal-title" 
-        role="dialog" 
-        aria-modal="true">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <!-- Overlay -->
-            <div x-show="showModal" 
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0"
-                x-transition:enter-end="opacity-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100"
-                x-transition:leave-end="opacity-0"
-                class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
-                @click="closeModal()"></div>
+  <!-- Modal de Confirmación de Eliminación -->
+  <div
+    x-show="showDeleteModal"
+    x-cloak
+    class="fixed inset-0 z-50 overflow-y-auto"
+    aria-labelledby="modal-title"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div
+      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+    >
+      <!-- Overlay -->
+      <div
+        x-show="showDeleteModal"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+        @click="showDeleteModal = false"
+      ></div>
 
-            <!-- Contenido del modal -->
-            <div x-show="showModal" 
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
-                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div class="sm:flex sm:items-start">
-                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900" 
-                                id="modal-title" 
-                                x-text="editingEvent ? 'Editar Evento' : 'Crear Nuevo Evento'">
-                            </h3>
-                            <div class="mt-4">
-                                <!-- Formulario de evento -->
-                                <form id="event-form" @submit.prevent="saveEvent()">
-                                    <div class="space-y-4">
-                                        <!-- Nombre -->
-                                        <div>
-                                            <label for="name" class="block text-sm font-medium text-gray-700">Nombre <span class="text-red-500">*</span></label>
-                                            <input type="text" 
-                                                    id="name" 
-                                                    x-model="currentEvent.name"
-                                                    required
-                                                    class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
-                                        </div>
-
-                                        <!-- Descripción -->
-                                        <div>
-                                            <label for="description" class="block text-sm font-medium text-gray-700">Descripción</label>
-                                            <textarea id="description" 
-                                                      x-model="currentEvent.description"
-                                                      rows="3"
-                                                      class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"></textarea>
-                                        </div>
-
-                                        <!-- Fechas -->
-                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <label for="start_date" class="block text-sm font-medium text-gray-700">Fecha de Inicio *</label>
-                                                <input type="datetime-local" 
-                                                       id="start_date" 
-                                                       x-model="currentEvent.start_date"
-                                                       required
-                                                       class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
-                                            </div>
-                                            <div>
-                                                <label for="end_date" class="block text-sm font-medium text-gray-700">Fecha de Fin *</label>
-                                                <input type="datetime-local" 
-                                                       id="end_date" 
-                                                       x-model="currentEvent.end_date"
-                                                       required
-                                                       class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2">
-                                            </div>
-                                        </div>
-
-                                        <!-- Estado -->
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700">Estado</label>
-                                            <div class="mt-1 flex items-center">
-                                                <label class="inline-flex items-center">
-                                                    <input type="checkbox" 
-                                                           x-model="currentEvent.is_active"
-                                                           class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 accent-indigo-600">
-                                                    <span class="ml-2">Activo</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="submit" 
-                            form="event-form"
-                            :disabled="saving"
-                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                        <template x-if="saving">
-                            <span class="flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Guardando...
-                            </span>
-                        </template>
-                        <template x-if="!saving">
-                            <span>Guardar</span>
-                        </template>
-                    </button>
-                    <button type="button" 
-                            @click="closeModal()" 
-                            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                        Cancelar
-                    </button>
-                </div>
+      <!-- Contenido del modal -->
+      <div
+        x-show="showDeleteModal"
+        x-transition:enter="ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave="ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+        x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+        class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+      >
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="sm:flex sm:items-start">
+            <div
+              class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"
+            >
+              <i class="ti ti-alert-triangle text-red-600"></i>
             </div>
-        </div>
-    </div>
-
-    <!-- Modal de Confirmación de Eliminación -->
-    <div x-show="showDeleteModal" 
-        x-cloak
-        class="fixed inset-0 z-50 overflow-y-auto"
-        aria-labelledby="modal-title" 
-        role="dialog" 
-        aria-modal="true">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <!-- Overlay -->
-            <div x-show="showDeleteModal" 
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0"
-                x-transition:enter-end="opacity-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100"
-                x-transition:leave-end="opacity-0"
-                class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" 
-                @click="showDeleteModal = false"></div>
-
-            <!-- Contenido del modal -->
-            <div x-show="showDeleteModal" 
-                x-transition:enter="ease-out duration-300"
-                x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                x-transition:leave="ease-in duration-200"
-                x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div class="sm:flex sm:items-start">
-                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                            <i class="ti ti-alert-triangle text-red-600"></i>
-                        </div>
-                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                                Confirmar eliminación
-                            </h3>
-                            <div class="mt-2">
-                                <p class="text-sm text-gray-500">
-                                    ¿Estás seguro de que quieres eliminar el evento "<span x-text="eventToDelete?.name"></span>"? 
-                                    Esta acción no se puede deshacer.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="button" 
-                            @click="deleteEvent()" 
-                            :disabled="deleting"
-                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                        <template x-if="deleting">
-                            <span class="flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                Eliminando...
-                            </span>
-                        </template>
-                        <template x-if="!deleting">
-                            <span>Eliminar</span>
-                        </template>
-                    </button>
-                    <button type="button" 
-                            @click="showDeleteModal = false" 
-                            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                        Cancelar
-                    </button>
-                </div>
+            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+              <h3
+                class="text-lg leading-6 font-medium text-gray-900"
+                id="modal-title"
+              >
+                Confirmar eliminación
+              </h3>
+              <div class="mt-2">
+                <p class="text-sm text-gray-500">
+                  ¿Estás seguro de que quieres eliminar el evento "<span
+                    x-text="eventToDelete?.name"
+                  ></span
+                  >"? Esta acción no se puede deshacer.
+                </p>
+              </div>
             </div>
+          </div>
         </div>
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button
+            type="button"
+            @click="deleteEvent()"
+            :disabled="deleting"
+            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <template x-if="deleting">
+              <span class="flex items-center">
+                <svg
+                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Eliminando...
+              </span>
+            </template>
+            <template x-if="!deleting">
+              <span>Eliminar</span>
+            </template>
+          </button>
+          <button
+            type="button"
+            @click="showDeleteModal = false"
+            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
     </div>
+  </div>
 </div>

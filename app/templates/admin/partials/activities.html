@@ -177,9 +177,13 @@
                     x-text="activity.event?.name || 'Evento desconocido'"
                   ></div>
                   <div class="text-sm text-gray-900 mt-1">
-                    <span x-text="formatDate(activity.start_datetime)"></span>
+                    <span
+                      x-text="(window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(activity.start_datetime) : formatDate(activity.start_datetime))"
+                    ></span>
                     <span> - </span>
-                    <span x-text="formatDate(activity.end_datetime)"></span>
+                    <span
+                      x-text="(window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(activity.end_datetime) : formatDate(activity.end_datetime))"
+                    ></span>
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">

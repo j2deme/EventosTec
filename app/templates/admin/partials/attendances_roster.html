@@ -49,7 +49,7 @@
           <template x-for="a in activities" :key="a.id">
             <option
               :value="a.id"
-              x-text="`${a.name} (${a.start_date ? a.start_date.split('T')[0] : ''})`"
+              x-text="`${a.name} (${a.start_date_formatted || (a.start_date ? a.start_date.split('T')[0] : '')})`"
             ></option>
           </template>
         </select>

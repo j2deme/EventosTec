@@ -1,38 +1,61 @@
 <!-- templates/student/partials/event_activities.html -->
 <div x-data="studentEventActivitiesManager()" x-init="init()">
   <!-- Contenido principal (solo se muestra cuando NO se está cargando el evento) -->
-  <div x-show="!loadingEvent"> <!-- ✨ Corregido nombre de variable -->
+  <div x-show="!loadingEvent">
+    <!-- ✨ Corregido nombre de variable -->
     <!-- Header con navegación -->
     <div class="mb-6">
       <div class="flex items-center mb-4">
         <!-- ✨ Botón de regresar corregido -->
-        <button @click="goBack()" class="mr-4 text-indigo-600 hover:text-indigo-800">
+        <button
+          @click="goBack()"
+          class="mr-4 text-indigo-600 hover:text-indigo-800"
+        >
           <i class="ti ti-arrow-left text-xl"></i>
         </button>
         <div>
-          <h2 class="text-2xl font-bold text-gray-900" x-text="currentEvent.name"></h2>
+          <h2
+            class="text-2xl font-bold text-gray-900"
+            x-text="currentEvent.name"
+          ></h2>
           <p class="text-gray-600" x-text="currentEvent.description"></p>
         </div>
       </div>
-      
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-lg shadow">
+
+      <div
+        class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white p-4 rounded-lg shadow"
+      >
         <div>
           <p class="text-sm font-medium text-gray-500">Fecha de inicio</p>
-          <p class="text-sm text-gray-900" x-text="formatDate(currentEvent.start_date)"></p>
+          <p
+            class="text-sm text-gray-900"
+            x-text="(window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(currentEvent.start_date) : formatDate(currentEvent.start_date))"
+          ></p>
         </div>
         <div>
           <p class="text-sm font-medium text-gray-500">Fecha de fin</p>
-          <p class="text-sm text-gray-900" x-text="formatDate(currentEvent.end_date)"></p>
+          <p
+            class="text-sm text-gray-900"
+            x-text="(window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(currentEvent.end_date) : formatDate(currentEvent.end_date))"
+          ></p>
         </div>
         <div>
           <p class="text-sm font-medium text-gray-500">Estado</p>
-          <p class="text-sm" :class="currentEvent.is_active ? 'text-green-600' : 'text-red-600'">
-            <span x-text="currentEvent.is_active ? 'Activo' : 'Inactivo'"></span>
+          <p
+            class="text-sm"
+            :class="currentEvent.is_active ? 'text-green-600' : 'text-red-600'"
+          >
+            <span
+              x-text="currentEvent.is_active ? 'Activo' : 'Inactivo'"
+            ></span>
           </p>
         </div>
         <div>
           <p class="text-sm font-medium text-gray-500">Actividades</p>
-          <p class="text-sm text-gray-900" x-text="currentEvent.activities_count || 0"></p>
+          <p
+            class="text-sm text-gray-900"
+            x-text="currentEvent.activities_count || 0"
+          ></p>
         </div>
       </div>
     </div>
@@ -94,7 +117,9 @@
 
     <!-- Mensaje de carga -->
     <div x-show="loading" class="text-center py-12">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+      <div
+        class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"
+      ></div>
       <p class="mt-2 text-gray-600">Cargando actividades...</p>
     </div>
 
@@ -105,70 +130,102 @@
           <i class="ti ti-alert-circle text-red-400"></i>
         </div>
         <div class="ml-3">
-          <h3 class="text-sm font-medium text-red-800" x-text="errorMessage"></h3>
+          <h3
+            class="text-sm font-medium text-red-800"
+            x-text="errorMessage"
+          ></h3>
         </div>
       </div>
     </div>
 
     <!-- ✨ Vista para eventos multídias: Cronograma agrupado por días con bloques diarios -->
-    <div x-show="!loading && activitiesByDay.length > 0 && !isSingleDayEvent(currentEvent)">
+    <div
+      x-show="!loading && activitiesByDay.length > 0 && !isSingleDayEvent(currentEvent)"
+    >
       <template x-for="(dayGroup, index) in activitiesByDay" :key="index">
         <div class="mb-8">
           <h3 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">
             <i class="ti ti-calendar mr-2"></i>
-            <span x-text="formatOnlyDate(dayGroup.date)"></span>
-            <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="dayGroup.activities.length"></span> actividades)</span>
+            <span
+              x-text="(window.dateHelpers && window.dateHelpers.formatOnlyDate ? window.dateHelpers.formatOnlyDate(dayGroup.date) : formatOnlyDate(dayGroup.date))"
+            ></span>
+            <span class="text-sm font-normal text-gray-500 ml-2"
+              >(<span x-text="dayGroup.activities.length"></span>
+              actividades)</span
+            >
           </h3>
-          
+
           <div class="space-y-4">
-            <template x-for="activity in dayGroup.activities" :key="activity.id">
-              <div class="flex items-center p-4 bg-white rounded-lg shadow border-l-4" 
-                   :class="{
+            <template
+              x-for="activity in dayGroup.activities"
+              :key="activity.id"
+            >
+              <div
+                class="flex items-center p-4 bg-white rounded-lg shadow border-l-4"
+                :class="{
                      'border-indigo-500': activity.activity_type === 'Magistral',
                      'border-green-500': activity.activity_type === 'Conferencia',
                      'border-yellow-500': activity.activity_type === 'Taller',
                      'border-blue-500': activity.activity_type === 'Curso',
                      'border-gray-300': activity.activity_type === 'Otro'
-                   }">
-                <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                     :class="{
+                   }"
+              >
+                <div
+                  class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                  :class="{
                        'bg-indigo-100 text-indigo-600': activity.activity_type === 'Magistral',
                        'bg-green-100 text-green-600': activity.activity_type === 'Conferencia',
                        'bg-yellow-100 text-yellow-600': activity.activity_type === 'Taller',
                        'bg-blue-100 text-blue-600': activity.activity_type === 'Curso',
                        'bg-gray-100 text-gray-600': activity.activity_type === 'Otro'
-                     }">
+                     }"
+                >
                   <i class="ti ti-book text-sm"></i>
                 </div>
                 <div class="ml-4 flex-1">
                   <div class="flex justify-between">
-                    <h4 class="text-md font-medium text-gray-900" x-text="activity.name"></h4>
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800" 
-                          x-text="activity.code || 'N/A'"></span>
+                    <h4
+                      class="text-md font-medium text-gray-900"
+                      x-text="activity.name"
+                    ></h4>
+                    <span
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                      x-text="activity.code || 'N/A'"
+                    ></span>
                   </div>
                   <p class="mt-1 text-sm text-gray-500">
-                    <span x-text="activity.activity_type"></span> - 
+                    <span x-text="activity.activity_type"></span> -
                     <span x-text="activity.department"></span>
                   </p>
-                  
-                  <div class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+
+                  <div
+                    class="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm"
+                  >
                     <div class="flex items-center text-gray-500">
                       <i class="ti ti-clock mr-1.5"></i>
                       <span>
-                        <span x-text="formatTime(activity.start_datetime)"></span>
+                        <span
+                          x-text="(window.dateHelpers && window.dateHelpers.formatTime ? window.dateHelpers.formatTime(activity.start_datetime) : formatTime(activity.start_datetime))"
+                        ></span>
                         <span class="mx-1">-</span>
-                        <span x-text="formatTime(activity.end_datetime)"></span>
+                        <span
+                          x-text="(window.dateHelpers && window.dateHelpers.formatTime ? window.dateHelpers.formatTime(activity.end_datetime) : formatTime(activity.end_datetime))"
+                        ></span>
                       </span>
                     </div>
                     <div class="flex items-center text-gray-500">
                       <i class="ti ti-map-pin mr-1.5"></i>
-                      <span x-text="activity.location || 'Sin ubicación'"></span>
+                      <span
+                        x-text="activity.location || 'Sin ubicación'"
+                      ></span>
                     </div>
                     <div class="flex items-center text-gray-500">
                       <i class="ti ti-users mr-1.5"></i>
                       <span>
                         <span x-text="activity.current_capacity || 0"></span>
-                        <span x-show="activity.max_capacity">/ <span x-text="activity.max_capacity"></span></span>
+                        <span x-show="activity.max_capacity"
+                          >/ <span x-text="activity.max_capacity"></span
+                        ></span>
                         <span x-show="!activity.max_capacity">/ ∞</span>
                       </span>
                     </div>
@@ -176,43 +233,59 @@
                       <i class="ti ti-layout-grid mr-1.5"></i>
                       <span x-text="activity.modality"></span>
                     </div>
-                    <div x-show="activity.total_days > 1" class="mt-1 p-2 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <div
+                      x-show="activity.total_days > 1"
+                      class="mt-1 p-2 bg-yellow-50 border border-yellow-200 rounded-md"
+                    >
                       <div class="flex items-center">
                         <i class="ti ti-info-circle text-yellow-400 mr-2"></i>
                         <p class="text-xs text-yellow-700">
-                          Esta actividad se compone de <span x-text="activity.total_days"></span> sesiones.
+                          Esta actividad se compone de
+                          <span x-text="activity.total_days"></span> sesiones.
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
-                
+
                 <div class="ml-4">
-                  <button 
-                    @click="registerForActivity(activity)" 
+                  <button
+                    @click="registerForActivity(activity)"
                     :disabled="!canRegisterForActivity(activity)"
                     :class="{
                       'bg-green-600 hover:bg-green-700 text-white': isActivityRegistered(activity),
                       'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
                       'bg-gray-400 cursor-not-allowed text-white': !canRegisterForActivity(activity)
                     }"
-                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full w-full justify-center">
+                    class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full w-full justify-center"
+                  >
                     <span x-show="isActivityRegistered(activity)">
                       <i class="ti ti-check mr-1"></i> Registrado
                     </span>
-                    <span x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)">
+                    <span
+                      x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)"
+                    >
                       <i class="ti ti-bookmark mr-1"></i> Preregistrar
                     </span>
-                    <span x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)">
+                    <span
+                      x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)"
+                    >
                       <i class="ti ti-x mr-1"></i> No disponible
                     </span>
                   </button>
-                  
+
                   <!-- ✨ Indicador de día en serie para actividades multídias (más visible) -->
-                  <div x-show="activity.total_days > 1" class="mt-2 text-xs text-gray-500 text-center">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800">
+                  <div
+                    x-show="activity.total_days > 1"
+                    class="mt-2 text-xs text-gray-500 text-center"
+                  >
+                    <span
+                      class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800"
+                    >
                       <i class="ti ti-calendar mr-1"></i>
-                      <span x-text="`Sesión ${activity.day_in_series + 1} / ${activity.total_days}`"></span>
+                      <span
+                        x-text="`Sesión ${activity.day_in_series + 1} / ${activity.total_days}`"
+                      ></span>
                     </span>
                   </div>
                 </div>
@@ -224,51 +297,68 @@
     </div>
 
     <!-- ✨ Vista para eventos de un solo día: Secuencia lineal (opcional, si quieres mantenerla) -->
-    <div x-show="!loading && activitiesByDay.length > 0 && isSingleDayEvent(currentEvent)">
+    <div
+      x-show="!loading && activitiesByDay.length > 0 && isSingleDayEvent(currentEvent)"
+    >
       <h3 class="text-lg font-medium text-gray-900 mb-4 pb-2 border-b">
         <i class="ti ti-list mr-2"></i>
         Secuencia de Actividades
-        <span class="text-sm font-normal text-gray-500 ml-2">(<span x-text="activities.length"></span> actividades)</span>
+        <span class="text-sm font-normal text-gray-500 ml-2"
+          >(<span x-text="activities.length"></span> actividades)</span
+        >
       </h3>
-      
+
       <div class="space-y-4">
         <template x-for="(dayGroup, index) in activitiesByDay" :key="index">
           <template x-for="activity in dayGroup.activities" :key="activity.id">
-            <div class="flex items-center p-4 bg-white rounded-lg shadow border-l-4"
-                 :class="{
+            <div
+              class="flex items-center p-4 bg-white rounded-lg shadow border-l-4"
+              :class="{
                    'border-indigo-500': activity.activity_type === 'Magistral',
                    'border-green-500': activity.activity_type === 'Conferencia',
                    'border-yellow-500': activity.activity_type === 'Taller',
                    'border-blue-500': activity.activity_type === 'Curso',
                    'border-gray-300': activity.activity_type === 'Otro'
-                 }">
-              <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
-                   :class="{
+                 }"
+            >
+              <div
+                class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                :class="{
                      'bg-indigo-100 text-indigo-600': activity.activity_type === 'Magistral',
                      'bg-green-100 text-green-600': activity.activity_type === 'Conferencia',
                      'bg-yellow-100 text-yellow-600': activity.activity_type === 'Taller',
                      'bg-blue-100 text-blue-600': activity.activity_type === 'Curso',
                      'bg-gray-100 text-gray-600': activity.activity_type === 'Otro'
-                   }">
+                   }"
+              >
                 <i class="ti ti-book text-sm"></i>
               </div>
               <div class="ml-4 flex-1">
                 <div class="flex justify-between">
-                  <h4 class="text-md font-medium text-gray-900" x-text="activity.name"></h4>
-                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800" 
-                        x-text="activity.code || 'N/A'"></span>
+                  <h4
+                    class="text-md font-medium text-gray-900"
+                    x-text="activity.name"
+                  ></h4>
+                  <span
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                    x-text="activity.code || 'N/A'"
+                  ></span>
                 </div>
                 <p class="mt-1 text-sm text-gray-500">
-                  <span x-text="activity.activity_type"></span> - 
+                  <span x-text="activity.activity_type"></span> -
                   <span x-text="activity.department"></span>
                 </p>
                 <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
                   <div class="flex items-center text-gray-500">
                     <i class="ti ti-clock mr-1.5"></i>
                     <span>
-                      <span x-text="formatTime(activity.start_datetime)"></span>
+                      <span
+                        x-text="(window.dateHelpers && window.dateHelpers.formatTime ? window.dateHelpers.formatTime(activity.start_datetime) : formatTime(activity.start_datetime))"
+                      ></span>
                       <span class="mx-1">-</span>
-                      <span x-text="formatTime(activity.end_datetime)"></span>
+                      <span
+                        x-text="(window.dateHelpers && window.dateHelpers.formatTime ? window.dateHelpers.formatTime(activity.end_datetime) : formatTime(activity.end_datetime))"
+                      ></span>
                     </span>
                   </div>
                   <div class="flex items-center text-gray-500">
@@ -279,7 +369,9 @@
                     <i class="ti ti-users mr-1.5"></i>
                     <span>
                       <span x-text="activity.current_capacity || 0"></span>
-                      <span x-show="activity.max_capacity">/ <span x-text="activity.max_capacity"></span></span>
+                      <span x-show="activity.max_capacity"
+                        >/ <span x-text="activity.max_capacity"></span
+                      ></span>
                       <span x-show="!activity.max_capacity">/ ∞</span>
                     </span>
                   </div>
@@ -290,22 +382,27 @@
                 </div>
               </div>
               <div class="ml-4">
-                <button 
-                  @click="registerForActivity(activity)" 
+                <button
+                  @click="registerForActivity(activity)"
                   :disabled="!canRegisterForActivity(activity)"
                   :class="{
                     'bg-green-600 hover:bg-green-700 text-white': isActivityRegistered(activity),
                     'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
                     'bg-gray-400 cursor-not-allowed text-white': !canRegisterForActivity(activity)
                   }"
-                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full">
+                  class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full"
+                >
                   <span x-show="isActivityRegistered(activity)">
                     <i class="ti ti-check mr-1"></i> Registrado
                   </span>
-                  <span x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)">
+                  <span
+                    x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)"
+                  >
                     <i class="ti ti-bookmark mr-1"></i> Preregistrar
                   </span>
-                  <span x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)">
+                  <span
+                    x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)"
+                  >
                     <i class="ti ti-x mr-1"></i> No disponible
                   </span>
                 </button>
@@ -317,47 +414,65 @@
     </div>
 
     <!-- Mensaje cuando no hay actividades -->
-    <div x-show="!loading && activitiesByDay.length === 0" class="text-center py-12">
+    <div
+      x-show="!loading && activitiesByDay.length === 0"
+      class="text-center py-12"
+    >
       <i class="ti ti-book-off text-4xl text-gray-400 mb-4"></i>
-      <h3 class="text-lg font-medium text-gray-900">No se encontraron actividades</h3>
-      <p class="mt-1 text-gray-500">No hay actividades disponibles para este evento.</p>
+      <h3 class="text-lg font-medium text-gray-900">
+        No se encontraron actividades
+      </h3>
+      <p class="mt-1 text-gray-500">
+        No hay actividades disponibles para este evento.
+      </p>
     </div>
 
     <!-- Paginación -->
-    <div x-show="!loading && activitiesByDay.length > 0" class="mt-6 flex items-center justify-between">
+    <div
+      x-show="!loading && activitiesByDay.length > 0"
+      class="mt-6 flex items-center justify-between"
+    >
       <div class="text-sm text-gray-700">
-        Mostrando <span x-text="pagination.from"></span> a <span x-text="pagination.to"></span> de <span x-text="pagination.total"></span> actividades
+        Mostrando <span x-text="pagination.from"></span> a
+        <span x-text="pagination.to"></span> de
+        <span x-text="pagination.total"></span> actividades
       </div>
-      
+
       <div class="flex space-x-2">
-        <button @click="changePage(pagination.current_page - 1)"
-                :disabled="pagination.current_page === 1"
-                :class="{
+        <button
+          @click="changePage(pagination.current_page - 1)"
+          :disabled="pagination.current_page === 1"
+          :class="{
                   'opacity-50 cursor-not-allowed': pagination.current_page === 1,
                   'bg-indigo-600 text-white': pagination.current_page !== 1
                 }"
-                class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md">
+          class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md"
+        >
           Anterior
         </button>
-        
+
         <template x-for="page in pagination.pages" :key="page">
-          <button @click="changePage(page)"
-                  :class="{
+          <button
+            @click="changePage(page)"
+            :class="{
                     'bg-indigo-600 text-white': page === pagination.current_page,
                     'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
                   }"
-                  class="relative inline-flex items-center px-3 py-1.5 border text-sm font-medium rounded-md">
+            class="relative inline-flex items-center px-3 py-1.5 border text-sm font-medium rounded-md"
+          >
             <span x-text="page"></span>
           </button>
         </template>
-        
-        <button @click="changePage(pagination.current_page + 1)"
-                :disabled="pagination.current_page === pagination.last_page"
-                :class="{
+
+        <button
+          @click="changePage(pagination.current_page + 1)"
+          :disabled="pagination.current_page === pagination.last_page"
+          :class="{
                   'opacity-50 cursor-not-allowed': pagination.current_page === pagination.last_page,
                   'bg-indigo-600 text-white': pagination.current_page !== pagination.last_page
                 }"
-                class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md">
+          class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md"
+        >
           Siguiente
         </button>
       </div>
@@ -365,8 +480,11 @@
   </div>
 
   <!-- Mensaje de carga inicial del evento -->
-  <div x-show="loadingEvent" class="text-center py-12"> <!-- ✨ Corregido nombre de variable -->
-    <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+  <div x-show="loadingEvent" class="text-center py-12">
+    <!-- ✨ Corregido nombre de variable -->
+    <div
+      class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"
+    ></div>
     <p class="mt-2 text-gray-600">Cargando información del evento...</p>
   </div>
 </div>
