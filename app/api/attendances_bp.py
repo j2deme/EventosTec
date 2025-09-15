@@ -8,7 +8,7 @@ from app.schemas import attendance_schema, attendances_schema
 from app.models.attendance import Attendance
 from app.models.student import Student
 from app.models.activity import Activity
-from app.utils.auth_helpers import require_admin
+from app.utils.auth_helpers import require_admin, get_current_user, get_user_or_403
 from app.services.attendance_service import calculate_attendance_percentage
 from app.models.registration import Registration
 
@@ -57,13 +57,13 @@ def check_in():
             attendance.check_in_time = datetime.now(timezone.utc)
             attendance.status = 'Parcial'
         else:
-            # Crear nuevo registro de asistencia
-            attendance = Attendance(
-                student_id=student_id,
-                activity_id=activity_id,
-                check_in_time=datetime.now(timezone.utc),
-                status='Parcial'
-            )
+            # Crear nuevo registro de asistencia (asignar atributos explícitamente
+            # para evitar falsos positivos de análisis estático)
+            attendance = Attendance()
+            attendance.student_id = student_id
+            attendance.activity_id = activity_id
+            attendance.check_in_time = datetime.now(timezone.utc)
+            attendance.status = 'Parcial'
             db.session.add(attendance)
 
         if activity.activity_type == 'Magistral' and activity.related_activities:
@@ -279,12 +279,11 @@ def bulk_create_attendances():
 
             if not existing_attendance:
                 # Crear asistencia
-                attendance = Attendance(
-                    student_id=student_id,
-                    activity_id=activity_id,
-                    attendance_percentage=100.0,
-                    status='Asistió'
-                )
+                attendance = Attendance()
+                attendance.student_id = student_id
+                attendance.activity_id = activity_id
+                attendance.attendance_percentage = 100.0
+                attendance.status = 'Asistió'
                 db.session.add(attendance)
                 created_attendances.append(attendance)
                 # Sincronizar con preregistro si existe
@@ -322,6 +321,15 @@ def get_attendances():
         activity_id = request.args.get('activity_id', type=int)
         status = request.args.get('status')
 
+        # Control de acceso: admin (y staff) pueden ver todo; students sólo sus propias asistencias
+        user, user_type, err = get_user_or_403()
+        if err:
+            return err
+
+        # Si el usuario es estudiante, ignora cualquier student_id pasado y fuerza su id
+        if user_type == 'student' and user is not None:
+            student_id = user.id
+
         query = db.session.query(Attendance)
 
         if student_id:
@@ -336,14 +344,14 @@ def get_attendances():
         # Ordenar por fecha de creación
         query = query.order_by(Attendance.created_at.desc())
 
-        attendances = query.paginate(
-            page=page, per_page=per_page, error_out=False
-        )
+        total = query.count()
+        items = query.limit(per_page).offset((page - 1) * per_page).all()
+        pages = (total + per_page - 1) // per_page if per_page else 1
 
         return jsonify({
-            'attendances': attendances_schema.dump(attendances.items),
-            'total': attendances.total,
-            'pages': attendances.pages,
+            'attendances': attendances_schema.dump(items),
+            'total': total,
+            'pages': pages,
             'current_page': page
         }), 200
 
@@ -360,6 +368,14 @@ def get_attendance(attendance_id):
         attendance = db.session.get(Attendance, attendance_id)
         if not attendance:
             return jsonify({'message': 'Asistencia no encontrada'}), 404
+
+        # Control de acceso: si el usuario es estudiante sólo puede ver su propia asistencia
+        user, user_type, err = get_user_or_403()
+        if err:
+            return err
+
+        if user_type == 'student' and user is not None and attendance.student_id != user.id:
+            return jsonify({'message': 'Acceso denegado'}), 403
 
         return jsonify({'attendance': attendance_schema.dump(attendance)}), 200
 
@@ -470,14 +486,13 @@ def register_attendance():
             created = True
             # crear nuevo registro
             if mark_present:
-                attendance = Attendance(
-                    student_id=student_id,
-                    activity_id=activity_id,
-                    attendance_percentage=100.0,
-                    status='Asistió',
-                    check_in_time=None,
-                    check_out_time=None
-                )
+                attendance = Attendance()
+                attendance.student_id = student_id
+                attendance.activity_id = activity_id
+                attendance.attendance_percentage = 100.0
+                attendance.status = 'Asistió'
+                attendance.check_in_time = None
+                attendance.check_out_time = None
                 if check_in:
                     try:
                         attendance.check_in_time = parse_datetime_with_timezone(
@@ -499,13 +514,12 @@ def register_attendance():
                 else:
                     attendance.check_out_time = now
             else:
-                attendance = Attendance(
-                    student_id=student_id,
-                    activity_id=activity_id,
-                    check_in_time=None,
-                    check_out_time=None,
-                    status='Parcial' if check_in and not check_out else 'Ausente'
-                )
+                attendance = Attendance()
+                attendance.student_id = student_id
+                attendance.activity_id = activity_id
+                attendance.check_in_time = None
+                attendance.check_out_time = None
+                attendance.status = 'Parcial' if check_in and not check_out else 'Ausente'
                 if check_in:
                     try:
                         attendance.check_in_time = parse_datetime_with_timezone(
