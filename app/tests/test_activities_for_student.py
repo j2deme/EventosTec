@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 from app import db
@@ -11,8 +11,8 @@ def create_activity_for_event(app, event_id, **kwargs):
         'department': 'CS',
         'name': 'Actividad prueba',
         'description': 'Desc',
-        'start_datetime': datetime.utcnow(),
-        'end_datetime': datetime.utcnow() + timedelta(hours=1),
+        'start_datetime': datetime.now(timezone.utc),
+        'end_datetime': datetime.now(timezone.utc) + timedelta(hours=1),
         'duration_hours': 1.0,
         'activity_type': 'Magistral',
         'location': 'Aula 1',
