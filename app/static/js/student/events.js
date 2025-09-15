@@ -30,6 +30,7 @@ function studentEventsManager() {
 
     // Inicialización
     init() {
+      // initialization without verbose logging
       this.loadEvents();
     },
 

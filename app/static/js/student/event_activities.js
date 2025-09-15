@@ -29,7 +29,7 @@ function studentEventActivitiesManager() {
 
     // Inicialización
     async init() {
-      // Inicializar estado
+      // Inicializar estado (suppress verbose logs)
       this.loadingEvent = false;
       this.errorMessage = "";
 

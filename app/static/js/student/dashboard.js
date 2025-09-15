@@ -1,5 +1,5 @@
 // static/js/student/dashboard.js
-console.log("Student Dashboard JS loaded");
+// startup logs removed to avoid noisy console output in production
 
 function studentDashboard() {
   return {
@@ -31,17 +31,11 @@ function studentDashboard() {
 
     // Inicialización
     init() {
-      console.log("=== INITIALIZING STUDENT DASHBOARD ===");
-      console.log("Current URL:", window.location.href);
-      console.log("Current hash:", window.location.hash);
-      console.log(
-        "localStorage - studentActiveTab:",
-        localStorage.getItem("studentActiveTab")
-      );
+      // initialization (verbose logs removed)
 
       // Verificar autenticación
       if (!window.checkAuthAndRedirect()) {
-        console.log("❌ Authentication failed, redirecting to login");
+        // Auth helper handles redirection; suppress verbose log
         return;
       }
 
@@ -56,28 +50,28 @@ function studentDashboard() {
     },
 
     setupEventListeners() {
-      console.log("Setting up event listeners...");
+      // setting up event listeners
 
       // Escuchar cambios en el historial (botones atrás/adelante del navegador)
       window.addEventListener("popstate", () => {
-        console.log("Popstate event detected");
+        // popstate detected
         this.handleLocationChange();
       });
 
       // Escuchar cambios en hash
       window.addEventListener("hashchange", () => {
-        console.log("Hashchange event detected");
+        // hashchange detected
         this.handleLocationChange();
       });
     },
 
     // Manejar cambio de ubicación
     handleLocationChange() {
-      console.log("Handling location change...");
+      // handle location change
       const tabFromUrl = this.getTabFromUrl();
 
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
-        console.log(`✅ Setting active tab from URL: ${tabFromUrl}`);
+        // set active tab from URL
         this.activeTab = tabFromUrl;
         localStorage.setItem("studentActiveTab", tabFromUrl);
       } else {
@@ -85,7 +79,7 @@ function studentDashboard() {
         const savedTab = localStorage.getItem("studentActiveTab");
         if (savedTab && this.isValidTab(savedTab)) {
           this.activeTab = savedTab;
-          console.log(`✅ Using saved tab: ${savedTab}`);
+          // using saved tab
           // Actualizar URL para reflejar el estado
           if (savedTab === "overview") {
             history.replaceState(null, "", window.location.pathname);
@@ -94,7 +88,7 @@ function studentDashboard() {
           }
         } else {
           this.activeTab = "overview";
-          console.log("✅ Using default tab: overview");
+          // using default tab: overview
         }
       }
     },
@@ -102,7 +96,7 @@ function studentDashboard() {
     // ✨ Corregida función para obtener pestaña de la URL
     getTabFromUrl() {
       const hash = window.location.hash.substring(1); // Remover #
-      console.log("Getting tab from URL hash:", `'${hash}'`);
+      // get tab from URL hash
 
       // ✨ Manejar correctamente el hash vacío
       if (hash === "") {
@@ -124,27 +118,20 @@ function studentDashboard() {
         "profile",
       ];
       const isValid = validTabs.includes(tabId);
-      console.log("Validating tab:", `'${tabId}'`, "Result:", isValid);
       return isValid;
     },
 
     // Establecer pestaña inicial
     setInitialTab() {
-      console.log("=== SETTING INITIAL TAB ===");
-      console.log("Current URL:", window.location.href);
-      console.log("Current hash:", window.location.hash);
-      console.log(
-        "localStorage - studentActiveTab:",
-        localStorage.getItem("studentActiveTab")
-      );
+      // setting initial tab (verbose logs removed)
 
       try {
         // 1. Primero intentar obtener la pestaña de la URL (hash)
         const tabFromUrl = this.getTabFromUrl();
-        console.log("Tab from URL:", tabFromUrl);
+        // tabFromUrl available
 
         if (tabFromUrl && this.isValidTab(tabFromUrl)) {
-          console.log("✅ Using tab from URL:", tabFromUrl);
+          // using tab from URL
           this.activeTab = tabFromUrl;
           localStorage.setItem("studentActiveTab", tabFromUrl);
           return;
@@ -152,10 +139,10 @@ function studentDashboard() {
 
         // 2. Si no hay tab en URL, intentar obtener del localStorage
         const savedTab = localStorage.getItem("studentActiveTab");
-        console.log("Saved tab from localStorage:", savedTab);
+        // savedTab from localStorage
 
         if (savedTab && this.isValidTab(savedTab)) {
-          console.log("✅ Using saved tab:", savedTab);
+          // using saved tab
           this.activeTab = savedTab;
 
           // Actualizar URL para reflejar el estado guardado
@@ -164,7 +151,7 @@ function studentDashboard() {
         }
 
         // 3. Si no hay tab guardada, usar la por defecto
-        console.log("✅ Using default tab: overview");
+        // fallback to default tab: overview
         this.activeTab = "overview";
         localStorage.setItem("studentActiveTab", "overview");
 
@@ -183,7 +170,7 @@ function studentDashboard() {
         localStorage.setItem("studentActiveTab", "overview");
       }
 
-      console.log("Final activeTab:", this.activeTab);
+      // final activeTab set
     },
 
     // Cambiar pestaña
@@ -257,7 +244,7 @@ function studentDashboard() {
 
     // Actualizar URL y almacenamiento local
     updateLocationAndStorage(tabId) {
-      console.log("Updating location and storage for tab:", tabId);
+      // update location and storage for tab
 
       // Guardar en localStorage
       localStorage.setItem("studentActiveTab", tabId);
