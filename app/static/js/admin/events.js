@@ -53,54 +53,48 @@ function eventsManager() {
       this.errorMessage = "";
 
       try {
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          throw new Error("No se encontró el token de autenticación");
-        }
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
 
-        // Construir parámetros de consulta
         const params = new URLSearchParams({
           page: page,
           per_page: 10,
-          ...(this.filters.search && { search: this.filters.search }),
-          ...(this.filters.status && { status: this.filters.status }),
-          ...(this.filters.sort && { sort: this.filters.sort }),
         });
+        if (this.filters.search) params.set("search", this.filters.search);
+        if (this.filters.status) params.set("status", this.filters.status);
+        if (this.filters.sort) params.set("sort", this.filters.sort);
 
-        const response = await fetch(`/api/events?${params.toString()}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
+        const response = await f(`/api/events?${params.toString()}`);
+        if (!response || !response.ok) {
           throw new Error(
-            `Error al cargar eventos: ${response.status} ${response.statusText}`
+            `Error al cargar eventos: ${response && response.status}`
           );
         }
 
         const data = await response.json();
 
-        // Mapear eventos y formatear fechas
-        this.events = data.events.map((event) => ({
+        this.events = (data.events || []).map((event) => ({
           ...event,
           start_date: this.formatDateTimeForInput(event.start_date),
           end_date: this.formatDateTimeForInput(event.end_date),
         }));
 
-        // Actualizar paginación
+        const pages = data.pages || 1;
+        const current = data.current_page || 1;
+        const total = data.total || 0;
+
         this.pagination = {
-          current_page: data.current_page || 1,
-          last_page: data.pages || 1,
-          total: data.total || 0,
-          from: (data.current_page - 1) * 10 + 1,
-          to: Math.min(data.current_page * 10, data.total || 0),
-          pages: Array.from({ length: data.pages || 1 }, (_, i) => i + 1),
+          current_page: current,
+          last_page: pages,
+          total: total,
+          from: (current - 1) * 10 + 1,
+          to: Math.min(current * 10, total),
+          pages: Array.from({ length: pages }, (_, i) => i + 1),
         };
       } catch (error) {
         console.error("Error loading events:", error);
-        showToast("Error al cargar eventos", "error");
+        if (typeof showToast === "function")
+          showToast("Error al cargar eventos", "error");
         this.errorMessage = error.message || "Error al cargar eventos";
       } finally {
         this.loading = false;
@@ -127,12 +121,10 @@ function eventsManager() {
           is_active: this.currentEvent.is_active,
         };
 
-        const response = await fetch("/api/events", {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/events", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(eventData),
         });
 
@@ -189,12 +181,10 @@ function eventsManager() {
           is_active: this.currentEvent.is_active,
         };
 
-        const response = await fetch(`/api/events/${this.currentEvent.id}`, {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(`/api/events/${this.currentEvent.id}`, {
           method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(eventData),
         });
 
@@ -244,12 +234,10 @@ function eventsManager() {
 
         const eventId = this.eventToDelete.id;
 
-        const response = await fetch(`/api/events/${this.eventToDelete.id}`, {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(`/api/events/${this.eventToDelete.id}`, {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
         });
 
         if (!response.ok) {

@@ -61,40 +61,24 @@ function registrationsManager() {
       this.errorMessage = "";
 
       try {
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          throw new Error("No se encontró el token de autenticación");
-        }
-
-        // Construir parámetros de consulta
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const params = new URLSearchParams({
           page: page,
           per_page: this.perPage,
-          ...(this.filters.search && { search: this.filters.search }),
-          ...(this.filters.activity_id && {
-            activity_id: this.filters.activity_id,
-          }),
-          ...(this.filters.status && { status: this.filters.status }),
         });
+        if (this.filters.search) params.set("search", this.filters.search);
+        if (this.filters.activity_id)
+          params.set("activity_id", this.filters.activity_id);
+        if (this.filters.status) params.set("status", this.filters.status);
 
-        const response = await fetch(
-          `/api/registrations?${params.toString()}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (!response.ok) {
+        const response = await f(`/api/registrations?${params.toString()}`);
+        if (!response || !response.ok)
           throw new Error(
-            `Error al cargar registros: ${response.status} ${response.statusText}`
+            `Error al cargar registros: ${response && response.status}`,
           );
-        }
 
         const data = await response.json();
-
         this.registrations = data.registrations || [];
         this.currentPage = data.page || 1;
         this.totalPages = data.pages || 1;
@@ -105,7 +89,12 @@ function registrationsManager() {
       } catch (error) {
         console.error("Error loading registrations:", error);
         this.errorMessage = error.message || "Error al cargar registros";
-        showToast("Error al cargar registros", "error");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Error al cargar registros", "error");
+        }
       } finally {
         this.loading = false;
       }
@@ -117,14 +106,10 @@ function registrationsManager() {
         const token = localStorage.getItem("authToken");
         if (!token) return;
 
-        const response = await fetch("/api/activities?per_page=1000", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/activities?per_page=1000");
+        if (response && response.ok) {
           const data = await response.json();
           this.activities = data.activities || [];
         }
@@ -139,14 +124,10 @@ function registrationsManager() {
         const token = localStorage.getItem("authToken");
         if (!token) return;
 
-        const response = await fetch("/api/students?per_page=1000", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/students?per_page=1000");
+        if (response && response.ok) {
           const data = await response.json();
           this.students = data.students || [];
         }
@@ -158,6 +139,7 @@ function registrationsManager() {
     // Cargar estadísticas
     async loadStats() {
       try {
+        // No hacemos fetchs si no hay token configurado (modo anónimo)
         const token = localStorage.getItem("authToken");
         if (!token) return;
 
@@ -296,12 +278,10 @@ function registrationsManager() {
           activity_id: parseInt(this.currentRegistration.activity_id),
         };
 
-        const response = await fetch("/api/registrations", {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/registrations", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(registrationData),
         });
 
@@ -309,7 +289,7 @@ function registrationsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear registro: ${response.status} ${response.statusText}`
+              `Error al crear registro: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -317,11 +297,21 @@ function registrationsManager() {
         this.closeModal();
         this.loadRegistrations(this.currentPage);
 
-        showToast("Registro creado exitosamente", "success");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Registro creado exitosamente", "success");
+        }
       } catch (error) {
         console.error("Error creating registration:", error);
         this.errorMessage = error.message || "Error al crear registro";
-        showToast("Error al crear registro", "error");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Error al crear registro", "error");
+        }
       } finally {
         this.saving = false;
       }
@@ -344,23 +334,18 @@ function registrationsManager() {
           status: this.currentRegistration.status,
         };
 
-        const response = await fetch(
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(
           `/api/registrations/${this.currentRegistration.id}`,
-          {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(registrationData),
-          }
+          { method: "PUT", body: JSON.stringify(registrationData) },
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar registro: ${response.status} ${response.statusText}`
+              `Error al actualizar registro: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -368,11 +353,21 @@ function registrationsManager() {
         this.closeModal();
         this.loadRegistrations(this.currentPage);
 
-        showToast("Registro actualizado exitosamente", "success");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Registro actualizado exitosamente", "success");
+        }
       } catch (error) {
         console.error("Error updating registration:", error);
         this.errorMessage = error.message || "Error al actualizar registro";
-        showToast("Error al actualizar registro", "error");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Error al actualizar registro", "error");
+        }
       } finally {
         this.saving = false;
       }
@@ -387,7 +382,7 @@ function registrationsManager() {
         }
 
         const registration = this.registrations.find(
-          (r) => r.id === registrationId
+          (r) => r.id === registrationId,
         );
         if (!registration) {
           throw new Error("Registro no encontrado");
@@ -399,12 +394,10 @@ function registrationsManager() {
           status: newStatus,
         };
 
-        const response = await fetch(`/api/registrations/${registrationId}`, {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(`/api/registrations/${registrationId}`, {
           method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(registrationData),
         });
 
@@ -412,17 +405,27 @@ function registrationsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al cambiar estado: ${response.status} ${response.statusText}`
+              `Error al cambiar estado: ${response.status} ${response.statusText}`,
           );
         }
 
         // Recargar lista
         this.loadRegistrations(this.currentPage);
 
-        showToast(`Estado cambiado a: ${newStatus}`, "success");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast(`Estado cambiado a: ${newStatus}`, "success");
+        }
       } catch (error) {
         console.error("Error changing registration status:", error);
-        showToast("Error al cambiar estado del registro", "error");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Error al cambiar estado del registro", "error");
+        }
       }
     },
 
@@ -457,22 +460,18 @@ function registrationsManager() {
           throw new Error("No se encontró el token de autenticación");
         }
 
-        const response = await fetch(
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(
           `/api/registrations/${this.registrationToDelete.id}`,
-          {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
+          { method: "DELETE" },
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar registro: ${response.status} ${response.statusText}`
+              `Error al eliminar registro: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -481,10 +480,20 @@ function registrationsManager() {
         this.registrationToDelete = null;
         this.loadRegistrations(this.currentPage);
 
-        showToast("Registro eliminado exitosamente", "success");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Registro eliminado exitosamente", "success");
+        }
       } catch (error) {
         console.error("Error deleting registration:", error);
-        showToast("Error al eliminar registro", "error");
+        if (
+          typeof window !== "undefined" &&
+          typeof window.showToast === "function"
+        ) {
+          window.showToast("Error al eliminar registro", "error");
+        }
       } finally {
         this.deleting = false;
       }

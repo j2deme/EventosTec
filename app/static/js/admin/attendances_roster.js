@@ -14,10 +14,11 @@ function attendancesRoster() {
     },
 
     async loadEvents() {
+      const sf = window.safeFetch || fetch;
       try {
-        const res = await fetch("/api/events?status=active&per_page=1000");
+        const res = await sf("/api/events?status=active&per_page=1000");
         if (!res.ok) throw new Error("No se pudieron cargar eventos");
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         this.events = data.events || [];
       } catch (err) {
         console.error(err);
@@ -30,12 +31,13 @@ function attendancesRoster() {
         this.activities = [];
         return;
       }
+      const sf = window.safeFetch || fetch;
       try {
-        const res = await fetch(
-          `/api/activities?event_id=${this.selectedEvent}&per_page=1000`
+        const res = await sf(
+          `/api/activities?event_id=${this.selectedEvent}&per_page=1000`,
         );
         if (!res.ok) throw new Error("No se pudieron cargar actividades");
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         this.activities = data.activities || [];
       } catch (err) {
         console.error(err);
@@ -48,13 +50,14 @@ function attendancesRoster() {
         this.registrations = [];
         return;
       }
+      const sf = window.safeFetch || fetch;
       this.loading = true;
       try {
-        const res = await fetch(
-          `/api/registrations?activity_id=${this.selectedActivity}&per_page=1000`
+        const res = await sf(
+          `/api/registrations?activity_id=${this.selectedActivity}&per_page=1000`,
         );
         if (!res.ok) throw new Error("Error al cargar preregistros");
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         this.registrations = data.registrations || [];
         // Limpiar selección
         this.selectedIds = new Set();
@@ -107,13 +110,14 @@ function attendancesRoster() {
       if (studentIds.length === 0) {
         showToast(
           "No se encontró estudiante para los preregistros seleccionados",
-          "error"
+          "error",
         );
         return;
       }
 
       try {
-        const res = await fetch("/api/attendances/bulk-create", {
+        const sf = window.safeFetch || fetch;
+        const res = await sf("/api/attendances/bulk-create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

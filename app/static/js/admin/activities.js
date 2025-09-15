@@ -66,53 +66,42 @@ function activitiesManager() {
       this.errorMessage = "";
 
       try {
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          throw new Error("No se encontró el token de autenticación");
-        }
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
 
-        // Construir parámetros de consulta
-        const params = new URLSearchParams({
-          page: page,
-          per_page: 10,
-          ...(this.filters.search && { search: this.filters.search }),
-          ...(this.filters.event_id && { event_id: this.filters.event_id }),
-          ...(this.filters.activity_type && {
-            activity_type: this.filters.activity_type,
-          }),
-          ...(this.filters.sort && { sort: this.filters.sort }),
-        });
+        const params = new URLSearchParams({ page: page, per_page: 10 });
+        if (this.filters.search) params.set("search", this.filters.search);
+        if (this.filters.event_id)
+          params.set("event_id", this.filters.event_id);
+        if (this.filters.activity_type)
+          params.set("activity_type", this.filters.activity_type);
+        if (this.filters.sort) params.set("sort", this.filters.sort);
 
-        const response = await fetch(`/api/activities?${params.toString()}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
+        const response = await f(`/api/activities?${params.toString()}`);
+        if (!response || !response.ok)
           throw new Error(
-            `Error al cargar actividades: ${response.status} ${response.statusText}`
+            `Error al cargar actividades: ${response && response.status}`,
           );
-        }
 
         const data = await response.json();
 
-        // Mapear actividades y formatear fechas
-        this.activities = data.activities.map((activity) => ({
+        this.activities = (data.activities || []).map((activity) => ({
           ...activity,
           start_datetime: this.formatDateTimeForInput(activity.start_datetime),
           end_datetime: this.formatDateTimeForInput(activity.end_datetime),
         }));
 
-        // Actualizar paginación
+        const pages = data.pages || 1;
+        const current = data.current_page || 1;
+        const total = data.total || 0;
+
         this.pagination = {
-          current_page: data.current_page || 1,
-          last_page: data.pages || 1,
-          total: data.total || 0,
-          from: (data.current_page - 1) * 10 + 1,
-          to: Math.min(data.current_page * 10, data.total || 0),
-          pages: Array.from({ length: data.pages || 1 }, (_, i) => i + 1),
+          current_page: current,
+          last_page: pages,
+          total: total,
+          from: (current - 1) * 10 + 1,
+          to: Math.min(current * 10, total),
+          pages: Array.from({ length: pages }, (_, i) => i + 1),
         };
       } catch (error) {
         console.error("Error loading activities:", error);
@@ -131,19 +120,13 @@ function activitiesManager() {
           throw new Error("No se encontró el token de autenticación");
         }
 
-        const response = await fetch("/api/events/", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/events/");
+        if (!response || !response.ok)
           throw new Error(
-            `Error al cargar eventos: ${response.status} ${response.statusText}`
+            `Error al cargar eventos: ${response && response.status}`,
           );
-        }
-
         const data = await response.json();
         this.events = Array.isArray(data) ? data : data.events || [];
       } catch (error) {
@@ -178,7 +161,7 @@ function activitiesManager() {
 
       if (this.currentActivity.event_id) {
         const selectedEvent = this.events.find(
-          (e) => String(e.id) === String(this.currentActivity.event_id)
+          (e) => String(e.id) === String(this.currentActivity.event_id),
         );
 
         if (selectedEvent) {
@@ -226,12 +209,10 @@ function activitiesManager() {
           throw new Error(validationError);
         }
 
-        const response = await fetch("/api/activities/", {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/activities/", {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify(activityData),
         });
 
@@ -239,7 +220,7 @@ function activitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear actividad: ${response.status} ${response.statusText}`
+              `Error al crear actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -255,7 +236,7 @@ function activitiesManager() {
               action: "created",
               eventId: newActivity.id,
             },
-          })
+          }),
         );
 
         showToast("Actividad creada exitosamente", "success");
@@ -302,23 +283,18 @@ function activitiesManager() {
           throw new Error(validationError);
         }
 
-        const response = await fetch(
-          `/api/activities/${this.currentActivity.id}`,
-          {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(activityData),
-          }
-        );
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(`/api/activities/${this.currentActivity.id}`, {
+          method: "PUT",
+          body: JSON.stringify(activityData),
+        });
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar actividad: ${response.status} ${response.statusText}`
+              `Error al actualizar actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -334,7 +310,7 @@ function activitiesManager() {
               action: "updated",
               eventId: updatedActivity.id,
             },
-          })
+          }),
         );
 
         showToast("Actividad actualizada exitosamente", "success");
@@ -358,22 +334,18 @@ function activitiesManager() {
           throw new Error("No se encontró el token de autenticación");
         }
 
-        const response = await fetch(
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(
           `/api/activities/${this.activityToDelete.id}`,
-          {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
+          { method: "DELETE" },
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar actividad: ${response.status} ${response.statusText}`
+              `Error al eliminar actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -390,7 +362,7 @@ function activitiesManager() {
               action: "deleted",
               eventId: deletedId,
             },
-          })
+          }),
         );
 
         showToast("Actividad eliminada exitosamente", "success");
@@ -511,7 +483,7 @@ function activitiesManager() {
 
       // Obtener el evento seleccionado
       const selectedEvent = this.events.find(
-        (e) => String(e.id) === String(activityData.event_id)
+        (e) => String(e.id) === String(activityData.event_id),
       );
       if (!selectedEvent) {
         this.dateValidationError = "Por favor seleccione un evento válido";
@@ -527,14 +499,14 @@ function activitiesManager() {
       // Validar que las fechas de la actividad estén dentro del rango del evento
       if (activityStart < eventStart) {
         this.dateValidationError = `La fecha de inicio de la actividad no puede ser anterior a la fecha de inicio del evento (${this.formatDateTime(
-          eventStart
+          eventStart,
         )})`;
         return this.dateValidationError;
       }
 
       if (activityEnd > eventEnd) {
         this.dateValidationError = `La fecha de fin de la actividad no puede ser posterior a la fecha de fin del evento (${this.formatDateTime(
-          eventEnd
+          eventEnd,
         )})`;
         return this.dateValidationError;
       }
@@ -609,10 +581,9 @@ function activitiesManager() {
 
     // Consultar actividades relacionadas
     async getRelatedActivities(activityId) {
-      const token = localStorage.getItem("authToken");
-      const response = await fetch(`/api/activities/${activityId}/related`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const f =
+        typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+      const response = await f(`/api/activities/${activityId}/related`);
       if (!response.ok)
         throw new Error("Error al obtener actividades relacionadas");
       const data = await response.json();
@@ -621,31 +592,30 @@ function activitiesManager() {
 
     // Enlazar actividad
     async linkActivity(activityId, relatedId) {
-      const token = localStorage.getItem("authToken");
-      const response = await fetch(`/api/activities/${activityId}/related`, {
+      const f =
+        typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+      const response = await f(`/api/activities/${activityId}/related`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
         body: JSON.stringify({ related_activity_id: relatedId }),
       });
-      if (!response.ok) throw new Error("Error al enlazar actividades");
-      showToast("Actividades enlazadas exitosamente", "success");
+      if (!response || !response.ok)
+        throw new Error("Error al enlazar actividades");
+      if (typeof showToast === "function")
+        showToast("Actividades enlazadas exitosamente", "success");
     },
 
     // Desenlazar actividad
     async unlinkActivity(activityId, relatedId) {
-      const token = localStorage.getItem("authToken");
-      const response = await fetch(
+      const f =
+        typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+      const response = await f(
         `/api/activities/${activityId}/related/${relatedId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { method: "DELETE" },
       );
-      if (!response.ok) throw new Error("Error al desenlazar actividades");
-      showToast("Actividades desenlazadas exitosamente", "success");
+      if (!response || !response.ok)
+        throw new Error("Error al desenlazar actividades");
+      if (typeof showToast === "function")
+        showToast("Actividades desenlazadas exitosamente", "success");
     },
     getAvailableActivities() {
       // Usar activityRelations para saber si una actividad está enlazada como A o B
@@ -666,17 +636,18 @@ function activitiesManager() {
       });
       return this.activityRelations.filter(
         (a) =>
-          a.event_id === this.currentActivity.event_id && !linkedIds.has(a.id)
+          a.event_id === this.currentActivity.event_id && !linkedIds.has(a.id),
       );
     },
 
     // Cargar relaciones de actividades (A y B)
     async loadActivityRelations() {
       const token = localStorage.getItem("authToken");
-      const response = await fetch("/api/activities/relations", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error("Error al obtener relaciones");
+      const f =
+        typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+      const response = await f("/api/activities/relations");
+      if (!response || !response.ok)
+        throw new Error("Error al obtener relaciones");
       const data = await response.json();
       this.activityRelations = data.activities || [];
     },

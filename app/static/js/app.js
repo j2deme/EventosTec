@@ -2,7 +2,11 @@
 
 // Función para obtener token de autenticación
 function getAuthToken() {
-  return localStorage.getItem("authToken");
+  try {
+    return localStorage.getItem("authToken");
+  } catch (e) {
+    return null;
+  }
 }
 
 // Función para verificar si el usuario está autenticado (versión completa con verificación de expiración)
@@ -94,43 +98,78 @@ function checkAuth() {
 
 // ✨ INTERCEPTOR GLOBAL DE FETCH - Corregido y mejorado
 (function setupFetchInterceptor() {
-  // Guardar referencia al fetch original de forma segura (si existe)
+  // Capturar la referencia original a fetch (si existe) en el momento de carga.
+  // Tests del repo mockean global.fetch *antes* de requerir este módulo, así
+  // que conservar esta captura es importante.
   const _fetch = typeof window.fetch === "function" ? window.fetch : undefined;
 
-  // Reemplazar fetch con una versión que agrega el token automáticamente
-  window.fetch = function (input, init = {}) {
-    const token = localStorage.getItem("authToken");
+  function mergeHeaders(init, extra) {
+    const existing = (init && init.headers) || {};
+    return {
+      ...existing,
+      ...extra,
+    };
+  }
 
-    // Si hay token, agregarlo a los headers
+  async function safeFetch(input, init = {}) {
+    const token = getAuthToken();
+
+    const finalInit = { ...(init || {}) };
     if (token) {
-      init.headers = {
-        ...init.headers,
+      finalInit.headers = mergeHeaders(finalInit, {
         Authorization: `Bearer ${token}`,
-      };
+      });
     }
 
-    // Asegurar Content-Type si no existe y hay cuerpo
-    if (init.body && !(init.headers && init.headers["Content-Type"])) {
-      init.headers = {
-        ...init.headers,
+    if (finalInit.body && !finalInit.headers?.["Content-Type"]) {
+      finalInit.headers = mergeHeaders(finalInit, {
         "Content-Type": "application/json",
-      };
+      });
     }
 
-    // console.log("Fetch interceptado:", input, init); // Para debugging
-
-    // Usar únicamente la referencia original capturada al cargar el módulo.
-    // Esto evita recursión si reemplazamos global.fetch.
-    if (typeof _fetch !== "function") {
-      return Promise.reject(
-        new Error("fetch no está disponible en este entorno")
-      );
+    // Prefer the originally captured `_fetch` reference for runtime safety
+    // (prevents wrapper -> safeFetch -> wrapper recursion in the browser).
+    if (typeof _fetch === "function") {
+      return _fetch(input, finalInit);
     }
 
-    return _fetch(input, init);
-  };
+    // If `_fetch` is not available (uncommon in tests), try to use the
+    // current global fetch only if it's a real function and not the
+    // wrapperFetch we assign below. This restores some compatibility with
+    // tests that mock `global.fetch` before or after requiring this module.
+    if (
+      typeof globalThis.fetch === "function" &&
+      globalThis.fetch !== wrapperFetch
+    ) {
+      return globalThis.fetch(input, finalInit);
+    }
 
-  //console.log("Interceptor de fetch instalado correctamente");
+    return Promise.reject(
+      new Error("fetch no está disponible en este entorno")
+    );
+  }
+
+  // Wrapper function assigned to window.fetch. We keep a reference so safeFetch
+  // can detect and avoid calling the wrapper recursively.
+  function wrapperFetch(input, init) {
+    return safeFetch(input, init);
+  }
+
+  window.fetch = wrapperFetch;
+
+  // Exponer helper estable para que los módulos lo usen explícitamente
+  window.safeFetch = safeFetch;
+
+  // También exportar para entornos CommonJS (Jest)
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = {
+      getAuthToken,
+      isAuthenticated,
+      getAuthHeaders,
+      safeFetch,
+      showToast,
+    };
+  }
 })();
 
 // Verificación de autenticación en rutas protegidas

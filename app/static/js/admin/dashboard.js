@@ -236,18 +236,12 @@ function adminDashboard() {
       try {
         const token = localStorage.getItem("authToken");
         if (!token) return;
-
-        const response = await fetch("/api/events/", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/events/");
+        if (response && response.ok) {
           const data = await response.json();
           this.events = Array.isArray(data) ? data : data.events || [];
-          // Actualizar estadísticas
           this.updateStats();
         }
       } catch (error) {
@@ -259,18 +253,12 @@ function adminDashboard() {
       try {
         const token = localStorage.getItem("authToken");
         if (!token) return;
-
-        const response = await fetch("/api/activities/", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/activities/");
+        if (response && response.ok) {
           const data = await response.json();
           this.activities = Array.isArray(data) ? data : data.activities || [];
-          // Actualizar estadísticas
           this.updateStats();
         }
       } catch (error) {
@@ -286,14 +274,10 @@ function adminDashboard() {
         if (!token) return;
 
         // Ejemplo: cargar estadísticas generales
-        const statsResponse = await fetch("/api/stats/", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (statsResponse.ok) {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const statsResponse = await f("/api/stats/");
+        if (statsResponse && statsResponse.ok) {
           const statsData = await statsResponse.json();
 
           // Mapear las propiedades del objeto statsData a las etiquetas de this.stats
@@ -334,14 +318,10 @@ function adminDashboard() {
         if (!token) return;
 
         // Obtener eventos futuros (próximos 30 días)
-        const response = await fetch("/api/events?sort=start_date:asc", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/events?sort=start_date:asc");
+        if (response && response.ok) {
           const data = await response.json();
           const events = Array.isArray(data) ? data : data.events || [];
 
@@ -368,17 +348,12 @@ function adminDashboard() {
         if (!token) return;
 
         // Obtener actividades recientes (últimos 7 días)
-        const response = await fetch(
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(
           "/api/activities?sort=created_at:desc&per_page=10",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
         );
-
-        if (response.ok) {
+        if (response && response.ok) {
           const data = await response.json();
           const activities = Array.isArray(data) ? data : data.activities || [];
 

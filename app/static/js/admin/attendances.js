@@ -26,31 +26,33 @@ function attendancesAdmin() {
         });
       } catch (e) {
         // en entornos de test sin DOM esto puede fallar silenciosamente
-        // console.warn(e);
       }
     },
 
     async loadActivities() {
       try {
-        const res = await fetch("/api/activities");
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f("/api/activities");
         if (!res.ok) throw new Error("No se pudieron cargar actividades");
         const data = await res.json();
         this.activities = data.activities || [];
       } catch (err) {
         console.error(err);
-        showToast("Error al cargar actividades", "error");
+        if (typeof showToast === "function")
+          showToast("Error al cargar actividades", "error");
       }
     },
 
     async search() {
       const q = this.query.trim();
-      if (!q) {
-        this.resultsHtml =
-          '<div class="text-gray-600">Ingresa un término de búsqueda</div>';
-        return;
-      }
+      if (!q)
+        return (this.resultsHtml =
+          '<div class="text-gray-600">Ingresa un término de búsqueda</div>');
       try {
-        const res = await fetch(
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(
           "/api/students?search=" + encodeURIComponent(q) + "&per_page=10"
         );
         if (!res.ok) throw new Error("Error en búsqueda");
@@ -66,32 +68,24 @@ function attendancesAdmin() {
     },
 
     renderStudents(students) {
-      if (!students || !students.length) {
-        this.resultsHtml =
-          '<div class="text-gray-600">No se encontraron estudiantes</div>';
-        return;
-      }
+      if (!students || !students.length)
+        return (this.resultsHtml =
+          '<div class="text-gray-600">No se encontraron estudiantes</div>');
       const rows = students
-        .map(function (s) {
-          return (
-            '<div class="p-2 border rounded mb-2 flex justify-between items-center">' +
-            "<div>" +
-            '<div class="font-medium">' +
-            (s.full_name || "") +
-            " — " +
-            (s.control_number || "") +
-            "</div>" +
-            '<div class="text-sm text-gray-500">ID: ' +
-            s.id +
-            "</div>" +
-            "</div>" +
-            "<div>" +
-            '<button class="px-3 py-1 bg-indigo-600 text-white rounded quick-register" data-student-id="' +
-            s.id +
-            '">Registrar</button>' +
-            "</div>" +
-            "</div>"
-          );
+        .map((s) => {
+          const name = s.full_name || "";
+          const cn = s.control_number || "";
+          const id = s.id || "";
+          return `
+            <div class="p-2 border rounded mb-2 flex justify-between items-center">
+              <div>
+                <div class="font-medium">${name} — ${cn}</div>
+                <div class="text-sm text-gray-500">ID: ${id}</div>
+              </div>
+              <div>
+                <button class="px-3 py-1 bg-indigo-600 text-white rounded quick-register" data-student-id="${id}">Registrar</button>
+              </div>
+            </div>`;
         })
         .join("");
       this.resultsHtml = rows;

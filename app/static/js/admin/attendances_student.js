@@ -15,11 +15,12 @@ function attendancesStudent() {
       if (!q) return;
       this.loading = true;
       try {
-        const res = await fetch(
-          `/api/students?search=${encodeURIComponent(q)}&per_page=1`
+        const sf = window.safeFetch || fetch;
+        const res = await sf(
+          `/api/students?search=${encodeURIComponent(q)}&per_page=1`,
         );
         if (!res.ok) throw new Error("Error al buscar estudiante");
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         const students = data.students || [];
         if (students.length === 0) {
           showToast("No se encontró el estudiante", "warning");
@@ -38,12 +39,13 @@ function attendancesStudent() {
     },
 
     async loadRegistrationsForStudent(studentId) {
+      const sf = window.safeFetch || fetch;
       try {
-        const res = await fetch(
-          `/api/registrations?student_id=${studentId}&per_page=1000`
+        const res = await sf(
+          `/api/registrations?student_id=${studentId}&per_page=1000`,
         );
         if (!res.ok) throw new Error("Error al cargar preregistros");
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         this.registrations = data.registrations || [];
       } catch (err) {
         console.error(err);
@@ -53,7 +55,8 @@ function attendancesStudent() {
 
     async updateRegistration(reg) {
       try {
-        const res = await fetch(`/api/registrations/${reg.id}`, {
+        const sf = window.safeFetch || fetch;
+        const res = await sf(`/api/registrations/${reg.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -83,7 +86,8 @@ function attendancesStudent() {
           activity_id: reg.activity_id || reg.activity?.id,
           mark_present: true,
         };
-        const res = await fetch("/api/attendances/register", {
+        const sf = window.safeFetch || fetch;
+        const res = await sf("/api/attendances/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
