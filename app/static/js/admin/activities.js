@@ -662,5 +662,12 @@ function activitiesManager() {
   };
 }
 
-// Hacer la función globalmente disponible
-window.activitiesManager = activitiesManager;
+// Hacer la función globalmente disponible en navegador
+if (typeof window !== "undefined") {
+  window.activitiesManager = activitiesManager;
+}
+
+// Exportar para Node/Jest (CommonJS)
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = activitiesManager;
+}
