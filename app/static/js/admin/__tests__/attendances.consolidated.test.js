@@ -2,7 +2,7 @@
 
 jest.resetModules();
 
-const attendancesListFactory = require("../attendances_list.js");
+const attendancesListFactory = require("../attendances.js").attendancesList;
 const { mockFetchFactory } = require("../../testUtils");
 
 describe("attendancesList consolidated", () => {
