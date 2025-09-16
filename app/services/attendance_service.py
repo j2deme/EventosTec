@@ -47,16 +47,31 @@ def calculate_net_duration_seconds(attendance):
     # Si no hay check-out, usar ahora
     end_time = attendance.check_out_time or datetime.now(timezone.utc)
 
+    # Helper: ensure datetime is timezone-aware (assume UTC if naive)
+    def _ensure_tz(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    start = _ensure_tz(attendance.check_in_time)
+    end = _ensure_tz(end_time)
+
     total_paused_seconds = 0
     if attendance.pause_time:
         # Sumar todas las pausas. Asumimos una sola pausa por ahora.
         # Para múltiples pausas, se necesitaría una estructura diferente (ej: lista de pausas)
         resume_or_now = attendance.resume_time or datetime.now(timezone.utc)
-        total_paused_seconds = (
-            resume_or_now - attendance.pause_time).total_seconds()
+        resume_or_now = _ensure_tz(resume_or_now)
+        pause_time = _ensure_tz(attendance.pause_time)
+        if resume_or_now and pause_time:
+            total_paused_seconds = (resume_or_now - pause_time).total_seconds()
 
-    net_duration = (
-        end_time - attendance.check_in_time).total_seconds() - total_paused_seconds
+    if not start or not end:
+        return 0
+
+    net_duration = (end - start).total_seconds() - total_paused_seconds
     return max(0, net_duration)  # No permitir duraciones negativas
 
 
