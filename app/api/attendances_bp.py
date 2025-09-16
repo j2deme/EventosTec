@@ -401,6 +401,8 @@ def register_attendance():
                         attendance.check_out_time = now
                 else:
                     attendance.check_out_time = now
+                # Asegurar que la nueva asistencia se persiste
+                db.session.add(attendance)
             else:
                 attendance = Attendance()
                 attendance.student_id = student_id
