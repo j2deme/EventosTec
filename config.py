@@ -26,8 +26,8 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     TESTING = True
     DEBUG = True
-    # Base de datos en memoria para tests
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    # Usar base de datos sqlite en disco para tests para evitar problemas de conexiones
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///test_eventostec.db'
     WTF_CSRF_ENABLED = False  # Deshabilitar CSRF para tests
 
 
