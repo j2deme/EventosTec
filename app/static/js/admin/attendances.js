@@ -448,6 +448,56 @@ function attendancesAdmin() {
       }
     },
 
+    async deleteAttendance(row) {
+      // row may contain attendance_id or attendance_id may be null
+      const aid = row && (row.attendance_id || row.id);
+      if (!aid) {
+        if (typeof showToast === "function")
+          showToast("No se encontró la asistencia a eliminar", "error");
+        return;
+      }
+
+      // Confirmación simple (no crear ventanas modales nuevas)
+      try {
+        const proceed =
+          typeof window.confirm === "function"
+            ? window.confirm(
+                "¿Eliminar asistencia? Esta acción no se puede revertir."
+              )
+            : true;
+        if (!proceed) return;
+
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(`/api/attendances/${aid}`, { method: "DELETE" });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+          if (typeof showToast === "function")
+            showToast(body.message || "Asistencia eliminada", "success");
+          // refrescar tabla
+          await this.refresh();
+          try {
+            window.dispatchEvent(
+              new CustomEvent("attendance:changed", {
+                detail: { attendance_id: aid },
+              })
+            );
+          } catch (e) {
+            try {
+              window.dispatchEvent(new Event("attendance:changed"));
+            } catch (_) {}
+          }
+        } else {
+          if (typeof showToast === "function")
+            showToast(body.message || "Error al eliminar asistencia", "error");
+        }
+      } catch (err) {
+        console.error(err);
+        if (typeof showToast === "function")
+          showToast("Error al eliminar asistencia", "error");
+      }
+    },
+
     closeModal() {
       this.showModal = false;
       this.modalStudentId = "";
