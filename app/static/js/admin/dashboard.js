@@ -92,6 +92,21 @@ function adminDashboard() {
       window.addEventListener("activity-created", () => this.loadActivities());
       window.addEventListener("activity-updated", () => this.loadActivities());
       window.addEventListener("activity-deleted", () => this.loadActivities());
+      // Actualizar estadísticas cuando se registren asistencias desde otros módulos
+      window.addEventListener("attendance:changed", (e) => {
+        // Si viene detalle con activity_id, podemos recargar actividades o datos relacionados
+        try {
+          const detail = e && e.detail ? e.detail : null;
+          if (detail && detail.activity_id) {
+            // recargar actividades por si hubo cambios puntuales
+            this.loadActivities();
+          }
+        } catch (err) {
+          // ignore
+        }
+        // Siempre recargar estadísticas generales (incluye 'Asistencias Hoy')
+        this.loadStats();
+      });
     },
 
     handleLocationChange() {
@@ -142,6 +157,16 @@ function adminDashboard() {
 
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
         this.activeTab = tabFromUrl;
+        // Si la pestaña inicial es 'attendances', notificar para mostrar la lista
+        try {
+          if (this.activeTab === "attendances") {
+            window.dispatchEvent(new CustomEvent("open-list-tab"));
+          }
+        } catch (e) {
+          try {
+            window.dispatchEvent(new Event("open-list-tab"));
+          } catch (_) {}
+        }
         return;
       }
 
@@ -183,6 +208,17 @@ function adminDashboard() {
 
       // Actualizar URL y localStorage
       this.updateLocationAndStorage(tabId);
+
+      // Si cambiamos a la pestaña de asistencias, despachar evento para abrir la lista
+      if (tabId === "attendances") {
+        try {
+          window.dispatchEvent(new CustomEvent("open-list-tab"));
+        } catch (e) {
+          try {
+            window.dispatchEvent(new Event("open-list-tab"));
+          } catch (_) {}
+        }
+      }
     },
 
     // Actualizar URL y almacenamiento local
