@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from typing import Iterable, cast
+
 from app.models.attendance import Attendance
 from app.models.activity import Activity
 
@@ -68,7 +70,7 @@ def calculate_attendance_percentage(attendance_id):
     if not attendance or not attendance.check_in_time or not attendance.check_out_time:
         return None
 
-    activity = attendance.activity
+    activity = getattr(attendance, 'activity', None)
     if not activity:
         return None
 
@@ -112,10 +114,14 @@ def create_related_attendances(student_id, activity_id):
         raise ValueError("Actividad principal no encontrada")
 
     # Iterar por actividades relacionadas
-    for related_activity in main_activity.related_activities:
+    # main_activity.related_activities es una RelationshipProperty; convertir a
+    # lista y castear para que Pylance entienda que es iterable.
+    related_iterable = list(cast(Iterable, getattr(
+        main_activity, 'related_activities', [])))
+    for related_activity in related_iterable:
         # Verificar si ya existe un registro de asistencia para esta relación
         # para este estudiante específico.
-        existing_attendance = db.session.query(Attendance).filter_by(
+        existing_attendance = Attendance.query.filter_by(
             student_id=student_id, activity_id=related_activity.id
         ).first()
 
@@ -132,7 +138,7 @@ def create_related_attendances(student_id, activity_id):
             # Sincronizar con preregistro si existe
             from app.models.registration import Registration
 
-            registration = db.session.query(Registration).filter_by(
+            registration = Registration.query.filter_by(
                 student_id=student_id,
                 activity_id=related_activity.id
             ).first()

@@ -43,7 +43,8 @@ def has_schedule_conflict(student_id, new_activity_id):
             return False, "Actividad no encontrada"
 
         # Obtener todas las actividades registradas del estudiante
-        registered_activities = db.session.query(Activity).join(
+        # Usar el query del modelo (Flask-SQLAlchemy) en lugar de db.session.query
+        registered_activities = Activity.query.join(
             Registration
         ).filter(
             Registration.student_id == student_id,
@@ -173,11 +174,8 @@ def is_registration_allowed(activity_id):
         return True  # Sin cupo definido, permitir
 
     # Contar preregistros confirmados
-    current_registrations = db.session.query(Registration).filter_by(
+    current_registrations = Registration.query.filter_by(
         activity_id=activity_id, status='Registrado'
     ).count()
-
-    print(
-        f"Activity ID: {activity_id}, Max Cap: {activity.max_capacity}, Current Regs: {current_registrations}")
 
     return current_registrations < activity.max_capacity

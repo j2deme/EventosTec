@@ -89,7 +89,13 @@ def create_activity(activity_data):
         end = activity_data['end_datetime']
         activity_data['duration_hours'] = (end - start).total_seconds() / 3600
 
-    activity = Activity(**activity_data)
+    # Crear la actividad de forma explícita para evitar pasar un dict
+    # directamente al constructor (mejora la trazabilidad y evita
+    # advertencias del analizador estático).
+    activity = Activity()
+    for key, value in activity_data.items():
+        setattr(activity, key, value)
+
     db.session.add(activity)
     db.session.commit()
 
