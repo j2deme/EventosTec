@@ -11,18 +11,37 @@ sys.path.insert(0, os.path.abspath('.'))
 
 @pytest.fixture
 def app():
-    """Crear aplicación de test"""
+    """Crear aplicación de test usando SQLite en archivo para compartir conexión entre request y sesión."""
     app = create_app('testing')
     app.config['TESTING'] = True
-    # Asegurar que se crea la base de datos en memoria y las tablas
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+
+    # Usar base de datos SQLite en fichero para evitar el aislamiento de conexiones de ':memory:'
+    test_db_path = os.path.join(os.getcwd(), 'test_eventostec.db')
+    # Eliminar si existe de ejecuciones previas
+    try:
+        if os.path.exists(test_db_path):
+            os.remove(test_db_path)
+    except Exception:
+        pass
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{test_db_path}'
+    # Permitir acceso desde el thread del test client si aplica
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'connect_args': {'check_same_thread': False}
+    }
 
     with app.app_context():
         # Crear todas las tablas
         db.create_all()
         yield app
         # Limpiar al finalizar
+        db.session.remove()
         db.drop_all()
+        try:
+            if os.path.exists(test_db_path):
+                os.remove(test_db_path)
+        except Exception:
+            pass
 
 
 @pytest.fixture
@@ -41,8 +60,11 @@ def runner(app):
 def auth_headers(app):
     """Headers de autenticación para admin"""
     with app.app_context():
-        # Crear usuario admin de prueba
-        user = User(username='testadmin', email='admin@test.com', role='Admin')
+        # Crear usuario admin de prueba (asignación explícita para Pylance)
+        user = User()
+        user.username = 'testadmin'
+        user.email = 'admin@test.com'
+        user.role = 'Admin'
         user.set_password('testpassword')
         db.session.add(user)
         db.session.commit()
@@ -60,21 +82,21 @@ def sample_data(app):
     """Datos de prueba, devuelve diccionario con IDs"""
     with app.app_context():
         # Crear evento de prueba con objetos datetime
-        event = Event(
-            name='Evento de prueba',
-            description='Descripción del evento',
-            start_date=datetime(2024, 1, 1, 9, 0, 0),  # Objeto datetime
-            end_date=datetime(2024, 1, 1, 17, 0, 0),   # Objeto datetime
-            is_active=True
-        )
+        # Crear evento de prueba
+        event = Event()
+        event.name = 'Evento de prueba'
+        event.description = 'Descripción del evento'
+        event.start_date = datetime(2024, 1, 1, 9, 0, 0)
+        event.end_date = datetime(2024, 1, 1, 17, 0, 0)
+        event.is_active = True
         db.session.add(event)
 
         # Crear estudiante de prueba
-        student = Student(
-            control_number='12345678',
-            full_name='Juan Pérez',
-            career='Ingeniería en Sistemas'
-        )
+        # Crear estudiante de prueba
+        student = Student()
+        student.control_number = '12345678'
+        student.full_name = 'Juan Pérez'
+        student.career = 'Ingeniería en Sistemas'
         db.session.add(student)
 
         db.session.commit()
