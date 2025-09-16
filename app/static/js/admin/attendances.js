@@ -34,6 +34,28 @@ function attendancesAdmin() {
       this.loadActivities();
       this.refresh();
       try {
+        // Escuchar cambios globales en asistencias para refrescar la tabla
+        window.addEventListener("attendance:changed", (e) => {
+          try {
+            const d = e && e.detail ? e.detail : {};
+            // Si el cambio especifica activity_id y estamos filtrando por otra actividad,
+            // recargar stats en lugar de la lista completa.
+            if (
+              d.activity_id &&
+              this.filters.activity_id &&
+              String(d.activity_id) !== String(this.filters.activity_id)
+            ) {
+              this.loadActivities();
+              return;
+            }
+            // Refrescar la tabla de asistencias
+            this.refresh();
+          } catch (err) {
+            try {
+              this.refresh();
+            } catch (_) {}
+          }
+        });
         window.addEventListener("open-assign-modal", () => {
           const c = document.getElementById("attendances-assign-container");
           if (c) c.style.display = "";

@@ -219,51 +219,121 @@ def update_registration(registration_id):
         valid_transitions = {
             'Registrado': ['Confirmado', 'Cancelado', 'Asistió', 'Ausente'],
             'Confirmado': ['Registrado', 'Asistió', 'Ausente', 'Cancelado'],
-            'Asistió': [],  # No se puede cambiar una vez asistido
-            # Esto puede ser útil si el estudiante llega tarde y se confirma su asistencia, o si regresa después de haber sido marcado como ausente.
+            'Asistió': ['Confirmado'],
             'Ausente': ['Registrado', 'Confirmado'],
-            'Cancelado': ['Registrado']  # Permitir reactivar un cancelado
+            'Cancelado': ['Registrado']
         }
 
         current_status = registration.status
+        # Prepare reporting variables
+        attendance = None
+        attendance_deleted = False
+
+        # Validate status transition
         if new_status and new_status != current_status:
             if new_status not in valid_transitions.get(current_status, []):
                 return jsonify({'message': f'Transición de estado no permitida: {current_status} -> {new_status}'}), 400
 
-        if new_status:
+            # Handle status-driven sync with Attendance
+            prev_status = registration.status
             registration.status = new_status
 
-        if attended is not None:
-            registration.attended = attended
-            if attended:
-                # Marcar asistencia en el preregistro y setear fecha de confirmacion
-                registration.status = 'Asistió'
-                registration.confirmation_date = db.func.now()
-
-                # Sincronizar con Attendance: crear o actualizar registro de asistencia asociado
+            if prev_status != 'Asistió' and new_status == 'Asistió':
+                # create or update attendance
                 attendance = Attendance.query.filter_by(
                     student_id=registration.student_id, activity_id=registration.activity_id
                 ).first()
                 if attendance:
                     attendance.attendance_percentage = 100.0
                     attendance.status = 'Asistió'
+                    if not attendance.check_in_time:
+                        attendance.check_in_time = db.func.now()
+                    if not attendance.check_out_time:
+                        attendance.check_out_time = db.func.now()
+                    db.session.add(attendance)
                 else:
                     attendance = Attendance()
                     attendance.student_id = registration.student_id
                     attendance.activity_id = registration.activity_id
                     attendance.attendance_percentage = 100.0
                     attendance.status = 'Asistió'
+                    attendance.check_in_time = db.func.now()
+                    attendance.check_out_time = db.func.now()
+                    db.session.add(attendance)
+
+            elif prev_status == 'Asistió' and new_status != 'Asistió':
+                # delete attendance if exists
+                attendance = Attendance.query.filter_by(
+                    student_id=registration.student_id, activity_id=registration.activity_id
+                ).first()
+                if attendance:
+                    try:
+                        db.session.delete(attendance)
+                        attendance_deleted = True
+                        attendance = None
+                    except Exception:
+                        # fallback: convert to Ausente
+                        attendance.status = 'Ausente'
+                        attendance.attendance_percentage = 0.0
+                        db.session.add(attendance)
+
+        # Handle explicit 'attended' flag (from UI or API)
+        if attended is not None:
+            registration.attended = bool(attended)
+            if registration.attended:
+                registration.status = 'Asistió'
+                registration.confirmation_date = db.func.now()
+
+                attendance = Attendance.query.filter_by(
+                    student_id=registration.student_id, activity_id=registration.activity_id
+                ).first()
+                if attendance:
+                    attendance.attendance_percentage = 100.0
+                    attendance.status = 'Asistió'
+                    if not attendance.check_in_time:
+                        attendance.check_in_time = db.func.now()
+                    if not attendance.check_out_time:
+                        attendance.check_out_time = db.func.now()
+                    db.session.add(attendance)
+                else:
+                    attendance = Attendance()
+                    attendance.student_id = registration.student_id
+                    attendance.activity_id = registration.activity_id
+                    attendance.attendance_percentage = 100.0
+                    attendance.status = 'Asistió'
+                    attendance.check_in_time = db.func.now()
+                    attendance.check_out_time = db.func.now()
                     db.session.add(attendance)
             else:
-                # Si se desmarca attended, limpiar confirmation_date para mantener consistencia
                 registration.confirmation_date = None
 
         db.session.commit()
 
-        return jsonify({
+        # Build response payload
+        resp = {
             'message': 'Preregistro actualizado exitosamente',
             'registration': registration_schema.dump(registration)
-        }), 200
+        }
+
+        # Include attendance info or deletion flag
+        try:
+            from app.schemas import attendance_schema as _att_schema
+            if attendance is not None:
+                try:
+                    resp['attendance'] = _att_schema.dump(attendance)
+                except Exception:
+                    resp['attendance'] = {
+                        'id': getattr(attendance, 'id', None),
+                        'student_id': getattr(attendance, 'student_id', None),
+                        'activity_id': getattr(attendance, 'activity_id', None),
+                        'status': getattr(attendance, 'status', None),
+                    }
+            if attendance_deleted:
+                resp['attendance_deleted'] = True
+        except Exception:
+            pass
+
+        return jsonify(resp), 200
 
     except Exception as e:
         db.session.rollback()

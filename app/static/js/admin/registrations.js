@@ -53,6 +53,33 @@ function registrationsManager() {
       this.loadActivities();
       this.loadStudents();
       this.loadStats();
+      // Escuchar cambios en asistencias para mantener la UI sincronizada
+      try {
+        window.addEventListener("attendance:changed", (e) => {
+          // Si el detalle viene con activity_id o student_id, recargar la lista
+          try {
+            const d = e && e.detail ? e.detail : {};
+            // Si la lista tiene filtros, intentar recargar solo si el change afecta
+            // a los filtros actuales; en caso de duda, recargar completamente.
+            if (
+              d.activity_id &&
+              this.filters.activity_id &&
+              String(d.activity_id) !== String(this.filters.activity_id)
+            ) {
+              // cambio en otra actividad -> recargar stats solamente
+              this.loadStats();
+            } else {
+              // recargar registros visibles y stats
+              this.loadRegistrations(this.currentPage);
+            }
+          } catch (err) {
+            // fallback: recargar lista
+            this.loadRegistrations(this.currentPage);
+          }
+        });
+      } catch (e) {
+        // ambiente sin DOM (tests)
+      }
     },
 
     // Cargar registros
@@ -353,6 +380,34 @@ function registrationsManager() {
         this.closeModal();
         this.loadRegistrations(this.currentPage);
 
+        // Si la respuesta incluye un attendance (creado/actualizado) o el nuevo
+        // estado es 'Asistió', despachar evento para que otros módulos (p.ej. lista
+        // de asistencias) puedan refrescarse automáticamente.
+        try {
+          const body = await response.json().catch(() => ({}));
+          const att = body && body.attendance ? body.attendance : null;
+          const detail = att
+            ? {
+                attendance_id: att.id,
+                activity_id: att.activity_id,
+                student_id: att.student_id,
+              }
+            : {
+                activity_id: registrationData.activity_id,
+                student_id: registrationData.student_id,
+              };
+          try {
+            window.dispatchEvent(
+              new CustomEvent("attendance:changed", { detail })
+            );
+          } catch (e) {
+            try {
+              window.dispatchEvent(new Event("attendance:changed"));
+            } catch (_) {}
+          }
+        } catch (e) {
+          // ignore
+        }
         if (
           typeof window !== "undefined" &&
           typeof window.showToast === "function"
@@ -412,6 +467,32 @@ function registrationsManager() {
         // Recargar lista
         this.loadRegistrations(this.currentPage);
 
+        // Notificar a otros módulos que la asistencia pudo haber cambiado
+        try {
+          const body = await response.json().catch(() => ({}));
+          const att = body && body.attendance ? body.attendance : null;
+          const detail = att
+            ? {
+                attendance_id: att.id,
+                activity_id: att.activity_id,
+                student_id: att.student_id,
+              }
+            : {
+                activity_id: registration.activity_id,
+                student_id: registration.student_id,
+              };
+          try {
+            window.dispatchEvent(
+              new CustomEvent("attendance:changed", { detail })
+            );
+          } catch (e) {
+            try {
+              window.dispatchEvent(new Event("attendance:changed"));
+            } catch (_) {}
+          }
+        } catch (e) {
+          // ignore
+        }
         if (
           typeof window !== "undefined" &&
           typeof window.showToast === "function"
