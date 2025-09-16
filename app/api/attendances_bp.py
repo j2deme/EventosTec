@@ -23,9 +23,9 @@ attendances_bp = Blueprint('attendances', __name__,
 @require_admin
 def check_in():
     try:
-        data = request.get_json()
-        student_id = data.get('student_id')
-        activity_id = data.get('activity_id')
+        payload = request.get_json() or {}
+        student_id = payload.get('student_id')
+        activity_id = payload.get('activity_id')
 
         # Validar que el estudiante y actividad existan
         student = db.session.get(Student, student_id)
@@ -100,9 +100,9 @@ def check_out():
     Calcula el porcentaje de asistencia automáticamente.
     """
     try:
-        data = request.get_json()
-        student_id = data.get('student_id')
-        activity_id = data.get('activity_id')
+        payload = request.get_json() or {}
+        student_id = payload.get('student_id')
+        activity_id = payload.get('activity_id')
 
         if not student_id or not activity_id:
             return jsonify({'message': 'Se requieren student_id y activity_id'}), 400
@@ -257,9 +257,9 @@ def resume_attendance():
 @require_admin
 def bulk_create_attendances():
     try:
-        data = request.get_json()
-        activity_id = data.get('activity_id')
-        student_ids = data.get('student_ids', [])
+        payload = request.get_json() or {}
+        activity_id = payload.get('activity_id')
+        student_ids = payload.get('student_ids', [])
 
         if not activity_id or not student_ids:
             return jsonify({'message': 'Actividad y lista de estudiantes son requeridos'}), 400
@@ -434,12 +434,12 @@ def register_attendance():
     Si existe un preregistro asociado, se sincroniza (attended=True, status='Asistió').
     """
     try:
-        data = request.get_json() or {}
-        student_id = data.get('student_id')
-        activity_id = data.get('activity_id')
-        mark_present = data.get('mark_present', False)
-        check_in = data.get('check_in_time')
-        check_out = data.get('check_out_time')
+        payload = request.get_json() or {}
+        student_id = payload.get('student_id')
+        activity_id = payload.get('activity_id')
+        mark_present = payload.get('mark_present', False)
+        check_in = payload.get('check_in_time')
+        check_out = payload.get('check_out_time')
 
         if not student_id or not activity_id:
             return jsonify({'message': 'student_id y activity_id son requeridos'}), 400

@@ -80,7 +80,7 @@ def get_events():
 def create_event():
     try:
         # Validar datos de entrada
-        data = event_schema.load(request.get_json())
+        data = event_schema.load(request.get_json() or {})
 
         # Crear evento (asignaciones explícitas en lugar de kwargs para ayudar al analizador)
         event = Event()
@@ -122,9 +122,8 @@ def update_event(event_id):
         event = db.session.get(Event, event_id)
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
-
         # Validar datos de entrada
-        data = event_schema.load(request.get_json(), partial=True)
+        data = event_schema.load(request.get_json() or {}, partial=True)
 
         # Actualizar campos
         for key, value in data.items():

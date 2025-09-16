@@ -22,9 +22,9 @@ def create_registration():
         if error:
             return error
 
-        data = request.get_json()
-        student_id = data.get('student_id')
-        activity_id = data.get('activity_id')
+        payload = request.get_json() or {}
+        student_id = payload.get('student_id')
+        activity_id = payload.get('activity_id')
 
         # Validar acceso
         if user_type == 'student':
@@ -212,9 +212,9 @@ def update_registration(registration_id):
         if not registration:
             return jsonify({'message': 'Preregistro no encontrado'}), 404
 
-        data = request.get_json()
-        new_status = data.get('status')
-        attended = data.get('attended')
+        payload = request.get_json() or {}
+        new_status = payload.get('status')
+        attended = payload.get('attended')
 
         valid_transitions = {
             'Registrado': ['Confirmado', 'Cancelado', 'Asistió', 'Ausente'],
