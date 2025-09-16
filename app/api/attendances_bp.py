@@ -264,7 +264,44 @@ def get_attendances():
         items = query.limit(per_page).offset((page - 1) * per_page).all()
         pages = (total + per_page - 1) // per_page if per_page else 1
 
-        return jsonify({'attendances': attendances_schema.dump(items), 'total': total, 'pages': pages, 'current_page': page}), 200
+        # Serializar y adjuntar objetos relacionados (student, activity) para
+        # facilitar el consumo en el frontend sin múltiples requests.
+        result = []
+        for att in items:
+            try:
+                dumped = attendance_schema.dump(att)
+                # Asegurar que `d` es un dict concreto para evitar errores de typing
+                d = dict(dumped) if isinstance(dumped, dict) else {}
+            except Exception:
+                # Fallback: usar to_dict si hay problemas con el schema
+                d = getattr(att, 'to_dict', lambda: {})() or {}
+
+            # Adjuntar student y activity anidados cuando estén disponibles
+            try:
+                if hasattr(att, 'student') and att.student is not None:
+                    # to_dict expone full_name y control_number
+                    d['student'] = att.student.to_dict()
+                    # conveniencia: exponer campos planos que espera el frontend
+                    d['student_name'] = att.student.full_name
+                    d['student_identifier'] = getattr(
+                        att.student, 'control_number', '')
+            except Exception:
+                pass
+
+            try:
+                if hasattr(att, 'activity') and att.activity is not None:
+                    d['activity'] = att.activity.to_dict()
+                    d['activity_name'] = att.activity.name
+                    # intentar añadir nombre de evento si existe la relación
+                    if hasattr(att.activity, 'event') and att.activity.event is not None:
+                        d['event_name'] = getattr(
+                            att.activity.event, 'name', '')
+            except Exception:
+                pass
+
+            result.append(d)
+
+        return jsonify({'attendances': result, 'total': total, 'pages': pages, 'current_page': page}), 200
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener asistencias', 'error': str(e)}), 500
