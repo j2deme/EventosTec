@@ -122,7 +122,7 @@ def import_external_student(control_number):
                     student_info = external_data[0]
 
                     # Verificar si ya existe
-                    student = db.session.query(Student).filter_by(
+                    student = Student.query.filter_by(
                         control_number=control_number).first()
                     if not student:
                         # Crear nuevo estudiante
@@ -170,12 +170,12 @@ def get_student_activities(student_id):
         from app.models.activity import Activity
 
         # Actividades con asistencia
-        attendance_activities = db.session.query(Activity).join(Attendance).filter(
+        attendance_activities = Activity.query.join(Attendance).filter(
             Attendance.student_id == student_id
         ).all()
 
         # Actividades con preregistro
-        registration_activities = db.session.query(Activity).join(Registration).filter(
+        registration_activities = Activity.query.join(Registration).filter(
             Registration.student_id == student_id
         ).all()
 

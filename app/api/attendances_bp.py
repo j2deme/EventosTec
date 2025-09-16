@@ -108,7 +108,7 @@ def check_out():
             return jsonify({'message': 'Se requieren student_id y activity_id'}), 400
 
         # 1. Buscar registro de asistencia
-        attendance = db.session.query(Attendance).filter_by(
+        attendance = Attendance.query.filter_by(
             student_id=student_id, activity_id=activity_id
         ).first()
 
@@ -141,7 +141,7 @@ def check_out():
             db.session.refresh(attendance)
             # Sincronizar con preregistro si existe: si la asistencia resultó en 'Asistió', actualizar Registration
             if attendance.status == 'Asistió':
-                registration = db.session.query(Registration).filter_by(
+                registration = Registration.query.filter_by(
                     student_id=attendance.student_id, activity_id=attendance.activity_id
                 ).first()
                 if registration:
@@ -278,7 +278,7 @@ def bulk_create_attendances():
                 continue
 
             # Verificar si ya existe registro
-            existing_attendance = db.session.query(Attendance).filter_by(
+            existing_attendance = Attendance.query.filter_by(
                 student_id=student_id, activity_id=activity_id
             ).first()
 
@@ -292,7 +292,7 @@ def bulk_create_attendances():
                 db.session.add(attendance)
                 created_attendances.append(attendance)
                 # Sincronizar con preregistro si existe
-                registration = db.session.query(Registration).filter_by(
+                registration = Registration.query.filter_by(
                     student_id=student_id, activity_id=activity_id
                 ).first()
                 if registration:
@@ -335,7 +335,7 @@ def get_attendances():
         if user_type == 'student' and user is not None:
             student_id = user.id
 
-        query = db.session.query(Attendance)
+        query = Attendance.query
 
         if student_id:
             query = query.filter_by(student_id=student_id)
@@ -398,7 +398,7 @@ def delete_attendance(attendance_id):
             return jsonify({'message': 'Asistencia no encontrada'}), 404
 
         # Intentar sincronizar con preregistro si existe
-        registration = db.session.query(Registration).filter_by(
+        registration = Registration.query.filter_by(
             student_id=attendance.student_id, activity_id=attendance.activity_id
         ).first()
 
@@ -453,7 +453,7 @@ def register_attendance():
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
         # Buscar o crear attendance
-        attendance = db.session.query(Attendance).filter_by(
+        attendance = Attendance.query.filter_by(
             student_id=student_id, activity_id=activity_id
         ).first()
 
@@ -545,7 +545,7 @@ def register_attendance():
 
         # Sincronizar con preregistro si existe y si se marca presente
         if mark_present:
-            registration = db.session.query(Registration).filter_by(
+            registration = Registration.query.filter_by(
                 student_id=student_id, activity_id=activity_id
             ).first()
             if registration:

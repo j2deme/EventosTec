@@ -6,6 +6,7 @@ from app.models.event import Event
 from datetime import datetime
 from app.utils.auth_helpers import require_admin
 from sqlalchemy import asc, desc, or_
+from typing import Iterable, cast
 
 events_bp = Blueprint('events', __name__, url_prefix='/api/events')
 
@@ -22,12 +23,15 @@ def get_events():
         search = request.args.get('search', '').strip()
         sort = request.args.get('sort', 'start_date:desc')
 
-        query = db.session.query(Event)
+        # Use the model's query attribute so .paginate() is recognized by the analyzer
+        query = Event.query
 
         if search:
             query = query.filter(
-                Event.name.ilike(f'%{search}%'),
-                Event.description.ilike(f'%{search}%')
+                or_(
+                    Event.name.ilike(f'%{search}%'),
+                    Event.description.ilike(f'%{search}%')
+                )
             )
 
         if status:
@@ -52,17 +56,16 @@ def get_events():
         else:
             query = query.order_by(desc(getattr(Event, sort_field)))
 
-        events = query.paginate(
-            page=page, per_page=per_page, error_out=False
-        )
+        events = query.paginate(page=page, per_page=per_page, error_out=False)
 
+        total = events.total or 0
         return jsonify({
             'events': events_schema.dump(events.items),
-            'total': events.total,
+            'total': total,
             'pages': events.pages,
             'current_page': page,
-            'from': (page - 1) * per_page + 1 if events.total > 0 else 0,
-            'to': min(page * per_page, events.total)
+            'from': (page - 1) * per_page + 1 if total > 0 else 0,
+            'to': min(page * per_page, total)
         }), 200
 
     except Exception as e:
@@ -79,8 +82,10 @@ def create_event():
         # Validar datos de entrada
         data = event_schema.load(request.get_json())
 
-        # Crear evento
-        event = Event(**data)
+        # Crear evento (asignaciones explícitas en lugar de kwargs para ayudar al analizador)
+        event = Event()
+        for key, value in data.items():
+            setattr(event, key, value)
         db.session.add(event)
         db.session.commit()
 
@@ -107,8 +112,6 @@ def get_event(event_id):
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener evento', 'error': str(e)}), 500
-
-# Actualizar evento
 
 
 @events_bp.route('/<int:event_id>', methods=['PUT'])
@@ -172,12 +175,12 @@ def get_event_activities(event_id):
         # Parámetros de filtrado
         activity_type = request.args.get('type')
 
-        query = event.activities
+        # event.activities is a relationship; cast to Iterable to satisfy the static analyzer
+        activities = list(cast(Iterable, event.activities))
 
         if activity_type:
-            query = query.filter_by(activity_type=activity_type)
-
-        activities = query.all()
+            activities = [
+                a for a in activities if a.activity_type == activity_type]
 
         from app.schemas import activities_schema
         return jsonify({

@@ -15,14 +15,20 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 def login():
     try:
         # Validar datos de entrada
-        data = user_login_schema.load(request.get_json())
+        payload = request.get_json() or {}
+        data = user_login_schema.load(payload)
+
+        # Comprobar que el payload tenga los campos esperados
+        username = data.get('username') if isinstance(data, dict) else None
+        password = data.get('password') if isinstance(data, dict) else None
+        if not username or not password:
+            return jsonify({'message': 'username y password son requeridos'}), 400
 
         # Buscar usuario administrador
-        user = db.session.query(User).filter_by(
-            username=data['username'], is_active=True).first()
+        user = User.query.filter_by(username=username, is_active=True).first()
 
         # Validar contraseña
-        if user and user.check_password(data['password']):
+        if user and user.check_password(password):
             # Generar token JWT
             access_token = create_access_token(identity=str(user.id))
             return jsonify({
@@ -47,7 +53,7 @@ def login():
 @auth_bp.route('/student-login', methods=['POST'])
 def student_login():
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         control_number = data.get('control_number')
         password = data.get('password')
 
@@ -75,18 +81,18 @@ def student_login():
                     student_info = external_data['data']
 
                     # Crear o actualizar estudiante en nuestra base de datos
-                    student = db.session.query(Student).filter_by(
+                    student = Student.query.filter_by(
                         control_number=control_number).first()
 
                     if not student:
                         # Crear nuevo estudiante con todos los datos disponibles
-                        student = Student(
-                            control_number=control_number,
-                            full_name=student_info.get('name', ''),
-                            career=student_info.get('career', {}).get(
-                                'name', '') if student_info.get('career') else '',
-                            email=student_info.get('email', '')
-                        )
+                        # Usar asignaciones explícitas para evitar constructor kwargs
+                        student = Student()
+                        student.control_number = control_number
+                        student.full_name = student_info.get('name', '') or ''
+                        student.career = student_info.get('career', {}).get(
+                            'name', '') if student_info.get('career') else ''
+                        student.email = student_info.get('email', '') or ''
                         db.session.add(student)
                     else:
                         # Actualizar información si es necesario

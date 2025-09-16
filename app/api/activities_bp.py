@@ -336,7 +336,7 @@ def remove_related_activity(activity_id, related_id):
 @activities_bp.route('/relations', methods=['GET'])
 def get_activity_relations():
     try:
-        activities = db.session.query(Activity).all()
+        activities = Activity.query.all()
         result = []
         for activity in activities:
             related_list = list(cast(Iterable, activity.related_activities))

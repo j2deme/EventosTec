@@ -47,7 +47,7 @@ def create_registration():
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
         # Verificar si ya existe un preregistro
-        existing_registration = db.session.query(Registration).filter_by(
+        existing_registration = Registration.query.filter_by(
             student_id=student_id, activity_id=activity_id
         ).first()
 
@@ -241,7 +241,7 @@ def update_registration(registration_id):
                 registration.confirmation_date = db.func.now()
 
                 # Sincronizar con Attendance: crear o actualizar registro de asistencia asociado
-                attendance = db.session.query(Attendance).filter_by(
+                attendance = Attendance.query.filter_by(
                     student_id=registration.student_id, activity_id=registration.activity_id
                 ).first()
                 if attendance:

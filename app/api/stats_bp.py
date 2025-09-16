@@ -16,7 +16,7 @@ stats_bp = Blueprint('stats', __name__, url_prefix='/api/stats')
 def get_general_stats():
     """Devuelve estadísticas generales del sistema."""
     # Get the latest event (by start date or id)
-    active_events = db.session.query(Event).filter_by(is_active=True).all()
+    active_events = Event.query.filter_by(is_active=True).all()
 
     if len(active_events) == 1:
         stats_data = Event.get_stats(active_events[0].id)
@@ -37,16 +37,15 @@ def get_general_stats():
             'total_attendances': 0,
         }
 
-    stats_data['active_events'] = db.session.query(
-        Event).filter_by(is_active=True).count()
+    stats_data['active_events'] = Event.query.filter_by(is_active=True).count()
 
-    stats_data['total_students'] = db.session.query(Student).count()
+    stats_data['total_students'] = Student.query.count()
 
     # Agregar estadísticas específicas de registros
     today = datetime.now().date()
 
     # Asistencias de hoy
-    stats_data['today_attendances'] = db.session.query(Attendance).filter(
+    stats_data['today_attendances'] = Attendance.query.filter(
         db.func.date(Attendance.created_at) == today
     ).count()
 
