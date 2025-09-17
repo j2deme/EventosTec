@@ -104,12 +104,13 @@
           >
           <select
             id="status"
-            x-model="filters.only_without_registration"
+            x-model="filters.status_filter"
             @change="refresh()"
             class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
-            <option :value="false">Todos</option>
-            <option :value="true">Solo walk-ins</option>
+            <option value="all">Todos</option>
+            <option value="walkins">Solo walk-ins</option>
+            <option value="registered">Solo con registro</option>
           </select>
         </div>
 
@@ -136,7 +137,7 @@
   </div>
 
   <!-- stat cards (mejoradas) -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
     <div class="bg-white overflow-hidden shadow rounded-lg">
       <div class="p-5">
         <div class="flex items-center">
@@ -189,25 +190,6 @@
               <dd
                 class="text-lg font-semibold text-gray-900"
                 x-text="statsConverted || 0"
-              ></dd>
-            </dl>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-white overflow-hidden shadow rounded-lg">
-      <div class="p-5">
-        <div class="flex items-center">
-          <div class="flex-shrink-0">
-            <i class="ti ti-alert-triangle text-red-600 text-2xl"></i>
-          </div>
-          <div class="ml-5 w-0 flex-1">
-            <dl>
-              <dt class="text-xs text-gray-500 truncate">Errores recientes</dt>
-              <dd
-                class="text-lg font-semibold text-gray-900"
-                x-text="statsErrors || 0"
               ></dd>
             </dl>
           </div>

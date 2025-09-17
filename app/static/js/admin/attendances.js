@@ -31,7 +31,8 @@ function attendancesAdmin() {
       search: "",
       activity_id: "",
       event_id: "",
-      only_without_registration: false,
+      // estado de filtro: 'all' | 'walkins' | 'registered'
+      status_filter: "all",
       activity_type: "",
     },
 
@@ -63,14 +64,15 @@ function attendancesAdmin() {
     filteredActivities() {
       const byEvent = this.filters.event_id
         ? this.activities.filter(
-            (a) =>
-              String(a.event_id) === String(this.filters.event_id) ||
-              String(a.event_id) === String(this.filters.event_id)
+            (a) => String(a.event_id) === String(this.filters.event_id)
           )
         : this.activities.slice();
 
       if (this.filters.activity_type) {
-        return byEvent.filter((a) => a.type === this.filters.activity_type);
+        // activities coming from API use `activity_type` key
+        return byEvent.filter(
+          (a) => (a.activity_type || a.type) === this.filters.activity_type
+        );
       }
       return byEvent;
     },
@@ -85,8 +87,15 @@ function attendancesAdmin() {
         );
       }
 
-      if (this.filters.only_without_registration) {
+      // status_filter puede ser 'all', 'walkins' (sin registro) o 'registered' (con registro)
+      // Mantener compatibilidad con el antiguo flag `only_without_registration` usado en tests
+      const wantsOnlyWithout =
+        this.filters.status_filter === "walkins" ||
+        this.filters.only_without_registration === true;
+      if (wantsOnlyWithout) {
         rows = rows.filter((r) => !r.registration_id);
+      } else if (this.filters.status_filter === "registered") {
+        rows = rows.filter((r) => !!r.registration_id);
       }
 
       if (this.filters.activity_type) {
@@ -112,16 +121,123 @@ function attendancesAdmin() {
         });
       }
 
-      return rows;
+      // Add unique key for Alpine.js x-for
+      return rows.map((row, index) => ({
+        ...row,
+        key: row.id || `row-${index}`,
+      }));
+    },
+
+    // Normalizar campos que la plantilla espera: status tokens, statusLabel, date_display, activity_type
+    normalizeAttendances() {
+      const statusMap = {
+        Asistió: "present",
+        Parcial: "registered",
+        Registrado: "registered",
+        Confirmado: "registered",
+        Ausente: "error",
+        // admitir tokens en inglés por si vienen así
+        present: "present",
+        registered: "registered",
+        error: "error",
+      };
+
+      this.attendances = (this.attendances || []).map((att) => {
+        const a = Object.assign({}, att);
+
+        // activity_type may be nested under a.activity.activity_type or activity_type
+        if (!a.activity_type) {
+          a.activity_type =
+            (a.activity && (a.activity.activity_type || a.activity.type)) ||
+            a.activity_type ||
+            "";
+        }
+
+        // Normalize status token and label
+        const rawStatus = a.status || "";
+        a.status = statusMap[rawStatus] || statusMap[String(rawStatus)] || null;
+        a.statusLabel =
+          rawStatus ||
+          (a.status === "present"
+            ? "Asistió"
+            : a.status === "registered"
+            ? "Parcial"
+            : a.status === "error"
+            ? "Ausente"
+            : "");
+
+        // date_display: usar created_at si existe, formatear simple YYYY-MM-DD HH:mm
+        const created = a.created_at || a.createdAt || a.date || null;
+        if (created) {
+          try {
+            const d = new Date(created);
+            if (!isNaN(d)) {
+              const pad = (n) => String(n).padStart(2, "0");
+              const y = d.getFullYear();
+              const m = pad(d.getMonth() + 1);
+              const day = pad(d.getDate());
+              const hh = pad(d.getHours());
+              const mm = pad(d.getMinutes());
+              a.date_display = `${y}-${m}-${day} ${hh}:${mm}`;
+            } else {
+              a.date_display = String(created);
+            }
+          } catch (e) {
+            a.date_display = String(created);
+          }
+        } else {
+          a.date_display = "—";
+        }
+
+        return a;
+      });
+    },
+
+    calculateStats() {
+      // statsToday: número de asistencias creadas hoy
+      const today = new Date();
+      const isSameDay = (d1, d2) =>
+        d1.getFullYear() === d2.getFullYear() &&
+        d1.getMonth() === d2.getMonth() &&
+        d1.getDate() === d2.getDate();
+
+      this.statsToday = (this.attendances || []).filter((att) => {
+        if (!att.created_at) return false;
+        const d = new Date(att.created_at);
+        if (isNaN(d)) return false;
+        return isSameDay(d, today);
+      }).length;
+
+      // Walk-ins: sin registration_id
+      this.statsWalkins = (this.attendances || []).filter(
+        (att) => !att.registration_id
+      ).length;
+
+      // Converted: con registration_id y status present
+      this.statsConverted = (this.attendances || []).filter(
+        (att) =>
+          att.registration_id &&
+          (att.status === "present" || att.status === "registered")
+      ).length;
+
+      // Errors: marcar como aquellas con status 'error' o attendance_percentage < 50
+      this.statsErrors = (this.attendances || []).filter(
+        (att) =>
+          att.status === "error" ||
+          (typeof att.attendance_percentage === "number" &&
+            att.attendance_percentage < 50)
+      ).length;
     },
 
     async init() {
       // Load basic lists used by filters
       await this.loadEvents();
       await this.loadActivities();
-      // derive activityTypes from activities
+      // derive activityTypes from activities (API uses `activity_type`)
       this.activityTypes = Array.from(
-        new Set(this.activities.map((a) => a.type).filter(Boolean))
+        new Set(
+          this.activities.map((a) => a.activity_type || a.type).filter(Boolean)
+        )
       );
       // initial refresh of attendances
       await this.refresh();
@@ -136,7 +252,8 @@ function attendancesAdmin() {
         if (this.filters.activity_id)
           qs.set("activity_id", this.filters.activity_id);
         if (this.filters.event_id) qs.set("event_id", this.filters.event_id);
-        if (this.filters.only_without_registration)
+        // Solo enviar parámetro al backend para walk-ins (compatibilidad histórica)
+        if (this.filters.status_filter === "walkins")
           qs.set("only_without_registration", "1");
         if (this.filters.activity_type)
           qs.set("activity_type", this.filters.activity_type);
@@ -147,6 +264,12 @@ function attendancesAdmin() {
           ? res.json().catch(() => ({}))
           : Promise.resolve({}));
         this.attendances = this.parseAttendancesPayload(body);
+
+        // Normalizar datos para la plantilla (status tokens, date_display, activity_type)
+        this.normalizeAttendances();
+
+        // Calcular stats después de normalizar
+        this.calculateStats();
       } catch (err) {
         console.error(err);
       } finally {
