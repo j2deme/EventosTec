@@ -47,6 +47,9 @@ function attendancesAdmin() {
     modalStudentId: "",
     modalActivityId: "",
     modalMarkPresent: false,
+    // Registration view modal
+    showRegistrationModal: false,
+    registrationModalData: null,
     // Internal helpers to reduce duplication
     sf(url, opts) {
       const f =
@@ -441,42 +444,46 @@ function attendancesAdmin() {
       // TODO: implement edit modal
     },
 
-    async quickTogglePresent(row) {
-      try {
-        const res = await this.sf(`/api/attendances/${row.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mark_present: true }),
-        });
-
-        const body = await res.json().catch(() => ({}));
-        if (res.ok) {
-          window.showToast &&
-            window.showToast("Asistencia marcada como presente", "success");
-          await this.refresh();
-
-          this.dispatchAttendanceChanged({
-            attendance_id: row.id,
-            activity_id: row.activity_id,
-            student_id: row.student_id,
-          });
-        } else {
-          window.showToast &&
-            window.showToast(
-              body.message || "Error al actualizar asistencia",
-              "error"
-            );
-        }
-      } catch (err) {
-        console.error(err);
-        window.showToast && window.showToast("Error de conexión", "error");
-      }
-    },
+    // quickTogglePresent eliminado: acción redundante en este módulo
 
     goToRegistration(row) {
-      if (row.registration_id) {
-        window.location.hash = `#registrations?id=${row.registration_id}`;
+      // Open in-modal view when possible
+      this.openRegistrationModal(row);
+    },
+
+    async openRegistrationModal(row) {
+      // Prefer registration object included in the row
+      if (!row) return;
+      try {
+        if (row.registration) {
+          this.registrationModalData = row.registration;
+        } else if (row.registration_id) {
+          const res = await this.sf(
+            `/api/registrations/${row.registration_id}`,
+            {
+              method: "GET",
+            }
+          );
+          if (res && res.ok) {
+            const body = await res.json().catch(() => ({}));
+            this.registrationModalData =
+              body.data || body.registration || body || null;
+          } else {
+            this.registrationModalData = null;
+          }
+        } else {
+          this.registrationModalData = null;
+        }
+      } catch (e) {
+        console.error(e);
+        this.registrationModalData = null;
       }
+      this.showRegistrationModal = true;
+    },
+
+    closeRegistrationModal() {
+      this.showRegistrationModal = false;
+      this.registrationModalData = null;
     },
 
     async deleteAttendance(row) {
