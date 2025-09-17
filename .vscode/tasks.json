@@ -1,5 +1,11 @@
 {
   "version": "2.0.0",
+  "options": {
+    "shell": {
+      "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe",
+      "args": ["/c"]
+    }
+  },
   "tasks": [
     {
       "label": "Run pytest (venv)",
@@ -40,7 +46,7 @@
       "type": "shell",
       "command": "FLASK_APP=run.py FLASK_ENV=development ${workspaceFolder}/venv/bin/python -m flask run",
       "windows": {
-        "command": "$env:FLASK_APP='run.py'; $env:FLASK_ENV='development'; ${workspaceFolder}\\venv\\Scripts\\python.exe -m flask run"
+        "command": "set FLASK_APP=run.py && set FLASK_ENV=development && ${workspaceFolder}\\venv\\Scripts\\python.exe -m flask run"
       },
       "presentation": { "reveal": "always", "panel": "shared" },
       "problemMatcher": []
