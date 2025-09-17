@@ -30,7 +30,7 @@
   <div class="mb-6">
     <div class="bg-white rounded-lg shadow p-4">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div class="md:col-span-2">
+        <div class="md:col-span-1">
           <label
             for="search"
             class="block text-sm font-medium text-gray-700 mb-1"
@@ -52,6 +52,27 @@
             />
           </div>
         </div>
+        <div>
+          <label
+            for="event_id"
+            class="block text-sm font-medium text-gray-700 mb-1"
+            >Evento</label
+          >
+          <select
+            id="event_id"
+            x-model="filters.event_id"
+            @change="refresh()"
+            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+          >
+            <option value="">Todos los eventos</option>
+            <template x-for="e in events" :key="e.id">
+              <option
+                :value="e.id"
+                x-text="e.name || e.title || ('Evento ' + e.id)"
+              ></option>
+            </template>
+          </select>
+        </div>
 
         <div>
           <label
@@ -66,7 +87,7 @@
             class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
           >
             <option value="">Todas las actividades</option>
-            <template x-for="a in activities" :key="a.id">
+            <template x-for="a in filteredActivities()" :key="a.id">
               <option
                 :value="a.id"
                 x-text="a.name + ' — ' + (a.event_name || a.event_id || '')"
@@ -89,6 +110,25 @@
           >
             <option :value="false">Todos</option>
             <option :value="true">Solo walk-ins</option>
+          </select>
+        </div>
+
+        <div>
+          <label
+            for="activity_type"
+            class="block text-sm font-medium text-gray-700 mb-1"
+            >Tipo de actividad</label
+          >
+          <select
+            id="activity_type"
+            x-model="filters.activity_type"
+            @change="refresh()"
+            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+          >
+            <option value="">Todos los tipos</option>
+            <template x-for="t in activityTypes" :key="t">
+              <option :value="t" x-text="t"></option>
+            </template>
           </select>
         </div>
       </div>

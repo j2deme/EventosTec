@@ -21,6 +21,31 @@ function dispatchAttendanceChangedEvent(detail) {
 
 function attendancesAdmin() {
   return {
+    // State
+    events: [],
+    activities: [],
+    activityTypes: [],
+    attendances: [],
+    loading: false,
+    filters: {
+      search: "",
+      activity_id: "",
+      event_id: "",
+      only_without_registration: false,
+      activity_type: "",
+    },
+
+    // Stats for dashboard cards
+    statsToday: 0,
+    statsWalkins: 0,
+    statsConverted: 0,
+    statsErrors: 0,
+
+    // Modal state
+    showModal: false,
+    modalStudentId: "",
+    modalActivityId: "",
+    modalMarkPresent: false,
     // Internal helpers to reduce duplication
     sf(url, opts) {
       const f =
@@ -32,6 +57,129 @@ function attendancesAdmin() {
       if (!payload) return [];
       if (Array.isArray(payload)) return payload;
       return payload.attendances || payload.data || [];
+    },
+
+    // Return activities filtered by selected event and activity_type
+    filteredActivities() {
+      const byEvent = this.filters.event_id
+        ? this.activities.filter(
+            (a) =>
+              String(a.event_id) === String(this.filters.event_id) ||
+              String(a.event_id) === String(this.filters.event_id)
+          )
+        : this.activities.slice();
+
+      if (this.filters.activity_type) {
+        return byEvent.filter((a) => a.type === this.filters.activity_type);
+      }
+      return byEvent;
+    },
+
+    // Return attendances filtered by search, activity and status
+    attendancesTableFiltered() {
+      let rows = this.attendances.slice();
+
+      if (this.filters.activity_id) {
+        rows = rows.filter(
+          (r) => String(r.activity_id) === String(this.filters.activity_id)
+        );
+      }
+
+      if (this.filters.only_without_registration) {
+        rows = rows.filter((r) => !r.registration_id);
+      }
+
+      if (this.filters.activity_type) {
+        rows = rows.filter(
+          (r) => r.activity_type === this.filters.activity_type
+        );
+      }
+
+      if (this.filters.search) {
+        const q = String(this.filters.search).toLowerCase();
+        rows = rows.filter((r) => {
+          return (
+            String(r.student_name || "")
+              .toLowerCase()
+              .includes(q) ||
+            String(r.student_identifier || "")
+              .toLowerCase()
+              .includes(q) ||
+            String(r.activity_name || "")
+              .toLowerCase()
+              .includes(q)
+          );
+        });
+      }
+
+      return rows;
+    },
+
+    async init() {
+      // Load basic lists used by filters
+      await this.loadEvents();
+      await this.loadActivities();
+      // derive activityTypes from activities
+      this.activityTypes = Array.from(
+        new Set(this.activities.map((a) => a.type).filter(Boolean))
+      );
+      // initial refresh of attendances
+      await this.refresh();
+    },
+
+    async refresh() {
+      this.loading = true;
+      try {
+        // load attendances with current filters (server-side support optional)
+        const qs = new URLSearchParams();
+        if (this.filters.search) qs.set("search", this.filters.search);
+        if (this.filters.activity_id)
+          qs.set("activity_id", this.filters.activity_id);
+        if (this.filters.event_id) qs.set("event_id", this.filters.event_id);
+        if (this.filters.only_without_registration)
+          qs.set("only_without_registration", "1");
+        if (this.filters.activity_type)
+          qs.set("activity_type", this.filters.activity_type);
+
+        const url = "/api/attendances?" + qs.toString();
+        const res = await this.sf(url, { method: "GET" });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        this.attendances = this.parseAttendancesPayload(body);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async loadEvents() {
+      try {
+        const res = await this.sf("/api/events?per_page=100", {
+          method: "GET",
+        });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        this.events = body.data || body.events || [];
+      } catch (e) {
+        this.events = [];
+      }
+    },
+
+    async loadActivities() {
+      try {
+        const res = await this.sf("/api/activities?per_page=500", {
+          method: "GET",
+        });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        this.activities = body.data || body.activities || [];
+      } catch (e) {
+        this.activities = [];
+      }
     },
 
     async submitAssign() {
@@ -85,7 +233,7 @@ function attendancesAdmin() {
           await this.loadExistingAttendance();
 
           // Notify other modules about the attendance change
-          dispatchAttendanceChanged({
+          this.dispatchAttendanceChanged({
             activity_id: this.selectedActivity,
             student_id: dispatchedStudentId,
           });
@@ -102,6 +250,147 @@ function attendancesAdmin() {
           "error"
         );
       }
+    },
+
+    // Modal methods
+    openRegister() {
+      this.showModal = true;
+      this.modalStudentId = "";
+      this.modalActivityId = "";
+      this.modalMarkPresent = false;
+    },
+
+    closeModal() {
+      this.showModal = false;
+    },
+
+    async submitModal() {
+      if (!this.modalStudentId || !this.modalActivityId) {
+        window.showToast &&
+          window.showToast("Por favor completa todos los campos", "error");
+        return;
+      }
+
+      try {
+        const payload = {
+          student_id: this.modalStudentId,
+          activity_id: this.modalActivityId,
+          mark_present: this.modalMarkPresent,
+        };
+
+        const res = await this.sf("/api/attendances/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+          window.showToast &&
+            window.showToast(
+              body.message || "Asistencia registrada correctamente",
+              "success"
+            );
+          this.closeModal();
+          await this.refresh();
+
+          // Dispatch attendance change event
+          this.dispatchAttendanceChanged({
+            activity_id: this.modalActivityId,
+            student_id: this.modalStudentId,
+          });
+        } else {
+          window.showToast &&
+            window.showToast(
+              body.message || "Error al registrar asistencia",
+              "error"
+            );
+        }
+      } catch (err) {
+        console.error(err);
+        window.showToast && window.showToast("Error de conexión", "error");
+      }
+    },
+
+    // Action methods referenced in template
+    openEditor(row) {
+      console.log("Edit attendance:", row);
+      // TODO: implement edit modal
+    },
+
+    async quickTogglePresent(row) {
+      try {
+        const res = await this.sf(`/api/attendances/${row.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mark_present: true }),
+        });
+
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+          window.showToast &&
+            window.showToast("Asistencia marcada como presente", "success");
+          await this.refresh();
+
+          this.dispatchAttendanceChanged({
+            attendance_id: row.id,
+            activity_id: row.activity_id,
+            student_id: row.student_id,
+          });
+        } else {
+          window.showToast &&
+            window.showToast(
+              body.message || "Error al actualizar asistencia",
+              "error"
+            );
+        }
+      } catch (err) {
+        console.error(err);
+        window.showToast && window.showToast("Error de conexión", "error");
+      }
+    },
+
+    goToRegistration(row) {
+      if (row.registration_id) {
+        window.location.hash = `#registrations?id=${row.registration_id}`;
+      }
+    },
+
+    async deleteAttendance(row) {
+      if (!confirm("¿Estás seguro de eliminar esta asistencia?")) return;
+
+      try {
+        const res = await this.sf(`/api/attendances/${row.id}`, {
+          method: "DELETE",
+        });
+
+        if (res.ok) {
+          window.showToast &&
+            window.showToast("Asistencia eliminada", "success");
+          await this.refresh();
+
+          this.dispatchAttendanceChanged({
+            attendance_id: row.id,
+            activity_id: row.activity_id,
+            student_id: row.student_id,
+          });
+        } else {
+          const body = await res.json().catch(() => ({}));
+          window.showToast &&
+            window.showToast(
+              body.message || "Error al eliminar asistencia",
+              "error"
+            );
+        }
+      } catch (err) {
+        console.error(err);
+        window.showToast && window.showToast("Error de conexión", "error");
+      }
+    },
+
+    // Helper to add dispatch method for backward compatibility
+    dispatchAttendanceChanged(detail) {
+      dispatchAttendanceChangedEvent(detail);
     },
   };
 }
