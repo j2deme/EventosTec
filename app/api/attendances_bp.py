@@ -323,13 +323,38 @@ def get_attendances():
             # Intentar adjuntar información de preregistro (registration)
             try:
                 # `Registration` fue importado en el módulo
-                registration = Registration.query.filter_by(
+                from sqlalchemy.orm import joinedload
+
+                registration = Registration.query.options(
+                    joinedload(getattr(Registration, 'student')),
+                    joinedload(getattr(Registration, 'activity'))
+                ).filter_by(
                     student_id=att.student_id, activity_id=att.activity_id
                 ).first()
                 if registration:
                     d['registration_id'] = registration.id
-                    # Exponer algunos campos útiles del preregistro para el frontend
-                    d['registration'] = registration.to_dict()
+                    try:
+                        # Preferir la serialización via marshmallow schema para incluir nested objects
+                        from app.schemas import registration_schema as _reg_schema
+
+                        d['registration'] = _reg_schema.dump(registration)
+                    except Exception:
+                        # Fallback to to_dict and try to enrich with nested relations
+                        rd = registration.to_dict() if hasattr(registration, 'to_dict') else {}
+                        try:
+                            if hasattr(registration, 'student') and registration.student is not None:
+                                rd['student'] = registration.student.to_dict()
+                        except Exception:
+                            pass
+                        try:
+                            if hasattr(registration, 'activity') and registration.activity is not None:
+                                rd['activity'] = registration.activity.to_dict()
+                                if hasattr(registration.activity, 'event') and registration.activity.event is not None:
+                                    rd['activity']['event'] = registration.activity.event.to_dict(
+                                    )
+                        except Exception:
+                            pass
+                        d['registration'] = rd
             except Exception:
                 # No romper la respuesta si por alguna razón falla la consulta
                 pass
