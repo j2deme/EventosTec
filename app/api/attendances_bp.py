@@ -320,6 +320,20 @@ def get_attendances():
             except Exception:
                 pass
 
+            # Intentar adjuntar información de preregistro (registration)
+            try:
+                # `Registration` fue importado en el módulo
+                registration = Registration.query.filter_by(
+                    student_id=att.student_id, activity_id=att.activity_id
+                ).first()
+                if registration:
+                    d['registration_id'] = registration.id
+                    # Exponer algunos campos útiles del preregistro para el frontend
+                    d['registration'] = registration.to_dict()
+            except Exception:
+                # No romper la respuesta si por alguna razón falla la consulta
+                pass
+
             result.append(d)
 
         return jsonify({'attendances': result, 'total': total, 'pages': pages, 'current_page': page}), 200
