@@ -122,7 +122,20 @@ describe("attendancesAdmin helpers", () => {
       activity_type: "",
     };
 
-    expect(a.attendancesTableFiltered()).toEqual(a.attendances);
+    const result = a.attendancesTableFiltered();
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      id: 1,
+      student_name: "John",
+      activity_id: 10,
+      key: 1,
+    });
+    expect(result[1]).toEqual({
+      id: 2,
+      student_name: "Jane",
+      activity_id: 20,
+      key: 2,
+    });
   });
 
   test("attendancesTableFiltered filters by activity_id", () => {
@@ -140,7 +153,12 @@ describe("attendancesAdmin helpers", () => {
 
     const filtered = a.attendancesTableFiltered();
     expect(filtered).toHaveLength(1);
-    expect(filtered[0].id).toBe(1);
+    expect(filtered[0]).toEqual({
+      id: 1,
+      student_name: "John",
+      activity_id: 10,
+      key: 1,
+    });
   });
 
   test("attendancesTableFiltered filters by only_without_registration", () => {
@@ -158,7 +176,12 @@ describe("attendancesAdmin helpers", () => {
 
     const filtered = a.attendancesTableFiltered();
     expect(filtered).toHaveLength(1);
-    expect(filtered[0].id).toBe(2);
+    expect(filtered[0]).toEqual({
+      id: 2,
+      student_name: "Jane",
+      registration_id: null,
+      key: 2,
+    });
   });
 
   test("attendancesTableFiltered filters by search text", () => {
@@ -186,7 +209,13 @@ describe("attendancesAdmin helpers", () => {
 
     const filtered = a.attendancesTableFiltered();
     expect(filtered).toHaveLength(1);
-    expect(filtered[0].id).toBe(1);
+    expect(filtered[0]).toEqual({
+      id: 1,
+      student_name: "John Doe",
+      student_identifier: "12345",
+      activity_name: "Workshop",
+      key: 1,
+    });
   });
 
   test("attendancesTableFiltered search matches student_identifier", () => {
@@ -214,7 +243,13 @@ describe("attendancesAdmin helpers", () => {
 
     const filtered = a.attendancesTableFiltered();
     expect(filtered).toHaveLength(1);
-    expect(filtered[0].id).toBe(2);
+    expect(filtered[0]).toEqual({
+      id: 2,
+      student_name: "Jane Smith",
+      student_identifier: "67890",
+      activity_name: "Conference",
+      key: 2,
+    });
   });
 
   test("attendancesTableFiltered search matches activity_name", () => {
@@ -242,6 +277,12 @@ describe("attendancesAdmin helpers", () => {
 
     const filtered = a.attendancesTableFiltered();
     expect(filtered).toHaveLength(1);
-    expect(filtered[0].id).toBe(2);
+    expect(filtered[0]).toEqual({
+      id: 2,
+      student_name: "Jane Smith",
+      student_identifier: "67890",
+      activity_name: "Conference",
+      key: 2,
+    });
   });
 });
