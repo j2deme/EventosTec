@@ -242,6 +242,9 @@ def get_attendances():
         student_id = request.args.get('student_id', type=int)
         activity_id = request.args.get('activity_id', type=int)
         status = request.args.get('status')
+        event_id = request.args.get('event_id', type=int)
+        activity_type = request.args.get('activity_type')
+        search = request.args.get('search', '').strip()
 
         user, user_type, err = get_user_or_403()
         if err:
@@ -257,6 +260,24 @@ def get_attendances():
             query = query.filter_by(activity_id=activity_id)
         if status:
             query = query.filter_by(status=status)
+
+        # Join with Activity if we need to filter by event_id or activity_type
+        if event_id or activity_type:
+            query = query.join(Activity)
+            if event_id:
+                query = query.filter(Activity.event_id == event_id)
+            if activity_type:
+                query = query.filter(Activity.activity_type == activity_type)
+
+        # Join with Student if we need to search by student fields
+        if search:
+            query = query.join(Student)
+            query = query.filter(
+                db.or_(
+                    Student.full_name.ilike(f'%{search}%'),
+                    Student.control_number.ilike(f'%{search}%')
+                )
+            )
 
         query = query.order_by(Attendance.created_at.desc())
 
