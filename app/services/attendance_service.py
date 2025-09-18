@@ -147,7 +147,9 @@ def create_related_attendances(student_id, activity_id):
             auto_attendance = Attendance()
             auto_attendance.student_id = student_id
             auto_attendance.activity_id = related_activity.id
-            auto_attendance.attendance_percentage = 100.0
+            # Crear marcada como 'Asistió' pero dejar porcentaje 0.0 para
+            # permitir recalcular según tiempos reales si es necesario.
+            auto_attendance.attendance_percentage = 0.0
             auto_attendance.status = 'Asistió'
             db.session.add(auto_attendance)
             # Sincronizar con preregistro si existe

@@ -55,13 +55,9 @@ def check_in():
             attendance.status = 'Parcial'
             db.session.add(attendance)
 
-        if activity.activity_type == 'Magistral' and getattr(activity, 'related_activities', None):
-            from app.services.attendance_service import create_related_attendances
-            try:
-                create_related_attendances(student_id, activity_id)
-            except Exception:
-                db.session.rollback()
-                raise
+        # No crear asistencias relacionadas en el check-in inicial: solo crear
+        # asistencias relacionadas cuando la asistencia principal se confirme
+        # (estado 'Asistió'). El check-in es solo parcial hasta el check-out.
 
         db.session.commit()
 
@@ -461,23 +457,42 @@ def register_attendance():
                 except Exception:
                     attendance.check_out_time = now
             if mark_present:
-                attendance.attendance_percentage = 100.0
+                # Marcar como asistido pero dejar porcentaje a 0.0 para que
+                # pueda ser recalculado más tarde a partir de check_in/out
+                attendance.attendance_percentage = 0.0
                 attendance.status = 'Asistió'
-                if not attendance.check_in_time:
-                    attendance.check_in_time = now
-                if not attendance.check_out_time:
-                    attendance.check_out_time = now
+                # Para conferencias magistrales, si se marca como presente y
+                # no se proporcionó check_in_time en el payload, establecer
+                # el check-in en 'now' para permitir cálculos posteriores
+                # al realizar el checkout (relevante para magistrales).
+                try:
+                    if getattr(activity, 'activity_type', None) == 'Magistral' and not attendance.check_in_time:
+                        attendance.check_in_time = now
+                except Exception:
+                    # No bloquear si la comprobación falla por alguna razón
+                    pass
             db.session.add(attendance)
         else:
             created = True
             if mark_present:
+                # Crear asistencia marcada como 'Asistió' pero con porcentaje
+                # inicial 0.0 y sin tiempos por defecto; así se puede paausar
+                # y recalcular más tarde basándose en check_in/check_out reales.
                 attendance = Attendance()
                 attendance.student_id = student_id
                 attendance.activity_id = activity_id
-                attendance.attendance_percentage = 100.0
+                attendance.attendance_percentage = 0.0
                 attendance.status = 'Asistió'
                 attendance.check_in_time = None
                 attendance.check_out_time = None
+                # Si la actividad es magistral, y no se envió check_in en el
+                # payload, asumimos que el walk-in implica check-in ahora para
+                # permitir cálculo de porcentaje al hacer checkout.
+                try:
+                    if getattr(activity, 'activity_type', None) == 'Magistral' and not check_in:
+                        attendance.check_in_time = now
+                except Exception:
+                    pass
                 if check_in:
                     try:
                         attendance.check_in_time = parse_datetime_with_timezone(
@@ -486,8 +501,6 @@ def register_attendance():
                         return jsonify({'message': 'Formato de check_in_time inválido', 'error': str(ve)}), 400
                     except Exception:
                         attendance.check_in_time = now
-                else:
-                    attendance.check_in_time = now
                 if check_out:
                     try:
                         attendance.check_out_time = parse_datetime_with_timezone(
@@ -496,9 +509,7 @@ def register_attendance():
                         return jsonify({'message': 'Formato de check_out_time inválido', 'error': str(ve)}), 400
                     except Exception:
                         attendance.check_out_time = now
-                else:
-                    attendance.check_out_time = now
-                # Asegurar que la nueva asistencia se persiste
+                # Persistir la nueva asistencia
                 db.session.add(attendance)
             else:
                 attendance = Attendance()
@@ -534,9 +545,15 @@ def register_attendance():
                 registration.confirmation_date = db.func.now()
                 db.session.add(registration)
 
-        # Si la actividad tiene actividades relacionadas, crear las asistencias relacionadas
+        # Si la actividad tiene actividades relacionadas, crear las asistencias
+        # relacionadas SOLO si la asistencia principal quedó marcada como
+        # 'Asistió' (es decir, mark_present=True o cálculo posterior que deje ese estado).
         try:
-            if getattr(activity, 'related_activities', None):
+            # Crear asistencias relacionadas SOLO si el porcentaje calculado
+            # alcanza el umbral mínimo de presencia (ej. 80%). Esto evita que
+            # marcar manualmente como 'Asistió' con attendance_percentage=0 provoque
+            # la creación inmediata de asistencias relacionadas.
+            if getattr(activity, 'related_activities', None) and getattr(attendance, 'attendance_percentage', 0) >= 80:
                 from app.services.attendance_service import create_related_attendances
                 try:
                     create_related_attendances(student_id, activity_id)
@@ -607,3 +624,181 @@ def sync_related():
 
     except Exception as e:
         return jsonify({'message': 'Error en sincronizaci\u00f3n', 'error': str(e)}), 500
+
+
+@attendances_bp.route('/<int:attendance_id>/recalculate', methods=['POST'])
+@jwt_required()
+@require_admin
+def recalculate_attendance(attendance_id):
+    """Recalcula el porcentaje de asistencia para una asistencia existente
+    usando los check_in/check_out y pausas registradas.
+    """
+    try:
+        from app.services.attendance_service import calculate_attendance_percentage
+        att = db.session.get(Attendance, attendance_id)
+        if not att:
+            return jsonify({'message': 'Asistencia no encontrada'}), 404
+
+        result = calculate_attendance_percentage(attendance_id)
+        # Si calculate_attendance_percentage devolvió None, significa que no
+        # había datos suficientes (p.ej. falta check_in/check_out)
+        if result is None:
+            return jsonify({'message': 'No hay datos suficientes para recalcular', 'attendance': attendance_schema.dump(att)}), 400
+
+        # Persistir los cambios
+        db.session.add(att)
+        db.session.commit()
+        db.session.refresh(att)
+
+        return jsonify({'message': 'Porcentaje recalculado', 'attendance': attendance_schema.dump(att)}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error al recalcular porcentaje', 'error': str(e)}), 500
+
+
+@attendances_bp.route('/batch-checkout', methods=['POST'])
+@jwt_required()
+@require_admin
+def batch_checkout():
+    """Batch process to perform a 'checkout' for attendances missing a check_out_time,
+    recalculate attendance_percentage and create related attendances for those
+    that meet the threshold (>=80%). Payload:
+    {
+      "activity_id": <int>,
+      "student_ids": [<int>, ...],   # optional filter
+      "dry_run": true|false          # optional, default true
+    }
+    Returns a summary: { processed: N, updated: M, related_created: K, details: [...] }
+    """
+    try:
+        payload = request.get_json() or {}
+        activity_id = payload.get('activity_id')
+        student_ids = payload.get('student_ids')
+        dry_run = bool(payload.get('dry_run', True))
+
+        if not activity_id:
+            return jsonify({'message': 'activity_id es requerido'}), 400
+
+        from app.services.attendance_service import calculate_attendance_percentage, create_related_attendances
+        from app.models.attendance import Attendance
+        from app.models.activity import Activity
+
+        activity = db.session.get(Activity, activity_id)
+        if not activity:
+            return jsonify({'message': 'Actividad no encontrada'}), 404
+
+        query = Attendance.query.filter_by(activity_id=activity_id)
+        if student_ids:
+            query = query.filter(Attendance.student_id.in_(student_ids))
+
+        att_list = query.all()
+
+        summary = {'processed': 0, 'updated': 0,
+                   'related_created': 0, 'details': []}
+
+        for att in att_list:
+            summary['processed'] += 1
+            # If there's no check_in_time, skip (cannot calculate)
+            if not att.check_in_time:
+                summary['details'].append(
+                    {'attendance_id': att.id, 'action': 'skipped', 'reason': 'no_check_in'})
+                continue
+
+            # If check_out_time missing, set it to now for the purpose of calculation
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            original_check_out = att.check_out_time
+            if not att.check_out_time:
+                if not dry_run:
+                    att.check_out_time = now
+                # otherwise, emulate for calculation
+                emulate_check_out = now
+            else:
+                emulate_check_out = att.check_out_time
+
+            # Calculate percentage.
+            # - If dry_run: compute in-memory without mutating DB/session.
+            # - If not dry_run: use the service which updates the attendance and persists below.
+            perc = None
+            if dry_run:
+                # Local calculation (mirror logic from service.calculate_net_duration_seconds)
+                try:
+                    # normalize timezone-aware datetimes
+                    def _ensure_tz(dt):
+                        if dt is None:
+                            return None
+                        if dt.tzinfo is None:
+                            return dt.replace(tzinfo=timezone.utc)
+                        return dt
+
+                    start = _ensure_tz(att.check_in_time)
+                    end = _ensure_tz(emulate_check_out)
+
+                    total_paused_seconds = 0
+                    if getattr(att, 'pause_time', None):
+                        resume_or_now = getattr(
+                            att, 'resume_time', None) or now
+                        resume_or_now = _ensure_tz(resume_or_now)
+                        pause_time = _ensure_tz(att.pause_time)
+                        if resume_or_now and pause_time:
+                            total_paused_seconds = (
+                                resume_or_now - pause_time).total_seconds()
+
+                    if not start or not end:
+                        net_duration_seconds = 0
+                    else:
+                        net_duration_seconds = max(
+                            0, (end - start).total_seconds() - total_paused_seconds)
+
+                    expected_duration_seconds = 0
+                    if getattr(activity, 'duration_hours', None) is not None:
+                        expected_duration_seconds = activity.duration_hours * 3600
+
+                    if expected_duration_seconds > 0:
+                        percentage = (net_duration_seconds /
+                                      expected_duration_seconds) * 100
+                        perc = round(max(0, percentage), 2)
+                    else:
+                        # If no expected duration, assume 100% if had both times
+                        perc = 100.0 if start and end else 0.0
+                except Exception:
+                    perc = 0.0
+            else:
+                # Persist check_out time if missing, then calculate via service which mutates the attendance
+                if not att.check_out_time:
+                    att.check_out_time = now
+                db.session.add(att)
+                try:
+                    db.session.flush()
+                except Exception:
+                    pass
+
+                perc = calculate_attendance_percentage(att.id)
+
+                # Persist updates from service
+                db.session.add(att)
+                db.session.commit()
+                db.session.refresh(att)
+
+            # If the recalculated percentage meets threshold, create related attendances
+            created_related = 0
+            if (perc or 0) >= 80:
+                # Only create related attendances when not dry_run
+                if not dry_run and getattr(activity, 'related_activities', None):
+                    create_related_attendances(att.student_id, activity_id)
+                    created_related = 1
+
+            summary['details'].append(
+                {'attendance_id': att.id, 'percentage': perc or 0, 'related_created': created_related})
+            summary['updated'] += 1
+            summary['related_created'] += created_related
+
+        if not dry_run:
+            # commit already performed per-attendance
+            pass
+
+        return jsonify({'message': 'Batch checkout completado', 'dry_run': dry_run, 'summary': summary}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': 'Error en batch checkout', 'error': str(e)}), 500

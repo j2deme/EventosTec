@@ -13,6 +13,22 @@
       </p>
     </div>
     <div class="mt-4 sm:mt-0 inline-flex items-center space-x-3">
+      <!-- Botón para registrar walk-in con buscador por número de control -->
+      <button
+        @click="openRegister()"
+        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+      >
+        <i class="ti ti-user-plus mr-2"></i>
+        Registrar walk-in
+      </button>
+      <!-- Botón para ejecutar batch-checkout (recalcular/check-out en lote) -->
+      <button
+        @click="openBatchCheckoutModal()"
+        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+      >
+        <i class="ti ti-clock mr-2"></i>
+        Batch checkout
+      </button>
       <!-- Botón de sincronización on-demand para actividades relacionadas -->
       <button
         @click="$dispatch('open-sync-modal')"
@@ -21,6 +37,103 @@
         <i class="ti ti-repeat mr-2"></i>
         Sincronizar relacionados
       </button>
+    </div>
+  </div>
+
+  <!-- Modal para batch-checkout (recalcular y checkout emulado) -->
+  <div
+    x-show="showBatchCheckoutModal"
+    x-cloak
+    style="display: none"
+    class="fixed inset-0 z-50 flex items-center justify-center"
+  >
+    <div
+      class="bg-black bg-opacity-50 absolute inset-0"
+      @click="closeBatchCheckoutModal()"
+    ></div>
+    <div class="bg-white rounded p-6 z-10 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Batch checkout</h3>
+
+      <div class="mb-3">
+        <label class="block text-sm">Evento</label>
+        <select
+          x-model="batchEventId"
+          @change="batchActivityId = null"
+          class="mt-1 block w-full rounded border-gray-300"
+        >
+          <option value="">-- Selecciona un evento --</option>
+          <template x-for="e in events" :key="e.id">
+            <option
+              :value="e.id"
+              x-text="e.name || e.title || ('Evento ' + e.id)"
+            ></option>
+          </template>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-sm">Actividad</label>
+        <select
+          x-model="batchActivityId"
+          class="mt-1 block w-full rounded border-gray-300"
+        >
+          <option value="">-- Selecciona una actividad --</option>
+          <template x-for="a in batchFilteredActivities()" :key="a.id">
+            <option
+              :value="a.id"
+              x-text="(a.name || ('Actividad ' + a.id)) + (a.event_name ? (' — ' + a.event_name) : '')"
+            ></option>
+          </template>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="inline-flex items-center">
+          <input type="checkbox" x-model="batchDryRun" class="form-checkbox" />
+          <span class="ml-2"
+            >Dry run (previsualización, no se guardan cambios)</span
+          >
+        </label>
+      </div>
+
+      <div class="flex justify-end space-x-2">
+        <button
+          @click="closeBatchCheckoutModal()"
+          class="px-3 py-2 bg-gray-200 rounded"
+        >
+          Cancelar
+        </button>
+        <button
+          @click="performBatchCheckout()"
+          class="px-3 py-2 bg-yellow-600 text-white rounded"
+        >
+          Ejecutar
+        </button>
+      </div>
+
+      <template x-if="batchResult">
+        <div class="mt-4">
+          <div class="text-sm font-medium">Resumen</div>
+          <div class="text-xs text-gray-600">
+            Procesados: <span x-text="batchResult.processed || 0"></span>,
+            Actualizados: <span x-text="batchResult.updated || 0"></span>,
+            Relacionadas creadas:
+            <span x-text="batchResult.related_created || 0"></span>
+          </div>
+          <div class="mt-2 max-h-48 overflow-auto text-xs text-gray-700">
+            <template
+              x-for="d in (batchResult.details || [])"
+              :key="d.attendance_id"
+            >
+              <div class="py-1 border-b">
+                Asistencia ID: <span x-text="d.attendance_id"></span> —
+                Porcentaje: <span x-text="d.percentage || 0"></span> — Related
+                created: <span x-text="d.related_created || 0"></span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
   <!-- Búsqueda y filtros compactos -->
@@ -408,44 +521,148 @@
         class="bg-black bg-opacity-50 absolute inset-0"
         @click="closeModal()"
       ></div>
-      <div class="bg-white rounded p-6 z-10 w-full max-w-md">
-        <h3 class="text-lg font-semibold mb-4">Registrar asistencia</h3>
-        <div class="mb-3">
-          <label class="block text-sm">Estudiante ID</label>
-          <input
-            x-model="modalStudentId"
-            id="modal-student-id"
-            class="mt-1 block w-full rounded border-gray-300"
-          />
-        </div>
-        <div class="mb-3">
-          <label class="block text-sm">Actividad ID</label>
-          <input
-            x-model="modalActivityId"
-            id="modal-activity-id"
-            class="mt-1 block w-full rounded border-gray-300"
-          />
-        </div>
-        <div class="mb-3">
-          <label class="inline-flex items-center">
+      <div class="bg-white rounded p-6 z-10 w-full max-w-lg">
+        <h3 class="text-lg font-semibold mb-4">Registrar Walk-in</h3>
+
+        <div class="grid grid-cols-1 gap-3 mb-3">
+          <div>
+            <label class="block text-sm">Evento</label>
+            <select
+              x-model="selectedEventForRegister"
+              class="mt-1 block w-full rounded border-gray-300"
+              @change="loadActivities()"
+              required
+            >
+              <option value="">-- Selecciona evento --</option>
+              <template
+                x-for="e in events.filter(ev => ev.is_active)"
+                :key="e.id"
+              >
+                <option
+                  :value="e.id"
+                  x-text="e.name || e.title || ('Evento ' + e.id)"
+                ></option>
+              </template>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm">Actividad</label>
+            <select
+              x-model="selectedActivity"
+              class="mt-1 block w-full rounded border-gray-300"
+              @change="checkExistingRegistration()"
+            >
+              <option value="">-- Selecciona actividad --</option>
+              <template
+                x-for="a in activities.filter(ac=> !selectedEventForRegister || String(ac.event_id)===String(selectedEventForRegister))"
+                :key="a.id"
+              >
+                <option
+                  :value="a.id"
+                  x-text="a.name + (a.event_name ? (' — ' + a.event_name) : '')"
+                ></option>
+              </template>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm"
+              >Buscar estudiante (número de control)</label
+            >
             <input
-              x-model="modalMarkPresent"
-              id="modal-mark-present"
-              type="checkbox"
-              class="form-checkbox"
+              x-model="studentSearchQuery"
+              @input.debounce.300ms="doStudentSearch()"
+              placeholder="Ej: 20123456"
+              class="mt-1 block w-full rounded border-gray-300"
             />
-            <span class="ml-2">Marcar como presente (100%)</span>
-          </label>
+            <div class="mt-2 max-h-40 overflow-auto bg-gray-50 rounded">
+              <template x-for="s in studentSearchResults" :key="s.id">
+                <div
+                  class="p-2 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                  @click="selectedStudent = s; checkExistingRegistration()"
+                >
+                  <div>
+                    <div class="font-medium" x-text="s.full_name"></div>
+                    <div
+                      class="text-xs text-gray-600"
+                      x-text="s.control_number"
+                    ></div>
+                  </div>
+                  <div>
+                    <template
+                      x-if="selectedStudent && selectedStudent.id === s.id"
+                    >
+                      <span class="text-sm text-green-600">Seleccionado</span>
+                    </template>
+                  </div>
+                </div>
+              </template>
+              <template
+                x-if="studentSearchResults.length === 0 && studentSearchQuery"
+              >
+                <div class="p-2 text-sm text-gray-500">
+                  No se encontraron estudiantes
+                </div>
+              </template>
+            </div>
+            <!-- Si existe un preregistro para student+activity, mostrar info y acción rápida -->
+            <template x-if="selectedRegistration">
+              <div
+                class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded"
+              >
+                <div class="flex items-start justify-between">
+                  <div>
+                    <div class="text-sm font-medium text-yellow-800">
+                      Pre-registro encontrado
+                    </div>
+                    <div
+                      class="text-xs text-gray-700 mt-1"
+                      x-text="selectedRegistration.student?.full_name || selectedRegistration.student_name || ''"
+                    ></div>
+                    <div class="text-xs text-gray-500 mt-1">
+                      Estado:
+                      <span
+                        x-text="selectedRegistration.status || selectedRegistration.registration_status || ''"
+                      ></span>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                      ID registro:
+                      <span
+                        x-text="selectedRegistration.id || selectedRegistration.registration_id || '-' "
+                      ></span>
+                    </div>
+                  </div>
+                  <div class="flex flex-col items-end space-y-2">
+                    <button
+                      @click="modalMarkPresent = true; submitAssign()"
+                      class="px-3 py-1 bg-indigo-600 text-white rounded text-sm"
+                    >
+                      Marcar como Asistió
+                    </button>
+                    <button
+                      @click="openRegistrationModal(selectedRegistration)"
+                      class="px-3 py-1 bg-white border rounded text-sm text-gray-700"
+                    >
+                      Ver registro
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
         </div>
-        <div class="flex justify-end space-x-2">
+
+        <div class="flex items-center justify-end space-x-2">
           <button @click="closeModal()" class="px-3 py-2 bg-gray-200 rounded">
             Cancelar
           </button>
           <button
-            @click="submitModal()"
-            class="px-3 py-2 bg-indigo-600 text-white rounded"
+            @click="submitAssign()"
+            class="px-3 py-2 bg-green-600 text-white rounded"
+            :disabled="!selectedEventForRegister || !selectedActivity || !selectedStudent"
           >
-            Registrar
+            Registrar Walk-in
           </button>
         </div>
       </div>

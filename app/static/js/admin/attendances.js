@@ -47,6 +47,13 @@ function attendancesAdmin() {
     modalStudentId: "",
     modalActivityId: "",
     modalMarkPresent: false,
+    // Walk-in register helpers
+    selectedEventForRegister: "",
+    selectedActivity: "",
+    selectedStudent: null,
+    selectedRegistration: null,
+    studentSearchQuery: "",
+    studentSearchResults: [],
     // Registration view modal
     showRegistrationModal: false,
     registrationModalData: null,
@@ -55,6 +62,12 @@ function attendancesAdmin() {
     syncDryRun: true,
     syncSourceActivityId: null,
     syncResult: null,
+    // Batch checkout modal state
+    showBatchCheckoutModal: false,
+    batchDryRun: true,
+    batchActivityId: null,
+    batchEventId: null,
+    batchResult: null,
     // UI helpers
     selectAllForSync: false,
     syncRunning: false,
@@ -85,6 +98,16 @@ function attendancesAdmin() {
           (a) => (a.activity_type || a.type) === this.filters.activity_type
         );
       }
+      return byEvent;
+    },
+
+    // Return activities filtered specifically for the batch modal using batchEventId
+    batchFilteredActivities() {
+      const byEvent = this.batchEventId
+        ? this.activities.filter(
+            (a) => String(a.event_id) === String(this.batchEventId)
+          )
+        : this.activities.slice();
       return byEvent;
     },
 
@@ -335,6 +358,65 @@ function attendancesAdmin() {
       this.syncResult = null;
     },
 
+    // Batch checkout modal helpers
+    openBatchCheckoutModal() {
+      this.showBatchCheckoutModal = true;
+      this.batchDryRun = true;
+      this.batchEventId = this.filters.event_id || null;
+      this.batchActivityId = this.filters.activity_id || null;
+      this.batchResult = null;
+    },
+
+    closeBatchCheckoutModal() {
+      this.showBatchCheckoutModal = false;
+      this.batchResult = null;
+    },
+
+    async performBatchCheckout() {
+      this.batchResult = null;
+      if (!this.batchEventId) {
+        window.showToast &&
+          window.showToast(
+            "Selecciona un evento antes de elegir la actividad",
+            "error"
+          );
+        return;
+      }
+      if (!this.batchActivityId) {
+        window.showToast &&
+          window.showToast("Selecciona una actividad válida", "error");
+        return;
+      }
+      try {
+        const payload = {
+          activity_id: this.batchActivityId,
+          dry_run: !!this.batchDryRun,
+        };
+        const res = await this.sf("/api/attendances/batch-checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        this.batchResult = body.summary || body;
+        if (!this.batchDryRun && res && res.ok) {
+          window.showToast &&
+            window.showToast("Batch checkout realizado", "success");
+          await this.refresh();
+          this.closeBatchCheckoutModal();
+        } else if (this.batchDryRun) {
+          window.showToast &&
+            window.showToast("Previsualización completada (dry-run)", "info");
+        }
+      } catch (e) {
+        console.error(e);
+        window.showToast &&
+          window.showToast("Error al ejecutar batch checkout", "error");
+      }
+    },
+
     async performSync() {
       // clear previous result so UI shows fresh state when starting
       this.syncResult = null;
@@ -435,7 +517,12 @@ function attendancesAdmin() {
         const body = await (res && res.json
           ? res.json().catch(() => ({}))
           : Promise.resolve({}));
-        this.events = body.data || body.events || [];
+        // Mostrar solo eventos activos en los selectores para evitar listas largas
+        const allEvents = body.data || body.events || [];
+        this.events = (allEvents || []).filter(
+          (e) =>
+            e.is_active === true || e.is_active === "true" || e.active === true
+        );
       } catch (e) {
         this.events = [];
       }
@@ -461,10 +548,23 @@ function attendancesAdmin() {
         activity_id: this.selectedActivity,
         student_id: this.selectedStudent.id,
       };
-      if (this.existingAttendance.mark_present) payload.mark_present = true;
-      if (this.existingAttendance.check_in_time_input)
+      // Allow explicit mark_present from modal (modalMarkPresent) or from an
+      // existingAttendance if present. Use defensive checks to avoid errors
+      // when existingAttendance is undefined.
+      if (
+        this.modalMarkPresent ||
+        (this.existingAttendance && this.existingAttendance.mark_present)
+      )
+        payload.mark_present = true;
+      if (
+        this.existingAttendance &&
+        this.existingAttendance.check_in_time_input
+      )
         payload.check_in_time = this.existingAttendance.check_in_time_input;
-      if (this.existingAttendance.check_out_time_input)
+      if (
+        this.existingAttendance &&
+        this.existingAttendance.check_out_time_input
+      )
         payload.check_out_time = this.existingAttendance.check_out_time_input;
 
       try {
@@ -503,13 +603,20 @@ function attendancesAdmin() {
           const dispatchedStudentId = this.selectedStudent?.id;
           this.message = finalMessage;
           this.selectedStudent = null;
-          await this.loadExistingAttendance();
+          // call loadExistingAttendance if available (some builds may expose it)
+          if (typeof this.loadExistingAttendance === "function") {
+            await this.loadExistingAttendance();
+          }
+          // refresh attendances list to show the new/updated record
+          if (typeof this.refresh === "function") await this.refresh();
 
           // Notify other modules about the attendance change
           this.dispatchAttendanceChanged({
             activity_id: this.selectedActivity,
             student_id: dispatchedStudentId,
           });
+          // close the modal after success
+          this.closeModal();
         } else {
           window.showToast(
             body.message || "Error al asignar asistencia.",
@@ -527,14 +634,89 @@ function attendancesAdmin() {
 
     // Modal methods
     openRegister() {
+      // Open the richer register modal (walk-in): reset selection state
       this.showModal = true;
-      this.modalStudentId = "";
-      this.modalActivityId = "";
-      this.modalMarkPresent = false;
+      // fuerza selección vacía para obligar a elegir un evento
+      this.selectedEventForRegister = "";
+      this.selectedActivity = "";
+      this.selectedStudent = null;
+      this.studentSearchQuery = "";
+      this.studentSearchResults = [];
+      // Por defecto marcar walk-ins como presentes para evitar creaciones como 'Ausente'
+      this.modalMarkPresent = true;
+    },
+
+    async searchStudents(q) {
+      if (!q || String(q).trim().length === 0) {
+        this.studentSearchResults = [];
+        return;
+      }
+      try {
+        const params = new URLSearchParams();
+        params.set("per_page", 10);
+        params.set("search", q);
+        const res = await this.sf(`/api/students?${params.toString()}`, {
+          method: "GET",
+        });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        // API returns { students: [...] } or array - normalize
+        this.studentSearchResults = body.students || body || [];
+      } catch (e) {
+        console.error(e);
+        this.studentSearchResults = [];
+      }
+    },
+
+    // debounce helper: call this on input with Alpine's .debounce or directly
+    doStudentSearch() {
+      const q = String(this.studentSearchQuery || "").trim();
+      if (q.length === 0) {
+        this.studentSearchResults = [];
+        return;
+      }
+      // Trigger search
+      this.searchStudents(q);
+    },
+
+    async checkExistingRegistration() {
+      // If we have both student and activity, query registrations to see if one exists
+      this.selectedRegistration = null;
+      const studentId = this.selectedStudent && this.selectedStudent.id;
+      const activityId = this.selectedActivity;
+      if (!studentId || !activityId) return;
+      try {
+        const params = new URLSearchParams();
+        params.set("student_id", studentId);
+        params.set("activity_id", activityId);
+        params.set("per_page", 1);
+        const res = await this.sf(`/api/registrations?${params.toString()}`, {
+          method: "GET",
+        });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        const regs = body.registrations || body.data || [];
+        if (Array.isArray(regs) && regs.length > 0) {
+          this.selectedRegistration = regs[0];
+        } else {
+          this.selectedRegistration = null;
+        }
+      } catch (e) {
+        console.error("Error checking registration", e);
+        this.selectedRegistration = null;
+      }
     },
 
     closeModal() {
       this.showModal = false;
+      // Reset modal-specific state to avoid stale data when reopened
+      this.selectedRegistration = null;
+      this.selectedStudent = null;
+      this.studentSearchResults = [];
+      this.studentSearchQuery = "";
+      this.modalMarkPresent = false;
     },
 
     async submitModal() {
