@@ -50,6 +50,14 @@ function attendancesAdmin() {
     // Registration view modal
     showRegistrationModal: false,
     registrationModalData: null,
+    // Sync modal state
+    showSyncModal: false,
+    syncDryRun: true,
+    syncSourceActivityId: null,
+    syncResult: null,
+    // UI helpers
+    selectAllForSync: false,
+    syncRunning: false,
     // Internal helpers to reduce duplication
     sf(url, opts) {
       const f =
@@ -124,11 +132,16 @@ function attendancesAdmin() {
         });
       }
 
-      // Add unique key for Alpine.js x-for
-      return rows.map((row, index) => ({
-        ...row,
-        key: row.id || `row-${index}`,
-      }));
+      // Ensure we return the original objects (no cloning) so x-model bindings
+      // remain linked to the underlying attendance objects. Add a stable key
+      // and initialize per-row selection state if missing.
+      rows.forEach((row, index) => {
+        if (!row.key) row.key = row.id || `row-${index}`;
+        if (typeof row.__selected_for_sync === "undefined")
+          row.__selected_for_sync = false;
+      });
+
+      return rows;
     },
 
     // Normalizar campos que la plantilla espera: status tokens, statusLabel, date_display, activity_type
@@ -145,9 +158,8 @@ function attendancesAdmin() {
         error: "error",
       };
 
-      this.attendances = (this.attendances || []).map((att) => {
-        const a = Object.assign({}, att);
-
+      // Mutate attendances in-place to preserve object references used by Alpine x-model
+      (this.attendances || []).forEach((a) => {
         // activity_type may be nested under a.activity.activity_type or activity_type
         if (!a.activity_type) {
           a.activity_type =
@@ -191,8 +203,6 @@ function attendancesAdmin() {
         } else {
           a.date_display = "—";
         }
-
-        return a;
       });
     },
 
@@ -246,9 +256,21 @@ function attendancesAdmin() {
       await this.refresh();
     },
 
+    // Listen for dispatch to open the sync modal (from template)
+    // Alpine will capture the event on the component root
+    $el: null,
+
     async refresh() {
       this.loading = true;
       try {
+        // preserve current selections so refresh() doesn't clobber user choices
+        const prevSelectedIds = new Set(
+          (this.attendances || [])
+            .filter((r) => r.__selected_for_sync)
+            .map((r) => r.id || r.student_id)
+            .filter(Boolean)
+        );
+
         // load attendances with current filters (server-side support optional)
         const qs = new URLSearchParams();
         if (this.filters.search) qs.set("search", this.filters.search);
@@ -271,6 +293,21 @@ function attendancesAdmin() {
         // Normalizar datos para la plantilla (status tokens, date_display, activity_type)
         this.normalizeAttendances();
 
+        // Re-apply previous per-row selection where possible (by id or student_id)
+        (this.attendances || []).forEach((a) => {
+          const key = a.id || a.student_id;
+          if (key && prevSelectedIds.has(key)) a.__selected_for_sync = true;
+          // ensure flag exists
+          if (typeof a.__selected_for_sync === "undefined")
+            a.__selected_for_sync = false;
+        });
+
+        // Update master checkbox to reflect visible rows
+        const visibleNow = this.attendancesTableFiltered() || [];
+        this.selectAllForSync =
+          visibleNow.length > 0 &&
+          visibleNow.every((r) => !!r.__selected_for_sync);
+
         // Calcular stats después de normalizar
         this.calculateStats();
       } catch (err) {
@@ -278,6 +315,116 @@ function attendancesAdmin() {
       } finally {
         this.loading = false;
       }
+    },
+
+    // Sync modal helpers
+    openSyncModal() {
+      this.showSyncModal = true;
+      this.syncDryRun = true;
+      this.syncSourceActivityId = "";
+      this.syncResult = null;
+      // Preserve existing per-row selections. Set master checkbox state based
+      // on currently visible rows so UI reflects the current selection.
+      const visible = this.attendancesTableFiltered() || [];
+      this.selectAllForSync =
+        visible.length > 0 && visible.every((r) => !!r.__selected_for_sync);
+    },
+
+    closeSyncModal() {
+      this.showSyncModal = false;
+      this.syncResult = null;
+    },
+
+    async performSync() {
+      // clear previous result so UI shows fresh state when starting
+      this.syncResult = null;
+      // Validar activity id
+      if (!this.syncSourceActivityId) {
+        window.showToast &&
+          window.showToast("Selecciona una actividad fuente válida", "error");
+        return;
+      }
+      const activityExists = (this.activities || []).some(
+        (a) => String(a.id) === String(this.syncSourceActivityId)
+      );
+      if (!activityExists) {
+        window.showToast &&
+          window.showToast("La actividad seleccionada no existe", "error");
+        return;
+      }
+
+      this.syncRunning = true;
+      try {
+        // Gather selected rows from this.attendances
+        // gather selected rows FROM the currently visible/filtered set
+        const visible = this.attendancesTableFiltered();
+        const selected = (visible || []).filter((r) => r.__selected_for_sync);
+        const student_ids = selected.length
+          ? selected.map((r) => r.student_id)
+          : null;
+        console.debug("performSync payload", {
+          source_activity_id: this.syncSourceActivityId,
+          student_ids,
+          dry_run: !!this.syncDryRun,
+        });
+        const payload = {
+          source_activity_id: this.syncSourceActivityId,
+          student_ids: student_ids,
+          dry_run: !!this.syncDryRun,
+        };
+
+        const res = await this.sf("/api/attendances/sync-related", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        this.syncResult = body.summary || body;
+
+        if (!this.syncDryRun && res && res.ok) {
+          window.showToast &&
+            window.showToast("Sincronización realizada", "success");
+          // refresh to show newly created attendances
+          await this.refresh();
+          // limpiar selección
+          (this.attendances || []).forEach(
+            (r) => (r.__selected_for_sync = false)
+          );
+          this.selectAllForSync = false;
+          // cerrar modal
+          this.closeSyncModal();
+        } else if (this.syncDryRun) {
+          window.showToast &&
+            window.showToast("Previsualización completada (dry-run)", "info");
+        }
+      } catch (e) {
+        console.error(e);
+        window.showToast && window.showToast("Error al sincronizar", "error");
+      } finally {
+        this.syncRunning = false;
+      }
+    },
+
+    // Return number of selected rows within the currently visible/filtered set
+    selectedForSyncCount() {
+      const visible = this.attendancesTableFiltered() || [];
+      return (visible || []).filter((r) => !!r.__selected_for_sync).length;
+    },
+
+    // Return number of visible rows in current filters
+    visibleForSyncCount() {
+      const visible = this.attendancesTableFiltered() || [];
+      return visible.length;
+    },
+
+    toggleSelectAll(checked) {
+      const newVal = !!checked;
+      this.selectAllForSync = newVal;
+      // Only toggle rows that are currently visible after filters
+      const visible = this.attendancesTableFiltered() || [];
+      visible.forEach((r) => (r.__selected_for_sync = newVal));
     },
 
     async loadEvents() {
@@ -466,8 +613,19 @@ function attendancesAdmin() {
           );
           if (res && res.ok) {
             const body = await res.json().catch(() => ({}));
-            this.registrationModalData =
-              body.data || body.registration || body || null;
+            const candidate = body.data || body.registration || body || null;
+            // If candidate lacks student and activity, treat as missing
+            if (
+              candidate &&
+              (candidate.student ||
+                candidate.activity ||
+                candidate.student_id ||
+                candidate.activity_id)
+            ) {
+              this.registrationModalData = candidate;
+            } else {
+              this.registrationModalData = null;
+            }
           } else {
             this.registrationModalData = null;
           }

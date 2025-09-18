@@ -1,4 +1,8 @@
-<div x-data="attendancesAdmin()" x-init="init()">
+<div
+  x-data="attendancesAdmin()"
+  x-init="init()"
+  x-on:open-sync-modal.window="openSyncModal()"
+>
   <div
     class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6"
   >
@@ -9,19 +13,13 @@
       </p>
     </div>
     <div class="mt-4 sm:mt-0 inline-flex items-center space-x-3">
+      <!-- Botón de sincronización on-demand para actividades relacionadas -->
       <button
-        @click="openRegister()"
-        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        @click="$dispatch('open-sync-modal')"
+        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
       >
-        <i class="ti ti-plus mr-2"></i>
-        Registrar asistencia
-      </button>
-      <button
-        @click="$dispatch('open-assign-modal')"
-        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-      >
-        <i class="ti ti-user-plus mr-2"></i>
-        Asignar manual
+        <i class="ti ti-repeat mr-2"></i>
+        Sincronizar relacionados
       </button>
     </div>
   </div>
@@ -219,6 +217,14 @@
             <table x-show="!loading" class="min-w-full table-auto text-sm">
               <thead>
                 <tr class="bg-gray-50">
+                  <th class="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      x-bind:checked="selectAllForSync"
+                      x-on:change="toggleSelectAll($event.target.checked)"
+                      aria-label="Seleccionar todas las filas visibles para sincronizar"
+                    />
+                  </th>
                   <th
                     class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
@@ -252,6 +258,13 @@
                   :key="row.key"
                 >
                   <tr class="border-t hover:bg-gray-50">
+                    <td class="px-3 py-2 align-top">
+                      <input
+                        type="checkbox"
+                        x-model="row.__selected_for_sync"
+                        aria-label="Seleccionar fila para sincronizar"
+                      />
+                    </td>
                     <td class="px-6 py-4 align-top">
                       <div
                         class="font-medium text-gray-900"
@@ -366,7 +379,7 @@
                 <tr
                   x-show="!loading && attendancesTableFiltered().length === 0"
                 >
-                  <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                  <td colspan="6" class="px-6 py-8 text-center text-gray-500">
                     No se encontraron registros
                   </td>
                 </tr>
@@ -478,11 +491,15 @@
               <div class="text-right text-sm text-gray-600">
                 <div x-show="registrationModalData.student?.email">
                   <div class="text-xs text-gray-500">Email</div>
-                  <div x-text="registrationModalData.student?.email || ''"></div>
+                  <div
+                    x-text="registrationModalData.student?.email || ''"
+                  ></div>
                 </div>
                 <div x-show="registrationModalData.student?.phone" class="mt-2">
                   <div class="text-xs text-gray-500">Tel.</div>
-                  <div x-text="registrationModalData.student?.phone || ''"></div>
+                  <div
+                    x-text="registrationModalData.student?.phone || ''"
+                  ></div>
                 </div>
               </div>
             </div>
@@ -522,7 +539,6 @@
               </button>
             </div>
           </div>
-          </div>
         </template>
 
         <template x-if="!registrationModalData">
@@ -531,6 +547,124 @@
           </div>
         </template>
       </div>
+    </div>
+  </div>
+
+  <!-- Modal para sincronizar actividades relacionadas -->
+  <div
+    x-show="showSyncModal"
+    x-cloak
+    style="display: none"
+    class="fixed inset-0 z-50 flex items-center justify-center"
+  >
+    <div
+      class="bg-black bg-opacity-50 absolute inset-0"
+      @click="closeSyncModal()"
+    ></div>
+    <div class="bg-white rounded p-6 z-10 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">
+        Sincronizar actividades relacionadas
+      </h3>
+      <div class="mb-3">
+        <label class="block text-sm">Actividad fuente</label>
+        <select
+          x-model="syncSourceActivityId"
+          class="mt-1 block w-full rounded border-gray-300"
+        >
+          <option value="">-- Selecciona una actividad --</option>
+          <template x-for="a in activities" :key="a.id">
+            <option
+              :value="a.id"
+              x-text="(a.name || ('Actividad ' + a.id)) + (a.event_name ? (' — ' + a.event_name) : '')"
+            ></option>
+          </template>
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="inline-flex items-center">
+          <input type="checkbox" x-model="syncDryRun" class="form-checkbox" />
+          <span class="ml-2"
+            >Dry run (previsualización, no se guardan cambios)</span
+          >
+        </label>
+      </div>
+
+      <div class="text-sm text-gray-700 mb-3">
+        <template x-if="selectedForSyncCount() > 0">
+          <div>
+            Seleccionados: <strong x-text="selectedForSyncCount()"></strong> de
+            <span x-text="visibleForSyncCount()"></span> filas visibles. Estos
+            serán enviados al servidor.
+          </div>
+        </template>
+        <template x-if="selectedForSyncCount() === 0">
+          <div>
+            No hay filas seleccionadas — se sincronizarán todos los estudiantes
+            presentes en la actividad fuente (si no se especifican filas).
+          </div>
+        </template>
+      </div>
+
+      <div class="flex justify-end space-x-2">
+        <button
+          @click="closeSyncModal()"
+          class="px-3 py-2 bg-gray-200 rounded"
+          :disabled="syncRunning"
+        >
+          Cancelar
+        </button>
+        <button
+          @click="performSync()"
+          class="px-3 py-2 bg-indigo-600 text-white rounded flex items-center"
+          :disabled="syncRunning"
+        >
+          <svg
+            x-show="syncRunning"
+            class="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            ></path>
+          </svg>
+          <span x-text="syncRunning ? 'Sincronizando...' : 'Ejecutar'"></span>
+        </button>
+      </div>
+
+      <template x-if="syncResult">
+        <div class="mt-4">
+          <div class="text-sm font-medium">Resumen</div>
+          <div class="text-xs text-gray-600">
+            Creados: <span x-text="syncResult.created || 0"></span>, Saltados:
+            <span x-text="syncResult.skipped || 0"></span>
+          </div>
+          <div class="mt-2 max-h-48 overflow-auto text-xs text-gray-700">
+            <template
+              x-for="d in (syncResult.details || [])"
+              :key="d.student_id + '-' + d.target_activity_id"
+            >
+              <div class="py-1 border-b">
+                ID estudiante: <span x-text="d.student_id"></span> → Actividad:
+                <span x-text="d.target_activity_id"></span> —
+                <span x-text="d.action"></span> (<span x-text="d.reason"></span
+                >)
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </div>
