@@ -163,5 +163,101 @@ def create_related_attendances(student_id, activity_id):
                 registration.status = 'Asistió'
                 registration.confirmation_date = db.func.now()
                 db.session.add(registration)
-    # Si esta función se llama desde un endpoint, el commit del endpoint debe ser suficiente.
-    # No hacer commit aquí; el endpoint será responsable de la transacción.
+
+
+def sync_related_attendances_from_source(source_activity_id, student_ids=None, dry_run=False):
+    """
+    Sincroniza (on-demand) asistencias desde una actividad fuente hacia sus
+    actividades relacionadas.
+
+    - source_activity_id: id de la actividad fuente (A)
+    - student_ids: lista opcional de student ids a sincronizar (si None, sincroniza todos los presentes en la fuente)
+    - dry_run: si True, no persiste cambios en la base de datos, solo retorna un resumen
+
+    Retorna un dict con resumen: { created: int, skipped: int, details: [ ... ] }
+    Cada detail contiene: student_id, target_activity_id, action ('created'|'skipped'), reason
+    """
+    from app import db
+    from app.models.attendance import Attendance
+    from app.models.activity import Activity
+    from app.models.registration import Registration
+
+    summary = {
+        'created': 0,
+        'skipped': 0,
+        'details': []
+    }
+
+    source_activity = db.session.get(Activity, source_activity_id)
+    if not source_activity:
+        raise ValueError('Actividad fuente no encontrada')
+
+    related = list(getattr(source_activity, 'related_activities', []) or [])
+    if not related:
+        return summary
+
+    # Construir query de asistencias en la actividad fuente
+    query = Attendance.query.filter_by(activity_id=source_activity_id)
+    if student_ids:
+        query = query.filter(Attendance.student_id.in_(student_ids))
+
+    source_attendances = query.all()
+
+    for src in source_attendances:
+        for target in related:
+            # Verificar si ya existe asistencia para el student/target
+            exists = Attendance.query.filter_by(
+                student_id=src.student_id, activity_id=target.id).first()
+            if exists:
+                summary['skipped'] += 1
+                summary['details'].append({
+                    'student_id': src.student_id,
+                    'target_activity_id': target.id,
+                    'action': 'skipped',
+                    'reason': 'already_exists'
+                })
+                continue
+
+            # Construir nueva asistencia copiando tiempos fuente
+            new_att = Attendance()
+            new_att.student_id = src.student_id
+            new_att.activity_id = target.id
+            new_att.check_in_time = src.check_in_time
+            new_att.check_out_time = src.check_out_time
+
+            # Calcular porcentaje/estado si tenemos ambos tiempos
+            if new_att.check_in_time and new_att.check_out_time:
+                try:
+                    # Utiliza la función local para calcular porcentaje
+                    # safe: will return None if not persisted
+                    calculate_attendance_percentage(new_att.id)
+                except Exception:
+                    # ignore calculation failures here; endpoint llamador puede recalcular
+                    pass
+
+            if not dry_run:
+                db.session.add(new_att)
+                # sync registration if exists
+                reg = Registration.query.filter_by(
+                    student_id=src.student_id, activity_id=target.id).first()
+                if reg:
+                    reg.attended = bool(
+                        new_att.check_in_time and new_att.check_out_time)
+                    if reg.attended:
+                        reg.status = 'Asistió'
+                        reg.confirmation_date = db.func.now()
+                    db.session.add(reg)
+
+            summary['created'] += 1
+            summary['details'].append({
+                'student_id': src.student_id,
+                'target_activity_id': target.id,
+                'action': 'created',
+                'reason': 'synced_from_source'
+            })
+
+    # Commit cuando no es dry_run
+    if not dry_run:
+        db.session.commit()
+
+    return summary
