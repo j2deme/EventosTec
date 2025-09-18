@@ -534,6 +534,19 @@ def register_attendance():
                 registration.confirmation_date = db.func.now()
                 db.session.add(registration)
 
+        # Si la actividad tiene actividades relacionadas, crear las asistencias relacionadas
+        try:
+            if getattr(activity, 'related_activities', None):
+                from app.services.attendance_service import create_related_attendances
+                try:
+                    create_related_attendances(student_id, activity_id)
+                except Exception:
+                    db.session.rollback()
+                    raise
+        except Exception:
+            # no romper si por alguna razón getattr lanza o la importación falla
+            pass
+
         # Flush to ensure generated fields (id, timestamps) are populated, then commit
         try:
             db.session.flush()
@@ -556,3 +569,41 @@ def register_attendance():
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error al registrar asistencia', 'error': str(e)}), 500
+
+
+@attendances_bp.route('/sync-related', methods=['POST'])
+@jwt_required()
+@require_admin
+def sync_related():
+    """Endpoint on-demand para sincronizar asistencias desde una actividad fuente hacia actividades relacionadas.
+
+    Payload esperado JSON:
+    {
+      "source_activity_id": <int>,
+      "student_ids": [<int>, ...],   # opcional
+      "dry_run": true|false          # opcional, default false
+    }
+    """
+    try:
+        payload = request.get_json() or {}
+        source_id = payload.get('source_activity_id')
+        student_ids = payload.get('student_ids')
+        dry_run = bool(payload.get('dry_run', False))
+
+        if not source_id:
+            return jsonify({'message': 'source_activity_id es requerido'}), 400
+
+        # Llamar al servicio
+        from app.services.attendance_service import sync_related_attendances_from_source
+
+        try:
+            summary = sync_related_attendances_from_source(
+                source_id, student_ids=student_ids, dry_run=dry_run)
+        except ValueError as ve:
+            return jsonify({'message': str(ve)}), 404
+
+        status_code = 200 if dry_run else 201
+        return jsonify({'message': 'Sincronizaci\u00f3n completada', 'dry_run': dry_run, 'summary': summary}), status_code
+
+    except Exception as e:
+        return jsonify({'message': 'Error en sincronizaci\u00f3n', 'error': str(e)}), 500
