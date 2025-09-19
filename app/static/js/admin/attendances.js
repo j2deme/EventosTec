@@ -709,6 +709,14 @@ function attendancesAdmin() {
       }
     },
 
+    // TEMP: stubbed out flattenRegistrationData for debugging modal rendering
+    // The original implementation was removed temporarily. Do NOT reintroduce
+    // network calls while debugging the static modal layout.
+    flattenRegistrationData(src) {
+      // return null to indicate flattening is intentionally disabled
+      return null;
+    },
+
     closeModal() {
       this.showModal = false;
       // Reset modal-specific state to avoid stale data when reopened
@@ -719,106 +727,33 @@ function attendancesAdmin() {
       this.modalMarkPresent = false;
     },
 
-    async submitModal() {
-      if (!this.modalStudentId || !this.modalActivityId) {
-        window.showToast &&
-          window.showToast("Por favor completa todos los campos", "error");
-        return;
-      }
-
-      try {
-        const payload = {
-          student_id: this.modalStudentId,
-          activity_id: this.modalActivityId,
-          mark_present: this.modalMarkPresent,
-        };
-
-        const res = await this.sf("/api/attendances/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        const body = await res.json().catch(() => ({}));
-        if (res.ok) {
-          window.showToast &&
-            window.showToast(
-              body.message || "Asistencia registrada correctamente",
-              "success"
-            );
-          this.closeModal();
-          await this.refresh();
-
-          // Dispatch attendance change event
-          this.dispatchAttendanceChanged({
-            activity_id: this.modalActivityId,
-            student_id: this.modalStudentId,
-          });
-        } else {
-          window.showToast &&
-            window.showToast(
-              body.message || "Error al registrar asistencia",
-              "error"
-            );
-        }
-      } catch (err) {
-        console.error(err);
-        window.showToast && window.showToast("Error de conexión", "error");
-      }
-    },
-
-    // Action methods referenced in template
-    openEditor(row) {
-      console.log("Edit attendance:", row);
-      // TODO: implement edit modal
+    async openRegistrationModal(row) {
+      // Aggressive debug stub: do not fetch or process remote data.
+      // Instead, assign a static placeholder object so the modal renders
+      // predictable content while we debug layout/visibility issues.
+      console.debug("openRegistrationModal (stub) called");
+      this.registrationModalData = {
+        id: 0,
+        student_id: 12345,
+        student_name: "Nombre de prueba",
+        student_identifier: "00000000",
+        activity_id: 999,
+        activity_name: "Actividad de prueba",
+        event_name: "Evento de prueba",
+        status: "registered",
+        created_at: new Date().toISOString(),
+        email: "test@example.com",
+        phone: "555-0100",
+        __raw: null,
+      };
+      this.showRegistrationModal = true;
     },
 
     // quickTogglePresent eliminado: acción redundante en este módulo
 
     goToRegistration(row) {
-      // Open in-modal view when possible
+      // Open in-modal view when possible (uses the stubbed openRegistrationModal)
       this.openRegistrationModal(row);
-    },
-
-    async openRegistrationModal(row) {
-      // Prefer registration object included in the row
-      if (!row) return;
-      try {
-        if (row.registration) {
-          this.registrationModalData = row.registration;
-        } else if (row.registration_id) {
-          const res = await this.sf(
-            `/api/registrations/${row.registration_id}`,
-            {
-              method: "GET",
-            }
-          );
-          if (res && res.ok) {
-            const body = await res.json().catch(() => ({}));
-            const candidate = body.data || body.registration || body || null;
-            // If candidate lacks student and activity, treat as missing
-            if (
-              candidate &&
-              (candidate.student ||
-                candidate.activity ||
-                candidate.student_id ||
-                candidate.activity_id)
-            ) {
-              this.registrationModalData = candidate;
-            } else {
-              this.registrationModalData = null;
-            }
-          } else {
-            this.registrationModalData = null;
-          }
-        } else {
-          this.registrationModalData = null;
-        }
-      } catch (e) {
-        console.error(e);
-        this.registrationModalData = null;
-      }
-      this.showRegistrationModal = true;
     },
 
     closeRegistrationModal() {

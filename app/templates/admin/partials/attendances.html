@@ -690,79 +690,47 @@
           </button>
         </div>
 
-        <template>
-          <div class="grid grid-cols-1 gap-3" x-show="registrationModalData">
-            <div class="flex items-start justify-between">
-              <div>
-                <div class="text-sm text-gray-500">Estudiante</div>
-                <div
-                  class="font-semibold text-gray-900 text-lg"
-                  x-text="registrationModalData.student?.full_name || registrationModalData.student_name || ('ID ' + (registrationModalData.student_id || '-'))"
-                ></div>
-                <div class="text-xs text-gray-600 mt-1">
-                  <span
-                    x-text="registrationModalData.student?.control_number ? ('No. control: ' + registrationModalData.student?.control_number) : ''"
-                  ></span>
-                </div>
+        <!-- Static placeholders for debugging: remove Alpine bindings to ensure modal displays content -->
+        <div class="grid grid-cols-1 gap-3">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-sm text-gray-500">Estudiante</div>
+              <div class="font-semibold text-gray-900 text-lg">
+                Nombre de prueba
               </div>
-              <div class="text-right text-sm text-gray-600">
-                <div x-show="registrationModalData.student?.email">
-                  <div class="text-xs text-gray-500">Email</div>
-                  <div
-                    x-text="registrationModalData.student?.email || ''"
-                  ></div>
-                </div>
-                <div x-show="registrationModalData.student?.phone" class="mt-2">
-                  <div class="text-xs text-gray-500">Tel.</div>
-                  <div
-                    x-text="registrationModalData.student?.phone || ''"
-                  ></div>
-                </div>
+              <div class="text-xs text-gray-600 mt-1">
+                No. control: 00000000
               </div>
             </div>
-
-            <div class="grid grid-cols-2 gap-4 mt-2">
-              <div>
-                <div class="text-xs text-gray-500">Actividad</div>
-                <div
-                  class="font-medium text-gray-800"
-                  x-text="registrationModalData.activity?.name || registrationModalData.activity_name || ('ID ' + (registrationModalData.activity_id || '-'))"
-                ></div>
-                <div
-                  class="text-xs text-gray-600 mt-1"
-                  x-text="registrationModalData.event_name || registrationModalData.activity?.event?.name || ''"
-                ></div>
-              </div>
-              <div>
-                <div class="text-xs text-gray-500">Estado</div>
-                <div
-                  class="font-medium"
-                  x-text="registrationModalData.status || registrationModalData.registration_status || '-' "
-                ></div>
-                <div class="text-xs text-gray-500 mt-2">Fecha registro</div>
-                <div
-                  class="text-sm text-gray-700"
-                  x-text="registrationModalData.created_at || registrationModalData.registered_at || registrationModalData.date ? formatDateAMPM(registrationModalData.created_at || registrationModalData.registered_at || registrationModalData.date) : '-' "
-                ></div>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-end mt-4">
-              <button
-                @click="closeRegistrationModal()"
-                class="px-3 py-2 bg-gray-200 rounded text-sm"
-              >
-                Cerrar
-              </button>
+            <div class="text-right text-sm text-gray-600">
+              <div class="text-xs text-gray-500">Email</div>
+              <div>test@example.com</div>
             </div>
           </div>
-        </template>
 
-        <template x-if="!registrationModalData">
-          <div class="text-gray-600">
-            No hay información de registro disponible.
+          <div class="grid grid-cols-2 gap-4 mt-2">
+            <div>
+              <div class="text-xs text-gray-500">Actividad</div>
+              <div class="font-medium text-gray-800">Actividad de prueba</div>
+              <div class="text-xs text-gray-600 mt-1">Evento de prueba</div>
+            </div>
+            <div>
+              <div class="text-xs text-gray-500">Estado</div>
+              <div class="font-medium">Registrado</div>
+              <div class="text-xs text-gray-500 mt-2">Fecha registro</div>
+              <div class="text-sm text-gray-700">18/09/2025 12:00 PM</div>
+            </div>
           </div>
-        </template>
+
+          <div class="flex items-center justify-end mt-4">
+            <button
+              @click="closeRegistrationModal()"
+              class="px-3 py-2 bg-gray-200 rounded text-sm"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
