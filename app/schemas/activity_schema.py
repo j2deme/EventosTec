@@ -35,6 +35,12 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
     requirements = fields.Str(load_default=None)
     max_capacity = fields.Int(
         load_default=None, validate=validate.Range(min=0))
+    # Nuevos campos
+    speakers = fields.List(fields.Dict(), load_default=None)
+    # { general: bool, careers: [..] }
+    target_audience = fields.Dict(load_default=None)
+    knowledge_area = fields.Str(
+        load_default=None, validate=validate.Length(max=100))
 
     # Campos de solo lectura
     id = fields.Int(dump_only=True)

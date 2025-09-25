@@ -48,7 +48,7 @@ class Activity(db.Model):
         return f'<Activity {self.name}>'
 
     def to_dict(self):
-        return {
+        out = {
             'id': self.id,
             'event_id': self.event_id,
             'code': self.code,
@@ -66,6 +66,40 @@ class Activity(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+
+        # Parse speakers and target_audience if stored as JSON text
+        try:
+            out['speakers'] = None
+            if self.speakers:
+                import json as _json
+                try:
+                    out['speakers'] = _json.loads(self.speakers)
+                except Exception:
+                    out['speakers'] = self.speakers
+        except Exception:
+            out['speakers'] = None
+
+        try:
+            out['target_audience'] = None
+            if self.target_audience:
+                import json as _json
+                try:
+                    out['target_audience'] = _json.loads(self.target_audience)
+                except Exception:
+                    out['target_audience'] = self.target_audience
+        except Exception:
+            out['target_audience'] = None
+
+        out['knowledge_area'] = self.knowledge_area
+
+        return out
+
+    # Nuevos campos: ponentes (JSON), público objetivo (JSON) y área de conocimiento
+    # JSON array: [{name, degree, organization}, ...]
+    speakers = db.Column(db.Text)
+    # JSON object: {general: bool, careers: [..]}
+    target_audience = db.Column(db.Text)
+    knowledge_area = db.Column(db.String(100), nullable=True)
 
 
 # Generar el código automáticamente antes de insertar
