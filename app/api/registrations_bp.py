@@ -188,14 +188,67 @@ def get_registration(registration_id):
         if err:
             return err
 
+        # Determine whether the caller requested a synthesized flat view
+        synth_flag = request.args.get(
+            'synth') or request.args.get('synthesized')
+
         if user_type == 'admin':
-            return jsonify({'registration': registration_schema.dump(registration)}), 200
+            payload = {'registration': registration_schema.dump(registration)}
         elif user_type == 'student' and user is not None:
             if registration.student_id != user.id:
                 return jsonify({'message': 'Acceso denegado'}), 403
-            return jsonify({'registration': registration_schema.dump(registration)}), 200
+            payload = {'registration': registration_schema.dump(registration)}
         else:
             return jsonify({'message': 'Acceso denegado'}), 403
+
+        # If synth param is present (truthy), include a synthesized flat shape
+        if synth_flag:
+            try:
+                reg = payload.get('registration')
+
+                # reg may sometimes be a list, None, or an already-serialized dict-like object
+                # Normalize into reg_dict (a plain dict) so static analyzers know .get is safe.
+                if isinstance(reg, dict):
+                    reg_dict = reg
+                elif isinstance(reg, list):
+                    first = reg[0] if reg else {}
+                    reg_dict = first if isinstance(first, dict) else {}
+                else:
+                    reg_dict = {}
+
+                # helper to safely get nested dicts (prefer dicts over lists/None)
+                def as_dict(maybe):
+                    if isinstance(maybe, dict):
+                        return maybe
+                    if isinstance(maybe, list) and maybe:
+                        return maybe[0] if isinstance(maybe[0], dict) else {}
+                    return {}
+
+                student = as_dict(reg_dict.get('student'))
+                activity = as_dict(reg_dict.get('activity'))
+                event = as_dict(activity.get('event')) if activity else {}
+
+                # Build synthesized convenience object with safe lookups
+                synth = {
+                    'registration_id': reg_dict.get('id'),
+                    'status': reg_dict.get('status'),
+                    'registration_date': reg_dict.get('registration_date') or reg_dict.get('created_at'),
+                    'student_id': reg_dict.get('student_id'),
+                    'activity_id': reg_dict.get('activity_id'),
+                    # student fields (may be nested)
+                    'student_name': student.get('full_name') or reg_dict.get('student_name'),
+                    'student_identifier': student.get('control_number') or reg_dict.get('student_identifier'),
+                    'email': student.get('email') or reg_dict.get('email'),
+                    # activity/event fields
+                    'activity_name': activity.get('name') or reg_dict.get('activity_name'),
+                    'event_name': event.get('name') or reg_dict.get('event_name'),
+                }
+                payload['synthesized'] = synth
+            except Exception:
+                # If anything goes wrong during synthesis, skip silently to avoid breaking clients
+                pass
+
+        return jsonify(payload), 200
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener preregistro', 'error': str(e)}), 500

@@ -728,28 +728,94 @@ function attendancesAdmin() {
     },
 
     async openRegistrationModal(row) {
-      // Aggressive debug stub: do not fetch or process remote data.
-      // Instead, assign a static placeholder object so the modal renders
-      // predictable content while we debug layout/visibility issues.
-      console.debug("openRegistrationModal (stub) called");
-      this.registrationModalData = {
-        id: 0,
-        student_id: 12345,
-        student_name: "Nombre de prueba",
-        student_identifier: "00000000",
-        activity_id: 999,
-        activity_name: "Actividad de prueba",
-        event_name: "Evento de prueba",
-        status: "registered",
-        created_at: new Date().toISOString(),
-        email: "test@example.com",
-        phone: "555-0100",
-        __raw: null,
-      };
-      this.showRegistrationModal = true;
-    },
+      // Restore real behavior: fetch synthesized (flat) registration data
+      // from the backend using the optional synth flag we added.
+      console.debug("openRegistrationModal called", row);
+      this.registrationModalData = null;
+      this.showRegistrationModal = false;
 
-    // quickTogglePresent eliminado: acción redundante en este módulo
+      // Determine registration id from input: accept either a registration
+      // object, an attendance row with registration_id, or a plain id.
+      let registrationId = null;
+      if (!row) {
+        window.showToast &&
+          window.showToast("No hay registro especificado", "error");
+        return;
+      }
+
+      // If row is a number, treat as id
+      if (typeof row === "number") registrationId = row;
+
+      // If row looks like an object with id or registration_id
+      if (!registrationId && typeof row === "object") {
+        if (row.registration_id) registrationId = row.registration_id;
+        else if (row.id && row.activity_id && row.student_id)
+          registrationId = row.id;
+        else if (row.id) registrationId = row.id;
+      }
+
+      if (!registrationId) {
+        window.showToast &&
+          window.showToast("No se pudo determinar el ID del registro", "error");
+        return;
+      }
+
+      try {
+        const url = `/api/registrations/${registrationId}?synth=1`;
+        const res = await this.sf(url, { method: "GET" });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+
+        // Prefer the synthesized flat object, fallback to nested registration
+        const synth = body.synthesized || body.registration || null;
+        if (!synth) {
+          window.showToast &&
+            window.showToast(
+              "No hay información de registro disponible",
+              "warning"
+            );
+          this.registrationModalData = null;
+          this.showRegistrationModal = true; // still show modal so user sees fallback
+          return;
+        }
+
+        // Normalize to expected flat keys if necessary (some callers expect specific names)
+        const data = {
+          id:
+            synth.registration_id || synth.id || synth.registration?.id || null,
+          registration_id: synth.registration_id || synth.id || null,
+          student_id: synth.student_id || (synth.student || {}).id || null,
+          student_name:
+            synth.student_name || (synth.student || {}).full_name || null,
+          student_identifier:
+            synth.student_identifier ||
+            (synth.student || {}).control_number ||
+            null,
+          email: synth.email || (synth.student || {}).email || null,
+          activity_id: synth.activity_id || (synth.activity || {}).id || null,
+          activity_name:
+            synth.activity_name || (synth.activity || {}).name || null,
+          event_name:
+            synth.event_name ||
+            ((synth.activity || {}).event || {}).name ||
+            null,
+          status: synth.status || (synth.registration || {}).status || null,
+          registration_date:
+            synth.registration_date || synth.created_at || null,
+          __raw: body.registration || null,
+        };
+
+        this.registrationModalData = data;
+        this.showRegistrationModal = true;
+      } catch (e) {
+        console.error("Error loading registration", e);
+        window.showToast &&
+          window.showToast("Error al cargar información de registro", "error");
+        this.registrationModalData = null;
+        this.showRegistrationModal = true;
+      }
+    },
 
     goToRegistration(row) {
       // Open in-modal view when possible (uses the stubbed openRegistrationModal)
