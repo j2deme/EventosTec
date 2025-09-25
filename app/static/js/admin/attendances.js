@@ -340,6 +340,29 @@ function attendancesAdmin() {
       }
     },
 
+    // Helper to format dates with AM/PM for use in table and modal
+    formatDateAMPM(dateStr) {
+      if (!dateStr) return "";
+      try {
+        let d = new Date(dateStr);
+        if (isNaN(d) && typeof dateStr === "string") {
+          d = new Date(dateStr.replace(" ", "T"));
+        }
+        if (isNaN(d)) return String(dateStr);
+        const pad = (n) => String(n).padStart(2, "0");
+        let hours = d.getHours();
+        const minutes = pad(d.getMinutes());
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        return `${pad(d.getDate())}/${pad(
+          d.getMonth() + 1
+        )}/${d.getFullYear()} ${hours}:${minutes} ${ampm}`;
+      } catch (e) {
+        return String(dateStr);
+      }
+    },
+
     // Sync modal helpers
     openSyncModal() {
       this.showSyncModal = true;

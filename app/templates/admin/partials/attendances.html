@@ -735,7 +735,7 @@
               <div class="text-xs text-gray-500 mt-2">Fecha registro</div>
               <div
                 class="text-sm text-gray-700"
-                x-text="registrationModalData?.registration_date || registrationModalData?.created_at || (registrationModalData?.registration && registrationModalData.registration.registration_date) || '—'"
+                x-text="formatDateAMPM(registrationModalData?.registration_date || registrationModalData?.created_at || (registrationModalData?.registration && registrationModalData.registration.registration_date)) || '—'"
               ></div>
             </div>
           </div>
