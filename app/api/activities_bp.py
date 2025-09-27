@@ -10,8 +10,54 @@ from app.utils.auth_helpers import require_admin, get_user_or_403
 from datetime import datetime, timezone
 from typing import cast, Iterable
 from app.utils.datetime_utils import parse_datetime_with_timezone
+import json
+import traceback
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/api/activities')
+
+
+def _safe_dump_activities(iterable):
+    """Dump an iterable of Activity objects one by one, falling back to
+    Activity.to_dict() or a minimal representation if dumping fails for an item.
+    This prevents a single malformed row (for example a raw JSON string in a
+    JSON/Text column) from breaking the whole response with a "dictionary
+    update sequence" error.
+    """
+    result = []
+    for a in iterable:
+        # Prefer using the model's to_dict() which avoids triggering lazy
+        # loading or other session-dependent behaviour. Only use the
+        # schema-based dump as a last resort.
+        try:
+            if hasattr(a, 'to_dict'):
+                base = a.to_dict()
+            else:
+                base = {'id': getattr(a, 'id', None),
+                        'name': getattr(a, 'name', None)}
+
+            # Try to include minimal event info if available without forcing a
+            # DB fetch. Access within try/except to avoid raising session
+            # related errors.
+            try:
+                ev = getattr(a, 'event', None)
+                if ev is not None:
+                    base['event'] = {'id': getattr(
+                        ev, 'id', None), 'name': getattr(ev, 'name', None)}
+            except Exception:
+                # ignore event issues
+                pass
+
+            result.append(base)
+
+        except Exception:
+            # As a final fallback, append a minimal safe representation
+            try:
+                result.append({'id': getattr(a, 'id', None),
+                              'name': getattr(a, 'name', None)})
+            except Exception:
+                result.append({'id': None, 'name': None})
+
+    return result
 
 # Listar actividades
 
@@ -75,7 +121,7 @@ def get_activities():
         total = activities.total or 0
 
         return jsonify({
-            'activities': activities_schema.dump(activities.items),
+            'activities': _safe_dump_activities(activities.items),
             'total': total,
             'pages': activities.pages,
             'current_page': page,
@@ -84,7 +130,9 @@ def get_activities():
         }), 200
 
     except Exception as e:
-        return jsonify({'message': 'Error al obtener actividades', 'error': str(e)}), 500
+        tb = traceback.format_exc()
+        # Include stack trace in response to help debugging in dev
+        return jsonify({'message': 'Error al obtener actividades', 'error': str(e), 'trace': tb}), 500
 
 # Crear actividad
 
@@ -94,8 +142,40 @@ def get_activities():
 @require_admin
 def create_activity():
     try:
-        # Validar datos de entrada
-        data = activity_schema.load(request.get_json())
+        # Normalizar payload y validar datos de entrada
+        payload = request.get_json() or {}
+
+        # if speakers is a string, try to parse JSON or comma-separated values
+        if 'speakers' in payload and isinstance(payload['speakers'], str):
+            s = payload['speakers'].strip()
+            if s == '':
+                payload['speakers'] = None
+            else:
+                try:
+                    payload['speakers'] = json.loads(s)
+                except Exception:
+                    # try comma-separated list of names -> turn into [{'name':...}, ...]
+                    if ',' in s:
+                        payload['speakers'] = [
+                            {'name': x.strip()} for x in s.split(',') if x.strip()]
+                    else:
+                        payload['speakers'] = [{'name': s}]
+
+        # if target_audience is a string, try to parse JSON or treat as comma-separated careers
+        if 'target_audience' in payload and isinstance(payload['target_audience'], str):
+            ta = payload['target_audience'].strip()
+            if ta == '':
+                payload['target_audience'] = None
+            else:
+                try:
+                    payload['target_audience'] = json.loads(ta)
+                except Exception:
+                    # assume comma-separated careers
+                    careers = [x.strip() for x in ta.split(',') if x.strip()]
+                    payload['target_audience'] = {
+                        'general': False, 'careers': careers}
+
+        data = activity_schema.load(payload)
 
         if 'start_datetime' in data:
             data['start_datetime'] = parse_datetime_with_timezone(
@@ -151,7 +231,35 @@ def update_activity(activity_id):
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
         # Validar datos de entrada
-        data = activity_schema.load(request.get_json(), partial=True)
+        payload = request.get_json() or {}
+
+        if 'speakers' in payload and isinstance(payload['speakers'], str):
+            s = payload['speakers'].strip()
+            if s == '':
+                payload['speakers'] = None
+            else:
+                try:
+                    payload['speakers'] = json.loads(s)
+                except Exception:
+                    if ',' in s:
+                        payload['speakers'] = [
+                            {'name': x.strip()} for x in s.split(',') if x.strip()]
+                    else:
+                        payload['speakers'] = [{'name': s}]
+
+        if 'target_audience' in payload and isinstance(payload['target_audience'], str):
+            ta = payload['target_audience'].strip()
+            if ta == '':
+                payload['target_audience'] = None
+            else:
+                try:
+                    payload['target_audience'] = json.loads(ta)
+                except Exception:
+                    careers = [x.strip() for x in ta.split(',') if x.strip()]
+                    payload['target_audience'] = {
+                        'general': False, 'careers': careers}
+
+        data = activity_schema.load(payload, partial=True)
 
         # Parsear fechas con zona horaria si se proporcionan
         if 'start_datetime' in data:
@@ -266,7 +374,7 @@ def get_related_activities(activity_id):
         return jsonify({'message': 'Actividad no encontrada'}), 404
     from app.schemas import activities_schema
     return jsonify({
-        'related_activities': activities_schema.dump(activity.related_activities)
+        'related_activities': _safe_dump_activities(list(cast(Iterable, activity.related_activities)))
     }), 200
 
 

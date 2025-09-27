@@ -1,7 +1,7 @@
 """add activity speakers, target_audience and knowledge_area
 
 Revision ID: 20250925_add_activity_fields
-Revises: <replace_with_previous_revision>
+Revises: f517609078c5
 Create Date: 2025-09-25 00:00:00.000000
 """
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20250925_add_activity_fields'
-down_revision = None
+down_revision = 'f517609078c5'
 branch_labels = None
 depends_on = None
 

@@ -3,6 +3,7 @@ from app import db
 from app.models.activity import Activity
 from app.models.event import Event
 from marshmallow import ValidationError
+import json
 
 
 def validate_activity_dates(activity_data):
@@ -89,6 +90,28 @@ def create_activity(activity_data):
         end = activity_data['end_datetime']
         activity_data['duration_hours'] = (end - start).total_seconds() / 3600
 
+    # Serializar campos JSON si vienen como estructuras Python
+    if 'speakers' in activity_data and activity_data['speakers'] is not None:
+        try:
+            if not isinstance(activity_data['speakers'], str):
+                activity_data['speakers'] = json.dumps(
+                    activity_data['speakers'])
+            else:
+                json.loads(activity_data['speakers'])
+        except Exception:
+            raise ValidationError('Campo speakers debe ser JSON serializable')
+
+    if 'target_audience' in activity_data and activity_data['target_audience'] is not None:
+        try:
+            if not isinstance(activity_data['target_audience'], str):
+                activity_data['target_audience'] = json.dumps(
+                    activity_data['target_audience'])
+            else:
+                json.loads(activity_data['target_audience'])
+        except Exception:
+            raise ValidationError(
+                'Campo target_audience debe ser JSON serializable')
+
     # Crear la actividad de forma explícita para evitar pasar un dict
     # directamente al constructor (mejora la trazabilidad y evita
     # advertencias del analizador estático).
@@ -152,6 +175,27 @@ def update_activity(activity_id, activity_data):
                 )
 
     for key, value in activity_data.items():
+        # Serializar JSON fields cuando se actualizan
+        if key == 'speakers' and value is not None:
+            try:
+                if not isinstance(value, str):
+                    value = json.dumps(value)
+                else:
+                    json.loads(value)
+            except Exception:
+                raise ValidationError(
+                    'Campo speakers debe ser JSON serializable')
+
+        if key == 'target_audience' and value is not None:
+            try:
+                if not isinstance(value, str):
+                    value = json.dumps(value)
+                else:
+                    json.loads(value)
+            except Exception:
+                raise ValidationError(
+                    'Campo target_audience debe ser JSON serializable')
+
         setattr(activity, key, value)
 
     db.session.commit()

@@ -49,6 +49,13 @@ function activitiesManager() {
       location: "",
       modality: "",
       requirements: "",
+      // nuevos campos
+      knowledge_area: "",
+      // Speakers as an array of objects: [{ name, degree, organization }, ...]
+      speakersList: [],
+      // Target audience: general flag + careers array
+      target_audience_general: false,
+      target_audience_careersList: [],
       max_capacity: null,
     },
     activityToDelete: null,
@@ -199,6 +206,19 @@ function activitiesManager() {
           location: this.currentActivity.location,
           modality: this.currentActivity.modality,
           requirements: this.currentActivity.requirements,
+          knowledge_area: this.currentActivity.knowledge_area || null,
+          // Send speakers as structured array
+          speakers: Array.isArray(this.currentActivity.speakersList)
+            ? this.currentActivity.speakersList
+            : [],
+          target_audience: {
+            general: !!this.currentActivity.target_audience_general,
+            careers: Array.isArray(
+              this.currentActivity.target_audience_careersList
+            )
+              ? this.currentActivity.target_audience_careersList
+              : [],
+          },
           max_capacity: this.currentActivity.max_capacity
             ? parseInt(this.currentActivity.max_capacity)
             : null,
@@ -273,6 +293,18 @@ function activitiesManager() {
           location: this.currentActivity.location,
           modality: this.currentActivity.modality,
           requirements: this.currentActivity.requirements,
+          knowledge_area: this.currentActivity.knowledge_area || null,
+          speakers: Array.isArray(this.currentActivity.speakersList)
+            ? this.currentActivity.speakersList
+            : [],
+          target_audience: {
+            general: !!this.currentActivity.target_audience_general,
+            careers: Array.isArray(
+              this.currentActivity.target_audience_careersList
+            )
+              ? this.currentActivity.target_audience_careersList
+              : [],
+          },
           max_capacity: this.currentActivity.max_capacity
             ? parseInt(this.currentActivity.max_capacity)
             : null,
@@ -392,6 +424,10 @@ function activitiesManager() {
         location: "",
         modality: "",
         requirements: "",
+        knowledge_area: "",
+        speakersList: [],
+        target_audience_general: false,
+        target_audience_careersList: [],
         max_capacity: null,
       };
       this.minDate = "";
@@ -414,7 +450,30 @@ function activitiesManager() {
     async openEditModal(activity) {
       this.editingActivity = true;
       // Copiar la actividad para evitar mutaciones directas
-      this.currentActivity = { ...activity };
+      // Mapear speakers and target_audience for modal fields
+      const mapped = { ...activity };
+      // Map speakers into speakersList array
+      mapped.speakersList = Array.isArray(activity.speakers)
+        ? activity.speakers
+        : activity.speakers
+        ? Array.isArray(activity.speakers)
+          ? activity.speakers
+          : []
+        : [];
+
+      if (activity.target_audience) {
+        mapped.target_audience_general = !!activity.target_audience.general;
+        mapped.target_audience_careersList = Array.isArray(
+          activity.target_audience.careers
+        )
+          ? activity.target_audience.careers
+          : [];
+      } else {
+        mapped.target_audience_general = false;
+        mapped.target_audience_careersList = [];
+      }
+      mapped.knowledge_area = activity.knowledge_area || "";
+      this.currentActivity = mapped;
       this.updateDateLimits();
       this.showModal = true;
       this.dateValidationError = "";
@@ -441,6 +500,10 @@ function activitiesManager() {
         location: "",
         modality: "",
         requirements: "",
+        knowledge_area: "",
+        speakersList: [],
+        target_audience_general: false,
+        target_audience_careersList: [],
         max_capacity: null,
       };
       this.dateValidationError = "";

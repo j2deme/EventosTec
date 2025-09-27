@@ -558,6 +558,106 @@
                       />
                     </div>
 
+                    <!-- Área de conocimiento -->
+                    <div>
+                      <label
+                        for="knowledge_area"
+                        class="block text-sm font-medium text-gray-700"
+                      >
+                        Área de conocimiento
+                      </label>
+                      <input
+                        type="text"
+                        id="knowledge_area"
+                        x-model="currentActivity.knowledge_area"
+                        placeholder="Ej. Ciencias Sociales"
+                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+                      />
+                    </div>
+
+                    <!-- Ponentes (UI amigable) -->
+                    <div x-data="{open:false}">
+                      <label class="block text-sm font-medium text-gray-700">Ponentes</label>
+                      <template x-if="(currentActivity.speakersList || []).length === 0">
+                        <p class="text-sm text-gray-500 mt-1">No hay ponentes agregados.</p>
+                      </template>
+                      <ul class="space-y-2 mt-2">
+                        <template x-for="(s, i) in (currentActivity.speakersList || [])" :key="i">
+                          <li class="bg-gray-50 p-2 rounded flex items-start gap-2">
+                            <div class="flex-1">
+                              <div class="text-sm font-medium text-gray-900" x-text="s.name || 'Sin nombre'"></div>
+                              <div class="text-sm text-gray-500" x-text="(s.degree ? s.degree + ' - ' : '') + (s.organization || '')"></div>
+                            </div>
+                            <div class="flex-shrink-0">
+                              <button type="button" @click="currentActivity.speakersList.splice(i,1)" class="text-red-500 hover:text-red-700">Eliminar</button>
+                            </div>
+                          </li>
+                        </template>
+                      </ul>
+
+                      <div class="mt-3 border-t pt-3">
+                        <button type="button" @click="open = !open" class="inline-flex items-center px-3 py-1 border rounded bg-white hover:bg-gray-50">
+                          <i class="ti ti-plus mr-2"></i> Agregar ponente
+                        </button>
+
+                        <div x-show="open" x-cloak class="mt-3 space-y-2">
+                          <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <input type="text" x-ref="sp_name" placeholder="Nombre" class="p-2 border rounded" />
+                            <input type="text" x-ref="sp_degree" placeholder="Grado (opcional)" class="p-2 border rounded" />
+                            <input type="text" x-ref="sp_org" placeholder="Organización (opcional)" class="p-2 border rounded" />
+                          </div>
+                          <div class="flex gap-2">
+                            <button type="button" @click="
+                              const name = $refs.sp_name.value && $refs.sp_name.value.trim();
+                              if(!name) return; 
+                              currentActivity.speakersList = currentActivity.speakersList || []; 
+                              currentActivity.speakersList.push({ name, degree: $refs.sp_degree.value.trim(), organization: $refs.sp_org.value.trim() });
+                              $refs.sp_name.value=''; $refs.sp_degree.value=''; $refs.sp_org.value='';
+                              open = false;
+                            " class="px-3 py-1 bg-indigo-600 text-white rounded">Agregar</button>
+                            <button type="button" @click="open=false" class="px-3 py-1 border rounded">Cancelar</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Público objetivo (UI amigable) -->
+                    <div x-data="{openCareers:false}">
+                      <label class="block text-sm font-medium text-gray-700">Público objetivo</label>
+                      <div class="flex items-center gap-4 mt-2">
+                        <label class="inline-flex items-center">
+                          <input type="checkbox" x-model="currentActivity.target_audience_general" class="form-checkbox" />
+                          <span class="ml-2 text-sm text-gray-700">Público en general</span>
+                        </label>
+                      </div>
+
+                      <div class="mt-3">
+                        <label class="block text-sm font-medium text-gray-700">Carreras / Áreas</label>
+                        <template x-if="(currentActivity.target_audience_careersList || []).length === 0">
+                          <p class="text-sm text-gray-500 mt-1">No hay carreras agregadas.</p>
+                        </template>
+                        <ul class="flex flex-wrap gap-2 mt-2">
+                          <template x-for="(c, idx) in (currentActivity.target_audience_careersList || [])" :key="idx">
+                            <li class="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-2">
+                              <span x-text="c"></span>
+                              <button type="button" @click="currentActivity.target_audience_careersList.splice(idx,1)" class="text-red-500">x</button>
+                            </li>
+                          </template>
+                        </ul>
+
+                        <div class="mt-2 flex gap-2">
+                          <input type="text" x-ref="newCareer" placeholder="Agregar carrera" class="p-2 border rounded flex-1" />
+                          <button type="button" @click="
+                            const v = $refs.newCareer.value && $refs.newCareer.value.trim();
+                            if(!v) return;
+                            currentActivity.target_audience_careersList = currentActivity.target_audience_careersList || [];
+                            currentActivity.target_audience_careersList.push(v);
+                            $refs.newCareer.value='';
+                          " class="px-3 py-1 bg-indigo-600 text-white rounded">Agregar</button>
+                        </div>
+                      </div>
+                    </div>
+
                     <!-- Cupo (solo para Conferencias, Talleres, Cursos) -->
                     <div
                       x-show="['Conferencia', 'Taller', 'Curso'].includes(currentActivity.activity_type)"

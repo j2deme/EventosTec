@@ -2,6 +2,8 @@ from marshmallow import Schema, fields, validate, validates_schema, ValidationEr
 from app import ma
 from app.models.activity import Activity
 from app.schemas.event_schema import EventSchema
+import json
+from marshmallow import pre_dump
 
 
 class ActivitySchema(ma.SQLAlchemyAutoSchema):
@@ -106,6 +108,37 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
             {"id": a.id, "name": a.name, "event_id": a.event_id}
             for a in obj.related_to_activities
         ]
+
+    @pre_dump
+    def parse_json_fields(self, obj, **kwargs):
+        """
+        Asegura que los campos que pueden almacenarse como JSON text
+        (`speakers`, `target_audience`) sean estructuras Python antes
+        de que Marshmallow intente iterarlas/dump.
+        """
+        try:
+            if hasattr(obj, 'speakers') and isinstance(obj.speakers, str):
+                try:
+                    obj.speakers = json.loads(obj.speakers)
+                except Exception:
+                    # si no es JSON válido, dejar como lista vacía o intentar interpretar
+                    obj.speakers = []
+        except Exception:
+            pass
+
+        try:
+            if hasattr(obj, 'target_audience') and isinstance(obj.target_audience, str):
+                try:
+                    obj.target_audience = json.loads(obj.target_audience)
+                except Exception:
+                    # si es string de carreras separadas por coma
+                    ta = obj.target_audience or ''
+                    careers = [x.strip() for x in ta.split(',') if x.strip()]
+                    obj.target_audience = {'general': False, 'careers': careers}
+        except Exception:
+            pass
+
+        return obj
 
 
 activity_schema = ActivitySchema()
