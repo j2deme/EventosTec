@@ -26,6 +26,9 @@ def check_in():
         student_id = payload.get('student_id')
         activity_id = payload.get('activity_id')
 
+        if not student_id or not activity_id:
+            return jsonify({'message': 'Se requieren student_id y activity_id'}), 400
+
         student = db.session.get(Student, student_id)
         if not student:
             return jsonify({'message': 'Estudiante no encontrado'}), 404
@@ -34,7 +37,8 @@ def check_in():
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
-        if activity.activity_type != 'Magistral':
+        # Por ahora solo permitir check-in para actividades del tipo Magistral
+        if getattr(activity, 'activity_type', None) != 'Magistral':
             return jsonify({'message': 'Solo se permite check-in para conferencias magistrales'}), 400
 
         attendance = Attendance.query.filter_by(
@@ -457,9 +461,11 @@ def register_attendance():
                 except Exception:
                     attendance.check_out_time = now
             if mark_present:
-                # Marcar como asistido pero dejar porcentaje a 0.0 para que
-                # pueda ser recalculado más tarde a partir de check_in/out
-                attendance.attendance_percentage = 0.0
+                # Marcar como asistido y asumir 100% cuando se marca manualmente
+                # como presente desde el endpoint. Esto hace que la UI/admin
+                # considere la asistencia como completa inmediatamente y
+                # permite crear asistencias relacionadas.
+                attendance.attendance_percentage = 100.0
                 attendance.status = 'Asistió'
                 # Para conferencias magistrales, si se marca como presente y
                 # no se proporcionó check_in_time en el payload, establecer
@@ -476,12 +482,12 @@ def register_attendance():
             created = True
             if mark_present:
                 # Crear asistencia marcada como 'Asistió' pero con porcentaje
-                # inicial 0.0 y sin tiempos por defecto; así se puede paausar
-                # y recalcular más tarde basándose en check_in/check_out reales.
+                # inicial 100.0 y sin tiempos por defecto; así se considera
+                # asistencia completa y se pueden crear relacionadas.
                 attendance = Attendance()
                 attendance.student_id = student_id
                 attendance.activity_id = activity_id
-                attendance.attendance_percentage = 0.0
+                attendance.attendance_percentage = 100.0
                 attendance.status = 'Asistió'
                 attendance.check_in_time = None
                 attendance.check_out_time = None
