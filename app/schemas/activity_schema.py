@@ -4,6 +4,8 @@ from app.models.activity import Activity
 from app.schemas.event_schema import EventSchema
 import json
 from marshmallow import pre_dump
+from types import SimpleNamespace
+from marshmallow import pre_load
 
 
 class ActivitySchema(ma.SQLAlchemyAutoSchema):
@@ -116,29 +118,114 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
         (`speakers`, `target_audience`) sean estructuras Python antes
         de que Marshmallow intente iterarlas/dump.
         """
+        # No mutamos la instancia del modelo (puede romper el session/ORM).
+        # En lugar de ello devolvemos un objeto ligero (dict) con los mismos
+        # atributos y con los campos JSON parseados. Marshmallow aceptará ese
+        # dict para serializarlo.
         try:
-            if hasattr(obj, 'speakers') and isinstance(obj.speakers, str):
-                try:
-                    obj.speakers = json.loads(obj.speakers)
-                except Exception:
-                    # si no es JSON válido, dejar como lista vacía o intentar interpretar
-                    obj.speakers = []
-        except Exception:
-            pass
+            result = SimpleNamespace()
+            # Copiar atributos básicos esperados por el schema
+            attrs = [
+                'id', 'event_id', 'department', 'code', 'name', 'description',
+                'start_datetime', 'end_datetime', 'duration_hours', 'activity_type',
+                'location', 'modality', 'requirements', 'max_capacity',
+                'created_at', 'updated_at', 'knowledge_area'
+            ]
+            for a in attrs:
+                setattr(result, a, getattr(obj, a, None))
 
+            # Event (nested) — intentar copiar si existe
+            try:
+                ev = getattr(obj, 'event', None)
+                if ev is not None:
+                    setattr(result, 'event', SimpleNamespace(id=getattr(
+                        ev, 'id', None), name=getattr(ev, 'name', None)))
+            except Exception:
+                pass
+
+            # Parsear speakers sin modificar el modelo
+            try:
+                sp = getattr(obj, 'speakers', None)
+                if sp is None:
+                    setattr(result, 'speakers', None)
+                elif isinstance(sp, str):
+                    try:
+                        setattr(result, 'speakers', json.loads(sp))
+                    except Exception:
+                        setattr(result, 'speakers', [])
+                else:
+                    setattr(result, 'speakers', sp)
+            except Exception:
+                setattr(result, 'speakers', None)
+
+            # Parsear target_audience
+            try:
+                ta = getattr(obj, 'target_audience', None)
+                if ta is None:
+                    setattr(result, 'target_audience', None)
+                elif isinstance(ta, str):
+                    try:
+                        setattr(result, 'target_audience', json.loads(ta))
+                    except Exception:
+                        careers = [x.strip()
+                                   for x in (ta or '').split(',') if x.strip()]
+                        setattr(result, 'target_audience', {
+                                'general': False, 'careers': careers})
+                else:
+                    setattr(result, 'target_audience', ta)
+            except Exception:
+                setattr(result, 'target_audience', None)
+
+            return result
+        except Exception:
+            # En caso de cualquier fallo, devolver el objeto original para no romper
+            # la serialización; Marshmallow tratará de extraer atributos del modelo.
+            return obj
+
+    @pre_load
+    def normalize_input(self, data, **kwargs):
+        """
+        Normaliza entradas que pueden llegar como strings JSON o CSV
+        para que el resto del schema y los servicios trabajen con
+        estructuras Python (listas/dicts).
+        """
         try:
-            if hasattr(obj, 'target_audience') and isinstance(obj.target_audience, str):
-                try:
-                    obj.target_audience = json.loads(obj.target_audience)
-                except Exception:
-                    # si es string de carreras separadas por coma
-                    ta = obj.target_audience or ''
-                    careers = [x.strip() for x in ta.split(',') if x.strip()]
-                    obj.target_audience = {'general': False, 'careers': careers}
-        except Exception:
-            pass
+            # speakers: puede venir como JSON-string, CSV o lista
+            sp = data.get('speakers')
+            if isinstance(sp, str):
+                s = sp.strip()
+                if s == '':
+                    data['speakers'] = None
+                else:
+                    try:
+                        data['speakers'] = json.loads(s)
+                    except Exception:
+                        if ',' in s:
+                            data['speakers'] = [
+                                {'name': x.strip()} for x in s.split(',') if x.strip()]
+                        else:
+                            data['speakers'] = [{'name': s}]
 
-        return obj
+            # target_audience: JSON-string or comma-separated careers
+            ta = data.get('target_audience')
+            if isinstance(ta, str):
+                t = ta.strip()
+                if t == '':
+                    data['target_audience'] = None
+                else:
+                    try:
+                        data['target_audience'] = json.loads(t)
+                    except Exception:
+                        careers = [x.strip()
+                                   for x in t.split(',') if x.strip()]
+                        data['target_audience'] = {
+                            'general': False, 'careers': careers}
+
+        except Exception:
+            # si algo falla, devolvemos los datos sin tocar
+            return data
+
+        return data
 
 
 activity_schema = ActivitySchema()

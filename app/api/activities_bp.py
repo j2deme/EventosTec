@@ -145,36 +145,6 @@ def create_activity():
         # Normalizar payload y validar datos de entrada
         payload = request.get_json() or {}
 
-        # if speakers is a string, try to parse JSON or comma-separated values
-        if 'speakers' in payload and isinstance(payload['speakers'], str):
-            s = payload['speakers'].strip()
-            if s == '':
-                payload['speakers'] = None
-            else:
-                try:
-                    payload['speakers'] = json.loads(s)
-                except Exception:
-                    # try comma-separated list of names -> turn into [{'name':...}, ...]
-                    if ',' in s:
-                        payload['speakers'] = [
-                            {'name': x.strip()} for x in s.split(',') if x.strip()]
-                    else:
-                        payload['speakers'] = [{'name': s}]
-
-        # if target_audience is a string, try to parse JSON or treat as comma-separated careers
-        if 'target_audience' in payload and isinstance(payload['target_audience'], str):
-            ta = payload['target_audience'].strip()
-            if ta == '':
-                payload['target_audience'] = None
-            else:
-                try:
-                    payload['target_audience'] = json.loads(ta)
-                except Exception:
-                    # assume comma-separated careers
-                    careers = [x.strip() for x in ta.split(',') if x.strip()]
-                    payload['target_audience'] = {
-                        'general': False, 'careers': careers}
-
         data = activity_schema.load(payload)
 
         if 'start_datetime' in data:
@@ -232,32 +202,6 @@ def update_activity(activity_id):
 
         # Validar datos de entrada
         payload = request.get_json() or {}
-
-        if 'speakers' in payload and isinstance(payload['speakers'], str):
-            s = payload['speakers'].strip()
-            if s == '':
-                payload['speakers'] = None
-            else:
-                try:
-                    payload['speakers'] = json.loads(s)
-                except Exception:
-                    if ',' in s:
-                        payload['speakers'] = [
-                            {'name': x.strip()} for x in s.split(',') if x.strip()]
-                    else:
-                        payload['speakers'] = [{'name': s}]
-
-        if 'target_audience' in payload and isinstance(payload['target_audience'], str):
-            ta = payload['target_audience'].strip()
-            if ta == '':
-                payload['target_audience'] = None
-            else:
-                try:
-                    payload['target_audience'] = json.loads(ta)
-                except Exception:
-                    careers = [x.strip() for x in ta.split(',') if x.strip()]
-                    payload['target_audience'] = {
-                        'general': False, 'careers': careers}
 
         data = activity_schema.load(payload, partial=True)
 
