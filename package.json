@@ -15,5 +15,8 @@
     "@testing-library/dom": "^8.20.0",
     "jest": "29.7.0",
     "jest-environment-jsdom": "^29.7.0"
+  },
+  "dependencies": {
+    "tree-sitter-cli": "^0.25.9"
   }
 }
