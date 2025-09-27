@@ -8,6 +8,8 @@ Breve y práctica: estas notas ayudan a un agente a ser productivo rápidamente 
 
 - `app/` — aplicación Flask: `api/`, `models/`, `services/`, `schemas/`, `templates/`, `static/`.
 - `app/static/js/` — JS del frontend. Código admin en `app/static/js/admin/` (p. ej. `dashboard.js`, `activities.js`, `attendances_list.js`). Código compartido en `app/static/js/app.js`.
+- `app/templates/` — plantillas Jinja2. Código admin en `app/templates/admin/partials/` (p. ej. `dashboard.html`, `activities.html`, `attendances.html`, `registrations.html`).
+- `tests/` — tests backend (pytest) organizados por módulos; tests frontend (Jest) en `app/static/js/admin/__tests__/`.
 
 ## Patrón de módulos frontend (Alpine factories):
 
@@ -74,6 +76,9 @@ require("../app");
 
 - Evita modificar `app/static/js/app.js` sin considerar efectos en tests (interceptor y helpers globales). Si cambias cómo se instala el interceptor, actualiza los tests asociados — ver la sección "Tests frontend" para recomendaciones de mocking y `jest.resetModules()`.
 - Para agregar nuevas utilidades compartidas, exponerlas en `app/static/js/app.js` (window) y documentarlas en README.
+- Si realizas cambios en el frontend JS que afectan a la interfaz o al comportamiento, actualiza o añade tests Jest en `app/static/js/admin/__tests__/` que cubran el nuevo comportamiento. Mockear `fetch` y `localStorage` según sea necesario.
+- Si agregas nuevos endpoints o cambias contratos JSON, actualiza los tests Jest que consumen esos endpoints y asegúrate de que los mocks reflejen el nuevo contrato.
+- Si el cambio afecta exclusivamente a la UI (p. ej. HTML/CSS en plantillas Jinja2), puedes omitir tests Jest y tests pytest, pero documenta el cambio en la descripción del PR.
 
 ## Convenciones específicas notables:
 
@@ -83,9 +88,12 @@ require("../app");
 ## Archivos importantes a revisar para comprender flujo y edge-cases:
 
 - `app/static/js/app.js` — helpers globales, interceptor, showToast
-- `app/static/js/admin/attendances_list.js` — filtro/lectura/map de respuestas de API (acepta varios shapes: array, {attendances: [...]}, {data: [...]})
 - `app/api/*_bp.py` — Blueprints REST: ver contratos (payloads/responses) que frontend espera
 - `app/services/*_service.py` — lógica de negocio reutilizable
+- `app/models/*.py` — modelos SQLAlchemy y relaciones
+- `app/schemas/*.py` — Marshmallow schemas y validaciones
+- `app/templates/admin/partials/*.html` — plantillas Jinja2 del admin
+- `app/static/js/admin/*.js` — módulos JS del admin (Alpine factories)
 
 ## Errores y señales comunes en runs de tests:
 
