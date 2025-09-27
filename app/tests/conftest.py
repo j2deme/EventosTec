@@ -1,4 +1,5 @@
 from app.models.student import Student
+from app.models.student import Student
 from app.models.event import Event
 from app.models.user import User
 from app import create_app, db
@@ -6,42 +7,60 @@ import pytest
 import sys
 import os
 from datetime import datetime
+
+# Asegurar que el cwd está en sys.path para imports relativos en tests (igual que antes)
 sys.path.insert(0, os.path.abspath('.'))
 
 
 @pytest.fixture
 def app():
     """Crear aplicación de test usando SQLite en archivo para compartir conexión entre request y sesión."""
-    app = create_app('testing')
-    app.config['TESTING'] = True
-
     # Usar base de datos SQLite en fichero para evitar el aislamiento de conexiones de ':memory:'
     test_db_path = os.path.join(os.getcwd(), 'test_eventostec.db')
-    # Eliminar si existe de ejecuciones previas
+    # Eliminar si existe de ejecuciones previas (antes de crear la app)
     try:
         if os.path.exists(test_db_path):
             os.remove(test_db_path)
     except Exception:
         pass
 
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{test_db_path}'
-    # Permitir acceso desde el thread del test client si aplica
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    # Crear la app usando la configuración de testing
+    _app = create_app('testing')
+    _app.config['TESTING'] = True
+
+    # Forzar URI absoluta y opciones de engine antes de inicializar/crear tablas
+    _app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{test_db_path}'
+    _app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'connect_args': {'check_same_thread': False}
     }
 
-    with app.app_context():
+    # Re-inicializar db binding por si create_app había ligado otro engine
+    try:
+        db.init_app(_app)
+    except Exception:
+        # si ya estaba inicializada, ignorar
+        pass
+
+    # Crear tablas dentro del contexto y mantener el contexto activo
+    # durante la ejecución del test (algunos tests dependen de ello).
+    with _app.app_context():
+        # Importar modelos explícitamente para asegurar que están registrados
+        import app.models  # noqa: F401
         # Crear todas las tablas
         db.create_all()
-        yield app
-        # Limpiar al finalizar
+
+        # Proveer la app al test (yield dentro del app_context para mantenerlo activo)
+        yield _app
+
+        # Teardown: limpiar DB y sesión dentro del mismo contexto
         db.session.remove()
         db.drop_all()
-        try:
-            if os.path.exists(test_db_path):
-                os.remove(test_db_path)
-        except Exception:
-            pass
+
+    try:
+        if os.path.exists(test_db_path):
+            os.remove(test_db_path)
+    except Exception:
+        pass
 
 
 @pytest.fixture
@@ -74,6 +93,7 @@ def auth_headers(app):
         token = create_access_token(identity=str(user.id))
         return {'Authorization': f'Bearer {token}'}
 
+
 # Fixture para datos de muestra, devolviendo IDs para evitar DetachedInstanceError
 
 
@@ -82,7 +102,6 @@ def sample_data(app):
     """Datos de prueba, devuelve diccionario con IDs"""
     with app.app_context():
         # Crear evento de prueba con objetos datetime
-        # Crear evento de prueba
         event = Event()
         event.name = 'Evento de prueba'
         event.description = 'Descripción del evento'
@@ -91,7 +110,6 @@ def sample_data(app):
         event.is_active = True
         db.session.add(event)
 
-        # Crear estudiante de prueba
         # Crear estudiante de prueba
         student = Student()
         student.control_number = '12345678'
