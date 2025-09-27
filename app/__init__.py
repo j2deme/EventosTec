@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, jsonify, request
+from flask import Flask, render_template, redirect, url_for, jsonify, request, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
@@ -73,5 +73,26 @@ def create_app(config_name=None):
     @jwt_required()
     def check_auth():
         return jsonify({'authenticated': True}), 200
+
+    # Simple favicon route to avoid 404s from browsers requesting /favicon.ico
+    @app.route('/favicon.ico')
+    def favicon():
+        # Prefer a static file if present (favicon.svg or favicon.ico)
+        static_dir = app.static_folder or os.path.join(app.root_path, 'static')
+        static_favicon_svg = os.path.join(static_dir, 'favicon.svg')
+        static_favicon_ico = os.path.join(static_dir, 'favicon.ico')
+        if os.path.exists(static_favicon_svg):
+            return app.send_static_file('favicon.svg')
+        if os.path.exists(static_favicon_ico):
+            return app.send_static_file('favicon.ico')
+
+        # Fallback to an inline SVG
+        svg = (
+            "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'>"
+            "<rect width='100%' height='100%' fill='%233b82f6'/>"
+            "<text x='50%' y='50%' font-size='10' fill='white' text-anchor='middle' dominant-baseline='central'>ET</text>"
+            "</svg>"
+        )
+        return Response(svg, mimetype='image/svg+xml')
 
     return app
