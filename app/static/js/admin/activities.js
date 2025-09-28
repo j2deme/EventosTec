@@ -34,6 +34,8 @@ function activitiesManager() {
 
     // Modal
     showModal: false,
+    // Panel lateral (nueva subvista inline) - mantener compatibilidad
+    showPanel: false,
     showDeleteModal: false,
     editingActivity: null,
     currentActivity: {
@@ -65,6 +67,40 @@ function activitiesManager() {
       this.loadEvents();
       this.loadActivities();
       this.loadActivityRelations();
+      // Escuchar eventos de guardado/creación/actualización para mantener lista sincronizada
+      try {
+        window.addEventListener("activity-saved", (e) => {
+          const detail = e && e.detail ? e.detail : {};
+          // Si la actividad guardada es la misma que la que está abierta, recargarla
+          if (
+            detail.id &&
+            this.currentActivity &&
+            String(detail.id) === String(this.currentActivity.id)
+          ) {
+            this.reloadCurrentActivity();
+          }
+          // En cualquier caso, recargar la lista visible
+          this.loadActivities(this.pagination.current_page || 1);
+        });
+
+        window.addEventListener("activity-created", (e) => {
+          this.loadActivities(1);
+        });
+
+        window.addEventListener("activity-updated", (e) => {
+          const detail = e && e.detail ? e.detail : {};
+          if (
+            detail.id &&
+            this.currentActivity &&
+            String(detail.id) === String(this.currentActivity.id)
+          ) {
+            this.reloadCurrentActivity();
+          }
+          this.loadActivities(this.pagination.current_page || 1);
+        });
+      } catch (err) {
+        // ambiente sin DOM (tests)
+      }
     },
 
     // Cargar actividades
@@ -92,11 +128,116 @@ function activitiesManager() {
 
         const data = await response.json();
 
-        this.activities = (data.activities || []).map((activity) => ({
-          ...activity,
-          start_datetime: this.formatDateTimeForInput(activity.start_datetime),
-          end_datetime: this.formatDateTimeForInput(activity.end_datetime),
-        }));
+        this.activities = (data.activities || []).map((activity) => {
+          const act = {
+            ...activity,
+            start_datetime: this.formatDateTimeForInput(
+              activity.start_datetime
+            ),
+            end_datetime: this.formatDateTimeForInput(activity.end_datetime),
+          };
+          // Compute a compact speakersString for display in the table.
+          try {
+            const speakers = Array.isArray(activity.speakers)
+              ? activity.speakers
+              : [];
+            act.speakersString = speakers
+              .map((s) => {
+                if (!s) return "";
+                const name = (s.name || "").trim();
+                const degree = (s.degree || "").trim();
+                if (degree) {
+                  // Mostrar grado primero seguido del nombre
+                  return `${degree} ${name}`.trim();
+                }
+                return name;
+              })
+              .filter(Boolean)
+              .join(", ");
+          } catch (e) {
+            act.speakersString = "";
+          }
+          // Compute a human-friendly dates string with AM/PM using dayjs
+          // - Single-day: DD/MM/YY h:mm A - h:mm A
+          // - Multi-day: D - D / MMM/YY h:mm A - h:mm A (MMM abreviado en español)
+          try {
+            const hasDayjs = typeof dayjs !== "undefined";
+            if (hasDayjs && typeof dayjs.locale === "function")
+              dayjs.locale("es");
+
+            const s = activity.start_datetime
+              ? dayjs(activity.start_datetime)
+              : null;
+            const e = activity.end_datetime
+              ? dayjs(activity.end_datetime)
+              : null;
+
+            if (hasDayjs && s && s.isValid() && e && e.isValid()) {
+              const sameDay = s.isSame(e, "day");
+              if (sameDay) {
+                act.datesString = `${s.format("DD/MM/YY")} ${s.format(
+                  "h:mm A"
+                )} - ${e.format("h:mm A")}`;
+              } else {
+                // Mostrar rango de días y mes abreviado en español (MMM)
+                act.datesString = `${s.format("D")} - ${e.format(
+                  "D"
+                )} / ${s.format("MMM/YY")} ${s.format("h:mm A")} - ${e.format(
+                  "h:mm A"
+                )}`;
+              }
+            } else if (hasDayjs && s && s.isValid()) {
+              act.datesString = `${s.format("DD/MM/YY")} ${s.format("h:mm A")}`;
+            } else if (!hasDayjs) {
+              // Fallback a la implementación previa si dayjs no está disponible
+              const sd = activity.start_datetime
+                ? new Date(activity.start_datetime)
+                : null;
+              const ed = activity.end_datetime
+                ? new Date(activity.end_datetime)
+                : null;
+              const pad = (n) => String(n).padStart(2, "0");
+              const day = (d) => pad(d.getDate());
+              const month = (d) => pad(d.getMonth() + 1);
+              const year2 = (d) => String(d.getFullYear()).slice(-2);
+              const time12 = (d) =>
+                d
+                  .toLocaleTimeString("en-US", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true,
+                  })
+                  .replace(/\u200E/g, "");
+
+              if (sd && !isNaN(sd) && ed && !isNaN(ed)) {
+                const sameDay =
+                  sd.getFullYear() === ed.getFullYear() &&
+                  sd.getMonth() === ed.getMonth() &&
+                  sd.getDate() === ed.getDate();
+                if (sameDay) {
+                  act.datesString = `${day(sd)}/${month(sd)}/${year2(
+                    sd
+                  )} ${time12(sd)} - ${time12(ed)}`;
+                } else {
+                  act.datesString = `${day(sd)} - ${day(ed)} / ${month(
+                    sd
+                  )}/${year2(sd)} ${time12(sd)} - ${time12(ed)}`;
+                }
+              } else if (sd && !isNaN(sd)) {
+                act.datesString = `${day(sd)}/${month(sd)}/${year2(
+                  sd
+                )} ${time12(sd)}`;
+              } else {
+                act.datesString = "Sin fecha";
+              }
+            } else {
+              act.datesString = "Sin fecha";
+            }
+          } catch (err) {
+            act.datesString = "Sin fecha";
+          }
+          return act;
+        });
 
         const pages = data.pages || 1;
         const current = data.current_page || 1;
@@ -190,6 +331,11 @@ function activitiesManager() {
           throw new Error("No se encontró el token de autenticación");
         }
 
+        // Validación: event_id es obligatorio
+        if (!this.currentActivity || !this.currentActivity.event_id) {
+          throw new Error("Seleccione un evento antes de crear la actividad");
+        }
+
         // Preparar datos para enviar
         const activityData = {
           event_id: parseInt(this.currentActivity.event_id),
@@ -278,6 +424,13 @@ function activitiesManager() {
         const token = localStorage.getItem("authToken");
         if (!token) {
           throw new Error("No se encontró el token de autenticación");
+        }
+
+        // Validación: event_id es obligatorio
+        if (!this.currentActivity || !this.currentActivity.event_id) {
+          throw new Error(
+            "Seleccione un evento antes de actualizar la actividad"
+          );
         }
 
         // Preparar datos para enviar
@@ -432,7 +585,9 @@ function activitiesManager() {
       };
       this.minDate = "";
       this.maxDate = "";
+      // mantener compatibilidad con antiguos usos de showModal
       this.showModal = true;
+      this.showPanel = true;
     },
 
     // Actividades relacionadas
@@ -475,7 +630,9 @@ function activitiesManager() {
       mapped.knowledge_area = activity.knowledge_area || "";
       this.currentActivity = mapped;
       this.updateDateLimits();
+      // abrir panel/modal (compatibilidad)
       this.showModal = true;
+      this.showPanel = true;
       this.dateValidationError = "";
       this.updateCalculatedDuration();
       if (activity.id) {
@@ -486,6 +643,7 @@ function activitiesManager() {
     // Cerrar modal
     closeModal() {
       this.showModal = false;
+      this.showPanel = false;
       this.editingActivity = false;
       this.currentActivity = {
         id: null,
@@ -510,6 +668,75 @@ function activitiesManager() {
       this.errorMessage = "";
       this.minDate = "";
       this.maxDate = "";
+    },
+
+    // Resetear el objeto currentActivity (sin cerrar panel) - usado por el botón Cancel del panel
+    resetCurrentActivity() {
+      this.editingActivity = false;
+      this.currentActivity = {
+        id: null,
+        event_id: "",
+        department: "",
+        name: "",
+        description: "",
+        start_datetime: "",
+        end_datetime: "",
+        duration_hours: 1.0,
+        activity_type: "",
+        location: "",
+        modality: "",
+        requirements: "",
+        knowledge_area: "",
+        speakersList: [],
+        target_audience_general: false,
+        target_audience_careersList: [],
+        max_capacity: null,
+      };
+      this.dateValidationError = "";
+      this.errorMessage = "";
+      this.minDate = "";
+      this.maxDate = "";
+      this.calculatedDuration = 0;
+    },
+
+    // Recargar la actividad actual desde el servidor (si existe id)
+    async reloadCurrentActivity() {
+      if (!this.currentActivity || !this.currentActivity.id) return;
+      try {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f(`/api/activities/${this.currentActivity.id}`);
+        if (!response || !response.ok)
+          throw new Error(
+            `Error al recargar actividad: ${response && response.status}`
+          );
+        const data = await response.json();
+        const act = data.activity || data;
+        const mapped = { ...act };
+        mapped.speakersList = Array.isArray(act.speakers) ? act.speakers : [];
+        if (act.target_audience) {
+          mapped.target_audience_general = !!act.target_audience.general;
+          mapped.target_audience_careersList = Array.isArray(
+            act.target_audience.careers
+          )
+            ? act.target_audience.careers
+            : [];
+        } else {
+          mapped.target_audience_general = false;
+          mapped.target_audience_careersList = [];
+        }
+        mapped.knowledge_area = act.knowledge_area || "";
+        this.currentActivity = mapped;
+        this.updateDateLimits();
+        this.dateValidationError = "";
+        this.updateCalculatedDuration();
+        if (act.id) {
+          await this.loadRelatedActivities(act.id);
+        }
+      } catch (error) {
+        console.error("Error reloading activity:", error);
+        showToast("Error al recargar actividad", "error");
+      }
     },
 
     // Confirmar eliminación

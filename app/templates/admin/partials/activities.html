@@ -11,7 +11,7 @@
       </p>
     </div>
     <button
-      @click="openCreateModal()"
+      @click="window.dispatchEvent(new CustomEvent('open-activity-editor', { detail: { create: true } }));"
       class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
     >
       <i class="ti ti-plus mr-2"></i>
@@ -123,35 +123,40 @@
     <!-- Tabla (cuando no está cargando) -->
     <div x-show="!loading">
       <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="min-w-full divide-y divide-gray-200 table-fixed">
           <thead class="bg-gray-50">
             <tr>
               <th
                 scope="col"
+                style="width: 36%"
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
                 Nombre
               </th>
               <th
                 scope="col"
+                style="width: 24%"
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
                 Evento / Fechas
               </th>
               <th
                 scope="col"
+                style="width: 14%"
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
                 Tipo
               </th>
               <th
                 scope="col"
+                style="width: 12%"
                 class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
                 Cupo
               </th>
               <th
                 scope="col"
+                style="width: 14%"
                 class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
                 Acciones
@@ -163,28 +168,25 @@
               <tr class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div
-                    class="text-sm font-medium text-gray-900"
+                    class="text-sm font-medium text-gray-900 truncate max-w-xs"
                     x-text="activity.name"
                   ></div>
+                  <!-- Descripción oculta en listado; se mostrará en modal de detalle -->
                   <div
-                    class="text-sm text-gray-500 mt-1"
-                    x-text="activity.description || 'Sin descripción'"
+                    class="text-sm text-gray-500 mt-1 truncate max-w-xs"
+                    x-show="activity.speakersString"
+                    x-text="activity.speakersString"
                   ></div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <div
-                    class="text-sm text-gray-900"
+                    class="text-sm text-gray-900 truncate max-w-xs"
                     x-text="activity.event?.name || 'Evento desconocido'"
                   ></div>
-                  <div class="text-sm text-gray-900 mt-1">
-                    <span
-                      x-text="(window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(activity.start_datetime) : formatDate(activity.start_datetime))"
-                    ></span>
-                    <span> - </span>
-                    <span
-                      x-text="(window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(activity.end_datetime) : formatDate(activity.end_datetime))"
-                    ></span>
-                  </div>
+                  <div
+                    class="text-sm text-gray-900 mt-1"
+                    x-text="activity.datesString"
+                  ></div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span
@@ -217,7 +219,7 @@
                       <i class="ti ti-eye"></i>
                     </button>
                     <button
-                      @click="openEditModal(activity)"
+                      @click="window.dispatchEvent(new CustomEvent('open-activity-editor', { detail: { activityId: activity.id } }));"
                       class="text-indigo-600 hover:text-indigo-900"
                       title="Editar"
                     >
@@ -300,500 +302,432 @@
     </div>
   </div>
 
-  <!-- Modal para Crear/Editar Actividad -->
-  <div
-    x-show="showModal"
-    x-cloak
-    class="fixed inset-0 z-50 overflow-y-auto"
-    aria-labelledby="modal-title"
-    role="dialog"
-    aria-modal="true"
-  >
-    <div
-      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+  <!-- Subvista lateral/inline para Crear/Editar Actividad (reemplaza modal) -->
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Lista principal ocupa dos columnas en pantallas grandes -->
+    <div class="lg:col-span-2">
+      <!-- ...existing code for table and pagination remains above... -->
+      <!-- (This column intentionally left as-is to preserve layout) -->
+    </div>
+
+    <!-- Panel lateral para crear/editar actividad -->
+    <aside
+      x-show="showPanel"
+      x-cloak
+      class="lg:col-span-1 bg-white rounded-lg shadow p-4"
     >
-      <!-- Overlay -->
-      <div
-        x-show="showModal"
-        x-transition:enter="ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-        @click="closeModal()"
-      ></div>
+      <div class="flex items-center justify-between mb-4">
+        <h3
+          class="text-lg font-medium text-gray-900"
+          x-text="editingActivity ? 'Editar Actividad' : 'Crear Nueva Actividad'"
+        ></h3>
+        <button
+          type="button"
+          @click="showPanel = false"
+          class="text-gray-400 hover:text-gray-600"
+        >
+          <span class="sr-only">Cerrar panel</span>
+          <i class="ti ti-x"></i>
+        </button>
+      </div>
 
-      <!-- Contenido del modal -->
-      <div
-        x-show="showModal"
-        x-transition:enter="ease-out duration-300"
-        x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-        x-transition:leave="ease-in duration-200"
-        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-        x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-        class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full"
+      <!-- Formulario (mismo id y bindings que el modal original) -->
+      <form
+        id="activity-form"
+        @submit.prevent="saveActivity()"
+        class="space-y-4"
       >
-        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-          <div class="sm:flex sm:items-start">
-            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-              <h3
-                class="text-lg leading-6 font-medium text-gray-900"
-                id="modal-title"
-                x-text="editingActivity ? 'Editar Actividad' : 'Crear Nueva Actividad'"
-              ></h3>
-              <div class="mt-4">
-                <!-- Formulario de actividad -->
-                <form id="activity-form" @submit.prevent="saveActivity()">
-                  <div class="space-y-4">
-                    <!-- Evento -->
-                    <div>
-                      <label
-                        for="event_id"
-                        class="block text-sm font-medium text-gray-700"
-                        >Evento <span class="text-red-500">*</span></label
-                      >
-                      <select
-                        id="event_id"
-                        x-model="currentActivity.event_id"
-                        @change="updateDateLimits(); validateActivityDates(currentActivity)"
-                        required
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                      >
-                        <option value="">Seleccionar evento</option>
-                        <template x-for="event in events" :key="event.id">
-                          <option
-                            :value="event.id"
-                            x-text="event.name"
-                          ></option>
-                        </template>
-                      </select>
-                    </div>
+        <!-- Evento (siempre habilitado) -->
+        <div>
+          <label for="event_id" class="block text-sm font-medium text-gray-700"
+            >Evento <span class="text-red-500">*</span></label
+          >
+          <select
+            id="event_id"
+            x-model="currentActivity.event_id"
+            @change="updateDateLimits(); validateActivityDates(currentActivity)"
+            required
+            class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+          >
+            <option value="">Seleccionar evento</option>
+            <template x-for="event in events" :key="event.id">
+              <option :value="event.id" x-text="event.name"></option>
+            </template>
+          </select>
+        </div>
 
-                    <!-- Departamento -->
-                    <div>
-                      <label
-                        for="department"
-                        class="block text-sm font-medium text-gray-700"
-                        >Departamento <span class="text-red-500">*</span></label
-                      >
-                      <input
-                        type="text"
-                        id="department"
-                        x-model="currentActivity.department"
-                        required
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                      />
-                    </div>
+        <!-- Bloquear campos hasta seleccionar un evento válido -->
+        <fieldset
+          :disabled="!(currentActivity && currentActivity.event_id)"
+          class="space-y-4"
+        >
+          <!-- Departamento -->
+          <div>
+            <label
+              for="department"
+              class="block text-sm font-medium text-gray-700"
+              >Departamento <span class="text-red-500">*</span></label
+            >
+            <input
+              type="text"
+              id="department"
+              x-model="currentActivity.department"
+              required
+              class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+            />
+          </div>
 
-                    <!-- Nombre -->
-                    <div>
-                      <label
-                        for="name"
-                        class="block text-sm font-medium text-gray-700"
-                        >Nombre <span class="text-red-500">*</span></label
-                      >
-                      <input
-                        type="text"
-                        id="name"
-                        x-model="currentActivity.name"
-                        required
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                      />
-                    </div>
+          <!-- Nombre -->
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-700"
+              >Nombre <span class="text-red-500">*</span></label
+            >
+            <input
+              type="text"
+              id="name"
+              x-model="currentActivity.name"
+              required
+              class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+            />
+          </div>
 
-                    <!-- Descripción -->
-                    <div>
-                      <label
-                        for="description"
-                        class="block text-sm font-medium text-gray-700"
-                        >Descripción</label
-                      >
-                      <textarea
-                        id="description"
-                        x-model="currentActivity.description"
-                        rows="3"
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                      ></textarea>
-                    </div>
+          <!-- Área de conocimiento (compact) -->
+          <div>
+            <label
+              for="knowledge_area"
+              class="block text-sm font-medium text-gray-700"
+              >Área de conocimiento</label
+            >
+            <input
+              type="text"
+              id="knowledge_area"
+              x-model="currentActivity.knowledge_area"
+              placeholder="Ej. Ciencias Sociales"
+              class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+            />
+          </div>
 
-                    <!-- Fechas -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label
-                          for="start_datetime"
-                          class="block text-sm font-medium text-gray-700"
-                          >Fecha/Hora de Inicio
-                          <span class="text-red-500">*</span></label
-                        >
-                        <input
-                          type="datetime-local"
-                          id="start_datetime"
-                          x-model="currentActivity.start_datetime"
-                          :min="minDate"
-                          :max="maxDate"
-                          @change="updateCalculatedDuration(); validateActivityDates(currentActivity)"
-                          required
-                          class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          for="end_datetime"
-                          class="block text-sm font-medium text-gray-700"
-                          >Fecha/Hora de Fin
-                          <span class="text-red-500">*</span></label
-                        >
-                        <input
-                          type="datetime-local"
-                          id="end_datetime"
-                          x-model="currentActivity.end_datetime"
-                          :min="minDate"
-                          :max="maxDate"
-                          @change="updateCalculatedDuration(); validateActivityDates(currentActivity)"
-                          required
-                          class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                        />
-                      </div>
-                    </div>
+          <!-- Objetivo -->
+          <div>
+            <label
+              for="description"
+              class="block text-sm font-medium text-gray-700"
+              >Objetivo</label
+            >
+            <textarea
+              id="description"
+              x-model="currentActivity.description"
+              rows="3"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            ></textarea>
+          </div>
 
+          <!-- Fechas: usar fila completa (apiladas) -->
+          <div class="grid grid-cols-1 gap-2">
+            <div>
+              <label
+                for="start_datetime"
+                class="block text-sm font-medium text-gray-700"
+                >Inicio</label
+              >
+              <input
+                id="start_datetime"
+                type="datetime-local"
+                x-model="currentActivity.start_datetime"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+            <div>
+              <label
+                for="end_datetime"
+                class="block text-sm font-medium text-gray-700"
+                >Fin</label
+              >
+              <input
+                id="end_datetime"
+                type="datetime-local"
+                x-model="currentActivity.end_datetime"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <label
+                for="duration_hours"
+                class="block text-sm font-medium text-gray-700"
+                >Duración (horas)</label
+              >
+              <input
+                id="duration_hours"
+                type="number"
+                step="0.25"
+                min="0"
+                x-model="currentActivity.duration_hours"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+            <div>
+              <label
+                for="max_capacity"
+                class="block text-sm font-medium text-gray-700"
+                >Cupo máximo</label
+              >
+              <input
+                id="max_capacity"
+                type="number"
+                min="0"
+                x-model="currentActivity.max_capacity"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <label
+                for="activity_type"
+                class="block text-sm font-medium text-gray-700"
+                >Tipo de actividad</label
+              >
+              <select
+                id="activity_type"
+                x-model="currentActivity.activity_type"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              >
+                <option value="">Seleccionar tipo</option>
+                <option value="Magistral">Magistral</option>
+                <option value="Conferencia">Conferencia</option>
+                <option value="Taller">Taller</option>
+                <option value="Curso">Curso</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div>
+              <label
+                for="modality"
+                class="block text-sm font-medium text-gray-700"
+                >Modalidad</label
+              >
+              <select
+                id="modality"
+                x-model="currentActivity.modality"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              >
+                <option value="">Seleccionar modalidad</option>
+                <option value="Presencial">Presencial</option>
+                <option value="Virtual">Virtual</option>
+                <option value="Híbrido">Híbrido</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label
+              for="location"
+              class="block text-sm font-medium text-gray-700"
+              >Ubicación</label
+            >
+            <input
+              id="location"
+              type="text"
+              x-model="currentActivity.location"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            />
+          </div>
+
+          <div>
+            <label
+              for="requirements"
+              class="block text-sm font-medium text-gray-700"
+              >Requisitos</label
+            >
+            <textarea
+              id="requirements"
+              x-model="currentActivity.requirements"
+              rows="2"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            ></textarea>
+          </div>
+
+          <!-- Ponentes (compact list with add button) -->
+          <div x-data="{open:false}">
+            <label class="block text-sm font-medium text-gray-700"
+              >Ponentes</label
+            >
+            <template x-if="(currentActivity.speakersList || []).length === 0">
+              <p class="text-sm text-gray-500 mt-1">
+                No hay ponentes agregados.
+              </p>
+            </template>
+            <ul class="space-y-2 mt-2">
+              <template
+                x-for="(s, i) in (currentActivity.speakersList || [])"
+                :key="i"
+              >
+                <li class="bg-gray-50 p-2 rounded flex items-start gap-2">
+                  <div class="flex-1">
                     <div
-                      x-show="dateValidationError"
-                      class="text-red-600 text-sm bg-red-50 p-3 rounded-lg flex items-center"
-                    >
-                      <i class="ti ti-alert-circle mr-2"></i>
-                      <span x-text="dateValidationError"></span>
-                    </div>
-
+                      class="text-sm font-medium text-gray-900"
+                      x-text="s.name || 'Sin nombre'"
+                    ></div>
                     <div
-                      x-show="calculatedDuration != 0"
-                      class="bg-blue-50 p-3 rounded-md"
-                    >
-                      <p class="text-sm text-blue-700">
-                        Duración calculada:
-                        <span x-text="calculatedDuration.toFixed(1)"></span>
-                        horas
-                      </p>
-                    </div>
-
-                    <!-- Duración en Horas -->
-                    <div>
-                      <label
-                        for="duration_hours"
-                        class="block text-sm font-medium text-gray-700"
-                      >
-                        Duración en horas
-                      </label>
-                      <input
-                        type="number"
-                        id="duration_hours"
-                        x-model="currentActivity.duration_hours"
-                        min="1"
-                        step="1"
-                        placeholder="Dejar en blanco para usar la calculada"
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
-                      />
-                      <p class="mt-1 text-xs text-gray-500">
-                        Puedes especificar una duración menor a la calculada,
-                        pero no mayor.
-                      </p>
-                    </div>
-
-                    <!-- Tipo y Modalidad -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label
-                          for="activity_type"
-                          class="block text-sm font-medium text-gray-700"
-                          >Tipo <span class="text-red-500">*</span></label
-                        >
-                        <select
-                          id="activity_type"
-                          x-model="currentActivity.activity_type"
-                          required
-                          class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                        >
-                          <option value="">Seleccionar tipo</option>
-                          <option value="Magistral">Magistral</option>
-                          <option value="Conferencia">Conferencia</option>
-                          <option value="Taller">Taller</option>
-                          <option value="Curso">Curso</option>
-                          <option value="Otro">Otro</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label
-                          for="modality"
-                          class="block text-sm font-medium text-gray-700"
-                          >Modalidad <span class="text-red-500">*</span></label
-                        >
-                        <select
-                          id="modality"
-                          x-model="currentActivity.modality"
-                          required
-                          class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                        >
-                          <option value="">Seleccionar modalidad</option>
-                          <option value="Presencial">Presencial</option>
-                          <option value="Virtual">Virtual</option>
-                          <option value="Híbrido">Híbrido</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <!-- Ubicación -->
-                    <div>
-                      <label
-                        for="location"
-                        class="block text-sm font-medium text-gray-700"
-                        >Ubicación</label
-                      >
-                      <input
-                        type="text"
-                        id="location"
-                        x-model="currentActivity.location"
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                      />
-                    </div>
-
-                    <!-- Área de conocimiento -->
-                    <div>
-                      <label
-                        for="knowledge_area"
-                        class="block text-sm font-medium text-gray-700"
-                      >
-                        Área de conocimiento
-                      </label>
-                      <input
-                        type="text"
-                        id="knowledge_area"
-                        x-model="currentActivity.knowledge_area"
-                        placeholder="Ej. Ciencias Sociales"
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                      />
-                    </div>
-
-                    <!-- Ponentes (UI amigable) -->
-                    <div x-data="{open:false}">
-                      <label class="block text-sm font-medium text-gray-700">Ponentes</label>
-                      <template x-if="(currentActivity.speakersList || []).length === 0">
-                        <p class="text-sm text-gray-500 mt-1">No hay ponentes agregados.</p>
-                      </template>
-                      <ul class="space-y-2 mt-2">
-                        <template x-for="(s, i) in (currentActivity.speakersList || [])" :key="i">
-                          <li class="bg-gray-50 p-2 rounded flex items-start gap-2">
-                            <div class="flex-1">
-                              <div class="text-sm font-medium text-gray-900" x-text="s.name || 'Sin nombre'"></div>
-                              <div class="text-sm text-gray-500" x-text="(s.degree ? s.degree + ' - ' : '') + (s.organization || '')"></div>
-                            </div>
-                            <div class="flex-shrink-0">
-                              <button type="button" @click="currentActivity.speakersList.splice(i,1)" class="text-red-500 hover:text-red-700">Eliminar</button>
-                            </div>
-                          </li>
-                        </template>
-                      </ul>
-
-                      <div class="mt-3 border-t pt-3">
-                        <button type="button" @click="open = !open" class="inline-flex items-center px-3 py-1 border rounded bg-white hover:bg-gray-50">
-                          <i class="ti ti-plus mr-2"></i> Agregar ponente
-                        </button>
-
-                        <div x-show="open" x-cloak class="mt-3 space-y-2">
-                          <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <input type="text" x-ref="sp_name" placeholder="Nombre" class="p-2 border rounded" />
-                            <input type="text" x-ref="sp_degree" placeholder="Grado (opcional)" class="p-2 border rounded" />
-                            <input type="text" x-ref="sp_org" placeholder="Organización (opcional)" class="p-2 border rounded" />
-                          </div>
-                          <div class="flex gap-2">
-                            <button type="button" @click="
-                              const name = $refs.sp_name.value && $refs.sp_name.value.trim();
-                              if(!name) return; 
-                              currentActivity.speakersList = currentActivity.speakersList || []; 
-                              currentActivity.speakersList.push({ name, degree: $refs.sp_degree.value.trim(), organization: $refs.sp_org.value.trim() });
-                              $refs.sp_name.value=''; $refs.sp_degree.value=''; $refs.sp_org.value='';
-                              open = false;
-                            " class="px-3 py-1 bg-indigo-600 text-white rounded">Agregar</button>
-                            <button type="button" @click="open=false" class="px-3 py-1 border rounded">Cancelar</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Público objetivo (UI amigable) -->
-                    <div x-data="{openCareers:false}">
-                      <label class="block text-sm font-medium text-gray-700">Público objetivo</label>
-                      <div class="flex items-center gap-4 mt-2">
-                        <label class="inline-flex items-center">
-                          <input type="checkbox" x-model="currentActivity.target_audience_general" class="form-checkbox" />
-                          <span class="ml-2 text-sm text-gray-700">Público en general</span>
-                        </label>
-                      </div>
-
-                      <div class="mt-3">
-                        <label class="block text-sm font-medium text-gray-700">Carreras / Áreas</label>
-                        <template x-if="(currentActivity.target_audience_careersList || []).length === 0">
-                          <p class="text-sm text-gray-500 mt-1">No hay carreras agregadas.</p>
-                        </template>
-                        <ul class="flex flex-wrap gap-2 mt-2">
-                          <template x-for="(c, idx) in (currentActivity.target_audience_careersList || [])" :key="idx">
-                            <li class="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-2">
-                              <span x-text="c"></span>
-                              <button type="button" @click="currentActivity.target_audience_careersList.splice(idx,1)" class="text-red-500">x</button>
-                            </li>
-                          </template>
-                        </ul>
-
-                        <div class="mt-2 flex gap-2">
-                          <input type="text" x-ref="newCareer" placeholder="Agregar carrera" class="p-2 border rounded flex-1" />
-                          <button type="button" @click="
-                            const v = $refs.newCareer.value && $refs.newCareer.value.trim();
-                            if(!v) return;
-                            currentActivity.target_audience_careersList = currentActivity.target_audience_careersList || [];
-                            currentActivity.target_audience_careersList.push(v);
-                            $refs.newCareer.value='';
-                          " class="px-3 py-1 bg-indigo-600 text-white rounded">Agregar</button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <!-- Cupo (solo para Conferencias, Talleres, Cursos) -->
-                    <div
-                      x-show="['Conferencia', 'Taller', 'Curso'].includes(currentActivity.activity_type)"
-                    >
-                      <label
-                        for="max_capacity"
-                        class="block text-sm font-medium text-gray-700"
-                        >Cupo Máximo</label
-                      >
-                      <input
-                        type="number"
-                        id="max_capacity"
-                        x-model.number="currentActivity.max_capacity"
-                        min="0"
-                        class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-                      />
-                    </div>
-
-                    <!-- Actividades relacionadas (solo en edición) -->
-                    <template x-if="currentActivity.id">
-                      <div class="mt-6">
-                        <!-- Listar actividades relacionadas existentes -->
-                        <template x-if="relatedActivities.length > 0">
-                          <div class="mb-4">
-                            <h4 class="text-sm font-medium text-gray-700 mb-2">
-                              Actividades enlazadas:
-                            </h4>
-                            <ul class="space-y-2">
-                              <template
-                                x-for="rel in relatedActivities"
-                                :key="rel.id"
-                              >
-                                <li
-                                  class="flex items-center justify-between bg-gray-50 p-2 rounded"
-                                >
-                                  <span x-text="rel.name"></span>
-                                  <button
-                                    type="button"
-                                    @click="unlinkActivity(currentActivity.id, rel.id).then(() => loadRelatedActivities(currentActivity.id))"
-                                    class="text-red-500 hover:text-red-700 text-sm"
-                                  >
-                                    Desenlazar
-                                  </button>
-                                </li>
-                              </template>
-                            </ul>
-                          </div>
-                        </template>
-                        <template x-if="currentActivity.linked_by.length > 0">
-                          <div class="mb-4">
-                            <h4 class="text-sm font-medium text-gray-700 mb-2">
-                              Actividades enlazadas:
-                            </h4>
-                            <ul class="space-y-2">
-                              <template
-                                x-for="rel in currentActivity.linked_by"
-                                :key="rel.id"
-                              >
-                                <li
-                                  class="flex items-center justify-between bg-gray-50 p-2 rounded"
-                                >
-                                  <span x-text="rel.name"></span>
-                                  <button
-                                    type="button"
-                                    @click="unlinkActivity(rel.id, currentActivity.id).then(() => loadRelatedActivities(currentActivity.id))"
-                                    class="text-red-500 hover:text-red-700 text-sm"
-                                  >
-                                    Desenlazar
-                                  </button>
-                                </li>
-                              </template>
-                            </ul>
-                          </div>
-                        </template>
-
-                        <!-- Selector para enlazar nueva actividad -->
-                        <template
-                          x-if="relatedActivities.length === 0 && currentActivity.linked_by.length == 0"
-                        >
-                          <div class="flex items-end gap-2">
-                            <div class="flex-1">
-                              <label
-                                class="block text-sm font-medium text-gray-700 mb-1"
-                              >
-                                Enlazar con otra actividad
-                              </label>
-                              <select
-                                x-model="selectedToLink"
-                                class="focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
-                              >
-                                <option value="">Seleccionar actividad</option>
-                                <template
-                                  x-for="act in getAvailableActivities().filter(a => a.id !== currentActivity.id)"
-                                  :key="act.id"
-                                >
-                                  <option
-                                    :value="act.id"
-                                    x-text="act.name"
-                                    :disabled="act.id === currentActivity.id"
-                                  ></option>
-                                </template>
-                              </select>
-                            </div>
-                            <button
-                              type="button"
-                              @click="linkActivity(currentActivity.id, selectedToLink).then(() => { selectedToLink=''; loadRelatedActivities(currentActivity.id); })"
-                              :disabled="!selectedToLink"
-                              class="bg-indigo-600 text-white px-3 py-2 rounded-md text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Enlazar
-                            </button>
-                          </div>
-                        </template>
-
-                        <template
-                          x-if="relatedActivities.length > 0 || currentActivity.linked_by.length > 0"
-                        >
-                          <p class="text-sm text-gray-500 italic mt-2">
-                            Esta actividad ya está relacionada con otra.
-                            Desenlázala primero para poder enlazar una nueva.
-                          </p>
-                        </template>
-                      </div>
-                    </template>
+                      class="text-sm text-gray-500"
+                      x-text="(s.degree ? s.degree + ' - ' : '') + (s.organization || '')"
+                    ></div>
                   </div>
-                </form>
+                  <div class="flex-shrink-0">
+                    <button
+                      type="button"
+                      @click="currentActivity.speakersList.splice(i,1)"
+                      class="text-red-500 hover:text-red-700"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </li>
+              </template>
+            </ul>
+
+            <div class="mt-3 border-t pt-3">
+              <button
+                type="button"
+                @click="open = !open"
+                class="inline-flex items-center px-3 py-1 border rounded bg-white hover:bg-gray-50"
+              >
+                <i class="ti ti-plus mr-2"></i> Agregar ponente
+              </button>
+
+              <div x-show="open" x-cloak class="mt-3 space-y-2">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    x-ref="sp_degree"
+                    placeholder="Grado (opcional)"
+                    class="p-2 border rounded"
+                  />
+                  <input
+                    type="text"
+                    x-ref="sp_name"
+                    placeholder="Nombre"
+                    class="p-2 border rounded"
+                  />
+                  <input
+                    type="text"
+                    x-ref="sp_org"
+                    placeholder="Organización (opcional)"
+                    class="p-2 border rounded"
+                  />
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    @click="
+                  const name = $refs.sp_name.value && $refs.sp_name.value.trim();
+                  const degree = $refs.sp_degree.value && $refs.sp_degree.value.trim();
+                  if(!name && !degree) return; 
+                  currentActivity.speakersList = currentActivity.speakersList || []; 
+                  currentActivity.speakersList.push({ name: name || '', degree: degree || '', organization: $refs.sp_org.value.trim() });
+                  $refs.sp_name.value=''; $refs.sp_degree.value=''; $refs.sp_org.value='';
+                  open = false;
+                "
+                    class="px-3 py-1 bg-indigo-600 text-white rounded"
+                  >
+                    Agregar
+                  </button>
+                  <button
+                    type="button"
+                    @click="open=false"
+                    class="px-3 py-1 border rounded"
+                  >
+                    Cancelar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+
+          <!-- Público objetivo compacto -->
+          <div x-data="{openCareers:false}">
+            <label class="block text-sm font-medium text-gray-700"
+              >Público objetivo</label
+            >
+            <div class="flex items-center gap-4 mt-2">
+              <label class="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  x-model="currentActivity.target_audience_general"
+                  class="form-checkbox"
+                />
+                <span class="ml-2 text-sm text-gray-700"
+                  >Público en general</span
+                >
+              </label>
+            </div>
+
+            <div class="mt-3">
+              <label class="block text-sm font-medium text-gray-700"
+                >Carreras / Áreas</label
+              >
+              <template
+                x-if="(currentActivity.target_audience_careersList || []).length === 0"
+              >
+                <p class="text-sm text-gray-500 mt-1">
+                  No hay carreras agregadas.
+                </p>
+              </template>
+              <ul class="flex flex-wrap gap-2 mt-2">
+                <template
+                  x-for="(c, idx) in (currentActivity.target_audience_careersList || [])"
+                  :key="idx"
+                >
+                  <li
+                    class="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-2"
+                  >
+                    <span x-text="c"></span>
+                    <button
+                      type="button"
+                      @click="currentActivity.target_audience_careersList.splice(idx,1)"
+                      class="text-red-500"
+                    >
+                      x
+                    </button>
+                  </li>
+                </template>
+              </ul>
+
+              <div class="mt-2 flex gap-2">
+                <input
+                  type="text"
+                  x-ref="newCareer"
+                  placeholder="Agregar carrera"
+                  class="p-2 border rounded flex-1"
+                />
+                <button
+                  type="button"
+                  @click="
+                const v = $refs.newCareer.value && $refs.newCareer.value.trim();
+                if(!v) return;
+                currentActivity.target_audience_careersList = currentActivity.target_audience_careersList || [];
+                currentActivity.target_audience_careersList.push(v);
+                $refs.newCareer.value='';
+              "
+                  class="px-3 py-1 bg-indigo-600 text-white rounded"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- Acciones -->
+        <div class="flex gap-2 mt-4">
           <button
             type="submit"
-            form="activity-form"
-            :disabled="saving"
-            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="saving || !(currentActivity && currentActivity.event_id)"
+            class="flex-1 inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <template x-if="saving">
               <span class="flex items-center">
@@ -826,122 +760,471 @@
           </button>
           <button
             type="button"
-            @click="closeModal()"
-            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            @click="(editingActivity ? reloadCurrentActivity() : resetCurrentActivity()); showPanel=false"
+            class="flex-1 inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50"
           >
             Cancelar
           </button>
         </div>
-      </div>
-    </div>
-  </div>
+      </form>
+    </aside>
 
-  <!-- Modal de Confirmación de Eliminación -->
-  <div
-    x-show="showDeleteModal"
-    x-cloak
-    class="fixed inset-0 z-50 overflow-y-auto"
-    aria-labelledby="modal-title"
-    role="dialog"
-    aria-modal="true"
-  >
+    <!-- Modal de Confirmación de Eliminación -->
     <div
-      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+      x-show="showDeleteModal"
+      x-cloak
+      class="fixed inset-0 z-50 overflow-y-auto"
+      aria-labelledby="modal-title"
+      role="dialog"
+      aria-modal="true"
     >
-      <!-- Overlay -->
       <div
-        x-show="showDeleteModal"
-        x-transition:enter="ease-out duration-300"
-        x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100"
-        x-transition:leave="ease-in duration-200"
-        x-transition:leave-start="opacity-100"
-        x-transition:leave-end="opacity-0"
-        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-        @click="showDeleteModal = false"
-      ></div>
-
-      <!-- Contenido del modal -->
-      <div
-        x-show="showDeleteModal"
-        x-transition:enter="ease-out duration-300"
-        x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-        x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-        x-transition:leave="ease-in duration-200"
-        x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-        x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-        class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+        class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
       >
-        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-          <div class="sm:flex sm:items-start">
-            <div
-              class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"
-            >
-              <i class="ti ti-alert-triangle text-red-600"></i>
-            </div>
-            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-              <h3
-                class="text-lg leading-6 font-medium text-gray-900"
-                id="modal-title"
+        <!-- Overlay -->
+        <div
+          x-show="showDeleteModal"
+          x-transition:enter="ease-out duration-300"
+          x-transition:enter-start="opacity-0"
+          x-transition:enter-end="opacity-100"
+          x-transition:leave="ease-in duration-200"
+          x-transition:leave-start="opacity-100"
+          x-transition:leave-end="opacity-0"
+          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          @click="showDeleteModal = false"
+        ></div>
+
+        <!-- Contenido del modal -->
+        <div
+          x-show="showDeleteModal"
+          x-transition:enter="ease-out duration-300"
+          x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+          x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+          x-transition:leave="ease-in duration-200"
+          x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+          x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+          class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+        >
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div
+                class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"
               >
-                Confirmar eliminación
-              </h3>
-              <div class="mt-2">
-                <p class="text-sm text-gray-500">
-                  ¿Estás seguro de que quieres eliminar la actividad "<span
-                    x-text="activityToDelete?.name"
-                  ></span
-                  >"? Esta acción no se puede deshacer.
-                </p>
+                <i class="ti ti-alert-triangle text-red-600"></i>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3
+                  class="text-lg leading-6 font-medium text-gray-900"
+                  id="modal-title"
+                >
+                  Confirmar eliminación
+                </h3>
+                <div class="mt-2">
+                  <p class="text-sm text-gray-500">
+                    ¿Estás seguro de que quieres eliminar la actividad "<span
+                      x-text="activityToDelete?.name"
+                    ></span
+                    >"? Esta acción no se puede deshacer.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-          <button
-            type="button"
-            @click="deleteActivity()"
-            :disabled="deleting"
-            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <template x-if="deleting">
-              <span class="flex items-center">
-                <svg
-                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    class="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    stroke-width="4"
-                  ></circle>
-                  <path
-                    class="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                Eliminando...
-              </span>
-            </template>
-            <template x-if="!deleting">
-              <span>Eliminar</span>
-            </template>
-          </button>
-          <button
-            type="button"
-            @click="showDeleteModal = false"
-            class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-          >
-            Cancelar
-          </button>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button
+              type="button"
+              @click="deleteActivity()"
+              :disabled="deleting"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <template x-if="deleting">
+                <span class="flex items-center">
+                  <svg
+                    class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Eliminando...
+                </span>
+              </template>
+              <template x-if="!deleting">
+                <span>Eliminar</span>
+              </template>
+            </button>
+            <button
+              type="button"
+              @click="showDeleteModal = false"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<!-- Subvista: Activity Editor (similar pattern to student event activities) -->
+<div x-data="activityEditorManager()" x-init="init()">
+  <aside
+    x-show="visible"
+    x-cloak
+    class="fixed inset-y-0 right-0 w-full sm:w-1/2 lg:w-1/3 bg-white shadow-lg p-6 overflow-auto z-50"
+  >
+    <div class="flex items-center justify-between mb-4">
+      <h3
+        class="text-lg font-medium text-gray-900"
+        x-text="editingActivity ? 'Editar Actividad' : 'Crear Nueva Actividad'"
+      ></h3>
+      <button
+        type="button"
+        @click="close()"
+        class="text-gray-400 hover:text-gray-600"
+      >
+        <i class="ti ti-x"></i><span class="sr-only">Cerrar editor</span>
+      </button>
+    </div>
+
+    <div x-show="loading" class="text-center py-6">
+      <div
+        class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"
+      ></div>
+      <p class="mt-2 text-gray-600">Cargando actividad...</p>
+    </div>
+
+    <div x-show="!loading">
+      <form @submit.prevent="saveActivity()" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Nombre</label>
+          <input
+            type="text"
+            x-model="currentActivity.name"
+            required
+            class="mt-1 block w-full border-gray-300 rounded-md p-2"
+          />
+        </div>
+
+        <!-- Evento (agregado para permitir asociar la actividad) -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >Evento <span class="text-red-500">*</span></label
+          >
+          <select
+            x-model="currentActivity.event_id"
+            required
+            class="mt-1 block w-full border-gray-300 rounded-md p-2"
+          >
+            <option value="">Seleccionar evento</option>
+            <template x-for="ev in events" :key="ev.id">
+              <option :value="ev.id" x-text="ev.name"></option>
+            </template>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >Departamento</label
+          >
+          <input
+            type="text"
+            x-model="currentActivity.department"
+            class="mt-1 block w-full border-gray-300 rounded-md p-2"
+          />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >Área de conocimiento</label
+          >
+          <input
+            type="text"
+            x-model="currentActivity.knowledge_area"
+            class="mt-1 block w-full border-gray-300 rounded-md p-2"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >Objetivo</label
+          >
+          <textarea
+            x-model="currentActivity.description"
+            rows="3"
+            class="mt-1 block w-full border-gray-300 rounded-md p-2"
+          ></textarea>
+        </div>
+
+        <div class="grid grid-cols-1 gap-2">
+          <div>
+            <label class="block text-sm font-medium text-gray-700"
+              >Inicio</label
+            >
+            <input
+              type="datetime-local"
+              x-model="currentActivity.start_datetime"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Fin</label>
+            <input
+              type="datetime-local"
+              x-model="currentActivity.end_datetime"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label class="block text-sm font-medium text-gray-700"
+              >Duración (horas)</label
+            >
+            <input
+              type="number"
+              step="0.25"
+              min="0"
+              x-model="currentActivity.duration_hours"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700"
+              >Cupo máximo</label
+            >
+            <input
+              type="number"
+              min="0"
+              x-model="currentActivity.max_capacity"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div>
+            <label class="block text-sm font-medium text-gray-700"
+              >Tipo de actividad</label
+            >
+            <select
+              x-model="currentActivity.activity_type"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            >
+              <option value="">Seleccionar tipo</option>
+              <option value="Magistral">Magistral</option>
+              <option value="Conferencia">Conferencia</option>
+              <option value="Taller">Taller</option>
+              <option value="Curso">Curso</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700"
+              >Modalidad</label
+            >
+            <select
+              x-model="currentActivity.modality"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            >
+              <option value="">Seleccionar modalidad</option>
+              <option value="Presencial">Presencial</option>
+              <option value="Virtual">Virtual</option>
+              <option value="Híbrido">Híbrido</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >Ubicación</label
+          >
+          <input
+            type="text"
+            x-model="currentActivity.location"
+            class="mt-1 block w-full border-gray-300 rounded-md p-2"
+          />
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >Requisitos</label
+          >
+          <textarea
+            x-model="currentActivity.requirements"
+            rows="2"
+            class="mt-1 block w-full border-gray-300 rounded-md p-2"
+          ></textarea>
+        </div>
+
+        <!-- Ponentes compact -->
+        <div x-data="{open:false}">
+          <label class="block text-sm font-medium text-gray-700"
+            >Ponentes</label
+          >
+          <template x-if="(currentActivity.speakersList || []).length === 0">
+            <p class="text-sm text-gray-500">No hay ponentes.</p>
+          </template>
+          <ul class="mt-2 space-y-2">
+            <template
+              x-for="(s,i) in (currentActivity.speakersList || [])"
+              :key="i"
+            >
+              <li
+                class="flex items-center justify-between bg-gray-50 p-2 rounded"
+              >
+                <div>
+                  <div
+                    class="text-sm font-medium text-gray-900"
+                    x-text="s.name"
+                  ></div>
+                  <div
+                    class="text-xs text-gray-500"
+                    x-text="(s.degree ? s.degree + ' - ' : '') + (s.organization || '')"
+                  ></div>
+                </div>
+                <button
+                  type="button"
+                  @click="currentActivity.speakersList.splice(i,1)"
+                  class="text-red-500"
+                >
+                  Eliminar
+                </button>
+              </li>
+            </template>
+          </ul>
+          <div class="mt-3 border-t pt-3">
+            <button
+              type="button"
+              @click="open = !open"
+              class="px-3 py-1 bg-white border rounded"
+            >
+              Agregar ponente
+            </button>
+            <div x-show="open" x-cloak class="mt-2">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input
+                  x-ref="sp_degree"
+                  type="text"
+                  placeholder="Grado (opcional)"
+                  class="p-2 border rounded"
+                />
+                <input
+                  x-ref="sp_name"
+                  type="text"
+                  placeholder="Nombre"
+                  class="p-2 border rounded"
+                />
+                <input
+                  x-ref="sp_org"
+                  type="text"
+                  placeholder="Organización (opcional)"
+                  class="p-2 border rounded"
+                />
+              </div>
+              <div class="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  @click="
+                  const name = $refs.sp_name.value && $refs.sp_name.value.trim(); const degree = $refs.sp_degree.value && $refs.sp_degree.value.trim(); if(!name) return; currentActivity.speakersList = currentActivity.speakersList || []; currentActivity.speakersList.push({ name, degree: degree || '', organization: $refs.sp_org.value.trim() }); $refs.sp_name.value=''; $refs.sp_degree.value=''; $refs.sp_org.value=''; open=false;"
+                  class="px-3 py-1 bg-indigo-600 text-white rounded"
+                >
+                  Agregar
+                </button>
+                <button
+                  type="button"
+                  @click="open=false"
+                  class="px-3 py-1 border rounded"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Público objetivo compact -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700"
+            >Público objetivo</label
+          >
+          <div class="flex items-center gap-3 mt-2">
+            <label class="inline-flex items-center"
+              ><input
+                type="checkbox"
+                x-model="currentActivity.target_audience_general"
+              />
+              <span class="ml-2">Público en general</span></label
+            >
+          </div>
+          <div class="mt-2">
+            <ul class="flex flex-wrap gap-2">
+              <template
+                x-for="(c,idx) in (currentActivity.target_audience_careersList || [])"
+                :key="idx"
+              >
+                <li class="bg-gray-100 px-2 py-1 rounded">
+                  <span x-text="c"></span>
+                  <button
+                    type="button"
+                    @click="currentActivity.target_audience_careersList.splice(idx,1)"
+                    class="ml-2 text-red-500"
+                  >
+                    x
+                  </button>
+                </li>
+              </template>
+            </ul>
+            <div class="mt-2 flex gap-2">
+              <input
+                x-ref="newCareer"
+                type="text"
+                placeholder="Agregar carrera"
+                class="p-2 border rounded flex-1"
+              />
+              <button
+                type="button"
+                @click="const v = $refs.newCareer.value && $refs.newCareer.value.trim(); if(!v) return; currentActivity.target_audience_careersList = currentActivity.target_audience_careersList || []; currentActivity.target_audience_careersList.push(v); $refs.newCareer.value='';"
+                class="px-3 py-1 bg-indigo-600 text-white rounded"
+              >
+                Agregar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex gap-2 mt-4">
+          <button
+            type="submit"
+            :disabled="saving || !(currentActivity && currentActivity.event_id)"
+            class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            @click="close()"
+            class="flex-1 px-4 py-2 border rounded"
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </aside>
+</div>
+
+<script src="{{ url_for('static', filename='js/admin/activity_editor.js') }}"></script>
