@@ -1,9 +1,16 @@
-from datetime import datetime, timezone
+from datetime import timezone
 from app import db
 from app.models.activity import Activity
 from app.models.event import Event
 from marshmallow import ValidationError
 import json
+from io import BytesIO
+try:
+    import pandas as pd
+except Exception:
+    pd = None
+import unicodedata
+import difflib
 
 
 def validate_activity_dates(activity_data):
@@ -200,3 +207,281 @@ def update_activity(activity_id, activity_data):
 
     db.session.commit()
     return activity
+
+
+def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
+    """
+    Parse an XLSX (first sheet) and create activities in batch.
+
+    Expected headers (case-insensitive):
+      department,name,description,start_datetime,end_datetime,duration_hours,
+      activity_type,location,modality,requirements,knowledge_area,speakers,
+      target_general,target_careers,max_capacity
+
+    speakers cell may be a JSON array or a semicolon-separated list of entries
+    where each entry is degree|name|organization or name only.
+
+    Returns a dict: { created: int, errors: [{row: n, message: str, data: {}}], rows: parsed_rows }
+    """
+    if pd is None:
+        raise RuntimeError(
+            'pandas is required for XLSX import (install pandas and openpyxl)')
+
+    # Ensure stream pointer at start
+    try:
+        file_stream.seek(0)
+    except Exception:
+        pass
+
+    # Use pandas to read the first sheet into a DataFrame
+    try:
+        # pandas will use openpyxl engine for .xlsx by default when available
+        df = pd.read_excel(BytesIO(file_stream.read()),
+                           sheet_name=0, engine='openpyxl')
+    except Exception as e:
+        return {'created': 0, 'errors': [{'row': 0, 'message': f'No se pudo leer el archivo: {e}'}], 'rows': []}
+
+    if df.shape[0] == 0:
+        return {'created': 0, 'errors': [{'row': 0, 'message': 'Archivo vacío o sin filas'}], 'rows': []}
+
+    # Normalize header names: lowercase and strip
+    # But accept headers in spanish: map common spanish headers to expected english field names
+    def _normalize_raw(s):
+        if s is None:
+            return ''
+        val = str(s).strip().lower()
+        # normalize unicode (remove accents)
+        val = unicodedata.normalize('NFD', val)
+        val = ''.join(ch for ch in val if not unicodedata.combining(ch))
+        # replace spaces and punctuation with underscore
+        for ch in [' ', '-', '\t', '\n', '/']:
+            val = val.replace(ch, '_')
+        # remove parentheses and commas
+        for ch in ['(', ')', ',', ':', ';', '.']:
+            val = val.replace(ch, '')
+        return val
+
+    original_cols = list(df.columns)
+    normalized = [_normalize_raw(c) for c in original_cols]
+
+    # Map of common Spanish (normalized) -> English field names used by the schema
+    spanish_map = {
+        'departamento': 'department',
+        'departamento_nombre': 'department',
+        'nombre': 'name',
+        'titulo': 'name',
+        'descripcion': 'description',
+        'objetivo': 'description',
+        'fecha_inicio': 'start_datetime',
+        'inicio': 'start_datetime',
+        'hora_inicio': 'start_datetime',
+        'fecha_fin': 'end_datetime',
+        'fin': 'end_datetime',
+        'hora_fin': 'end_datetime',
+        'duracion': 'duration_hours',
+        'duracion_horas': 'duration_hours',
+        'actividad_tipo': 'activity_type',
+        'tipo_actividad': 'activity_type',
+        'tipo': 'activity_type',
+        'lugar': 'location',
+        'ubicacion': 'location',
+        'modalidad': 'modality',
+        'requisitos': 'requirements',
+        'area_conocimiento': 'knowledge_area',
+        'area': 'knowledge_area',
+        'ponente': 'speakers',
+        'ponentes': 'speakers',
+        'oradores': 'speakers',
+        'publico_general': 'target_general',
+        'publico': 'target_general',
+        'target_general': 'target_general',
+        'carreras_objetivo': 'target_careers',
+        'carreras': 'target_careers',
+        'maximo': 'max_capacity',
+        'capacidad_maxima': 'max_capacity',
+        'capacidad': 'max_capacity',
+        'max_capacity': 'max_capacity',
+        'max_capacity_': 'max_capacity'
+    }
+
+    expected = [
+        'department', 'name', 'description', 'start_datetime', 'end_datetime', 'duration_hours',
+        'activity_type', 'location', 'modality', 'requirements', 'knowledge_area', 'speakers',
+        'target_general', 'target_careers', 'max_capacity'
+    ]
+
+    # Build rename mapping
+    renames = {}
+    lookup_candidates = expected + list(spanish_map.keys())
+    for orig, norm in zip(original_cols, normalized):
+        target = None
+        if norm in expected:
+            target = norm
+        elif norm in spanish_map:
+            target = spanish_map[norm]
+        else:
+            # fuzzy match against known candidates
+            match = difflib.get_close_matches(
+                norm, lookup_candidates, n=1, cutoff=0.8)
+            if match:
+                m = match[0]
+                if m in spanish_map:
+                    target = spanish_map[m]
+                else:
+                    target = m
+
+        if target and target != orig:
+            renames[orig] = target
+
+    if renames:
+        df.rename(columns=renames, inplace=True)
+
+    parsed_rows = []
+    errors = []
+    created = 0
+
+    # Iterate rows preserving original Excel row numbers starting at 2 (header row 1)
+    for idx, (_, row) in enumerate(df.iterrows(), start=2):
+        try:
+            # Convert row (Series) to dict; keep NaN as None
+            rowdict = {k: (None if pd.isna(v) else v)
+                       for k, v in row.to_dict().items()}
+
+            # Coerce and normalize into activity_data
+            activity_data = {}
+            activity_data['event_id'] = int(
+                event_id) if event_id is not None else None
+            activity_data['department'] = str(
+                rowdict.get('department') or '').strip()
+            activity_data['name'] = str(rowdict.get('name') or '').strip()
+            activity_data['description'] = rowdict.get('description')
+
+            # Dates: pandas may parse to Timestamp or leave strings
+            sd = rowdict.get('start_datetime')
+            ed = rowdict.get('end_datetime')
+            activity_data['start_datetime'] = sd
+            activity_data['end_datetime'] = ed
+
+            dur_val = rowdict.get('duration_hours')
+            if dur_val not in (None, ''):
+                try:
+                    activity_data['duration_hours'] = float(str(dur_val))
+                except Exception:
+                    activity_data['duration_hours'] = None
+
+            activity_data['activity_type'] = rowdict.get('activity_type') or ''
+            activity_data['location'] = rowdict.get('location') or ''
+            activity_data['modality'] = rowdict.get('modality') or ''
+            activity_data['requirements'] = rowdict.get('requirements')
+            activity_data['knowledge_area'] = rowdict.get('knowledge_area')
+
+            # Speakers parsing: accept JSON string or semicolon-separated list
+            speakers_cell = rowdict.get('speakers')
+            speakers = []
+            if speakers_cell:
+                if isinstance(speakers_cell, str) and speakers_cell.strip().startswith('['):
+                    try:
+                        speakers = json.loads(speakers_cell)
+                    except Exception:
+                        speakers = []
+                elif isinstance(speakers_cell, str):
+                    parts = [p.strip() for p in speakers_cell.split(
+                        ';') if p and str(p).strip()]
+                    for p in parts:
+                        pieces = [x.strip() for x in p.split('|')]
+                        if len(pieces) == 3:
+                            degree, name, org = pieces
+                            speakers.append(
+                                {'name': name, 'degree': degree, 'organization': org})
+                        elif len(pieces) == 2:
+                            degree, name = pieces
+                            speakers.append(
+                                {'name': name, 'degree': degree, 'organization': ''})
+                        else:
+                            speakers.append(
+                                {'name': pieces[0], 'degree': '', 'organization': ''})
+                else:
+                    try:
+                        speakers = json.loads(speakers_cell)
+                    except Exception:
+                        speakers = []
+            activity_data['speakers'] = speakers
+
+            # Target audience
+            tg = rowdict.get('target_general')
+            careers = rowdict.get('target_careers')
+            target = {'general': False, 'careers': []}
+            if tg is not None and (str(tg).strip().lower() in ('1', 'true', 'yes', 'y')):
+                target['general'] = True
+            if careers:
+                if isinstance(careers, str):
+                    target['careers'] = [c.strip()
+                                         for c in careers.split(',') if c.strip()]
+                else:
+                    try:
+                        target['careers'] = list(careers)
+                    except Exception:
+                        target['careers'] = []
+
+            activity_data['target_audience'] = target
+
+            max_val = rowdict.get('max_capacity')
+            if max_val not in (None, ''):
+                try:
+                    activity_data['max_capacity'] = int(float(str(max_val)))
+                except Exception:
+                    activity_data['max_capacity'] = None
+
+            # Validate with schema (will raise ValidationError)
+            from app.schemas import activity_schema as _schema
+            loaded = _schema.load(activity_data)
+
+            parsed_rows.append({'row': idx, 'data': loaded})
+
+        except Exception as e:
+            errors.append({'row': idx, 'message': str(
+                e), 'data': rowdict if 'rowdict' in locals() else {}})
+
+    # If dry_run, return validation result without committing
+    if dry_run:
+        return {'created': 0, 'errors': errors, 'rows': parsed_rows}
+
+    # Otherwise create activities row-by-row (each its own transaction) and skip duplicates
+    created_ids = []
+    for pr in parsed_rows:
+        data = pr['data']
+        # Ensure event id present
+        if not data.get('event_id') and event_id:
+            data['event_id'] = int(event_id)
+
+        # Duplicate detection: event_id + name + start_datetime
+        try:
+            q = Activity.query.filter_by(
+                event_id=data.get('event_id'), name=data.get('name'))
+            existing = None
+            if data.get('start_datetime') is not None:
+                existing = q.filter(Activity.start_datetime ==
+                                    data.get('start_datetime')).first()
+            else:
+                existing = q.first()
+
+            if existing:
+                errors.append(
+                    {'row': pr['row'], 'message': 'Duplicada: actividad ya existe (omitir)', 'data': data})
+                continue
+        except Exception:
+            # If duplicate detection failed, continue and let creation attempt detect violations
+            pass
+
+        try:
+            activity = create_activity(data)
+            created += 1
+            created_ids.append(activity.id)
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            errors.append({'row': pr['row'], 'message': str(e), 'data': data})
+
+    return {'created': created, 'errors': errors, 'created_ids': created_ids}

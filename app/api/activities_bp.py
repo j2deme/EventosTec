@@ -410,3 +410,35 @@ def get_activity_relations():
         return jsonify({'activities': result}), 200
     except Exception as e:
         return jsonify({'message': 'Error al obtener relaciones', 'error': str(e)}), 500
+
+
+@activities_bp.route('/batch', methods=['POST'])
+@jwt_required()
+@require_admin
+def batch_upload_activities():
+    """Upload an XLSX file containing multiple activities and create them in batch.
+
+    Form data:
+      - file: the XLSX file (required)
+      - event_id: optional; if provided, used for rows that lack event_id
+      - dry_run: optional (1/0) default 1 -> if 1 only validate and return report
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({'message': 'Falta el archivo.'}), 400
+
+        file = request.files['file']
+        event_id = request.form.get('event_id')
+        dry_run = request.form.get('dry_run', '1')
+        dry = str(dry_run).strip() in ('1', 'true', 'yes')
+
+        # Call service
+        report = activity_service.create_activities_from_xlsx(
+            file.stream, event_id=event_id, dry_run=dry)
+
+        status_code = 200 if dry else 201
+        return jsonify({'message': 'Batch processed', 'report': report}), status_code
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        return jsonify({'message': 'Error en importación batch', 'error': str(e), 'trace': tb}), 500
