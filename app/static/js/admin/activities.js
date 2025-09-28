@@ -34,6 +34,13 @@ function activitiesManager() {
 
     // Modal
     showModal: false,
+    // Batch import modal
+    showBatchModal: false,
+    batchUploading: false,
+    batchFile: null,
+    batchEventId: "",
+    batchDryRun: true,
+    batchReport: null,
     // Panel lateral (nueva subvista inline) - mantener compatibilidad
     showPanel: false,
     showDeleteModal: false,
@@ -588,6 +595,78 @@ function activitiesManager() {
       // mantener compatibilidad con antiguos usos de showModal
       this.showModal = true;
       this.showPanel = true;
+    },
+
+    // Batch import modal handlers
+    openBatchModal() {
+      // preselect current filter event if any
+      this.batchEventId = this.filters.event_id || "";
+      this.batchFile = null;
+      this.batchDryRun = true;
+      this.batchReport = null;
+      this.showBatchModal = true;
+    },
+
+    closeBatchModal() {
+      this.showBatchModal = false;
+      this.batchUploading = false;
+      this.batchFile = null;
+      this.batchReport = null;
+    },
+
+    onBatchFileChange(e) {
+      const f = e && e.target && e.target.files ? e.target.files[0] : null;
+      this.batchFile = f;
+    },
+
+    async submitBatchUpload() {
+      this.batchUploading = true;
+      this.batchReport = null;
+      try {
+        if (!this.batchEventId)
+          throw new Error("Seleccione un evento para la carga");
+        if (!this.batchFile) throw new Error("Seleccione un archivo .xlsx");
+
+        const fd = new FormData();
+        fd.append("file", this.batchFile);
+        fd.append("event_id", String(this.batchEventId));
+        fd.append("dry_run", this.batchDryRun ? "1" : "0");
+
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/activities/batch", {
+          method: "POST",
+          body: fd,
+        });
+        if (!response || !response.ok) {
+          let txt = "";
+          try {
+            const j = await response.json();
+            txt = j.message || JSON.stringify(j);
+          } catch (e) {
+            txt = await response.text();
+          }
+          throw new Error(txt || `Error ${response && response.status}`);
+        }
+
+        const data = await response.json();
+        this.batchReport = data;
+
+        if (!this.batchDryRun && data.created && data.created > 0) {
+          // refresh list to show created activities
+          this.loadActivities(1);
+        }
+
+        showToast("Importación procesada", "success");
+      } catch (err) {
+        console.error("Batch upload error", err);
+        this.batchReport = {
+          errors: [{ row: 0, message: err.message || String(err) }],
+        };
+        showToast("Error al procesar importación", "error");
+      } finally {
+        this.batchUploading = false;
+      }
     },
 
     // Actividades relacionadas
