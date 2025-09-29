@@ -11,6 +11,8 @@ except Exception:
     pd = None
 import unicodedata
 import difflib
+import re
+from datetime import datetime
 
 
 def validate_activity_dates(activity_data):
@@ -336,6 +338,116 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
     if renames:
         df.rename(columns=renames, inplace=True)
 
+    # Helper: parse composed activity date/time strings like
+    # "[ 08 - OCT - 25 ] MIERCOLES / 11 a 13" or
+    # "[ 08 - OCT - 25 ] MIERCOLES \nal\n[ 09 - OCT - 25 ] JUEVES / 11 A 15"
+    def _parse_composed_date(s):
+        if not s or not isinstance(s, str):
+            return (None, None)
+
+        # normalize whitespace
+        txt = ' '.join(s.split())
+
+        # find bracketed dates
+        date_re = re.compile(
+            r"\[\s*(\d{1,2})\s*-\s*([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)\s*-\s*(\d{2,4})\s*\]")
+        dates = date_re.findall(txt)
+
+        # map month names/abbrev (spanish + english) to month number
+        month_map = {
+            'ene': 1, 'enero': 1,
+            'feb': 2, 'febrero': 2,
+            'mar': 3, 'marzo': 3,
+            'abr': 4, 'abril': 4,
+            'may': 5, 'mayo': 5,
+            'jun': 6, 'junio': 6,
+            'jul': 7, 'julio': 7,
+            'ago': 8, 'agosto': 8,
+            'sep': 9, 'sept': 9, 'septiembre': 9,
+            'oct': 10, 'octubre': 10,
+            'nov': 11, 'noviembre': 11,
+            'dic': 12, 'diciembre': 12
+        }
+
+        def _norm_month(m):
+            m_clean = unicodedata.normalize('NFD', m).encode(
+                'ascii', 'ignore').decode('ascii').lower()
+            m_clean = re.sub(r'[^a-z]', '', m_clean)
+            return month_map.get(m_clean)
+
+        def _make_dt(d, mon, yr, hour=None, minute=0):
+            try:
+                y = int(yr)
+                if y < 100:
+                    y += 2000
+                mnum = _norm_month(mon)
+                if mnum is None:
+                    return None
+                day = int(d)
+                if hour is None:
+                    return datetime(y, mnum, day)
+                else:
+                    return datetime(y, mnum, day, int(hour), int(minute))
+            except Exception:
+                return None
+
+        start_dt = None
+        end_dt = None
+
+        # find time range after a slash '/'
+        time_part = None
+        if '/' in txt:
+            # take substring after last '/'
+            time_part = txt.split('/')[-1].strip()
+        else:
+            # sometimes times are separated by ' / ' or ' a '
+            # fallback: search for patterns like '11 a 13' anywhere
+            time_part = txt
+
+        # time regex: 11, 11:00, 11.00 optionally followed by separator (a,-,to) and second time
+        time_re = re.compile(
+            r"(\d{1,2})(?::(\d{2}))?\s*(?:a|-|to|–)\s*(\d{1,2})(?::(\d{2}))?", re.I)
+        time_match = time_re.search(time_part or '')
+        t1 = t2 = None
+        if time_match:
+            # Convert captured strings to ints defensively
+            try:
+                t1h = int(time_match.group(1))
+            except Exception:
+                t1h = None
+            try:
+                t1m = int(time_match.group(2)) if time_match.group(2) else 0
+            except Exception:
+                t1m = 0
+            try:
+                t2h = int(time_match.group(3))
+            except Exception:
+                t2h = None
+            try:
+                t2m = int(time_match.group(4)) if time_match.group(4) else 0
+            except Exception:
+                t2m = 0
+            t1 = (t1h, t1m)
+            t2 = (t2h, t2m)
+
+        if len(dates) >= 1:
+            d0 = dates[0]
+            start_dt = _make_dt(d0[0], d0[1], d0[2], t1[0]
+                                if t1 else None, t1[1] if t1 else 0)
+            if len(dates) >= 2:
+                d1 = dates[1]
+                end_dt = _make_dt(d1[0], d1[1], d1[2], t2[0]
+                                  if t2 else None, t2[1] if t2 else 0)
+            else:
+                # single day: if time range present, use t2 as end time on same day
+                if t2:
+                    end_dt = _make_dt(d0[0], d0[1], d0[2], t2[0], t2[1])
+                else:
+                    # no time range: leave end_dt as None
+                    end_dt = None
+
+        return (start_dt, end_dt)
+
     parsed_rows = []
     errors = []
     created = 0
@@ -366,6 +478,37 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             # Dates: pandas may parse to Timestamp or leave strings
             sd = rowdict.get('start_datetime')
             ed = rowdict.get('end_datetime')
+
+            # If both sd/ed absent, try to find a composed date column (fecha_actividad, fechas, horario...)
+            if sd in (None, '') and ed in (None, ''):
+                # search for candidate keys in rowdict
+                candidate_keys = []
+                for k in rowdict.keys():
+                    if not k:
+                        continue
+                    kn = _normalize_raw(k)
+                    if any(sub in kn for sub in ('fecha', 'fechas', 'horario', 'horarios', 'fecha_actividad', 'horario_actividad')):
+                        candidate_keys.append(k)
+
+                composed_val = None
+                if candidate_keys:
+                    # prefer exact 'fecha_actividad' or 'fechas' if present
+                    for prefer in ('fecha_actividad', 'fechas', 'horario', 'horarios', 'fechas_actividad'):
+                        for k in candidate_keys:
+                            if _normalize_raw(k) == prefer:
+                                composed_val = rowdict.get(k)
+                                break
+                        if composed_val:
+                            break
+                    if composed_val is None:
+                        composed_val = rowdict.get(candidate_keys[0])
+
+                if composed_val:
+                    parsed_sd, parsed_ed = _parse_composed_date(
+                        str(composed_val))
+                    sd = parsed_sd or sd
+                    ed = parsed_ed or ed
+
             activity_data['start_datetime'] = sd
             activity_data['end_datetime'] = ed
 
