@@ -351,8 +351,15 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             activity_data = {}
             activity_data['event_id'] = int(
                 event_id) if event_id is not None else None
-            activity_data['department'] = str(
-                rowdict.get('department') or '').strip()
+            # Clean department field: take portion before '/' (e.g. "IAMB/05" -> "IAMB"), trim and uppercase
+            raw_dept = rowdict.get('department')
+            dept_str = str(raw_dept or '').strip()
+            # If value contains '/', use the part before it
+            if '/' in dept_str:
+                dept_clean = dept_str.split('/')[0].strip()
+            else:
+                dept_clean = dept_str
+            activity_data['department'] = dept_clean.upper()
             activity_data['name'] = str(rowdict.get('name') or '').strip()
             activity_data['description'] = rowdict.get('description')
 
