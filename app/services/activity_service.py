@@ -445,7 +445,43 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                 else:
                     # no time range: leave end_dt as None
                     end_dt = None
+        else:
+            # Fallbacks when no bracketed dates were found.
+            # 1) If the text contains a recognizable full date (yyyy-mm-dd or dd/mm/yyyy etc.), try pandas parsing
+            try:
+                if pd is not None:
+                    parsed = pd.to_datetime(txt, errors='coerce')
+                    if parsed is not None and not pd.isna(parsed):
+                        # parsed may include time; convert to python datetime
+                        if hasattr(parsed, 'to_pydatetime'):
+                            base_dt = parsed.to_pydatetime()
+                        else:
+                            try:
+                                base_dt = parsed
+                            except Exception:
+                                base_dt = None
 
+                        if base_dt is not None:
+                            # Apply detected time parts if present, otherwise keep parsed time
+                            if t1 and t1[0] is not None:
+                                t1h = int(t1[0])
+                                t1m = int(t1[1]) if (t1[1] is not None) else 0
+                                start_dt = datetime(
+                                    base_dt.year, base_dt.month, base_dt.day, t1h, t1m)
+                            else:
+                                start_dt = base_dt
+
+                            if t2 and t2[0] is not None:
+                                t2h = int(t2[0])
+                                t2m = int(t2[1]) if (t2[1] is not None) else 0
+                                end_dt = datetime(
+                                    base_dt.year, base_dt.month, base_dt.day, t2h, t2m)
+                            else:
+                                # If parsed included a time component and no explicit t2, keep parsed time as end_dt
+                                end_dt = None
+            except Exception:
+                # ignore fallback failures
+                pass
         return (start_dt, end_dt)
 
     parsed_rows = []
@@ -479,6 +515,42 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             sd = rowdict.get('start_datetime')
             ed = rowdict.get('end_datetime')
 
+            # Normalize pandas Timestamp, numpy datetime64, floats or strings to Python datetime
+            try:
+                # If pandas is available, use to_datetime with errors='coerce' to parse strings
+                if pd is not None:
+                    # pd.to_datetime handles Timestamps, numpy datetime64, and common string formats
+                    parsed_sd = pd.to_datetime(
+                        sd, errors='coerce') if sd not in (None, '') else None
+                    parsed_ed = pd.to_datetime(
+                        ed, errors='coerce') if ed not in (None, '') else None
+
+                    if parsed_sd is not None and hasattr(parsed_sd, 'to_pydatetime'):
+                        sd = parsed_sd.to_pydatetime()
+                    elif pd.isna(parsed_sd):
+                        sd = None
+
+                    if parsed_ed is not None and hasattr(parsed_ed, 'to_pydatetime'):
+                        ed = parsed_ed.to_pydatetime()
+                    elif pd.isna(parsed_ed):
+                        ed = None
+                else:
+                    # Fallback: if sd/ed are strings try fromisoformat or strptime
+                    from app.utils.datetime_utils import parse_datetime_with_timezone
+                    if isinstance(sd, str) and sd.strip() != '':
+                        try:
+                            sd = parse_datetime_with_timezone(sd)
+                        except Exception:
+                            sd = None
+                    if isinstance(ed, str) and ed.strip() != '':
+                        try:
+                            ed = parse_datetime_with_timezone(ed)
+                        except Exception:
+                            ed = None
+            except Exception:
+                # Keep original sd/ed if normalization fails; schema validation will catch invalid types
+                pass
+
             # If both sd/ed absent, try to find a composed date column (fecha_actividad, fechas, horario...)
             if sd in (None, '') and ed in (None, ''):
                 # search for candidate keys in rowdict
@@ -509,8 +581,11 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                     sd = parsed_sd or sd
                     ed = parsed_ed or ed
 
-            activity_data['start_datetime'] = sd
-            activity_data['end_datetime'] = ed
+            # If sd/ed are datetime objects, convert to ISO strings so Marshmallow DateTime loader parses them reliably
+            activity_data['start_datetime'] = sd.isoformat() if hasattr(
+                sd, 'isoformat') and callable(sd.isoformat) else sd
+            activity_data['end_datetime'] = ed.isoformat() if hasattr(
+                ed, 'isoformat') and callable(ed.isoformat) else ed
 
             dur_val = rowdict.get('duration_hours')
             if dur_val not in (None, ''):
@@ -589,8 +664,16 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             parsed_rows.append({'row': idx, 'data': loaded})
 
         except Exception as e:
-            errors.append({'row': idx, 'message': str(
-                e), 'data': rowdict if 'rowdict' in locals() else {}})
+            # Include raw composed value if available to help debugging formats
+            extra = {}
+            try:
+                if 'composed_val' in locals() and composed_val is not None:
+                    extra['composed_raw'] = str(composed_val)
+            except Exception:
+                pass
+            errdata = rowdict if 'rowdict' in locals() else {}
+            errdata.update(extra)
+            errors.append({'row': idx, 'message': str(e), 'data': errdata})
 
     # Helper to produce a serializable preview of loaded data
     def _serialize_preview(d):
