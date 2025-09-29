@@ -679,8 +679,16 @@ function activitiesManager() {
               if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                   const data = JSON.parse(xhr.responseText || "{}");
-                  this.batchReport = data;
-                  if (!this.batchDryRun && data.created && data.created > 0) {
+                  // Backend returns { message, report } — prefer report if present
+                  const report = data.report || data;
+                  this.batchReport = report;
+                  // If this was not a dry run and rows were created, reload list
+                  if (
+                    !this.batchDryRun &&
+                    report &&
+                    report.created &&
+                    report.created > 0
+                  ) {
                     this.loadActivities(1);
                   }
                   showToast("Importación procesada", "success");
