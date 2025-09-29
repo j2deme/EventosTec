@@ -581,11 +581,38 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                     sd = parsed_sd or sd
                     ed = parsed_ed or ed
 
-            # If sd/ed are datetime objects, convert to ISO strings so Marshmallow DateTime loader parses them reliably
-            activity_data['start_datetime'] = sd.isoformat() if hasattr(
-                sd, 'isoformat') and callable(sd.isoformat) else sd
-            activity_data['end_datetime'] = ed.isoformat() if hasattr(
-                ed, 'isoformat') and callable(ed.isoformat) else ed
+            # If sd/ed are datetime-like, convert to ISO strings so Marshmallow DateTime loader parses them reliably.
+            def _to_iso(val):
+                try:
+                    # Prefer python datetime objects
+                    if isinstance(val, datetime):
+                        return val.isoformat()
+
+                    # pandas Timestamp or numpy datetime64 -> try to coerce via pandas
+                    if pd is not None:
+                        parsed = pd.to_datetime(val, errors='coerce')
+                        if parsed is not None and not pd.isna(parsed):
+                            # convert to python datetime
+                            try:
+                                if hasattr(parsed, 'to_pydatetime'):
+                                    return parsed.to_pydatetime().isoformat()
+                                else:
+                                    return parsed.isoformat()
+                            except Exception:
+                                # fallback to string representation
+                                return str(parsed)
+
+                    # As a last resort, if it's already a string, return trimmed string
+                    if isinstance(val, str):
+                        return val.strip()
+
+                    # Unknown type: return as-is (schema validation will catch it)
+                    return val
+                except Exception:
+                    return val
+
+            activity_data['start_datetime'] = _to_iso(sd)
+            activity_data['end_datetime'] = _to_iso(ed)
 
             dur_val = rowdict.get('duration_hours')
             if dur_val not in (None, ''):
@@ -595,8 +622,8 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                     activity_data['duration_hours'] = None
 
             activity_data['activity_type'] = rowdict.get('activity_type') or ''
-            activity_data['location'] = rowdict.get('location') or ''
-            activity_data['modality'] = rowdict.get('modality') or ''
+            activity_data['location'] = rowdict.get('location') or 'N/A'
+            activity_data['modality'] = rowdict.get('modality') or 'Presencial'
             activity_data['requirements'] = rowdict.get('requirements')
             activity_data['knowledge_area'] = rowdict.get('knowledge_area')
 
