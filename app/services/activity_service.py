@@ -658,70 +658,134 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                         pass
 
             if speakers_cell:
-                # JSON array encoded as string
+                # Try JSON first
+                def _append_speaker(name, degree, org):
+                    try:
+                        n = str(name).strip()
+                    except Exception:
+                        n = ''
+                    try:
+                        d = str(degree).strip()
+                    except Exception:
+                        d = ''
+                    try:
+                        o = str(org).strip() if org is not None else ''
+                    except Exception:
+                        o = ''
+                    if not o and inst_val:
+                        o = inst_val
+                    speakers.append(
+                        {'name': n, 'degree': d, 'organization': o})
+
+                parsed_json = None
                 if isinstance(speakers_cell, str) and speakers_cell.strip().startswith('['):
                     try:
-                        parsed = json.loads(speakers_cell)
-                        # ensure it's a list of dict-like objects
-                        if isinstance(parsed, list):
-                            for sp in parsed:
-                                if not isinstance(sp, dict):
-                                    # if it's a simple string, convert to dict
-                                    speakers.append(
-                                        {'name': str(sp), 'degree': '', 'organization': inst_val or ''})
-                                    continue
-                                # ensure keys exist
-                                name = sp.get('name') or sp.get('nombre') or ''
-                                degree = sp.get('degree') or sp.get(
-                                    'grado') or ''
-                                org = sp.get('organization') or sp.get(
-                                    'organizacion') or sp.get('institucion') or ''
-                                if not org and inst_val:
-                                    org = inst_val
-                                speakers.append(
-                                    {'name': name, 'degree': degree, 'organization': org})
-                        else:
-                            speakers = []
+                        parsed_json = json.loads(speakers_cell)
                     except Exception:
-                        speakers = []
-                elif isinstance(speakers_cell, str):
-                    parts = [p.strip() for p in speakers_cell.split(
-                        ';') if p and str(p).strip()]
-                    for p in parts:
-                        pieces = [x.strip() for x in p.split('|')]
+                        parsed_json = None
+
+                if parsed_json and isinstance(parsed_json, list):
+                    for sp in parsed_json:
+                        if not isinstance(sp, dict):
+                            _append_speaker(sp, '', inst_val)
+                            continue
+                        name = sp.get('name') or sp.get('nombre') or ''
+                        degree = sp.get('degree') or sp.get('grado') or ''
+                        org = sp.get('organization') or sp.get(
+                            'organizacion') or sp.get('institucion') or ''
+                        _append_speaker(name, degree, org)
+                else:
+                    # Not JSON: split entries. Prefer ';' but fallback to ',' when no ';' present
+                    if isinstance(speakers_cell, str):
+                        if ';' in speakers_cell:
+                            entries = [p.strip() for p in speakers_cell.split(
+                                ';') if p and str(p).strip()]
+                        else:
+                            # fallback to comma-separated entries (common in some sheets)
+                            entries = [p.strip() for p in speakers_cell.split(
+                                ',') if p and str(p).strip()]
+                    else:
+                        # Non-string: try to load as JSON anyway
+                        try:
+                            parsed = json.loads(speakers_cell)
+                            entries = []
+                            if isinstance(parsed, list):
+                                for sp in parsed:
+                                    if isinstance(sp, dict):
+                                        name = sp.get('name') or sp.get(
+                                            'nombre') or ''
+                                        degree = sp.get('degree') or sp.get(
+                                            'grado') or ''
+                                        org = sp.get('organization') or sp.get(
+                                            'organizacion') or sp.get('institucion') or ''
+                                        _append_speaker(name, degree, org)
+                                entries = []
+                            else:
+                                entries = [str(parsed)]
+                        except Exception:
+                            entries = []
+
+                    # Now parse each entry by '|'. If after splitting there are unexpected
+                    # concatenations due to commas inside names (e.g. "Name,Dr."), try to
+                    # recover common patterns where a comma is followed by a degree.
+                    common_degree_suffixes = (
+                        'Ing.', 'MIA.', 'Dr.', 'Dra.', 'Mtro.', 'Lic.', 'Lic', 'Ing')
+                    for ent in entries:
+                        pieces = [x.strip() for x in ent.split('|')]
+                        # If pieces count is 1 but contains multiple '|' in text, try again
+                        if len(pieces) == 1 and '|' in ent:
+                            pieces = [x.strip() for x in ent.split('|')]
+
                         if len(pieces) == 3:
                             degree, name, org = pieces
-                            org = org or (inst_val or '')
-                            speakers.append(
-                                {'name': name, 'degree': degree, 'organization': org})
+                            # If the 'name' contains a comma and then a degree-like token
+                            # it likely means multiple speakers were comma-separated and
+                            # the fallback split by ',' merged them. Try to split by comma
+                            # and detect the degree token.
+                            if ',' in name:
+                                subparts = [s.strip()
+                                            for s in name.split(',') if s.strip()]
+                                # Example: ['Nancy López Arreola', 'Ing.']
+                                if len(subparts) == 2 and any(subparts[1].startswith(ds) for ds in common_degree_suffixes):
+                                    # First speaker
+                                    _append_speaker(subparts[0], degree, org)
+                                    # Second speaker uses the subparts[1] as degree and 'org' is likely actually the second name
+                                    _append_speaker(org, subparts[1], inst_val)
+                                    continue
+                            _append_speaker(name, degree, org)
                         elif len(pieces) == 2:
                             degree, name = pieces
-                            speakers.append(
-                                {'name': name, 'degree': degree, 'organization': (inst_val or '')})
-                        else:
-                            speakers.append(
-                                {'name': pieces[0], 'degree': '', 'organization': (inst_val or '')})
-                else:
-                    # Attempt to parse non-string JSON-like objects
-                    try:
-                        parsed = json.loads(speakers_cell)
-                        if isinstance(parsed, list):
-                            for sp in parsed:
-                                if not isinstance(sp, dict):
-                                    speakers.append(
-                                        {'name': str(sp), 'degree': '', 'organization': inst_val or ''})
+                            # if name contains comma+degree, split similarly
+                            if ',' in name:
+                                subparts = [s.strip()
+                                            for s in name.split(',') if s.strip()]
+                                if len(subparts) == 2 and any(subparts[1].startswith(ds) for ds in common_degree_suffixes):
+                                    _append_speaker(
+                                        subparts[0], degree, inst_val)
+                                    _append_speaker(subparts[1], '', inst_val)
                                     continue
-                                name = sp.get('name') or sp.get('nombre') or ''
-                                degree = sp.get('degree') or sp.get(
-                                    'grado') or ''
-                                org = sp.get('organization') or sp.get(
-                                    'organizacion') or sp.get('institucion') or ''
-                                if not org and inst_val:
-                                    org = inst_val
-                                speakers.append(
-                                    {'name': name, 'degree': degree, 'organization': org})
-                    except Exception:
-                        speakers = []
+                            _append_speaker(name, degree, inst_val)
+                        else:
+                            # Single piece: may contain comma-separated multiple speakers (e.g. "Name1,Title1,Name2,Title2")
+                            if ',' in pieces[0]:
+                                parts_by_comma = [
+                                    s.strip() for s in pieces[0].split(',') if s.strip()]
+                                # Try to pair them: degree/name or name/degree patterns
+                                i = 0
+                                while i < len(parts_by_comma):
+                                    a = parts_by_comma[i]
+                                    b = parts_by_comma[i+1] if i + \
+                                        1 < len(parts_by_comma) else None
+                                    if b and any(b.startswith(ds) for ds in common_degree_suffixes):
+                                        # a is name, b is degree
+                                        _append_speaker(a, b, inst_val)
+                                        i += 2
+                                    else:
+                                        # treat as name with no degree
+                                        _append_speaker(a, '', inst_val)
+                                        i += 1
+                            else:
+                                _append_speaker(pieces[0], '', inst_val)
 
             activity_data['speakers'] = speakers
 
