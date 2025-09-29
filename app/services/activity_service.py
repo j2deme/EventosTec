@@ -592,9 +592,88 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             errors.append({'row': idx, 'message': str(
                 e), 'data': rowdict if 'rowdict' in locals() else {}})
 
-    # If dry_run, return validation result without committing
+    # Helper to produce a serializable preview of loaded data
+    def _serialize_preview(d):
+        out = {}
+        if not isinstance(d, dict):
+            try:
+                out = dict(d)
+            except Exception:
+                return {}
+
+        for k, v in list(out.items()):
+            # Datetime objects -> ISO strings
+            try:
+                if hasattr(v, 'isoformat') and callable(v.isoformat):
+                    out[k] = v.isoformat()
+                    continue
+            except Exception:
+                pass
+
+            # JSON-like fields (speakers, target_audience) ensure serializable
+            if k in ('speakers', 'target_audience'):
+                try:
+                    out[k] = json.loads(json.dumps(v, default=str))
+                except Exception:
+                    out[k] = v
+                continue
+
+            # Fallback: simple types or str()
+            try:
+                json.dumps(v)
+                out[k] = v
+            except Exception:
+                out[k] = str(v)
+
+        # Provide a compact preview with common fields for the UI
+        preview = {
+            'name': out.get('name'),
+            'department': out.get('department'),
+            'start_datetime': out.get('start_datetime'),
+            'end_datetime': out.get('end_datetime'),
+            'activity_type': out.get('activity_type'),
+        }
+        return preview
+
+    # If dry_run, return validation result without committing with a richer report
     if dry_run:
-        return {'created': 0, 'errors': errors, 'rows': parsed_rows}
+        total_rows = int(df.shape[0])
+        valid = len(parsed_rows)
+        invalid = len(errors)
+
+        # Build combined per-row report (keep order by row)
+        rows_report = []
+        for pr in parsed_rows:
+            rows_report.append({
+                'row': pr['row'],
+                'status': 'ok',
+                'message': None,
+                'data': _serialize_preview(pr['data'])
+            })
+
+        for err in errors:
+            rows_report.append({
+                'row': err.get('row', None),
+                'status': 'error',
+                'message': err.get('message'),
+                'data': err.get('data', {})
+            })
+
+        rows_report = sorted(rows_report, key=lambda x: (
+            x['row'] if x['row'] is not None else 999999))
+
+        report = {
+            'created': 0,
+            'summary': {
+                'total_rows': total_rows,
+                'valid': valid,
+                'invalid': invalid
+            },
+            'rows': rows_report,
+            'errors': errors
+        }
+
+        return report
 
     # Otherwise create activities row-by-row (each its own transaction) and skip duplicates
     created_ids = []
