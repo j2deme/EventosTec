@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+.pytest_cache/
+.git/
+.venv/
+node_modules/
+coverage/
+instance/test_eventostec.db
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+dist/
+build/
+*.egg-info
