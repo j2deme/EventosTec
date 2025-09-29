@@ -654,6 +654,18 @@ function activitiesManager() {
         await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.open("POST", "/api/activities/batch", true);
+          // Inject Authorization header if token is present in localStorage
+          try {
+            const token =
+              window.localStorage && window.localStorage.getItem
+                ? window.localStorage.getItem("authToken")
+                : null;
+            if (token) {
+              xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+            }
+          } catch (e) {
+            // ignore localStorage access errors (e.g., in some test envs)
+          }
 
           xhr.upload.addEventListener("progress", (ev) => {
             if (ev.lengthComputable) {
