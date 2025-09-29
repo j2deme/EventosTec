@@ -27,9 +27,19 @@ def create_registration():
         activity_id = payload.get('activity_id')
 
         # Validar acceso
+        jwt_id = None
+        try:
+            jwt_id = int(get_jwt_identity())
+        except Exception:
+            jwt_id = None
+
         if user_type == 'student':
+            # Si el body no contiene student_id, usar la identidad del JWT
+            if not student_id:
+                student_id = jwt_id
+
             # Estudiante solo puede preregistrarse a sí mismo
-            if int(get_jwt_identity()) != student_id:
+            if jwt_id is None or student_id is None or int(student_id) != jwt_id:
                 return jsonify({'message': 'Acceso denegado. No puedes preregistrar a otros estudiantes.'}), 403
         elif user_type == 'admin':
             # Admin puede preregistrar a cualquier estudiante
