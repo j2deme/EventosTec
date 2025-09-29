@@ -488,6 +488,19 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
     errors = []
     created = 0
 
+    # Detect if the DataFrame contains a column that should be treated as the
+    # institution/organization value for speakers. We normalize column names
+    # and look for anything containing 'instituc' (covers 'INSTITUCION',
+    # 'Institución', etc.) or an explicit 'organizacion' header.
+    institution_col = None
+    for c in df.columns:
+        try:
+            if 'instituc' in _normalize_raw(c) or _normalize_raw(c) == 'organizacion':
+                institution_col = c
+                break
+        except Exception:
+            continue
+
     # Iterate rows preserving original Excel row numbers starting at 2 (header row 1)
     for idx, (_, row) in enumerate(df.iterrows(), start=2):
         try:
@@ -627,13 +640,48 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             activity_data['requirements'] = rowdict.get('requirements')
             activity_data['knowledge_area'] = rowdict.get('knowledge_area')
 
-            # Speakers parsing: accept JSON string or semicolon-separated list
+            # Speakers parsing: accept JSON string or semicolon-separated list.
+            # If an 'INSTITUCION'/'organizacion' column is present in the sheet,
+            # use its value as the 'organization' for any speaker entries that
+            # don't include an organization.
             speakers_cell = rowdict.get('speakers')
             speakers = []
+            # institution value for this row (after NaN->None conversion above)
+            inst_val = None
+            if institution_col:
+                inst_val = rowdict.get(institution_col)
+                # coerce to str if not None
+                if inst_val is not None:
+                    try:
+                        inst_val = str(inst_val).strip()
+                    except Exception:
+                        pass
+
             if speakers_cell:
+                # JSON array encoded as string
                 if isinstance(speakers_cell, str) and speakers_cell.strip().startswith('['):
                     try:
-                        speakers = json.loads(speakers_cell)
+                        parsed = json.loads(speakers_cell)
+                        # ensure it's a list of dict-like objects
+                        if isinstance(parsed, list):
+                            for sp in parsed:
+                                if not isinstance(sp, dict):
+                                    # if it's a simple string, convert to dict
+                                    speakers.append(
+                                        {'name': str(sp), 'degree': '', 'organization': inst_val or ''})
+                                    continue
+                                # ensure keys exist
+                                name = sp.get('name') or sp.get('nombre') or ''
+                                degree = sp.get('degree') or sp.get(
+                                    'grado') or ''
+                                org = sp.get('organization') or sp.get(
+                                    'organizacion') or sp.get('institucion') or ''
+                                if not org and inst_val:
+                                    org = inst_val
+                                speakers.append(
+                                    {'name': name, 'degree': degree, 'organization': org})
+                        else:
+                            speakers = []
                     except Exception:
                         speakers = []
                 elif isinstance(speakers_cell, str):
@@ -643,20 +691,38 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                         pieces = [x.strip() for x in p.split('|')]
                         if len(pieces) == 3:
                             degree, name, org = pieces
+                            org = org or (inst_val or '')
                             speakers.append(
                                 {'name': name, 'degree': degree, 'organization': org})
                         elif len(pieces) == 2:
                             degree, name = pieces
                             speakers.append(
-                                {'name': name, 'degree': degree, 'organization': ''})
+                                {'name': name, 'degree': degree, 'organization': (inst_val or '')})
                         else:
                             speakers.append(
-                                {'name': pieces[0], 'degree': '', 'organization': ''})
+                                {'name': pieces[0], 'degree': '', 'organization': (inst_val or '')})
                 else:
+                    # Attempt to parse non-string JSON-like objects
                     try:
-                        speakers = json.loads(speakers_cell)
+                        parsed = json.loads(speakers_cell)
+                        if isinstance(parsed, list):
+                            for sp in parsed:
+                                if not isinstance(sp, dict):
+                                    speakers.append(
+                                        {'name': str(sp), 'degree': '', 'organization': inst_val or ''})
+                                    continue
+                                name = sp.get('name') or sp.get('nombre') or ''
+                                degree = sp.get('degree') or sp.get(
+                                    'grado') or ''
+                                org = sp.get('organization') or sp.get(
+                                    'organizacion') or sp.get('institucion') or ''
+                                if not org and inst_val:
+                                    org = inst_val
+                                speakers.append(
+                                    {'name': name, 'degree': degree, 'organization': org})
                     except Exception:
                         speakers = []
+
             activity_data['speakers'] = speakers
 
             # Target audience
