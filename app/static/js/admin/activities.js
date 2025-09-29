@@ -40,7 +40,9 @@ function activitiesManager() {
     batchFile: null,
     batchEventId: "",
     batchDryRun: true,
+    batchError: null,
     batchReport: null,
+    batchProgress: 0,
     // Panel lateral (nueva subvista inline) - mantener compatibilidad
     showPanel: false,
     showDeleteModal: false,
@@ -71,6 +73,8 @@ function activitiesManager() {
 
     // Inicialización
     init() {
+      // Debug: indicar que el manager se inicializó
+      // initialization
       this.loadEvents();
       this.loadActivities();
       this.loadActivityRelations();
@@ -127,7 +131,8 @@ function activitiesManager() {
           params.set("activity_type", this.filters.activity_type);
         if (this.filters.sort) params.set("sort", this.filters.sort);
 
-        const response = await f(`/api/activities?${params.toString()}`);
+        const url = `/api/activities?${params.toString()}`;
+        const response = await f(url);
         if (!response || !response.ok)
           throw new Error(
             `Error al cargar actividades: ${response && response.status}`
@@ -166,7 +171,6 @@ function activitiesManager() {
           }
           // Compute a human-friendly dates string with AM/PM using dayjs
           // - Single-day: DD/MM/YY h:mm A - h:mm A
-          // - Multi-day: D - D / MMM/YY h:mm A - h:mm A (MMM abreviado en español)
           try {
             const hasDayjs = typeof dayjs !== "undefined";
             if (hasDayjs && typeof dayjs.locale === "function")
@@ -245,6 +249,7 @@ function activitiesManager() {
           }
           return act;
         });
+        // removed debug inspection block
 
         const pages = data.pages || 1;
         const current = data.current_page || 1;
@@ -604,6 +609,8 @@ function activitiesManager() {
       this.batchFile = null;
       this.batchDryRun = true;
       this.batchReport = null;
+      this.batchError = null;
+      this.batchProgress = 0;
       this.showBatchModal = true;
     },
 
@@ -612,60 +619,89 @@ function activitiesManager() {
       this.batchUploading = false;
       this.batchFile = null;
       this.batchReport = null;
+      this.batchError = null;
+      this.batchProgress = 0;
     },
 
     onBatchFileChange(e) {
       const f = e && e.target && e.target.files ? e.target.files[0] : null;
       this.batchFile = f;
+      this.batchError = null;
     },
 
     async submitBatchUpload() {
+      // Use XMLHttpRequest to get upload progress events
+      if (!this.batchEventId) {
+        this.batchError = "Seleccione un evento para la carga";
+        return;
+      }
+      if (!this.batchFile) {
+        this.batchError = "Seleccione un archivo .xlsx";
+        return;
+      }
+
       this.batchUploading = true;
       this.batchReport = null;
-      try {
-        if (!this.batchEventId)
-          throw new Error("Seleccione un evento para la carga");
-        if (!this.batchFile) throw new Error("Seleccione un archivo .xlsx");
+      this.batchError = null;
+      this.batchProgress = 0;
 
+      try {
         const fd = new FormData();
         fd.append("file", this.batchFile);
         fd.append("event_id", String(this.batchEventId));
         fd.append("dry_run", this.batchDryRun ? "1" : "0");
 
-        const f =
-          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const response = await f("/api/activities/batch", {
-          method: "POST",
-          body: fd,
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/activities/batch", true);
+
+          xhr.upload.addEventListener("progress", (ev) => {
+            if (ev.lengthComputable) {
+              const percent = Math.round((ev.loaded / ev.total) * 100);
+              this.batchProgress = percent;
+            }
+          });
+
+          xhr.onreadystatechange = () => {
+            if (xhr.readyState === 4) {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                  const data = JSON.parse(xhr.responseText || "{}");
+                  this.batchReport = data;
+                  if (!this.batchDryRun && data.created && data.created > 0) {
+                    this.loadActivities(1);
+                  }
+                  showToast("Importación procesada", "success");
+                  resolve();
+                } catch (e) {
+                  reject(new Error("Respuesta inválida del servidor"));
+                }
+              } else {
+                // Try to parse JSON error from server
+                try {
+                  const err = JSON.parse(xhr.responseText || "{}");
+                  reject(new Error(err.message || JSON.stringify(err)));
+                } catch (e) {
+                  reject(new Error(`Error ${xhr.status}`));
+                }
+              }
+            }
+          };
+
+          xhr.onerror = () =>
+            reject(new Error("Error de red durante la subida"));
+
+          xhr.send(fd);
         });
-        if (!response || !response.ok) {
-          let txt = "";
-          try {
-            const j = await response.json();
-            txt = j.message || JSON.stringify(j);
-          } catch (e) {
-            txt = await response.text();
-          }
-          throw new Error(txt || `Error ${response && response.status}`);
-        }
-
-        const data = await response.json();
-        this.batchReport = data;
-
-        if (!this.batchDryRun && data.created && data.created > 0) {
-          // refresh list to show created activities
-          this.loadActivities(1);
-        }
-
-        showToast("Importación procesada", "success");
       } catch (err) {
         console.error("Batch upload error", err);
-        this.batchReport = {
-          errors: [{ row: 0, message: err.message || String(err) }],
-        };
+        this.batchError = err.message || String(err);
         showToast("Error al procesar importación", "error");
       } finally {
         this.batchUploading = false;
+        // leave batchProgress at 100 if report exists
+        if (this.batchReport && this.batchProgress < 100)
+          this.batchProgress = 100;
       }
     },
 
