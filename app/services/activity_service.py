@@ -411,7 +411,7 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             tg = rowdict.get('target_general')
             careers = rowdict.get('target_careers')
             target = {'general': False, 'careers': []}
-            if tg is not None and (str(tg).strip().lower() in ('1', 'true', 'yes', 'y')):
+            if tg is not None and (str(tg).strip().lower() in ('1', 'true', 'yes', 'y', 'si', 's', 'sí')):
                 target['general'] = True
             if careers:
                 if isinstance(careers, str):
