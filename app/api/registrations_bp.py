@@ -6,7 +6,7 @@ from app.models.registration import Registration
 from app.models.student import Student
 from app.models.activity import Activity
 from app.models.attendance import Attendance
-from app.utils.auth_helpers import require_admin, get_user_or_403
+from app.utils.auth_helpers import get_user_or_403
 
 registrations_bp = Blueprint(
     'registrations', __name__, url_prefix='/api/registrations')
@@ -121,7 +121,6 @@ def create_registration():
 
 @registrations_bp.route('/', methods=['GET'])
 @jwt_required()
-@require_admin
 def get_registrations():
     try:
         # Parámetros de filtrado
@@ -258,7 +257,6 @@ def get_registration(registration_id):
 
 @registrations_bp.route('/<int:registration_id>', methods=['PUT'])
 @jwt_required()
-@require_admin
 def update_registration(registration_id):
     try:
         registration = db.session.get(Registration, registration_id)
