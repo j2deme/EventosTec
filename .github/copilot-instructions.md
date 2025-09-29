@@ -161,5 +161,6 @@ Notas y buenas prácticas:
 - Cuando el cambio es mayor, crear una pequeña prueba de contrato end-to-end (por ejemplo, un test de integración backend que produce el payload y un test frontend que consuma ese mismo mock) para validar la interpretación del contrato en ambos lados.
 - Para cambios pequeños (nombres de campo), preferir introducir adaptadores (p. ej. mapear `oldName` → `newName`) en el backend o en una capa de parsing del frontend durante el período de migración.
 - Asegurar que la documentación del PR incluya ejemplos concretos de payload y un checklist de qué revisar en frontend.
+- Si el proyecto cuenta con una librería de iconos por webfont, preferir usar esa librería en lugar de SVGs inline para consistencia visual y menor tamaño de bundle.
 
 Seguir este proceso evita regresiones y mantiene consistencia entre backend y frontend cuando evoluciona el modelo de datos.
