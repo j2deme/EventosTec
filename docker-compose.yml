@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  web:
+    build: .
+    # Map that host port to the container's gunicorn port (8000).
+    ports:
+      - "8092:8000"
+    volumes:
+      - .:/app:cached
+      - ./instance:/app/instance
+    # Use an env_file (./.env) or environment on the host to provide secrets and DB connection data.
+    # Create a local .env (not committed) with the DB credentials or export the variables in the host environment.
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=production
+      - FLASK_APP=run.py
+      # DB configuration read by config.py (it prefers DATABASE_URL, else builds from DB_* vars)
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped
