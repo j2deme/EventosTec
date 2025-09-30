@@ -435,20 +435,40 @@
               ></p>
 
               <div class="mt-4 space-y-3 text-sm text-gray-700">
+                <!-- Descripción con icono -->
                 <div x-show="selectedActivity?.description">
-                  <h4 class="font-medium text-gray-900">Descripción</h4>
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-info-circle mr-2 text-gray-500"></i>
+                    Descripción
+                  </h4>
                   <p x-text="selectedActivity?.description"></p>
                 </div>
 
+                <!-- Ponentes -->
                 <div
                   x-show="selectedActivity?.speakersString || selectedActivity?.speakers"
                 >
-                  <h4 class="font-medium text-gray-900">Ponentes</h4>
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-users mr-2 text-gray-500"></i>
+                    Ponentes
+                    <span
+                      class="ml-2 text-xs text-gray-400"
+                      x-show="selectedActivityLoading"
+                    >
+                      <span
+                        class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-gray-400"
+                      ></span>
+                    </span>
+                  </h4>
                   <p x-text="speakersToString(selectedActivity)"></p>
                 </div>
 
+                <!-- Fechas -->
                 <div>
-                  <h4 class="font-medium text-gray-900">Fechas</h4>
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-calendar mr-2 text-gray-500"></i>
+                    Fechas
+                  </h4>
                   <p>
                     <span
                       x-text="formatActivityDateShort(selectedActivity)"
@@ -464,21 +484,48 @@
                   </p>
                 </div>
 
+                <!-- Lugar -->
                 <div>
-                  <h4 class="font-medium text-gray-900">Lugar</h4>
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-map-pin mr-2 text-gray-500"></i>
+                    Lugar
+                  </h4>
                   <p x-text="selectedActivity?.location || 'Sin ubicación'"></p>
                 </div>
 
+                <!-- Modalidad -->
                 <div>
-                  <h4 class="font-medium text-gray-900">Modalidad</h4>
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-layout-grid mr-2 text-gray-500"></i>
+                    Modalidad
+                  </h4>
                   <p x-text="selectedActivity?.modality || 'Sin modalidad'"></p>
                 </div>
 
+                <!-- Requisitos y área de conocimiento (si existen) -->
+                <div x-show="selectedActivity?.requirements">
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-list mr-2 text-gray-500"></i>
+                    Requisitos
+                  </h4>
+                  <p x-text="selectedActivity?.requirements"></p>
+                </div>
+
+                <div x-show="selectedActivity?.area_of_knowledge">
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-tag mr-2 text-gray-500"></i>
+                    Área de conocimiento
+                  </h4>
+                  <p x-text="selectedActivity?.area_of_knowledge"></p>
+                </div>
+
+                <!-- Cupo: usar helper capacityText para mostrar datos robustos -->
                 <div>
-                  <h4 class="font-medium text-gray-900">Cupo</h4>
-                  <p
-                    x-text="selectedActivity?.max_capacity ? ((selectedActivity?.current_capacity || 0) + '/' + selectedActivity?.max_capacity) : (selectedActivity?.current_capacity !== undefined ? (selectedActivity?.current_capacity + '/∞') : 'No disponible')"
-                  ></p>
+                  <h4 class="font-medium text-gray-900 flex items-center">
+                    <i class="ti ti-users mr-2 text-gray-500"></i>
+                    Cupo
+                  </h4>
+                  <p x-text="capacityText(selectedActivity)"></p>
                 </div>
               </div>
             </div>

@@ -405,25 +405,21 @@ function studentRegistrationsManager() {
     showActivityModal: false,
     selectedActivity: null,
     selectedActivityLoading: false,
+    // Mantener el preregistro desde el que se abrió el modal para ajustar el contador
+    selectedRegistration: null,
 
     async openActivityModal(registration) {
+      this.selectedRegistration = registration || null;
       this.selectedActivity = registration?.activity || null;
       this.showActivityModal = true;
 
-      const hasDetails =
-        this.selectedActivity &&
-        (this.selectedActivity.description ||
-          this.selectedActivity.speakers ||
-          this.selectedActivity.max_capacity ||
-          this.selectedActivity.requirements ||
-          this.selectedActivity.area_of_knowledge);
-
+      // always try to fetch fresh activity details (to get updated counters)
       const activityId =
         this.selectedActivity?.id ||
         registration?.activity_id ||
         registration?.activity?.id;
 
-      if (!hasDetails && activityId) {
+      if (activityId) {
         this.selectedActivityLoading = true;
         try {
           const resp = await fetch(`/api/activities/${activityId}`, {
@@ -468,24 +464,37 @@ function studentRegistrationsManager() {
       this.showActivityModal = false;
       this.selectedActivity = null;
       this.selectedActivityLoading = false;
+      this.selectedRegistration = null;
     },
 
     // Devuelve una cadena para el cupo basada en los campos disponibles
     capacityText(activity) {
       if (!activity) return "No disponible";
-      const current =
-        (activity.current_capacity ??
-          activity.current_registrations ??
-          activity.current) ||
-        0;
+      const reported =
+        activity.current_capacity ??
+        activity.current_registrations ??
+        activity.current;
+
+      // Si abrimos desde un preregistro activo, considerar al menos 1 participante
+      const openedFromRegistration = !!(
+        this.selectedRegistration &&
+        (this.selectedRegistration.activity?.id ||
+          this.selectedRegistration.activity_id) ==
+          (activity.id || activity.activity_id)
+      );
+
+      let current;
+      if (reported == null) {
+        current = openedFromRegistration ? 1 : 0;
+      } else {
+        // Si el backend reporta 0 pero abrimos desde un preregistro activo, mostrar 1
+        if (reported === 0 && openedFromRegistration) current = 1;
+        else current = reported;
+      }
+
       const max = activity.max_capacity ?? activity.capacity ?? null;
-      if (max) return `${current}/${max}`;
-      if (
-        activity.current_capacity !== undefined ||
-        activity.current_registrations !== undefined ||
-        activity.current !== undefined
-      )
-        return `${current}/∞`;
+      if (max != null) return `${current}/${max}`;
+      if (reported != null) return `${current}/∞`;
       return "No disponible";
     },
 
