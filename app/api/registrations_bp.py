@@ -108,15 +108,14 @@ def create_registration():
         if not is_registration_allowed(activity_id):
             return jsonify({'message': 'Cupo lleno para esta actividad.'}), 400
 
-        # Sino hubo conflictos, crear preregistro
-        registration = Registration()
-        registration.student_id = student_id
-        registration.activity_id = activity_id
-        registration.status = 'Registrado'
+        # Intentar crear preregistro de forma atómica para evitar sobrepasar cupo
+        from app.services.registration_service import create_registration_atomic
 
-        db.session.add(registration)
-        db.session.commit()
+        ok, result = create_registration_atomic(student_id, activity_id)
+        if not ok:
+            return jsonify({'message': result}), 400
 
+        registration = result
         return jsonify({
             'message': 'Preregistro creado exitosamente',
             'registration': registration_schema.dump(registration)

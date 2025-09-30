@@ -179,3 +179,107 @@ def is_registration_allowed(activity_id):
     ).count()
 
     return current_registrations < activity.max_capacity
+
+
+def create_registration_atomic(student_id, activity_id):
+    """
+    Intenta crear un preregistro de forma atómica respetando el cupo.
+    Retorna (True, registration) si se creó, (False, message) si no es posible.
+
+    Implementación:
+    - Inicia una transacción.
+    - Bloquea la fila de Activity (SELECT FOR UPDATE) cuando el dialecto lo soporte.
+    - Recalcula la cantidad de registros y compara con max_capacity.
+    - Crea el Registration y hace commit.
+
+    Nota: en SQLite el FOR UPDATE no tiene efecto; aun así, la UniqueConstraint en
+    `registrations` evita duplicados del mismo estudiante, pero para evitar
+    sobrepasar el cupo en entornos concurrentes se recomienda usar una DB con
+    soporte de row-level locking (Postgres). Aquí se hace lo mejor posible con
+    SQLAlchemy y transacciones.
+    """
+    from app import db
+    try:
+        # Abrir transacción
+        with db.session.begin_nested():
+            # Intentar obtener la actividad con bloqueo de fila si está soportado
+            session = db.session
+            # Obtener el 'bind' de forma robusta: preferir session.get_bind()
+            # y caer a session.bind o al engine global si es necesario.
+            try:
+                bind = session.get_bind()
+            except Exception:
+                bind = getattr(session, 'bind', None)
+
+            if bind is None:
+                # Fallback al engine global (por ejemplo en tests o contextos especiales)
+                from app import db as _db
+                bind = getattr(_db, 'engine', None)
+
+            dialect_name = None
+            try:
+                dialect_name = bind.dialect.name if bind is not None else None
+            except Exception:
+                dialect_name = None
+
+            if dialect_name in ('postgresql', 'mysql'):
+                # Usar FOR UPDATE para evitar race conditions
+                activity = session.execute(
+                    db.select(Activity).where(Activity.id ==
+                                              activity_id).with_for_update()
+                ).scalar_one_or_none()
+            else:
+                # Para SQLite y otros, caer al get normal
+                activity = session.get(Activity, activity_id)
+
+            if not activity:
+                return False, 'Actividad no encontrada'
+
+            if activity.activity_type not in ['Conferencia', 'Taller', 'Curso']:
+                # No aplica cupo
+                pass
+
+            if activity.max_capacity is None:
+                # No hay límite
+                pass
+            else:
+                # Recalcular cantidad de preregistros actuales dentro de la transacción
+                current_registrations = session.query(Registration).filter_by(
+                    activity_id=activity_id, status='Registrado'
+                ).count()
+
+                if current_registrations >= activity.max_capacity:
+                    return False, 'Cupo lleno para esta actividad.'
+
+            # Verificar si el estudiante ya tiene un registro (UniqueConstraint protege, pero mejor chequear)
+            existing = session.query(Registration).filter_by(
+                student_id=student_id, activity_id=activity_id
+            ).first()
+            if existing:
+                # Si existe y está cancelado, reactivar
+                if existing.status == 'Cancelado':
+                    existing.status = 'Registrado'
+                    existing.registration_date = db.func.now()
+                    existing.confirmation_date = None
+                    existing.attended = False
+                    session.add(existing)
+                    session.commit()
+                    return True, existing
+                else:
+                    return False, 'Ya existe un preregistro para esta actividad'
+
+            # Crear nuevo preregistro
+            reg = Registration()
+            reg.student_id = student_id
+            reg.activity_id = activity_id
+            reg.status = 'Registrado'
+            session.add(reg)
+            # Commit de la transacción
+        # Si llegamos aquí, commit automático del context manager
+        return True, reg
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return False, str(e)

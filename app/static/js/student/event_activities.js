@@ -9,6 +9,8 @@ function studentEventActivitiesManager() {
     loadingEvent: false,
     errorMessage: "",
     studentRegistrations: [],
+    // Evitar múltiples peticiones concurrentes para la misma actividad
+    inflightRegistrations: new Set(),
 
     // Paginación
     pagination: {
@@ -347,6 +349,13 @@ function studentEventActivitiesManager() {
           throw new Error("No se pudo obtener el ID del estudiante");
         }
 
+        // Evitar doble envío para la misma actividad
+        if (this.inflightRegistrations.has(activity.id)) {
+          console.warn("Registro ya en curso para actividad", activity.id);
+          return;
+        }
+        this.inflightRegistrations.add(activity.id);
+
         const registrationData = {
           student_id: studentId,
           activity_id: activity.id, // Usar el ID de la actividad original
@@ -398,25 +407,42 @@ function studentEventActivitiesManager() {
           // No es crítico, solo para la UX
         }
 
-        if (!this.studentRegistrations.includes(activity.id)) {
-          this.studentRegistrations.push(activity.id);
-        }
+        try {
+          if (!this.studentRegistrations.includes(activity.id)) {
+            this.studentRegistrations.push(activity.id);
+          }
 
-        const activityIndex = this.activities.findIndex(
-          (a) => a.id === activity.id
-        );
-        if (activityIndex !== -1) {
-          // Crear una nueva versión del objeto para asegurar la reactividad
-          const updatedActivity = {
-            ...this.activities[activityIndex],
-            current_capacity:
-              (this.activities[activityIndex].current_capacity || 0) + 1,
-          };
-          // Reemplazar el objeto en el array
-          this.activities.splice(activityIndex, 1, updatedActivity);
+          // Actualizar el array fuente que usa la vista (originalActivities)
+          const origIndex = this.originalActivities.findIndex(
+            (a) => a.id === activity.id
+          );
+          if (origIndex !== -1) {
+            const newCount =
+              (this.originalActivities[origIndex].current_capacity || 0) + 1;
+            this.originalActivities.splice(origIndex, 1, {
+              ...this.originalActivities[origIndex],
+              current_capacity: newCount,
+            });
+          }
 
-          // ✨ Reagrupar actividades por día para actualizar la vista
+          // También actualizar el array visible (activities) por consistencia
+          const activityIndex = this.activities.findIndex(
+            (a) => a.id === activity.id
+          );
+          if (activityIndex !== -1) {
+            const updatedActivity = {
+              ...this.activities[activityIndex],
+              current_capacity:
+                (this.activities[activityIndex].current_capacity || 0) + 1,
+            };
+            this.activities.splice(activityIndex, 1, updatedActivity);
+          }
+
+          // Reagrupar la vista para que use los datos actualizados
           this.groupActivitiesByDayForDisplay();
+        } finally {
+          // Limpiar estado inflight
+          this.inflightRegistrations.delete(activity.id);
         }
       } catch (error) {
         console.error("Error registering for activity:", error);
@@ -424,6 +450,12 @@ function studentEventActivitiesManager() {
           error.message || "Error al preregistrarse a la actividad",
           "error"
         );
+        // Asegurar limpieza de inflight si hubo error antes del finally
+        try {
+          this.inflightRegistrations.delete(activity.id);
+        } catch (e) {
+          // noop
+        }
       }
     },
 
