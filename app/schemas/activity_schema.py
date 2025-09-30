@@ -55,7 +55,16 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
         "get_current_capacity", dump_only=True)
 
     def get_current_capacity(self, obj):
-        # Assumes 'registrations' is a relationship on Activity model
+        # If a controller/service precomputed 'current_capacity' and attached
+        # it to the object/dict (to avoid N+1 queries), prefer that value.
+        try:
+            pre = getattr(obj, 'current_capacity', None)
+            if pre is not None:
+                return int(pre)
+        except Exception:
+            pass
+
+        # Fallback: compute from related registrations (may trigger additional queries)
         if hasattr(obj, 'registrations') and obj.registrations:
             return sum(
                 1 for r in obj.registrations

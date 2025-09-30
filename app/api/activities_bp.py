@@ -5,6 +5,7 @@ from app import db
 from app.schemas import activity_schema, activities_schema
 from app.models.activity import Activity
 from app.models.event import Event
+from app.models.registration import Registration
 from app.services import activity_service
 from app.utils.auth_helpers import require_admin, get_user_or_403
 from datetime import datetime, timezone
@@ -120,8 +121,38 @@ def get_activities():
 
         total = activities.total or 0
 
+        # Obtener conteo de preregistros por actividad en una sola consulta
+        activity_ids = [a.id for a in activities.items]
+        counts = {}
+        if activity_ids:
+            rows = db.session.query(
+                Registration.activity_id,
+                db.func.count(Registration.id)
+            ).filter(
+                Registration.activity_id.in_(activity_ids),
+                # Contar registros que no estén cancelados ni marcados como ausente
+                ~Registration.status.in_(['Ausente', 'Cancelado'])
+            ).group_by(Registration.activity_id).all()
+
+            counts = {r[0]: int(r[1]) for r in rows}
+
+        dumped = _safe_dump_activities(activities.items)
+
+        # Adjuntar current_capacity (número de preregistros 'Registrado') a cada actividad
+        # También añadimos un alias `current_registrations` para compatibilidad
+        # con plantillas/JS antiguas que esperan ese nombre.
+        for item in dumped:
+            try:
+                val = counts.get(item.get('id'), 0)
+                item['current_capacity'] = val
+                # alias histórico usado en plantillas
+                item['current_registrations'] = val
+            except Exception:
+                item['current_capacity'] = 0
+                item['current_registrations'] = 0
+
         return jsonify({
-            'activities': _safe_dump_activities(activities.items),
+            'activities': dumped,
             'total': total,
             'pages': activities.pages,
             'current_page': page,
@@ -183,7 +214,17 @@ def get_activity(activity_id):
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
-        return jsonify({'activity': activity_schema.dump(activity)}), 200
+        dumped = activity_schema.dump(activity)
+        # Añadir alias `current_registrations` para compatibilidad con plantillas/JS
+        if isinstance(dumped, dict):
+            try:
+                dumped['current_registrations'] = dumped.get(
+                    'current_capacity', 0)
+            except Exception:
+                # En caso de que dumped tenga forma inesperada, no romper la respuesta
+                pass
+
+        return jsonify({'activity': dumped}), 200
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener actividad', 'error': str(e)}), 500
