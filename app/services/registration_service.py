@@ -181,6 +181,60 @@ def is_registration_allowed(activity_id):
     return current_registrations < activity.max_capacity
 
 
+def create_registration_simple(student_id, activity_id):
+    """
+    Versión no-atalica y simple de creación de preregistro.
+    Realiza comprobaciones básicas y hace commit inmediatamente sin
+    usar bloqueos FOR UPDATE ni transacciones anidadas.
+    Útil para pruebas o entornos sin concurrencia alta.
+    """
+    from app import db
+    try:
+        # Validaciones básicas
+        activity = db.session.get(Activity, activity_id)
+        if not activity:
+            return False, 'Actividad no encontrada'
+
+        # Validar cupo si aplica
+        if activity.activity_type in ['Conferencia', 'Taller', 'Curso'] and activity.max_capacity is not None:
+            current_registrations = Registration.query.filter_by(
+                activity_id=activity_id, status='Registrado'
+            ).count()
+            if current_registrations >= activity.max_capacity:
+                return False, 'Cupo lleno para esta actividad.'
+
+        # Verificar registro existente
+        existing = Registration.query.filter_by(
+            student_id=student_id, activity_id=activity_id
+        ).first()
+        if existing:
+            if existing.status == 'Cancelado':
+                existing.status = 'Registrado'
+                existing.registration_date = db.func.now()
+                existing.confirmation_date = None
+                existing.attended = False
+                db.session.add(existing)
+                db.session.commit()
+                return True, existing
+            else:
+                return False, 'Ya existe un preregistro para esta actividad'
+
+        # Crear nuevo preregistro y commitear inmediatamente
+        reg = Registration()
+        reg.student_id = student_id
+        reg.activity_id = activity_id
+        reg.status = 'Registrado'
+        db.session.add(reg)
+        db.session.commit()
+        return True, reg
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return False, str(e)
+
+
 def create_registration_atomic(student_id, activity_id):
     """
     Intenta crear un preregistro de forma atómica respetando el cupo.

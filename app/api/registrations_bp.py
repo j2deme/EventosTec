@@ -108,10 +108,10 @@ def create_registration():
         if not is_registration_allowed(activity_id):
             return jsonify({'message': 'Cupo lleno para esta actividad.'}), 400
 
-        # Intentar crear preregistro de forma atómica para evitar sobrepasar cupo
-        from app.services.registration_service import create_registration_atomic
+        # Intentar crear preregistro.
+        from app.services.registration_service import create_registration_simple
 
-        ok, result = create_registration_atomic(student_id, activity_id)
+        ok, result = create_registration_simple(student_id, activity_id)
         if not ok:
             return jsonify({'message': result}), 400
 
