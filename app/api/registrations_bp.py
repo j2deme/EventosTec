@@ -163,15 +163,51 @@ def get_registrations():
             page=page, per_page=per_page, error_out=False
         )
 
+        # Asegurar que la relación activity está presente en cada registro
         for registration in registrations.items:
-            # Cargar la relación con la actividad
             if not registration.activity:
-                # Si no hay relación, intentar cargarla
                 registration.activity = db.session.get(
                     Activity, registration.activity_id)
 
+        # Calcular conteos de preregistros por actividad para las actividades en esta página
+        activity_ids = [
+            r.activity_id for r in registrations.items if r.activity_id]
+        counts = {}
+        if activity_ids:
+            rows = db.session.query(
+                Registration.activity_id,
+                db.func.count(Registration.id)
+            ).filter(
+                Registration.activity_id.in_(activity_ids),
+                ~Registration.status.in_(['Ausente', 'Cancelado'])
+            ).group_by(Registration.activity_id).all()
+            counts = {r[0]: int(r[1]) for r in rows}
+
+        dumped_regs = registrations_schema.dump(registrations.items)
+
+        # Inject current_capacity/current_registrations into nested activity payloads
+        for reg in dumped_regs:
+            # ensure reg is a dict before attempting dict operations
+            if not isinstance(reg, dict):
+                continue
+
+            act = reg.get('activity') or {}
+            aid = None
+            if isinstance(act, dict):
+                aid = act.get('id')
+
+            if not aid:
+                aid = reg.get('activity_id')
+
+            val = counts.get(aid, 0) if aid is not None else 0
+
+            if isinstance(act, dict):
+                act['current_capacity'] = val
+                act['current_registrations'] = val
+                reg['activity'] = act
+
         return jsonify({
-            'registrations': registrations_schema.dump(registrations.items),
+            'registrations': dumped_regs,
             'total': registrations.total,
             'pages': registrations.pages,
             'current_page': page
