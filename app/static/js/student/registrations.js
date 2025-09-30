@@ -77,10 +77,10 @@ function studentRegistrationsManager() {
           activity: {
             ...registration.activity,
             start_datetime: this.formatDateTimeForInput(
-              registration.activity.start_datetime
+              registration.activity?.start_datetime
             ),
             end_datetime: this.formatDateTimeForInput(
-              registration.activity.end_datetime
+              registration.activity?.end_datetime
             ),
             total_days: this.getTotalDays(registration.activity),
             day_in_series: this.getDayInSeries(registration.activity),
@@ -118,18 +118,11 @@ function studentRegistrationsManager() {
       );
     },
 
-    // NEW FUNCTION: Check if a canceled registration can be re-registered
+    // Check if a canceled registration can be re-registered
     canReRegisterForActivity(activity) {
-      // Check if activity exists and has valid dates
-      if (!activity || !activity.start_datetime) {
-        return false;
-      }
-
-      // Check if the activity hasn't started yet or is in the future
+      if (!activity || !activity.start_datetime) return false;
       const now = new Date();
       const activityStart = new Date(activity.start_datetime);
-
-      // Allow re-registration if activity hasn't started yet
       return activityStart > now;
     },
 
@@ -178,7 +171,6 @@ function studentRegistrationsManager() {
       }
     },
 
-    // NEW FUNCTION: Re-register for a canceled activity
     async reRegisterForActivity(registration) {
       try {
         const token = localStorage.getItem("authToken");
@@ -241,7 +233,6 @@ function studentRegistrationsManager() {
 
     formatTime(dateTimeString) {
       if (!dateTimeString) return "--:--";
-      // Reuse formatDateTime/time helpers if available
       if (window.formatDateTime) {
         const dt = new Date(dateTimeString);
         return dt.toLocaleTimeString("es-ES", {
@@ -283,9 +274,6 @@ function studentRegistrationsManager() {
       }
     },
 
-    // Formatea la fecha de la actividad en versión reducida.
-    // Si la actividad es multídia y ambas fechas están en el mismo mes, devuelve
-    // "DD - DD / MM / YYYY". En caso contrario, devuelve "DD/MM/YYYY - DD/MM/YYYY".
     formatActivityDateShort(activity) {
       if (!activity || !activity.start_datetime) return "Sin fecha";
       try {
@@ -313,12 +301,10 @@ function studentRegistrationsManager() {
 
         if (this.isMultiDayActivity(activity)) {
           if (sameMonth) {
-            // Ej: 08 - 10/Oct/2025
             return `${pad(s.getDate())} - ${pad(e.getDate())}/${
               months[s.getMonth()]
             }/${s.getFullYear()}`;
           }
-          // Ej: 28/Sep/2025 - 02/Oct/2025
           return `${pad(s.getDate())}/${
             months[s.getMonth()]
           }/${s.getFullYear()} - ${pad(e.getDate())}/${
@@ -326,10 +312,86 @@ function studentRegistrationsManager() {
           }/${e.getFullYear()}`;
         }
 
-        // Actividad de un solo día: devolver la fecha corta con nombre de mes abreviado
         return `${pad(s.getDate())}/${months[s.getMonth()]}/${s.getFullYear()}`;
       } catch (e) {
         return "Sin fecha";
+      }
+    },
+
+    // Convierte la lista de ponentes a una cadena legible incluyendo grado si existe
+    speakersToString(activity) {
+      try {
+        if (!activity) return "";
+
+        const ss = activity.speakersString;
+        if (ss) {
+          if (typeof ss === "string") return ss;
+          if (Array.isArray(ss)) {
+            return ss
+              .map((it) => {
+                if (!it) return null;
+                if (typeof it === "string") return it;
+                if (typeof it === "object")
+                  return it.name || it.full_name || JSON.stringify(it);
+                return String(it);
+              })
+              .filter(Boolean)
+              .join(", ");
+          }
+          if (typeof ss === "object")
+            return ss.name || ss.full_name || JSON.stringify(ss);
+        }
+
+        const s = activity.speakers;
+        if (!s) return "";
+
+        if (Array.isArray(s)) {
+          return s
+            .map((item) => {
+              if (!item) return null;
+              if (typeof item === "string") return item;
+              if (typeof item === "object") {
+                const name =
+                  item.name ||
+                  item.full_name ||
+                  (item.first_name && item.last_name
+                    ? `${item.first_name} ${item.last_name}`
+                    : null);
+                const degree =
+                  item.degree ||
+                  item.title ||
+                  item.academic_degree ||
+                  item.degree_title ||
+                  null;
+                if (name && degree) return `${degree} ${name}`;
+                if (name) return name;
+                return JSON.stringify(item);
+              }
+              return String(item);
+            })
+            .filter(Boolean)
+            .join(", ");
+        }
+
+        if (typeof s === "string") return s;
+        if (typeof s === "object") {
+          const name =
+            s.name ||
+            s.full_name ||
+            (s.first_name && s.last_name
+              ? `${s.first_name} ${s.last_name}`
+              : null);
+          const degree =
+            s.degree || s.title || s.academic_degree || s.degree_title || null;
+          if (name && degree) return `${degree} ${name}`;
+          if (name) return name;
+          return JSON.stringify(s);
+        }
+
+        return "";
+      } catch (e) {
+        console.error("speakersToString error", e);
+        return "";
       }
     },
 
@@ -337,6 +399,94 @@ function studentRegistrationsManager() {
       return window.formatDateTime
         ? window.formatDateTime(dateTimeString)
         : "Sin fecha";
+    },
+
+    // Modal para ver detalles de la actividad (solo lectura)
+    showActivityModal: false,
+    selectedActivity: null,
+    selectedActivityLoading: false,
+
+    async openActivityModal(registration) {
+      this.selectedActivity = registration?.activity || null;
+      this.showActivityModal = true;
+
+      const hasDetails =
+        this.selectedActivity &&
+        (this.selectedActivity.description ||
+          this.selectedActivity.speakers ||
+          this.selectedActivity.max_capacity ||
+          this.selectedActivity.requirements ||
+          this.selectedActivity.area_of_knowledge);
+
+      const activityId =
+        this.selectedActivity?.id ||
+        registration?.activity_id ||
+        registration?.activity?.id;
+
+      if (!hasDetails && activityId) {
+        this.selectedActivityLoading = true;
+        try {
+          const resp = await fetch(`/api/activities/${activityId}`, {
+            headers: window.getAuthHeaders(),
+          });
+          if (resp.ok) {
+            const payload = await resp.json();
+            const activity = payload.activity || payload;
+            if (activity) {
+              // Normalize datetimes to input format if helper exists
+              if (activity.start_datetime)
+                activity.start_datetime = this.formatDateTimeForInput(
+                  activity.start_datetime
+                );
+              if (activity.end_datetime)
+                activity.end_datetime = this.formatDateTimeForInput(
+                  activity.end_datetime
+                );
+              this.selectedActivity = Object.assign(
+                {},
+                this.selectedActivity || {},
+                activity
+              );
+            }
+          } else if (resp.status === 401) {
+            this.redirectToLogin();
+          } else {
+            console.warn(
+              "No se pudieron cargar detalles de la actividad",
+              resp.status
+            );
+          }
+        } catch (e) {
+          console.error("Error fetching activity details", e);
+        } finally {
+          this.selectedActivityLoading = false;
+        }
+      }
+    },
+
+    closeActivityModal() {
+      this.showActivityModal = false;
+      this.selectedActivity = null;
+      this.selectedActivityLoading = false;
+    },
+
+    // Devuelve una cadena para el cupo basada en los campos disponibles
+    capacityText(activity) {
+      if (!activity) return "No disponible";
+      const current =
+        (activity.current_capacity ??
+          activity.current_registrations ??
+          activity.current) ||
+        0;
+      const max = activity.max_capacity ?? activity.capacity ?? null;
+      if (max) return `${current}/${max}`;
+      if (
+        activity.current_capacity !== undefined ||
+        activity.current_registrations !== undefined ||
+        activity.current !== undefined
+      )
+        return `${current}/∞`;
+      return "No disponible";
     },
 
     redirectToLogin() {
@@ -359,13 +509,12 @@ function studentRegistrationsManager() {
     },
 
     isMultiDayActivity(activity) {
-      if (!activity.start_datetime || !activity.end_datetime) return false;
+      if (!activity?.start_datetime || !activity?.end_datetime) return false;
 
       try {
         const startDate = new Date(activity.start_datetime);
         const endDate = new Date(activity.end_datetime);
 
-        // Comparar solo las fechas (sin horas)
         const startDay = new Date(
           startDate.getFullYear(),
           startDate.getMonth(),
@@ -385,13 +534,10 @@ function studentRegistrationsManager() {
     },
 
     getTotalDays(activity) {
-      if (!activity.start_datetime || !activity.end_datetime) return 1;
-
+      if (!activity?.start_datetime || !activity?.end_datetime) return 1;
       try {
         const startDate = new Date(activity.start_datetime);
         const endDate = new Date(activity.end_datetime);
-
-        // Normalizar a medianoche para comparar solo fechas
         const startDay = new Date(
           startDate.getFullYear(),
           startDate.getMonth(),
@@ -402,12 +548,8 @@ function studentRegistrationsManager() {
           endDate.getMonth(),
           endDate.getDate()
         );
-
-        // Calcular la diferencia en días
         const timeDiff = endDay.getTime() - startDay.getTime();
-        const totalDays = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-
-        return totalDays;
+        return Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
       } catch (e) {
         console.error("Error calculating total days:", e);
         return 1;
@@ -415,14 +557,10 @@ function studentRegistrationsManager() {
     },
 
     getDayInSeries(activity) {
-      if (!activity.start_datetime || !activity.end_datetime) return 1;
-
+      if (!activity?.start_datetime || !activity?.end_datetime) return 1;
       try {
         const startDate = new Date(activity.start_datetime);
-        const endDate = new Date(activity.end_datetime);
-        const currentDate = new Date(activity.start_datetime); // Fecha actual es la de inicio por defecto
-
-        // Normalizar a medianoche para comparar solo fechas
+        const currentDate = new Date(activity.start_datetime);
         const startDay = new Date(
           startDate.getFullYear(),
           startDate.getMonth(),
@@ -433,12 +571,8 @@ function studentRegistrationsManager() {
           currentDate.getMonth(),
           currentDate.getDate()
         );
-
-        // Calcular el número de días desde el inicio
         const timeDiff = currentDay.getTime() - startDay.getTime();
-        const daysFromStart = Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-
-        return daysFromStart;
+        return Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
       } catch (e) {
         console.error("Error calculating day in series:", e);
         return 1;
