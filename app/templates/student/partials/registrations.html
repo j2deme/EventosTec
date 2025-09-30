@@ -114,12 +114,12 @@
                'border-blue-500': registration.status === 'Pendiente'
              }"
         >
-          <div class="p-5">
+          <div class="p-4 sm:p-5">
             <!-- Header del card -->
             <div class="flex justify-between items-start">
               <div class="flex-1 min-w-0">
                 <h3
-                  class="text-md font-medium text-gray-900 truncate"
+                  class="text-md font-medium text-gray-900 break-words whitespace-normal"
                   x-text="registration.activity.name"
                 ></h3>
                 <div class="flex items-center mt-1">
@@ -160,30 +160,10 @@
             <!-- ✨ Información de fechas (mejorada para eventos multídias) -->
             <div class="mt-3 space-y-2 text-sm">
               <!-- Para actividades multídias: mostrar rango de fechas -->
-              <div
-                x-show="isMultiDayActivity(registration.activity)"
-                class="flex items-center text-gray-500"
-              >
-                <i class="ti ti-calendar mr-1.5"></i>
-                <span>
-                  <span
-                    x-text="(window.dateHelpers && window.dateHelpers.formatOnlyDate ? window.dateHelpers.formatOnlyDate(registration.activity.start_datetime) : formatOnlyDate(registration.activity.start_datetime))"
-                  ></span>
-                  <span class="mx-1">-</span>
-                  <span
-                    x-text="(window.dateHelpers && window.dateHelpers.formatOnlyDate ? window.dateHelpers.formatOnlyDate(registration.activity.end_datetime) : formatOnlyDate(registration.activity.end_datetime))"
-                  ></span>
-                </span>
-              </div>
-
-              <!-- Para actividades normales: mostrar solo la fecha -->
-              <div
-                x-show="!isMultiDayActivity(registration.activity)"
-                class="flex items-center text-gray-500"
-              >
+              <div class="flex items-center text-gray-500">
                 <i class="ti ti-calendar mr-1.5"></i>
                 <span
-                  x-text="(window.dateHelpers && window.dateHelpers.formatOnlyDate ? window.dateHelpers.formatOnlyDate(registration.activity.start_datetime) : formatOnlyDate(registration.activity.start_datetime))"
+                  x-text="formatActivityDateShort(registration.activity)"
                 ></span>
               </div>
 
@@ -223,42 +203,50 @@
               <span
                 >Preregistrado:
                 <span
-                  x-text="(window.dateHelpers && window.dateHelpers.formatDateTime ? window.dateHelpers.formatDateTime(registration.registration_date) : formatDateTime(registration.registration_date))"
+                  x-text="(window.dateHelpers && window.dateHelpers.formatShortDate ? window.dateHelpers.formatShortDate(registration.registration_date) : formatShortDate(registration.registration_date))"
                 ></span
               ></span>
             </div>
           </div>
 
           <!-- Footer con acciones -->
-          <div class="bg-gray-50 px-5 py-3 flex justify-between items-center">
-            <div>
-              <button
-                x-show="canCancelRegistration(registration)"
-                @click="cancelRegistration(registration)"
-                class="inline-flex items-center px-2.5 py-1 border border-transparent text-xs font-medium rounded-full text-red-700 bg-red-100 hover:bg-red-200"
+          <div class="bg-gray-50 px-4 py-3">
+            <div
+              class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2"
+            >
+              <div
+                class="flex flex-col sm:flex-row sm:space-x-2 w-full sm:w-auto"
               >
-                <i class="ti ti-x mr-1"></i>
-                Cancelar
-              </button>
+                <button
+                  x-show="canCancelRegistration(registration)"
+                  @click="cancelRegistration(registration)"
+                  class="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200 w-full sm:w-auto"
+                >
+                  <i class="ti ti-x mr-2"></i>
+                  Cancelar
+                </button>
 
-              <!-- ✨ Botón de re-registro para actividades canceladas -->
-              <button
-                x-show="registration.status === 'Cancelado' && canReRegisterForActivity(registration.activity)"
-                @click="reRegisterForActivity(registration)"
-                class="inline-flex items-center px-2.5 py-1 border border-transparent text-xs font-medium rounded-full text-green-700 bg-green-100 hover:bg-green-200"
-              >
-                <i class="ti ti-refresh mr-1"></i>
-                Re-registrar
-              </button>
+                <!-- Botón de re-registro para actividades canceladas -->
+                <button
+                  x-show="registration.status === 'Cancelado' && canReRegisterForActivity(registration.activity)"
+                  @click="reRegisterForActivity(registration)"
+                  class="inline-flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 w-full sm:w-auto"
+                >
+                  <i class="ti ti-refresh mr-2"></i>
+                  Re-registrar
+                </button>
+              </div>
 
-              <!-- ✨ Mensaje cuando no se puede re-registrar por falta de cupo -->
-              <span
-                x-show="registration.status === 'Cancelado' && !canReRegisterForActivity(registration.activity)"
-                class="inline-flex items-center px-2.5 py-1 border border-transparent text-xs font-medium rounded-full text-gray-700 bg-gray-100"
-              >
-                <i class="ti ti-x mr-1"></i>
-                No disponible
-              </span>
+              <!-- Mensaje cuando no se puede re-registrar por falta de cupo -->
+              <div class="w-full sm:w-auto">
+                <span
+                  x-show="registration.status === 'Cancelado' && !canReRegisterForActivity(registration.activity)"
+                  class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-gray-700 bg-gray-100 w-full sm:w-auto justify-center"
+                >
+                  <i class="ti ti-x mr-2"></i>
+                  No disponible
+                </span>
+              </div>
             </div>
           </div>
         </div>

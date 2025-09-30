@@ -256,6 +256,83 @@ function studentRegistrationsManager() {
       });
     },
 
+    // Devuelve fecha corta sin hora: DD mon YYYY (ej: 08 oct 2025)
+    formatShortDateOnly(dateTimeString) {
+      if (!dateTimeString) return "Sin fecha";
+      try {
+        const d = new Date(dateTimeString);
+        if (isNaN(d.getTime())) return "Sin fecha";
+        const pad = (n) => String(n).padStart(2, "0");
+        const months = [
+          "Ene",
+          "Feb",
+          "Mar",
+          "Abr",
+          "May",
+          "Jun",
+          "Jul",
+          "Ago",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dic",
+        ];
+        return `${pad(d.getDate())}/${months[d.getMonth()]}/${d.getFullYear()}`;
+      } catch (e) {
+        return "Sin fecha";
+      }
+    },
+
+    // Formatea la fecha de la actividad en versión reducida.
+    // Si la actividad es multídia y ambas fechas están en el mismo mes, devuelve
+    // "DD - DD / MM / YYYY". En caso contrario, devuelve "DD/MM/YYYY - DD/MM/YYYY".
+    formatActivityDateShort(activity) {
+      if (!activity || !activity.start_datetime) return "Sin fecha";
+      try {
+        const s = new Date(activity.start_datetime);
+        const e = new Date(activity.end_datetime || activity.start_datetime);
+        if (isNaN(s.getTime()) || isNaN(e.getTime())) return "Sin fecha";
+        const pad = (n) => String(n).padStart(2, "0");
+        const months = [
+          "Ene",
+          "Feb",
+          "Mar",
+          "Abr",
+          "May",
+          "Jun",
+          "Jul",
+          "Ago",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dic",
+        ];
+
+        const sameMonth =
+          s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth();
+
+        if (this.isMultiDayActivity(activity)) {
+          if (sameMonth) {
+            // Ej: 08 - 10/Oct/2025
+            return `${pad(s.getDate())} - ${pad(e.getDate())}/${
+              months[s.getMonth()]
+            }/${s.getFullYear()}`;
+          }
+          // Ej: 28/Sep/2025 - 02/Oct/2025
+          return `${pad(s.getDate())}/${
+            months[s.getMonth()]
+          }/${s.getFullYear()} - ${pad(e.getDate())}/${
+            months[e.getMonth()]
+          }/${e.getFullYear()}`;
+        }
+
+        // Actividad de un solo día: devolver la fecha corta con nombre de mes abreviado
+        return `${pad(s.getDate())}/${months[s.getMonth()]}/${s.getFullYear()}`;
+      } catch (e) {
+        return "Sin fecha";
+      }
+    },
+
     formatDateTime(dateTimeString) {
       return window.formatDateTime
         ? window.formatDateTime(dateTimeString)
