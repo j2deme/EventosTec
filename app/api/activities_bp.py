@@ -215,14 +215,23 @@ def get_activity(activity_id):
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
         dumped = activity_schema.dump(activity)
-        # Añadir alias `current_registrations` para compatibilidad con plantillas/JS
-        if isinstance(dumped, dict):
-            try:
-                dumped['current_registrations'] = dumped.get(
-                    'current_capacity', 0)
-            except Exception:
-                # En caso de que dumped tenga forma inesperada, no romper la respuesta
-                pass
+        # Añadir conteo real de preregistros (excluyendo 'Ausente' y 'Cancelado')
+        try:
+            count = db.session.query(db.func.count(Registration.id)).filter(
+                Registration.activity_id == activity_id,
+                ~Registration.status.in_(['Ausente', 'Cancelado'])
+            ).scalar() or 0
+            if isinstance(dumped, dict):
+                dumped['current_capacity'] = int(count)
+                dumped['current_registrations'] = int(count)
+        except Exception:
+            # Si hay cualquier error al calcular el conteo, mantener comportamiento previo
+            if isinstance(dumped, dict):
+                try:
+                    dumped['current_registrations'] = dumped.get(
+                        'current_capacity', 0)
+                except Exception:
+                    pass
 
         return jsonify({'activity': dumped}), 200
 
