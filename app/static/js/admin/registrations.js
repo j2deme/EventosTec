@@ -4,6 +4,8 @@ function registrationsManager() {
     // Estado
     registrations: [],
     activities: [],
+    // Lista de eventos para filtrar actividades
+    events: [],
     students: [],
     loading: false,
     saving: false,
@@ -19,6 +21,7 @@ function registrationsManager() {
     // Filtros
     filters: {
       search: "",
+      event_id: "",
       activity_id: "",
       status: "",
     },
@@ -50,6 +53,7 @@ function registrationsManager() {
     // Inicialización
     init() {
       this.loadRegistrations();
+      this.loadEvents();
       this.loadActivities();
       this.loadStudents();
       this.loadStats();
@@ -95,6 +99,8 @@ function registrationsManager() {
           per_page: this.perPage,
         });
         if (this.filters.search) params.set("search", this.filters.search);
+        if (this.filters.event_id)
+          params.set("event_id", this.filters.event_id);
         if (this.filters.activity_id)
           params.set("activity_id", this.filters.activity_id);
         if (this.filters.status) params.set("status", this.filters.status);
@@ -145,7 +151,12 @@ function registrationsManager() {
 
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const response = await f("/api/activities?per_page=1000");
+        // Si hay un filtro de evento activo, prefiera pedir solo las actividades
+        // de ese evento al backend para reducir payload. Si no, solicitar todas.
+        const params = new URLSearchParams({ per_page: 1000 });
+        if (this.filters.event_id)
+          params.set("event_id", this.filters.event_id);
+        const response = await f(`/api/activities?${params.toString()}`);
         if (response && response.ok) {
           const data = await response.json();
           this.activities = data.activities || [];
@@ -153,6 +164,33 @@ function registrationsManager() {
       } catch (error) {
         console.error("Error loading activities:", error);
       }
+    },
+
+    // Cargar eventos para el selector padre
+    async loadEvents() {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) return;
+
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const response = await f("/api/events?per_page=1000");
+        if (response && response.ok) {
+          const data = await response.json();
+          this.events = data.events || [];
+        }
+      } catch (error) {
+        console.error("Error loading events:", error);
+      }
+    },
+
+    // Handler cuando cambia el evento seleccionado: limpiar activity_id y recargar actividades
+    async onEventChange() {
+      // Resetear actividad seleccionada si ya no pertenece al evento
+      this.filters.activity_id = "";
+      await this.loadActivities();
+      // Opcional: si se desea, recargar stats/registros aquí
+      // this.loadRegistrations(this.currentPage);
     },
 
     // Cargar estudiantes para los selectores

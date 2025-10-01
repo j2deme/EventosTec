@@ -140,6 +140,8 @@ def get_registrations():
         student_id = request.args.get('student_id', type=int)
         activity_id = request.args.get('activity_id', type=int)
         status = request.args.get('status')
+        # Nuevo: filtrar por evento padre (actividad.event_id)
+        event_id = request.args.get('event_id', type=int)
 
         from sqlalchemy.orm import joinedload
 
@@ -177,6 +179,16 @@ def get_registrations():
 
         if activity_id:
             query = query.filter_by(activity_id=activity_id)
+
+        # Filtrar por evento (actividad.event_id)
+        if event_id:
+            # Necesitamos hacer join explícito a Activity si no se hizo
+            try:
+                query = query.join(Activity).filter(
+                    Activity.event_id == event_id)
+            except Exception:
+                # En caso de fallo en el join, ignorar el filtro para no romper la consulta
+                pass
 
         if status:
             query = query.filter_by(status=status)
