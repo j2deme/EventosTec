@@ -111,8 +111,18 @@ function registrationsManager() {
         this.totalPages = data.pages || 1;
         this.totalItems = data.total || 0;
 
-        // Actualizar estadísticas cuando se cargan registros
-        this.loadStats();
+        // Si el servidor envía estadísticas agregadas, úsalas; si no, recalcúlalas localmente
+        if (data.stats && typeof data.stats === "object") {
+          try {
+            this.stats = data.stats;
+          } catch (e) {
+            // fallback
+            this.loadStats();
+          }
+        } else {
+          // Actualizar estadísticas cuando se cargan registros (fallback)
+          this.loadStats();
+        }
       } catch (error) {
         console.error("Error loading registrations:", error);
         this.errorMessage = error.message || "Error al cargar registros";
@@ -169,8 +179,34 @@ function registrationsManager() {
         // No hacemos fetchs si no hay token configurado (modo anónimo)
         const token = localStorage.getItem("authToken");
         if (!token) return;
+        // Preferir estadísticas agregadas que el backend pueda enviar
+        // (esto representa totales sobre la consulta completa, no solo la página).
+        try {
+          // Intentar descargar stats desde el endpoint de registro (sin paginar)
+          // Formar parametros con los filtros actuales
+          const params = new URLSearchParams();
+          if (this.filters.search) params.set("search", this.filters.search);
+          if (this.filters.activity_id)
+            params.set("activity_id", this.filters.activity_id);
+          if (this.filters.status) params.set("status", this.filters.status);
 
-        // Calcular estadísticas de los registros cargados
+          const f =
+            typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+          const res = await f(
+            `/api/registrations?${params.toString()}&per_page=1`
+          );
+          if (res && res.ok) {
+            const d = await res.json().catch(() => ({}));
+            if (d && d.stats && typeof d.stats === "object") {
+              this.stats = d.stats;
+              return;
+            }
+          }
+        } catch (e) {
+          // ignore and fallback to local calculation
+        }
+
+        // Fallback: calcular estadísticas a partir de la página actual
         const stats = {
           total: this.registrations.length,
           registrados: 0,

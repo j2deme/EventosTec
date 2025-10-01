@@ -7,6 +7,7 @@ from app.models.student import Student
 from app.models.activity import Activity
 from app.models.attendance import Attendance
 from app.utils.auth_helpers import get_user_or_403
+from sqlalchemy import func
 
 registrations_bp = Blueprint(
     'registrations', __name__, url_prefix='/api/registrations')
@@ -132,6 +133,7 @@ def create_registration():
 @jwt_required()
 def get_registrations():
     try:
+        from sqlalchemy import func
         # Parámetros de filtrado
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
@@ -147,6 +149,7 @@ def get_registrations():
             joinedload(getattr(Registration, 'activity')),
             joinedload(getattr(Registration, 'student'))
         )
+        from sqlalchemy import or_
 
         # Soporte para búsqueda de texto: buscar por nombre de estudiante,
         # número de control o nombre de actividad (si se proporcionó `search`).
@@ -165,6 +168,7 @@ def get_registrations():
                     )
                 )
             except Exception:
+                # Query para estadísticas: contar por estado sobre la misma selección (sin paginar)
                 # Si falla el filtro de búsqueda, no rompemos la consulta; seguir sin filtro
                 pass
 
