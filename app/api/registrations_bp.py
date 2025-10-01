@@ -142,10 +142,31 @@ def get_registrations():
         from sqlalchemy.orm import joinedload
 
         # Modificar la consulta para cargar relaciones de forma eager
+        # Empezar la consulta con cargas eager de relaciones
         query = Registration.query.options(
             joinedload(getattr(Registration, 'activity')),
             joinedload(getattr(Registration, 'student'))
         )
+
+        # Soporte para búsqueda de texto: buscar por nombre de estudiante,
+        # número de control o nombre de actividad (si se proporcionó `search`).
+        search = request.args.get('search')
+        if search:
+            try:
+                from sqlalchemy import or_
+
+                term = f"%{search}%"
+                # Hacer join a Student y Activity para poder filtrar por campos
+                query = query.join(Student, isouter=True).join(Activity, isouter=True).filter(
+                    or_(
+                        Student.full_name.ilike(term),
+                        Student.control_number.ilike(term),
+                        Activity.name.ilike(term),
+                    )
+                )
+            except Exception:
+                # Si falla el filtro de búsqueda, no rompemos la consulta; seguir sin filtro
+                pass
 
         if student_id:
             query = query.filter_by(student_id=student_id)
@@ -206,11 +227,14 @@ def get_registrations():
                 act['current_registrations'] = val
                 reg['activity'] = act
 
+        # Incluir tanto `current_page` (compatibilidad actual) como `page`
+        # (clave que el frontend espera) para evitar roturas.
         return jsonify({
             'registrations': dumped_regs,
             'total': registrations.total,
             'pages': registrations.pages,
-            'current_page': page
+            'current_page': page,
+            'page': registrations.page
         }), 200
 
     except Exception as e:
