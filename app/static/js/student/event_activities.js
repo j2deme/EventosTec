@@ -48,7 +48,8 @@ function studentEventActivitiesManager() {
 
           // Cargar el evento completo y sus actividades
           await this.loadEvent(eventId);
-          this.loadActivities();
+          // Cargar todas las actividades en una sola carga
+          await this.loadActivities();
         } else {
           this.errorMessage = "No se especificó un evento válido";
           showToast(this.errorMessage, "error");
@@ -68,8 +69,9 @@ function studentEventActivitiesManager() {
 
       if (eventId) {
         await this.loadEvent(eventId);
-        this.loadActivities();
-        this.loadStudentRegistrations();
+        // Cargar todas las actividades en una sola carga
+        await this.loadActivities();
+        // loadActivities ya invoca loadStudentRegistrations()
       } else {
         this.goBack();
       }
@@ -183,10 +185,10 @@ function studentEventActivitiesManager() {
           return;
         }
 
-        // Construir parámetros de consulta
+        // Construir parámetros de consulta - usar un per_page alto para mostrar todas las actividades
         const params = new URLSearchParams({
           page: page,
-          per_page: 20, // Más actividades por página para el cronograma
+          per_page: 2000, // Cargar todas las actividades en una sola página
           event_id: this.currentEvent.id,
           ...(this.filters.search && { search: this.filters.search }),
           ...(this.filters.activity_type && {
@@ -279,7 +281,12 @@ function studentEventActivitiesManager() {
           this.studentRegistrations = data.registrations.map(
             (r) => r.activity_id
           );
-          this.groupActivitiesByDay();
+          // Reagrupar la vista usando la función que mantiene las vistas
+          // diarias expandidas para actividades multídia (incluye
+          // day_in_series/total_days). Antes se usaba groupActivitiesByDay()
+          // lo cual eliminaba esas propiedades y provocaba que la plantilla
+          // mostrara el botón en todas las sesiones.
+          this.groupActivitiesByDayForDisplay();
         }
       } catch (error) {
         console.error("Error loading student registrations:", error);

@@ -189,6 +189,18 @@
                       class="text-sm font-semibold text-gray-900 truncate"
                       x-text="activity.name"
                     ></h4>
+                    <!-- Indicador visual: actividad multidía (debug) -->
+                    <template
+                      x-if="(activity.total_days && activity.total_days > 1) || activity.is_expanded_multiday"
+                    >
+                      <span
+                        class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 text-xs font-medium"
+                        title="Actividad multidía"
+                      >
+                        <i class="ti ti-numbers mr-1"></i>
+                        <span class="sr-only">Multidía</span>
+                      </span>
+                    </template>
                     <span
                       class="text-xs text-gray-600 ml-2"
                       x-text="activity.code || ''"
@@ -234,28 +246,78 @@
                         <i class="ti ti-eye mr-1"></i>
                         Detalles
                       </button>
-                      <button
-                        @click="registerForActivity(activity)"
-                        :disabled="!canRegisterForActivity(activity)"
-                        :class="{
-                          'bg-green-600 hover:bg-green-700 text-white': isActivityRegistered(activity),
-                          'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
-                          'bg-gray-300 cursor-not-allowed text-white': !canRegisterForActivity(activity)
-                        }"
-                        class="px-2 py-1 rounded-full text-xs font-medium"
+                      <!-- Mostrar botón de preregistro sólo en la primera sesión de una actividad multidía. En sesiones posteriores mostrar badge "Sesión n/m" -->
+                      <template
+                        x-if="(activity.is_expanded_view || activity.is_expanded_multiday) && activity.day_in_series && activity.total_days"
                       >
-                        <span x-show="isActivityRegistered(activity)"
-                          ><i class="ti ti-check mr-1"></i>Registrado</span
+                        <div>
+                          <template x-if="activity.day_in_series === 1">
+                            <button
+                              @click="registerForActivity(activity)"
+                              :disabled="!canRegisterForActivity(activity)"
+                              :class="{
+                                  'bg-green-600 hover:bg-green-700 text-white': isActivityRegistered(activity),
+                                  'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
+                                  'bg-gray-300 cursor-not-allowed text-white': !canRegisterForActivity(activity)
+                                }"
+                              class="px-2 py-1 rounded-full text-xs font-medium"
+                            >
+                              <span x-show="isActivityRegistered(activity)"
+                                ><i class="ti ti-check mr-1"></i
+                                >Registrado</span
+                              >
+                              <span
+                                x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)"
+                                ><i class="ti ti-bookmark mr-1"></i
+                                >Preregistrar</span
+                              >
+                              <span
+                                x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)"
+                                ><i class="ti ti-x mr-1"></i>No disponible</span
+                              >
+                            </button>
+                          </template>
+                          <template x-if="activity.day_in_series !== 1">
+                            <span
+                              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                            >
+                              <i class="ti ti-calendar-event mr-1"></i>
+                              <span
+                                >Sesión
+                                <span x-text="activity.day_in_series"></span
+                                >/<span x-text="activity.total_days"></span
+                              ></span>
+                            </span>
+                          </template>
+                        </div>
+                      </template>
+                      <template
+                        x-if="!((activity.is_expanded_view || activity.is_expanded_multiday) && activity.day_in_series && activity.total_days)"
+                      >
+                        <button
+                          @click="registerForActivity(activity)"
+                          :disabled="!canRegisterForActivity(activity)"
+                          :class="{
+                              'bg-green-600 hover:bg-green-700 text-white': isActivityRegistered(activity),
+                              'bg-indigo-600 hover:bg-indigo-700 text-white': !isActivityRegistered(activity) && canRegisterForActivity(activity),
+                              'bg-gray-300 cursor-not-allowed text-white': !canRegisterForActivity(activity)
+                            }"
+                          class="px-2 py-1 rounded-full text-xs font-medium"
                         >
-                        <span
-                          x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)"
-                          ><i class="ti ti-bookmark mr-1"></i>Preregistrar</span
-                        >
-                        <span
-                          x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)"
-                          ><i class="ti ti-x mr-1"></i>No disponible</span
-                        >
-                      </button>
+                          <span x-show="isActivityRegistered(activity)"
+                            ><i class="ti ti-check mr-1"></i>Registrado</span
+                          >
+                          <span
+                            x-show="!isActivityRegistered(activity) && canRegisterForActivity(activity)"
+                            ><i class="ti ti-bookmark mr-1"></i
+                            >Preregistrar</span
+                          >
+                          <span
+                            x-show="!isActivityRegistered(activity) && !canRegisterForActivity(activity)"
+                            ><i class="ti ti-x mr-1"></i>No disponible</span
+                          >
+                        </button>
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -351,6 +413,19 @@
                 </div>
               </div>
               <div class="ml-4">
+                <!-- Indicador visual también para la vista lineal -->
+                <template
+                  x-if="(activity.total_days && activity.total_days > 1) || activity.is_expanded_multiday"
+                >
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 text-xs font-medium mr-2"
+                    title="Actividad multidía"
+                  >
+                    <i class="ti ti-numbers mr-1"></i>
+                    <span class="sr-only">Multidía</span>
+                  </span>
+                </template>
+
                 <button
                   @click="registerForActivity(activity)"
                   :disabled="!canRegisterForActivity(activity)"
@@ -396,9 +471,9 @@
       </p>
     </div>
 
-    <!-- Paginación -->
+    <!-- Paginación (oculta cuando se muestran todas las actividades) -->
     <div
-      x-show="!loading && activitiesByDay.length > 0"
+      x-show="!loading && activitiesByDay.length > 0 && pagination.last_page > 1"
       class="mt-6 flex items-center justify-between"
     >
       <div class="text-sm text-gray-700">
