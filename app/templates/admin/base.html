@@ -3,8 +3,8 @@
 Eventos Tec{% endblock %}{% endblock %} {% block content %}
 <div
   class="min-h-screen bg-gray-50"
-  x-data="adminDashboard()"
-  x-init="initDashboard()"
+  x-data="{ ...adminDashboard(), ...sessionStatusManager() }"
+  x-init="initDashboard(); checkStatus()"
 >
   <!-- Header Desktop -->
   <header class="bg-white shadow hidden md:block">
@@ -29,9 +29,15 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
             class="flex items-center text-sm rounded-full focus:outline-none"
           >
             <div
-              class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center"
+              class="relative h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center"
             >
               <span class="text-indigo-800 font-medium">A</span>
+              <!-- Indicador de estado de sesión -->
+              <span
+                :class="getStatusClasses()"
+                :title="getTooltip()"
+                class="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white"
+              ></span>
             </div>
           </button>
 

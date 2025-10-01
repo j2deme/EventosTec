@@ -127,26 +127,31 @@ function checkAuth() {
       });
     }
 
+    let response;
+
     // Prefer the originally captured `_fetch` reference for runtime safety
     // (prevents wrapper -> safeFetch -> wrapper recursion in the browser).
     if (typeof _fetch === "function") {
-      return _fetch(input, finalInit);
-    }
-
-    // If `_fetch` is not available (uncommon in tests), try to use the
-    // current global fetch only if it's a real function and not the
-    // wrapperFetch we assign below. This restores some compatibility with
-    // tests that mock `global.fetch` before or after requiring this module.
-    if (
+      response = await _fetch(input, finalInit);
+    } else if (
       typeof globalThis.fetch === "function" &&
       globalThis.fetch !== wrapperFetch
     ) {
-      return globalThis.fetch(input, finalInit);
+      response = await globalThis.fetch(input, finalInit);
+    } else {
+      throw new Error("fetch no está disponible en este entorno");
     }
 
-    return Promise.reject(
-      new Error("fetch no está disponible en este entorno")
-    );
+    // Manejar automáticamente errores 401 (sesión expirada)
+    if (response.status === 401) {
+      showToast(
+        "🔴 Tu sesión ha expirado. Serás redirigido al login.",
+        "error"
+      );
+      setTimeout(() => checkAuthAndRedirect(), 1500);
+    }
+
+    return response;
   }
 
   // Wrapper function assigned to window.fetch. We keep a reference so safeFetch
@@ -364,3 +369,113 @@ function showToast(message, type = "success", duration = 3000) {
 
 // Hacer la función globalmente disponible
 window.showToast = showToast;
+
+// Manager de estado de sesión JWT para indicador visual
+function sessionStatusManager() {
+  return {
+    status: "checking", // 'active', 'warning', 'expired', 'checking'
+    timeRemaining: null,
+    warningThreshold: 5 * 60, // 5 minutos en segundos
+    checkInterval: null,
+    _warningShown: false,
+
+    init() {
+      this.checkStatus();
+      // Verificar cada 30 segundos
+      this.checkInterval = setInterval(() => this.checkStatus(), 30000);
+    },
+
+    destroy() {
+      if (this.checkInterval) {
+        clearInterval(this.checkInterval);
+      }
+    },
+
+    checkStatus() {
+      const token = getAuthToken();
+      if (!token) {
+        this.status = "expired";
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(atob(token.split(".")[1]));
+        const expTime = payload.exp;
+        const now = Math.floor(Date.now() / 1000);
+        const remaining = expTime - now;
+
+        this.timeRemaining = remaining;
+
+        if (remaining <= 0) {
+          this.status = "expired";
+          this.handleExpired();
+        } else if (remaining <= this.warningThreshold) {
+          this.status = "warning";
+          this.handleWarning();
+        } else {
+          this.status = "active";
+          // Reset warning flag when we're back to active
+          this._warningShown = false;
+        }
+      } catch (e) {
+        this.status = "expired";
+        this.handleExpired();
+      }
+    },
+
+    handleWarning() {
+      // Mostrar toast de advertencia (una vez por ciclo)
+      if (!this._warningShown) {
+        showToast(
+          `⚠️ Tu sesión expirará en ${Math.ceil(
+            this.timeRemaining / 60
+          )} minutos`,
+          "warning",
+          5000
+        );
+        this._warningShown = true;
+      }
+    },
+
+    handleExpired() {
+      showToast(
+        "🔴 Tu sesión ha expirado. Serás redirigido al login.",
+        "error"
+      );
+      setTimeout(() => checkAuthAndRedirect(), 2000);
+    },
+
+    getStatusClasses() {
+      switch (this.status) {
+        case "active":
+          return "bg-green-400 ring-green-400";
+        case "warning":
+          return "bg-yellow-400 ring-yellow-400 animate-pulse";
+        case "expired":
+          return "bg-red-400 ring-red-400";
+        default:
+          return "bg-gray-400 ring-gray-400";
+      }
+    },
+
+    getTooltip() {
+      switch (this.status) {
+        case "active":
+          return `🟢 Sesión activa (${Math.ceil(
+            this.timeRemaining / 60
+          )} min restantes)`;
+        case "warning":
+          return `⚠️ Sesión expirando en ${Math.ceil(
+            this.timeRemaining / 60
+          )} minutos`;
+        case "expired":
+          return "🔴 Sesión expirada";
+        default:
+          return "⚡ Verificando estado de sesión...";
+      }
+    },
+  };
+}
+
+// Hacer el manager globalmente disponible
+window.sessionStatusManager = sessionStatusManager;
