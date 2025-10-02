@@ -23,6 +23,56 @@ function studentRegistrationsManager() {
 
     init() {
       this.loadRegistrations();
+
+      // Auto-refresh when a registration is created elsewhere (other module or tab)
+      // - CustomEvent: `window.dispatchEvent(new CustomEvent('registration-created'))`
+      // - localStorage: `localStorage.setItem('registrationCreated', Date.now())` (triggers storage event in other tabs)
+      // - BroadcastChannel: postMessage 'registration-created' on channel 'eventostec_channel'
+      // Use a short debounce to avoid duplicate rapid reloads.
+      this._refreshTimeout = null;
+
+      this._onRegistrationCreated = () => {
+        if (this._refreshTimeout) clearTimeout(this._refreshTimeout);
+        this._refreshTimeout = setTimeout(() => this.loadRegistrations(), 300);
+      };
+
+      // Listen for a custom event within same tab
+      window.addEventListener(
+        "registration-created",
+        this._onRegistrationCreated
+      );
+
+      // Listen for storage events from other tabs
+      this._onStorage = (e) => {
+        if (!e) return;
+        if (e.key === "registrationCreated") {
+          this._onRegistrationCreated();
+        }
+      };
+      window.addEventListener("storage", this._onStorage);
+
+      // BroadcastChannel for modern browsers (cross-tab)
+      try {
+        this._bc = new BroadcastChannel("eventostec_channel");
+        this._bc.onmessage = (ev) => {
+          if (!ev) return;
+          if (ev.data === "registration-created") this._onRegistrationCreated();
+        };
+      } catch (e) {
+        // Ignore if BroadcastChannel not supported
+      }
+
+      // Cleanup on page unload to avoid leaks (best-effort)
+      window.addEventListener("beforeunload", () => {
+        try {
+          window.removeEventListener(
+            "registration-created",
+            this._onRegistrationCreated
+          );
+          window.removeEventListener("storage", this._onStorage);
+          if (this._bc) this._bc.close();
+        } catch (e) {}
+      });
     },
 
     async loadRegistrations(page = 1) {

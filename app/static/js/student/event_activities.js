@@ -390,6 +390,37 @@ function studentEventActivitiesManager() {
 
         const data = await response.json();
         showToast("Preregistro realizado exitosamente", "success");
+        // Notify other components and tabs that a registration was created.
+        // - Same tab: dispatch custom event
+        // - Other tabs: write to localStorage (triggers storage event)
+        // - Modern cross-tab: BroadcastChannel
+        try {
+          // Custom event for same-tab listeners
+          try {
+            window.dispatchEvent(
+              new CustomEvent("registration-created", { detail: data })
+            );
+          } catch (e) {
+            // Fallback to simple Event if CustomEvent not supported
+            try {
+              window.dispatchEvent(new Event("registration-created"));
+            } catch (e2) {}
+          }
+
+          // localStorage key (will trigger storage event in other tabs)
+          try {
+            localStorage.setItem("registrationCreated", String(Date.now()));
+          } catch (e) {}
+
+          // BroadcastChannel for modern browsers
+          try {
+            const bc = new BroadcastChannel("eventostec_channel");
+            bc.postMessage("registration-created");
+            bc.close();
+          } catch (e) {}
+        } catch (e) {
+          // Non-fatal: best-effort notification
+        }
 
         try {
           // Intentar encontrar el manager de preregistros y recargar

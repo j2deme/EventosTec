@@ -287,12 +287,6 @@ function studentEventsManager() {
               },
             })
           );
-
-          console.debug &&
-            console.debug(
-              "[studentEvents] Event load-event-activities dispatched with eventId:",
-              event.id
-            );
         }
       } catch (error) {
         console.error("Error al navegar a actividades:", error);
