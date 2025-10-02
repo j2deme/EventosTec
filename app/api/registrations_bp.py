@@ -8,6 +8,7 @@ from app.models.activity import Activity
 from app.models.attendance import Attendance
 from app.utils.auth_helpers import get_user_or_403
 from sqlalchemy import func
+from sqlalchemy import or_, cast, String
 
 registrations_bp = Blueprint(
     'registrations', __name__, url_prefix='/api/registrations')
@@ -158,17 +159,21 @@ def get_registrations():
         search = request.args.get('search')
         if search:
             try:
-                from sqlalchemy import or_
-
                 term = f"%{search}%"
-                # Hacer join a Student y Activity para poder filtrar por campos
-                query = query.join(Student, isouter=True).join(Activity, isouter=True).filter(
-                    or_(
-                        Student.full_name.ilike(term),
-                        Student.control_number.ilike(term),
-                        Activity.name.ilike(term),
+                # Use outer joins and cast control_number to string to avoid errors
+                # when control_number is stored as numeric type.
+                try:
+                    query = query.outerjoin(Student).outerjoin(Activity).filter(
+                        or_(
+                            Student.full_name.ilike(term),
+                            cast(Student.control_number, String).ilike(term),
+                            Activity.name.ilike(term),
+                        )
                     )
-                )
+                except Exception:
+                    # If the robust filter fails for some DB-specific reason, skip the
+                    # search filter instead of raising a hard error.
+                    pass
             except Exception:
                 # Query para estadísticas: contar por estado sobre la misma selección (sin paginar)
                 # Si falla el filtro de búsqueda, no rompemos la consulta; seguir sin filtro

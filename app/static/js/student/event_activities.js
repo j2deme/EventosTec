@@ -389,6 +389,20 @@ function studentEventActivitiesManager() {
         }
 
         const data = await response.json();
+        // Ensure the server actually created/returned a registration
+        if (
+          !data ||
+          (!data.registration &&
+            response.status !== 200 &&
+            response.status !== 201)
+        ) {
+          throw new Error(
+            data && data.message
+              ? data.message
+              : "Respuesta inválida del servidor"
+          );
+        }
+
         showToast("Preregistro realizado exitosamente", "success");
         // Notify other components and tabs that a registration was created.
         // - Same tab: dispatch custom event
