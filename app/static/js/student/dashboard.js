@@ -193,14 +193,6 @@ function studentDashboard() {
       const previousTab = this.activeTab;
       this.activeTab = tabId;
 
-      console.debug &&
-        console.debug(
-          "[studentDashboard] setActiveTab -> from",
-          previousTab,
-          "to",
-          tabId
-        );
-
       // ✨ Refrescar contenido automáticamente cuando se cambia a ciertas pestañas
       this.refreshTabContent(tabId, previousTab);
 
@@ -211,13 +203,6 @@ function studentDashboard() {
     // ✨ Refrescar contenido automáticamente cuando se cambia de pestaña
     async refreshTabContent(currentTab, previousTab) {
       try {
-        console.debug &&
-          console.debug(
-            "[studentDashboard] refreshTabContent -> currentTab:",
-            currentTab,
-            "previousTab:",
-            previousTab
-          );
         switch (currentTab) {
           case "registrations":
             // Refrescar preregistros cuando se cambia a la pestaña de preregistros
