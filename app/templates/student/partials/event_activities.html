@@ -535,11 +535,13 @@
 
 <!-- Modal de detalles de actividad (solo lectura) -->
 <div
+  x-cloak
   x-data="{ showActivityModal: false, selectedActivity: null, loadingActivity: false }"
   @keydown.escape.window="showActivityModal = false"
   @show-activity-modal.window="selectedActivity = $event.detail; showActivityModal = true"
 >
   <div
+    x-cloak
     x-show="showActivityModal"
     class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50"
   >
