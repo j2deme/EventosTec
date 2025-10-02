@@ -254,3 +254,89 @@ def participation_matrix():
         }), 200
     except Exception as e:
         return jsonify({'message': 'Error al generar la matriz de participación', 'error': str(e)}), 500
+
+
+@reports_bp.route('/activity_fill', methods=['GET'])
+@jwt_required()
+@require_admin
+def activity_fill():
+    """Devuelve porcentaje de llenado por actividad.
+
+    Query params:
+      - event_id (int, optional)
+      - activity_id (int, optional)
+      - include_unlimited (bool, optional)
+    """
+    try:
+        event_id = request.args.get('event_id', type=int)
+        activity_id = request.args.get('activity_id', type=int)
+        include_unlimited = request.args.get(
+            'include_unlimited', '0') in ('1', 'true', 'True')
+
+        # Subquery: conteo de preregistros válidos por actividad
+        counts_q = db.session.query(
+            Registration.activity_id.label('aid'),
+            func.count(Registration.id).label('registered')
+        ).filter(~Registration.status.in_(['Ausente', 'Cancelado'])).group_by(Registration.activity_id).subquery()
+
+        q = db.session.query(
+            Activity.id.label('id'),
+            Activity.name.label('name'),
+            Activity.event_id.label('event_id'),
+            func.coalesce(counts_q.c.registered, 0).label(
+                'current_registrations'),
+            Activity.max_capacity.label('capacity')
+        ).outerjoin(counts_q, counts_q.c.aid == Activity.id)
+
+        # join event for name
+        q = q.outerjoin(Event, Event.id == Activity.event_id).add_columns(
+            Event.name.label('event_name'))
+
+        if event_id:
+            q = q.filter(Activity.event_id == event_id)
+        if activity_id:
+            q = q.filter(Activity.id == activity_id)
+
+        results = []
+        for row in q.all():
+            # row contains activity columns and event_name
+            aid = row.id
+            name = row.name
+            event_name = row.event_name
+            capacity = row.capacity
+            current = int(row.current_registrations or 0)
+
+            if capacity is None:
+                percent = None
+                status = 'unlimited'
+            else:
+                try:
+                    percent = round((current / float(capacity)) * 100.0, 1)
+                except Exception:
+                    percent = 0.0
+                if current == 0:
+                    status = 'empty'
+                elif current >= capacity:
+                    status = 'full'
+                else:
+                    status = 'available'
+
+            # Optionally filter out unlimited activities
+            if capacity is None and not include_unlimited:
+                # skip
+                continue
+
+            results.append({
+                'id': aid,
+                'name': name,
+                'event_id': row.event_id,
+                'event_name': event_name,
+                'capacity': capacity,
+                'current_registrations': current,
+                'percent': percent,
+                'status': status
+            })
+
+        return jsonify({'activities': results}), 200
+    except Exception as e:
+        return jsonify({'message': 'Error generando reporte de llenado', 'error': str(e)}), 500
