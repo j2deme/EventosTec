@@ -59,7 +59,32 @@
   </div>
 
   <div class="bg-white rounded-lg shadow p-4">
-    <div x-show="loading" class="text-center py-8">Generando matriz...</div>
+    <div x-show="loading" class="py-6">
+      <div class="overflow-x-auto">
+        <div class="min-w-full bg-white rounded">
+          <!-- header skeleton (hidden on small screens) -->
+          <div class="hidden md:flex items-center px-4 py-2 border-b border-gray-100">
+            <div class="w-1/3 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+            <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+            <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+            <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+            <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <!-- rows skeleton -->
+          <div class="space-y-3 p-4">
+            <template x-for="i in [1,2,3]" :key="i">
+              <div class="flex items-center space-x-4">
+                <div class="w-1/3 h-4 bg-gray-200 rounded animate-pulse" :style="{width: (30 + Math.floor(Math.random() * 60)) + '%'}"></div>
+                <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div x-show="!loading">
       <template x-if="(matrix_semester && semesters && semesters.length) || (matrix && generations && generations.length)">
@@ -152,8 +177,40 @@
       </div>
     </div>
 
-    <div class="mt-4">
-      <div x-show="fillLoading" class="text-center py-6">Cargando reporte...</div>
+      <div class="mt-4">
+      <div x-show="fillLoading" class="py-4">
+        <div class="overflow-x-auto">
+          <div class="min-w-full bg-white rounded">
+            <!-- header skeleton -->
+            <div class="hidden md:flex items-center px-4 py-2 border-b border-gray-100">
+              <div class="w-1/4 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+              <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+              <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+            <!-- rows skeleton -->
+            <div class="space-y-3 p-4">
+              <template x-for="i in [1,2,3]" :key="i">
+                <div class="flex items-center space-x-4">
+                  <div class="w-1/4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div class="w-1/12 flex items-center">
+                    <div class="w-full bg-gray-100 rounded-full h-3 mr-2">
+                      <div class="h-3 bg-gray-300 rounded-full animate-pulse" :style="{width: (25 + Math.floor(Math.random() * 66)) + '%'}"></div>
+                    </div>
+                    <div class="w-10 h-4 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div x-show="!fillLoading && fillReport && fillReport.length">
         <div class="w-full overflow-x-auto">
