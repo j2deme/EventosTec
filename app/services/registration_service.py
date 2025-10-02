@@ -128,25 +128,28 @@ def get_daily_range(target_date_str, activity_start, activity_end):
     Obtiene el rango de horas para una actividad en un día específico.
     target_date_str: 'YYYY-MM-DD'
     """
-    from datetime import datetime, time
+    from datetime import datetime, time, timedelta
 
     target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-    activity_start_date = activity_start.date()
-    activity_end_date = activity_end.date()
 
-    if target_date == activity_start_date:
-        # Primer día: usar hora de inicio de la actividad
+    # Use the activity's time-of-day for the given target date.
+    start_time = activity_start.time()
+    end_time = activity_end.time()
+
+    # Base daily range: combine target date with activity times
+    range_start = datetime.combine(target_date, start_time)
+    range_end = datetime.combine(target_date, end_time)
+
+    # Handle activities that cross midnight within the same daily slot
+    if range_end <= range_start:
+        # If end time is earlier or equal to start time, assume it continues to next day
+        range_end = range_end + timedelta(days=1)
+
+    # Respect exact datetimes on first/last day to preserve potential partial-day edges
+    if target_date == activity_start.date():
         range_start = activity_start
-    else:
-        # Días intermedios: usar inicio del día (00:00)
-        range_start = datetime.combine(target_date, time(0, 0))
-
-    if target_date == activity_end_date:
-        # Último día: usar hora de fin de la actividad
+    if target_date == activity_end.date():
         range_end = activity_end
-    else:
-        # Días intermedios: usar fin del día (23:59)
-        range_end = datetime.combine(target_date, time(23, 59))
 
     return range_start, range_end
 
