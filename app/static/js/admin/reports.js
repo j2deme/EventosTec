@@ -225,6 +225,50 @@ function reportsManager() {
         this.fillLoading = false;
       }
     },
+
+    async downloadRegistrationsTxt() {
+      try {
+        if (!this.filters.event_id) {
+          window.showToast &&
+            window.showToast("Selecciona un evento primero", "error");
+          return;
+        }
+        const params = new URLSearchParams();
+        params.set("event_id", this.filters.event_id);
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(
+          `/api/reports/event_registrations_txt?${params.toString()}`
+        );
+        if (!res) return;
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          // El filename vendrá por header Content-Disposition; intentar extraerlo
+          const cd = res.headers.get("Content-Disposition") || "";
+          const m = cd.match(/filename="?(.*?)"?$/);
+          const filename = m && m[1] ? m[1] : `registrations_${Date.now()}.txt`;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          window.showToast &&
+            window.showToast(
+              err.message || "Error descargando archivo",
+              "error"
+            );
+        }
+      } catch (e) {
+        console.error("Error downloading registrations txt", e);
+        window.showToast &&
+          window.showToast("Error descargando archivo", "error");
+      }
+    },
   };
 }
 

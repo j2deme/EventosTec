@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, render_template
+from flask import Response
 from flask_jwt_extended import jwt_required
 from datetime import timedelta
 from app import db
@@ -359,3 +360,60 @@ def activity_fill():
         return jsonify({'activities': results, 'applied_filters': applied_filters}), 200
     except Exception as e:
         return jsonify({'message': 'Error generando reporte de llenado', 'error': str(e)}), 500
+
+
+@reports_bp.route('/event_registrations_txt', methods=['GET'])
+@jwt_required()
+@require_admin
+def event_registrations_txt():
+    """Genera y devuelve un .txt con la lista única de estudiantes inscritos en un evento.
+
+    Query params:
+      - event_id (int, required)
+
+    Se excluyen registros con status 'Ausente' o 'Cancelado'.
+    """
+    try:
+        event_id = request.args.get('event_id', type=int)
+        if not event_id:
+            return jsonify({'message': 'event_id es requerido'}), 400
+
+        event = db.session.get(Event, event_id)
+        if not event:
+            return jsonify({'message': 'Evento no encontrado'}), 404
+
+        # Consultar estudiantes únicos que tengan preregistros (excluyendo Ausente/Cancelado)
+        q = db.session.query(Student).join(
+            Registration, Registration.student_id == Student.id
+        ).join(
+            Activity, Activity.id == Registration.activity_id
+        ).filter(
+            Activity.event_id == event_id,
+            ~Registration.status.in_(['Ausente', 'Cancelado'])
+        ).distinct(Student.id).order_by(Student.full_name)
+
+        students = q.all()
+
+        # Construir contenido de texto: una línea por estudiante con SOLO el número de control
+        lines = []
+        for s in students:
+            cn = (s.control_number or '').strip()
+            if not cn:
+                # omitimos entradas sin número de control
+                continue
+            lines.append(f"{cn}")
+
+        content = "\n".join(lines)
+
+        # Generar filename seguro
+        from datetime import datetime
+        ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        safe_event_name = (event.name or 'evento').replace(
+            ' ', '_').replace('/', '_')
+        filename = f"{safe_event_name}_{ts}.txt"
+
+        resp = Response(content, mimetype='text/plain; charset=utf-8')
+        resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return resp
+    except Exception as e:
+        return jsonify({'message': 'Error generando archivo', 'error': str(e)}), 500
