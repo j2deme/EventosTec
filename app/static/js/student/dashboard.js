@@ -70,6 +70,12 @@ function studentDashboard() {
       // handle location change
       const tabFromUrl = this.getTabFromUrl();
 
+      console.debug &&
+        console.debug(
+          "[studentDashboard] handleLocationChange -> tabFromUrl:",
+          tabFromUrl
+        );
+
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
         // set active tab from URL
         this.activeTab = tabFromUrl;
@@ -128,7 +134,11 @@ function studentDashboard() {
       try {
         // 1. Primero intentar obtener la pestaña de la URL (hash)
         const tabFromUrl = this.getTabFromUrl();
-        // tabFromUrl available
+        console.debug &&
+          console.debug(
+            "[studentDashboard] setInitialTab -> tabFromUrl:",
+            tabFromUrl
+          );
 
         if (tabFromUrl && this.isValidTab(tabFromUrl)) {
           // using tab from URL
@@ -183,6 +193,14 @@ function studentDashboard() {
       const previousTab = this.activeTab;
       this.activeTab = tabId;
 
+      console.debug &&
+        console.debug(
+          "[studentDashboard] setActiveTab -> from",
+          previousTab,
+          "to",
+          tabId
+        );
+
       // ✨ Refrescar contenido automáticamente cuando se cambia a ciertas pestañas
       this.refreshTabContent(tabId, previousTab);
 
@@ -193,6 +211,13 @@ function studentDashboard() {
     // ✨ Refrescar contenido automáticamente cuando se cambia de pestaña
     async refreshTabContent(currentTab, previousTab) {
       try {
+        console.debug &&
+          console.debug(
+            "[studentDashboard] refreshTabContent -> currentTab:",
+            currentTab,
+            "previousTab:",
+            previousTab
+          );
         switch (currentTab) {
           case "registrations":
             // Refrescar preregistros cuando se cambia a la pestaña de preregistros

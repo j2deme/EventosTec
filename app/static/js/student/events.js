@@ -238,33 +238,61 @@ function studentEventsManager() {
           // Primero cambiar la pestaña
           dashboard.__x.getUnobservedData().setActiveTab("event_activities");
 
-          // Luego enviar el evento para que la vista de actividades lo cargue
-          // Usamos un pequeño retraso para asegurar que la pestaña haya cambiado
-          setTimeout(() => {
-            window.dispatchEvent(
-              new CustomEvent("load-event-activities", {
-                detail: {
-                  eventId: event.id,
-                  eventName: event.name,
-                },
-              })
-            );
-          }, 150);
+          // Dispatch directo del evento
+          window.dispatchEvent(
+            new CustomEvent("load-event-activities", {
+              detail: {
+                eventId: event.id,
+                eventName: event.name,
+              },
+            })
+          );
         } else {
-          // Cambiar el hash directamente
-          window.location.hash = "event_activities";
+          // Alternativa: buscar el dashboard de forma más directa
+          const dashboardElement = document.querySelector(
+            '[x-data*="studentDashboard"]'
+          );
+          if (dashboardElement) {
+            // Intentar acceder al manager Alpine directamente
+            try {
+              if (
+                window.Alpine &&
+                dashboardElement._x_dataStack &&
+                dashboardElement._x_dataStack[0]
+              ) {
+                const dashboardData = dashboardElement._x_dataStack[0];
+                if (
+                  dashboardData &&
+                  typeof dashboardData.setActiveTab === "function"
+                ) {
+                  dashboardData.setActiveTab("event_activities");
+                }
+              } else {
+                // Fallback final: cambiar hash y esperar que el dashboard lo detecte
+                window.location.hash = "event_activities";
+              }
+            } catch (e) {
+              window.location.hash = "event_activities";
+            }
+          } else {
+            window.location.hash = "event_activities";
+          }
 
-          // También enviar el evento por si acaso
-          setTimeout(() => {
-            window.dispatchEvent(
-              new CustomEvent("load-event-activities", {
-                detail: {
-                  eventId: event.id,
-                  eventName: event.name,
-                },
-              })
+          // Dispatch directo del evento
+          window.dispatchEvent(
+            new CustomEvent("load-event-activities", {
+              detail: {
+                eventId: event.id,
+                eventName: event.name,
+              },
+            })
+          );
+
+          console.debug &&
+            console.debug(
+              "[studentEvents] Event load-event-activities dispatched with eventId:",
+              event.id
             );
-          }, 200);
         }
       } catch (error) {
         console.error("Error al navegar a actividades:", error);

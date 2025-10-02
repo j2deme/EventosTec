@@ -199,6 +199,7 @@ function studentEventActivitiesManager() {
 
         // Add for_student flag so backend can exclude forbidden activity types
         params.append("for_student", "true");
+
         const response = await fetch(`/api/activities?${params.toString()}`, {
           headers: window.getAuthHeaders(),
         });
