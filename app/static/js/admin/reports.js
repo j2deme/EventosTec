@@ -162,11 +162,11 @@ function reportsManager() {
           const STATUS_MAP = {
             available: {
               label: "Disponible",
-              badge: "bg-green-100 text-green-800",
+              badge: "bg-amber-100 text-amber-800",
             },
             unlimited: { label: "Abierto", badge: "bg-blue-100 text-blue-800" },
-            empty: { label: "Vacío", badge: "bg-orange-100 text-orange-800" },
-            full: { label: "Lleno", badge: "bg-red-100 text-red-800" },
+            empty: { label: "Vacío", badge: "bg-red-100 text-red-800" },
+            full: { label: "Lleno", badge: "bg-green-100 text-green-800" },
           };
 
           activities = activities.map((a) => {

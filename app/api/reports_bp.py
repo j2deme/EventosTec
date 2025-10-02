@@ -282,6 +282,7 @@ def activity_fill():
         q = db.session.query(
             Activity.id.label('id'),
             Activity.name.label('name'),
+            Activity.modality.label('modality'),
             Activity.event_id.label('event_id'),
             func.coalesce(counts_q.c.registered, 0).label(
                 'current_registrations'),
@@ -302,6 +303,7 @@ def activity_fill():
             # row contains activity columns and event_name
             aid = row.id
             name = row.name
+            modality = row.modality
             event_name = row.event_name
             capacity = row.capacity
             current = int(row.current_registrations or 0)
@@ -329,6 +331,7 @@ def activity_fill():
             results.append({
                 'id': aid,
                 'name': name,
+                'modality': modality,
                 'event_id': row.event_id,
                 'event_name': event_name,
                 'capacity': capacity,

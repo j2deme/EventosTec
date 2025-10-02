@@ -152,6 +152,7 @@
               <tr>
                 <th class="px-4 py-2 text-left">Actividad</th>
                 <th class="px-4 py-2 text-left">Evento</th>
+                 <th class="px-4 py-2 text-left">Modalidad</th>
                 <th class="px-4 py-2 text-center">Cupo</th>
                 <th class="px-4 py-2 text-center">Inscritos</th>
                 <th class="px-4 py-2 text-center">% Llenado</th>
@@ -163,12 +164,19 @@
                 <tr>
                   <td class="px-4 py-2" x-text="act.name"></td>
                   <td class="px-4 py-2" x-text="act.event_name || ''"></td>
+                   <td class="px-4 py-2" x-text="act.modality || ''"></td>
                   <td class="px-4 py-2 text-center" x-text="act.capacity == null ? '∞' : act.capacity"></td>
                   <td class="px-4 py-2 text-center" x-text="act.current_registrations"></td>
                   <td class="px-4 py-2 w-48">
                     <div x-show="act.capacity != null">
                       <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                        <div :style="{width: Math.min(act.percent || 0, 100) + '%'}" :class="act.status === 'full' ? 'h-3 bg-red-500' : 'h-3 bg-indigo-600'"></div>
+                          <div :style="{width: Math.min(act.percent || 0, 100) + '%'}" :class="(
+                            act.status === 'full' ? 'h-3 bg-green-500' : (
+                              act.status === 'empty' ? 'h-3 bg-red-500' : (
+                                act.status === 'available' ? 'h-3 bg-amber-500' : 'h-3 bg-blue-500'
+                              )
+                            )
+                          )"></div>
                       </div>
                       <div class="text-xs text-gray-600 mt-1" x-text="act.percent + '%'"></div>
                     </div>
