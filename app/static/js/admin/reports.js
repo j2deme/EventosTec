@@ -7,6 +7,7 @@ function reportsManager() {
     filters: {
       event_id: "",
       activity_id: "",
+      department: "",
     },
     loading: false,
     matrix: null,
@@ -21,6 +22,8 @@ function reportsManager() {
       this.loadEvents();
       this.loadActivities();
     },
+
+    departments: [],
 
     formatSemester(sem) {
       // Si es número o string numérico, devolver con 'o' (1 -> 1o). Mantener valores no numéricos.
@@ -53,6 +56,13 @@ function reportsManager() {
           const d = await res.json();
           this.activities = d.activities || [];
           this.filterActivities();
+          // derive departments list
+          const deps = new Set();
+          for (const a of this.activities)
+            if (a.department) deps.add(a.department);
+          this.departments = Array.from(deps).sort((x, y) =>
+            x.localeCompare(y, undefined, { sensitivity: "base" })
+          );
         }
       } catch (e) {
         console.error("Error loading activities", e);
@@ -83,6 +93,8 @@ function reportsManager() {
         const params = new URLSearchParams();
         if (this.filters.event_id)
           params.set("event_id", this.filters.event_id);
+        if (this.filters.department)
+          params.set("department", this.filters.department.toString().trim());
         if (this.filters.activity_id)
           params.set("activity_id", this.filters.activity_id);
 
@@ -148,6 +160,8 @@ function reportsManager() {
           params.set("event_id", this.filters.event_id);
         if (this.filters.activity_id)
           params.set("activity_id", this.filters.activity_id);
+        if (this.filters.department)
+          params.set("department", this.filters.department.toString().trim());
         // include_unlimited optional: include activities without capacity
         params.set("include_unlimited", "1");
 

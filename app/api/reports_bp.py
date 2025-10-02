@@ -270,6 +270,7 @@ def activity_fill():
     try:
         event_id = request.args.get('event_id', type=int)
         activity_id = request.args.get('activity_id', type=int)
+        department = request.args.get('department', type=str)
         include_unlimited = request.args.get(
             'include_unlimited', '0') in ('1', 'true', 'True')
 
@@ -297,6 +298,13 @@ def activity_fill():
             q = q.filter(Activity.event_id == event_id)
         if activity_id:
             q = q.filter(Activity.id == activity_id)
+        if department:
+            # compare case-insensitive and trimmed to be more tolerant
+            try:
+                dept_val = department.strip().lower()
+                q = q.filter(func.lower(Activity.department) == dept_val)
+            except Exception:
+                q = q.filter(Activity.department == department)
 
         results = []
         for row in q.all():
@@ -340,6 +348,14 @@ def activity_fill():
                 'status': status
             })
 
-        return jsonify({'activities': results}), 200
+        # Include applied filters in response for easier debugging in UI
+        applied_filters = {
+            'event_id': event_id,
+            'activity_id': activity_id,
+            'department': department,
+            'department_normalized': dept_val if 'dept_val' in locals() else None,
+        }
+
+        return jsonify({'activities': results, 'applied_filters': applied_filters}), 200
     except Exception as e:
         return jsonify({'message': 'Error generando reporte de llenado', 'error': str(e)}), 500
