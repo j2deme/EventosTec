@@ -1,145 +1,127 @@
 <!-- app/templates/admin/partials/reports.html -->
-<div>
+<div x-data="reportsManager()" x-init="init()">
   <h2 class="text-xl font-semibold text-gray-900 mb-4">
     Reportes y Estadísticas
   </h2>
 
-  <!-- Stats Summary -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-    <div class="bg-white rounded-lg shadow p-6">
-      <div class="flex items-center">
-        <div class="p-3 rounded-lg bg-indigo-100 text-indigo-600">
-          <i class="ti ti-users text-xl"></i>
-        </div>
-        <div class="ml-4">
-          <p class="text-sm font-medium text-gray-600">Total Estudiantes</p>
-          <p
-            class="text-2xl font-semibold text-gray-900"
-            x-text="stats.totalStudents || 0"
-          ></p>
-        </div>
+  <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"
+          >Evento</label
+        >
+        <select
+          x-model="filters.event_id"
+          @change="onEventChange"
+          class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md"
+        >
+          <option value="">Seleccionar evento</option>
+          <template x-for="ev in events" :key="ev.id">
+            <option :value="ev.id" x-text="ev.name"></option>
+          </template>
+        </select>
       </div>
-    </div>
-    <div class="bg-white rounded-lg shadow p-6">
-      <div class="flex items-center">
-        <div class="p-3 rounded-lg bg-green-100 text-green-600">
-          <i class="ti ti-calendar-event text-xl"></i>
-        </div>
-        <div class="ml-4">
-          <p class="text-sm font-medium text-gray-600">Eventos Activos</p>
-          <p
-            class="text-2xl font-semibold text-gray-900"
-            x-text="stats.activeEvents || 0"
-          ></p>
-        </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1"
+          >Actividad (opcional)</label
+        >
+        <select
+          x-model="filters.activity_id"
+          class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md"
+        >
+          <option value="">Todas las actividades</option>
+          <template x-for="act in activitiesFiltered" :key="act.id">
+            <option :value="act.id" x-text="act.name"></option>
+          </template>
+        </select>
       </div>
-    </div>
-    <div class="bg-whiterounded-lg shadow p-6">
-      <div class="flex items-center">
-        <div class="p-3 rounded-lg bg-yellow-100 text-yellow-600">
-          <i class="ti ti-book text-xl"></i>
-        </div>
-        <div class="ml-4">
-          <p class="text-sm font-medium text-gray-600">Actividades</p>
-          <p
-            class="text-2xl font-semibold text-gray-900"
-            x-text="stats.totalActivities || 0"
-          ></p>
-        </div>
-      </div>
-    </div>
-    <div class="bg-whiterounded-lg shadow p-6">
-      <div class="flex items-center">
-        <div class="p-3 rounded-lgbg-red-100 text-red-600">
-          <i class="ti ti-check text-xl"></i>
-        </div>
-        <div class="ml-4">
-          <p class="text-sm font-medium text-gray-600">Asistencias Hoy</p>
-          <p
-            class="text-2xl font-semibold text-gray-900"
-            x-text="stats.todayAttendances || 0"
-          ></p>
-        </div>
+
+      <div class="flex items-end">
+        <button
+          @click="generateMatrix"
+          class="ml-auto inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md"
+        >
+          Generar matriz
+        </button>
       </div>
     </div>
   </div>
 
-  <!-- Charts Section -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <!-- Attendance by Day Chart -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-4">
-        Asistencias por Día
-      </h3>
-      <div class="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-        <div class="text-center">
-          <i class="ti ti-chart-bar text-3xl text-gray-300 mb-2"></i>
-          <p class="text-gray-500">
-            Gráfico de asistencias (implementar con Chart.js)
-          </p>
-          <p class="text-sm text-gray-400 mt-1">
-            Datos de ejemplo: últimos 7 días
-          </p>
-        </div>
-      </div>
-    </div>
+  <div class="bg-white rounded-lg shadow p-4">
+    <div x-show="loading" class="text-center py-8">Generando matriz...</div>
 
-    <!-- Registrations by Activity Type Chart -->
-    <div class="bg-whiterounded-lg shadow p-6">
-      <h3 class="text-lg font-medium text-gray-900 mb-4">
-        Preregistro por Tipo de Actividad
-      </h3>
-      <div class="h-64 flex items-centerjustify-center bg-gray-50rounded-lg">
-        <div class="text-center">
-          <i class="ti ti-pie-chart text-3xl text-gray-300 mb-2"></i>
-          <p class="text-gray-500">
-            Gráfico circular (implementar con Chart.js)
-          </p>
-          <p class="text-sm text-gray-400 mt-1">Distribución por tipo</p>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Recent Reports -->
-  <div class="mt-6 bg-whiterounded-lg shadow">
-    <div class="p-4 border-b">
-      <h3 class="font-medium text-gray-900">Reportes Recientes</h3>
-    </div>
-    <div class="divide-y divide-gray-200">
-      <template x-for="report in recentReports" :key="report.id">
-        <div class="p-4 hover:bg-gray-50">
-          <div class="flex items-center justify-between">
-            <div>
-              <h4
-                class="text-sm font-medium text-gray-900"
-                x-text="report.title"
-              ></h4>
-              <p
-                class="text-sm text-gray-500"
-                x-text="(window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(report.created_at) : formatDate(report.created_at))"
-              ></p>
-            </div>
-            <div class="flex items-center space-x-2">
-              <span
-                class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
-              >
-                <i class="ti ti-file-description mr-1"></i>
-                <span x-text="report.format"></span>
-              </span>
-              <button class="text-indigo-600hover:text-indigo-900">
-                <i class="ti ti-download"></i>
-              </button>
-            </div>
+    <div x-show="!loading">
+      <template x-if="(matrix_semester && semesters && semesters.length) || (matrix && generations && generations.length)">
+        <div class="overflow-hidden">
+          <div class="w-full overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 table-fixed">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left">Carrera \ Semestre</th>
+                <!-- Preferir semesters/matrix_semester si están presentes -->
+                <template x-if="matrix_semester && semesters && semesters.length">
+                  <template x-for="sem in semesters" :key="sem">
+                    <th class="px-4 py-2 text-center" x-text="formatSemester(sem)"></th>
+                  </template>
+                </template>
+                <template x-if="!(matrix_semester && semesters && semesters.length)">
+                  <template x-for="gen in generations" :key="gen">
+                    <th class="px-4 py-2 text-center" x-text="gen || 'Sin generación'"></th>
+                  </template>
+                </template>
+                <th class="px-4 py-2 text-center">Total por carrera</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <template x-for="career in careers" :key="career">
+                <tr>
+                  <td class="px-4 py-2 font-medium" x-text="career"></td>
+                  <!-- Mostrar por semestre si existe matrix_semester, sino por generación -->
+                  <template x-if="matrix_semester && matrix_semester[String(career)]">
+                    <template x-for="sem in semesters" :key="sem">
+                      <td class="px-4 py-2 text-center" x-text="(matrix_semester[String(career)] && matrix_semester[String(career)][sem]) ? matrix_semester[String(career)][sem] : 0"></td>
+                    </template>
+                    <td class="px-4 py-2 text-center font-semibold" x-text="(rowSubtotals && rowSubtotals[String(career)]) || 0"></td>
+                  </template>
+                  <template x-if="!matrix_semester || !matrix_semester[career]">
+                    <template x-for="gen in generations" :key="gen">
+                      <td class="px-4 py-2 text-center" x-text="(matrix[career] && matrix[career][gen]) ? matrix[career][gen] : 0"></td>
+                    </template>
+                    <!-- Subtotal por carrera -->
+                    <td class="px-4 py-2 text-center font-semibold" x-text="generations.reduce((sum, g) => sum + ((matrix[career] && matrix[career][g]) ? matrix[career][g] : 0), 0)"></td>
+                  </template>
+                </tr>
+              </template>
+              <!-- Fila de totales por generación -->
+              <tr class="bg-gray-50">
+                <td class="px-4 py-2 font-medium">Total por Semestre</td>
+                <!-- Totales por semestre si existen -->
+                <template x-if="matrix_semester && semesters && semesters.length">
+                  <template x-for="sem in semesters" :key="sem">
+                    <td class="px-4 py-2 text-center font-semibold" x-text="careers.reduce((s, c) => s + ((matrix_semester[c] && matrix_semester[c][sem]) ? matrix_semester[c][sem] : 0), 0)"></td>
+                  </template>
+                  <td class="px-4 py-2 text-center font-bold" x-text="totalSumSemesters || 0"></td>
+                </template>
+                <template x-if="!(matrix_semester && semesters && semesters.length)">
+                  <template x-for="gen in generations" :key="gen">
+                    <td class="px-4 py-2 text-center font-semibold" x-text="careers.reduce((s, c) => s + ((matrix[c] && matrix[c][gen]) ? matrix[c][gen] : 0), 0)"></td>
+                  </template>
+                  <td class="px-4 py-2 text-center font-bold" x-text="careers.reduce((s, c) => s + generations.reduce((ss, g) => ss + ((matrix[c] && matrix[c][g]) ? matrix[c][g] : 0), 0), 0)"></td>
+                </template>
+              </tr>
+            </tbody>
+          </table>
           </div>
         </div>
+        </div>
       </template>
+
       <div
-        x-show="recentReports.length === 0"
-        class="p-8 text-center text-gray-500"
+        x-show="(!matrix || generations.length === 0) && !loading"
+        class="p-6 text-center text-gray-500"
       >
-        <i class="ti ti-file-description text-2xl mb-2"></i>
-        <p>No hay reportes generados</p>
+        No hay datos para la selección actual.
       </div>
     </div>
   </div>
