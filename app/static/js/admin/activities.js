@@ -34,6 +34,14 @@ function activitiesManager() {
 
     // Modal
     showModal: false,
+    // Ver actividad (modal de lectura con token)
+    showViewModal: false,
+    activityToView: null,
+    // Token modal state
+    tokenUrl: "",
+    token: "",
+    tokenLoading: false,
+    tokenError: "",
     // Batch import modal
     showBatchModal: false,
     batchUploading: false,
@@ -898,9 +906,43 @@ function activitiesManager() {
 
     // Ver detalles de la actividad (opcional)
     viewActivity(activity) {
-      // Aquí podrías abrir un modal con más detalles
-      // o redirigir a una página de detalle
-      alert(`Ver detalles de la actividad: ${activity.name}`);
+      // Abrir modal de vista y solicitar token
+      this.activityToView = activity;
+      this.showViewModal = true;
+      // iniciar fetch del token en background
+      this.fetchActivityToken();
+    },
+
+    async fetchActivityToken() {
+      this.tokenUrl = "";
+      this.token = "";
+      this.tokenLoading = true;
+      this.tokenError = "";
+      try {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(`/api/activities/${this.activityToView.id}/token`);
+        if (!res.ok) {
+          let msg = "Error obteniendo token";
+          try {
+            const j = await res.json();
+            msg = j.message || msg;
+          } catch (e) {
+            msg = await res.text();
+          }
+          this.tokenError = msg;
+          return;
+        }
+        const data = await res.json();
+        this.token = data.token || "";
+        this.tokenUrl =
+          data.url ||
+          window.location.origin + "/self-register/" + (data.token || "");
+      } catch (e) {
+        this.tokenError = e && e.message ? e.message : String(e);
+      } finally {
+        this.tokenLoading = false;
+      }
     },
 
     validateActivityDates(activityData) {

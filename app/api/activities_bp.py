@@ -372,6 +372,30 @@ def get_related_activities(activity_id):
     }), 200
 
 
+@activities_bp.route('/<int:activity_id>/token', methods=['GET'])
+@jwt_required()
+@require_admin
+def get_activity_token(activity_id):
+    """Devuelve un token stateless para la actividad y la URL de registro basada en token.
+
+    Este endpoint está protegido (admin) y sirve para generar enlaces/QRs operativos.
+    """
+    try:
+        activity = db.session.get(Activity, activity_id)
+        if not activity:
+            return jsonify({'message': 'Actividad no encontrada'}), 404
+
+        # Importar la util util de tokens
+        from app.utils.token_utils import generate_activity_token
+
+        token = generate_activity_token(activity.id)
+        url = request.host_url.rstrip('/') + '/self-register/' + token
+
+        return jsonify({'token': token, 'url': url}), 200
+    except Exception as e:
+        return jsonify({'message': 'Error generando token', 'error': str(e)}), 500
+
+
 @activities_bp.route('/<int:activity_id>/related', methods=['POST'])
 @jwt_required()
 @require_admin

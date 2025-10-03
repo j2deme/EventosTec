@@ -4,9 +4,9 @@ from app import db
 from app.models.student import Student
 from app.models.activity import Activity
 from app.models.registration import Registration
-from app.services.registration_service import is_registration_allowed, create_registration_simple, has_schedule_conflict
-from app.schemas import registration_schema
-from datetime import datetime, timedelta
+from app.models.attendance import Attendance
+from app.schemas import attendance_schema
+from datetime import datetime, timedelta, timezone
 from app.utils.token_utils import verify_activity_token, generate_activity_token
 
 self_register_bp = Blueprint('self_register', __name__, url_prefix='')
@@ -128,36 +128,43 @@ def self_register_api():
             db.session.add(student)
             db.session.commit()
 
-        # Check duplicate registration
-        existing = Registration.query.filter_by(
+        # Check existing attendance for this student+activity and refuse duplicates
+        existing_att = Attendance.query.filter_by(
             student_id=student.id, activity_id=activity.id).first()
-        if existing and existing.status != 'Cancelado':
-            return jsonify({'message': 'Ya existe un registro para esta actividad'}), 409
+        if existing_att:
+            return jsonify({'message': 'Ya existe un registro de asistencia para esta actividad'}), 409
 
-        # Check schedule conflicts
-        conflict, msg = has_schedule_conflict(student.id, activity.id)
-        if conflict:
-            return jsonify({'message': msg}), 409
+        # Create attendance (self check-in). For magistral activities we record
+        # a check-in time and mark as 'Parcial' (same behavior as admin check-in).
+        now = datetime.now(timezone.utc)
+        attendance = Attendance()
+        attendance.student_id = student.id
+        attendance.activity_id = activity.id
+        attendance.check_in_time = now
+        attendance.status = 'Parcial'
+        db.session.add(attendance)
 
-        # Check capacity
-        if not is_registration_allowed(activity.id):
-            return jsonify({'message': 'Cupo lleno para esta actividad.'}), 400
+        # If there's an existing registration, mark it as attended/confirmed
+        registration = Registration.query.filter_by(
+            student_id=student.id, activity_id=activity.id).first()
+        if registration:
+            registration.attended = True
+            registration.status = 'Asistió'
+            registration.confirmation_date = db.func.now()
+            db.session.add(registration)
 
-        ok, reg = create_registration_simple(student.id, activity.id)
-        if not ok:
-            return jsonify({'message': reg}), 400
-
-        # Ensure server-side defaults (timestamps) are loaded from DB
         try:
-            db.session.refresh(reg)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'message': 'Error al crear registro de asistencia', 'error': str(e)}), 500
+
+        try:
+            db.session.refresh(attendance)
         except Exception:
-            # If refresh fails (detached instance), ignore and fall back to schema
             pass
 
-        return jsonify({
-            'message': 'Registro in situ creado',
-            'registration': registration_schema.dump(reg)
-        }), 201
+        return jsonify({'message': 'Asistencia registrada', 'attendance': attendance_schema.dump(attendance)}), 201
 
     except Exception as e:
         db.session.rollback()

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Iterable, cast
 
 from app.models.attendance import Attendance
@@ -89,28 +89,87 @@ def calculate_attendance_percentage(attendance_id):
     if not activity:
         return None
 
-    # Usar la duración neta (considerando pausas)
-    net_duration_seconds = calculate_net_duration_seconds(attendance)
-    expected_duration_seconds = activity.duration_hours * 3600
+    # Calcular la superposición entre la ventana de presencia y la ventana programada
+    # Helper: ensure timezone-aware
+    def _ensure_tz(dt):
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
 
-    if expected_duration_seconds > 0:
-        percentage = (net_duration_seconds / expected_duration_seconds) * 100
-        attendance.attendance_percentage = round(
-            max(0, percentage), 2)  # Asegurar porcentaje no negativo
+    pres_start = _ensure_tz(attendance.check_in_time)
+    pres_end = _ensure_tz(attendance.check_out_time)
 
+    # Si no hay tiempos válidos, no calcular
+    if not pres_start or not pres_end:
+        return None
+
+    act_start = _ensure_tz(getattr(activity, 'start_datetime', None))
+    # Definir act_end según duración de la actividad si está disponible
+    act_end = None
+    try:
+        if act_start is not None and getattr(activity, 'duration_hours', None) is not None:
+            act_end = act_start + \
+                timedelta(hours=float(activity.duration_hours))
+    except Exception:
+        act_end = None
+
+    # Si no hay act_start o duration, caemos al comportamiento por defecto
+    if not act_start or not act_end:
+        # Fallback: usar duración neta completa (comportamiento legacy)
+        net_duration_seconds = calculate_net_duration_seconds(attendance)
+        expected_duration_seconds = (activity.duration_hours or 0) * 3600
+        if expected_duration_seconds > 0:
+            percentage = (net_duration_seconds /
+                          expected_duration_seconds) * 100
+            attendance.attendance_percentage = round(max(0, percentage), 2)
+            if attendance.attendance_percentage >= 80:
+                attendance.status = 'Asistió'
+            elif attendance.attendance_percentage > 0:
+                attendance.status = 'Parcial'
+            else:
+                attendance.status = 'Ausente'
+            return attendance.attendance_percentage
+        else:
+            attendance.attendance_percentage = 100.0
+            attendance.status = 'Asistió'
+            return 100.0
+
+    # calcular intersección
+    window_start = max(pres_start, act_start)
+    window_end = min(pres_end, act_end)
+    overlap_seconds = max(0, (window_end - window_start).total_seconds())
+
+    # calcular segundos de pausa que ocurran dentro de la superposición
+    paused_seconds = 0
+    if attendance.pause_time:
+        pause_start = _ensure_tz(attendance.pause_time)
+        pause_end = _ensure_tz(
+            attendance.resume_time or attendance.check_out_time or datetime.now(timezone.utc))
+        # solapamiento entre pausa y ventana calculada
+        ps = max(pause_start, window_start) if pause_start and window_start else None
+        pe = min(pause_end, window_end) if pause_end and window_end else None
+        if ps and pe and pe > ps:
+            paused_seconds = (pe - ps).total_seconds()
+
+    net_seconds = max(0, overlap_seconds - paused_seconds)
+    expected_seconds = max(0, (act_end - act_start).total_seconds())
+
+    if expected_seconds > 0:
+        percentage = (net_seconds / expected_seconds) * 100
+        attendance.attendance_percentage = round(max(0, percentage), 2)
         if attendance.attendance_percentage >= 80:
             attendance.status = 'Asistió'
         elif attendance.attendance_percentage > 0:
             attendance.status = 'Parcial'
         else:
             attendance.status = 'Ausente'
-        # No hacer commit aquí; el endpoint debe encargarse de commit/rollback
         return attendance.attendance_percentage
     else:
-        # Si la duración es 0 o inválida, asumir 100% si hubo check-in/out
+        # fallback conservador
         attendance.attendance_percentage = 100.0
         attendance.status = 'Asistió'
-        # No hacer commit aquí; el endpoint debe encargarse de commit/rollback
         return 100.0
 
 
