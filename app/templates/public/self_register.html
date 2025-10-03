@@ -1,0 +1,127 @@
+{% extends 'base.html' %} {% block title %}Registro in situ{% endblock %} {%
+block content %}
+<div class="p-6">
+  <div
+    class="max-w-md mx-auto bg-white p-6 rounded shadow"
+    x-data="selfRegister()"
+    x-init="init()"
+    id="self-register-card"
+    data-activity-token="{{ activity_token or '' }}"
+    data-activity-name="{{ activity_name or '' }}"
+    data-activity-exists="{{ '1' if activity_exists else '0' }}"
+    data-token-provided="{{ '1' if token_provided else '0' }}"
+    data-token-invalid="{{ '1' if token_invalid else '0' }}"
+  >
+    <h1 class="text-xl font-semibold mb-4">Registro Personal</h1>
+
+    <!-- Visual states: no token provided, token invalid, or activity present -->
+    <div x-show="!activityExists" class="text-center py-8">
+      <template x-if="!activityTokenProvided && !activityExists">
+        <div class="flex flex-col items-center gap-4">
+          <!-- Large generic icon (Tabler webfont) -->
+          <i class="ti ti-ban text-gray-300 text-6xl"></i>
+          <div class="text-lg font-medium">Actividad no válida</div>
+          <div class="text-sm text-gray-500">
+            Si llegaste aquí desde un QR, solicita al staff que verifique la
+            entrada.
+          </div>
+        </div>
+      </template>
+
+      <template
+        x-if="activityTokenProvided && activityTokenInvalid && !activityExists"
+      >
+        <div class="flex flex-col items-center gap-4">
+          <!-- Warning icon (Tabler webfont) -->
+          <i class="ti ti-alert-triangle text-yellow-400 text-6xl"></i>
+          <div class="text-lg font-medium text-yellow-700">
+            Token inválido o expirado
+          </div>
+          <div class="text-sm text-gray-500">
+            Pide al staff un nuevo código o intenta más tarde.
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <template x-if="activityExists">
+      <div>
+        <div class="mb-2 text-sm text-gray-700">
+          Actividad: <span class="font-medium" x-text="activityName"></span>
+        </div>
+
+        <form @submit.prevent="submit()" class="space-y-4">
+          <input type="hidden" x-model="activityId" />
+          <input type="hidden" x-model="activityToken" />
+          <input type="hidden" x-model="activityId" />
+          <input type="hidden" x-model="activityToken" />
+          <div>
+            <label class="block text-sm font-medium text-gray-700"
+              >Número de control</label
+            >
+            <input
+              inputmode="numeric"
+              autocomplete="off"
+              x-model="controlNumber"
+              class="mt-1 block w-full rounded border p-2"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700"
+              >Contraseña</label
+            >
+            <input
+              type="password"
+              autocomplete="off"
+              x-model="password"
+              class="mt-1 block w-full rounded border p-2"
+            />
+          </div>
+
+          <div class="flex items-center justify-between">
+            <button
+              type="submit"
+              :disabled="loading"
+              class="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
+            >
+              Registrar
+            </button>
+            <div x-show="loading" class="text-sm text-gray-500">
+              Procesando…
+            </div>
+          </div>
+        </form>
+
+        <template x-if="message">
+          <div :class="messageClass + ' mt-4 p-3 rounded'">
+            <div x-text="message"></div>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  // Pass initial values to the Alpine component from data attributes
+  window.__selfRegister_init = (el) => {
+    try {
+      const token = el.getAttribute("data-activity-token") || "";
+      const name = el.getAttribute("data-activity-name") || "";
+      const exists = el.getAttribute("data-activity-exists") === "1";
+      const provided = el.getAttribute("data-token-provided") === "1";
+      const invalid = el.getAttribute("data-token-invalid") === "1";
+      return { token, name, exists, provided, invalid };
+    } catch (e) {
+      return {
+        token: "",
+        name: "",
+        exists: false,
+        provided: false,
+        invalid: false,
+      };
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/public/self_register.js') }}"></script>
+{% endblock %}
