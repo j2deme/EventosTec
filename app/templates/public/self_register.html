@@ -1,8 +1,10 @@
 {% extends 'base.html' %} {% block title %}Registro in situ{% endblock %} {%
 block content %}
-<div class="p-6">
+<div
+  class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
+>
   <div
-    class="max-w-md mx-auto bg-white p-6 rounded shadow"
+    class="bg-white p-6 rounded-xl shadow-lg w-full max-w-md"
     x-data="selfRegister()"
     x-init="init()"
     id="self-register-card"
@@ -11,14 +13,26 @@ block content %}
     data-activity-exists="{{ '1' if activity_exists else '0' }}"
     data-token-provided="{{ '1' if token_provided else '0' }}"
     data-token-invalid="{{ '1' if token_invalid else '0' }}"
+    data-activity-start="{{ activity_start_iso or '' }}"
+    data-activity-duration="{{ activity_duration_hours or '' }}"
+    data-activity-deadline="{{ activity_deadline_iso or '' }}"
   >
-    <h1 class="text-xl font-semibold mb-4">Registro Personal</h1>
+    <div class="text-center mb-6">
+      <div
+        class="mx-auto bg-indigo-100 p-3 rounded-full w-14 h-14 flex items-center justify-center mb-3"
+      >
+        <i class="ti ti-calendar-event text-indigo-600 text-xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-800">Eventos Tec Valles</h1>
+      <p class="text-gray-600 text-sm mt-1">
+        Control de Asistencias y Registros
+      </p>
+    </div>
 
     <!-- Visual states: no token provided, token invalid, or activity present -->
     <div x-show="!activityExists" class="text-center py-8">
       <template x-if="!activityTokenProvided && !activityExists">
         <div class="flex flex-col items-center gap-4">
-          <!-- Large generic icon (Tabler webfont) -->
           <i class="ti ti-ban text-gray-300 text-6xl"></i>
           <div class="text-lg font-medium">Actividad no válida</div>
           <div class="text-sm text-gray-500">
@@ -32,7 +46,6 @@ block content %}
         x-if="activityTokenProvided && activityTokenInvalid && !activityExists"
       >
         <div class="flex flex-col items-center gap-4">
-          <!-- Warning icon (Tabler webfont) -->
           <i class="ti ti-alert-triangle text-yellow-400 text-6xl"></i>
           <div class="text-lg font-medium text-yellow-700">
             Token inválido o expirado
@@ -46,13 +59,29 @@ block content %}
 
     <template x-if="activityExists">
       <div>
-        <div class="mb-2 text-sm text-gray-700">
-          Actividad: <span class="font-medium" x-text="activityName"></span>
+        <div class="mb-3">
+          <div class="text-xs text-gray-500">
+            {{ activity_type or 'Actividad' }}
+          </div>
+          <div
+            class="text-lg font-semibold text-indigo-600"
+            x-text="activityName"
+          ></div>
+          <div
+            x-show="timeLeftText"
+            class="text-sm text-gray-500 mt-1 flex items-center gap-2"
+          >
+            <i class="ti ti-clock text-indigo-400"></i>
+            <span x-text="timeLeftText"></span>
+          </div>
         </div>
 
-        <form @submit.prevent="submit()" class="space-y-4">
-          <input type="hidden" x-model="activityId" />
-          <input type="hidden" x-model="activityToken" />
+        <form
+          id="self-register-form"
+          @submit.prevent="submit()"
+          class="space-y-4"
+          x-show="!expired"
+        >
           <input type="hidden" x-model="activityId" />
           <input type="hidden" x-model="activityToken" />
           <div>
@@ -63,7 +92,8 @@ block content %}
               inputmode="numeric"
               autocomplete="off"
               x-model="controlNumber"
-              class="mt-1 block w-full rounded border p-2"
+              class="mt-1 block w-full rounded-lg border p-3 text-base"
+              placeholder="Ej: 12345678"
             />
           </div>
           <div>
@@ -74,7 +104,8 @@ block content %}
               type="password"
               autocomplete="off"
               x-model="password"
-              class="mt-1 block w-full rounded border p-2"
+              class="mt-1 block w-full rounded-lg border p-3 text-base"
+              placeholder="••••••••"
             />
           </div>
 
@@ -82,15 +113,22 @@ block content %}
             <button
               type="submit"
               :disabled="loading"
-              class="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
+              class="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg disabled:opacity-60 text-center"
             >
               Registrar
             </button>
-            <div x-show="loading" class="text-sm text-gray-500">
-              Procesando…
-            </div>
+          </div>
+          <div x-show="loading" class="text-sm text-gray-500 text-center">
+            Procesando…
           </div>
         </form>
+        <div
+          x-show="expired"
+          class="p-4 bg-yellow-50 rounded mt-2 text-sm text-yellow-800"
+        >
+          El registro de asistencia para esta actividad ha finalizado. Si crees
+          que esto es un error contacta al staff.
+        </div>
 
         <template x-if="message">
           <div :class="messageClass + ' mt-4 p-3 rounded'">

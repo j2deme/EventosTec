@@ -56,7 +56,51 @@ def self_register_form(token_param=None):
             except Exception:
                 pass
 
-    return render_template('public/self_register.html', activity_token=token, activity_name=activity_name, activity_exists=activity_exists, token_provided=token_provided, token_invalid=token_invalid)
+    activity_start_iso = None
+    activity_duration_hours = None
+    activity_deadline_iso = None
+    activity_type = None
+    if activity:
+        # start datetime
+        try:
+            if getattr(activity, 'start_datetime', None) is not None:
+                activity_start_iso = activity.start_datetime.isoformat()
+        except Exception:
+            activity_start_iso = None
+
+        # compute a safe float for duration_hours
+        try:
+            hours_val = getattr(activity, 'duration_hours', None)
+            activity_duration_hours = float(
+                hours_val) if hours_val is not None else None
+        except Exception:
+            activity_duration_hours = None
+
+        # compute registration deadline = start + 20 minutes
+        try:
+            start_dt = getattr(activity, 'start_datetime', None)
+            if start_dt is not None:
+                deadline_dt = start_dt + timedelta(minutes=20)
+                activity_deadline_iso = deadline_dt.isoformat()
+        except Exception:
+            activity_deadline_iso = None
+        try:
+            activity_type = getattr(activity, 'activity_type', None) or None
+        except Exception:
+            activity_type = None
+
+    return render_template(
+        'public/self_register.html',
+        activity_token=token,
+        activity_name=activity_name,
+        activity_exists=activity_exists,
+        token_provided=token_provided,
+        token_invalid=token_invalid,
+        activity_start_iso=activity_start_iso,
+        activity_duration_hours=activity_duration_hours,
+        activity_deadline_iso=activity_deadline_iso,
+        activity_type=activity_type,
+    )
 
 
 @self_register_bp.route('/api/registrations/self', methods=['POST'])
