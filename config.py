@@ -36,6 +36,10 @@ class Config:
     JWT_TOKEN_LOCATION = ['headers']
     JWT_HEADER_NAME = 'Authorization'
     JWT_HEADER_TYPE = 'Bearer'
+    # Optional compact token support (requires sqids). Enable in production via env var.
+    ENABLE_SQIDS = os.environ.get('ENABLE_SQIDS', '0') in ('1', 'true', 'yes')
+    # Number of bytes to truncate HMAC signature for compact tokens (default 8)
+    TOKEN_SIG_TRUNC = int(os.environ.get('TOKEN_SIG_TRUNC', '8'))
 
 
 class DevelopmentConfig(Config):
