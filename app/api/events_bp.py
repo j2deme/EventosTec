@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 from app import db
 from app.schemas import event_schema, events_schema
 from app.models.event import Event
+from app.models.activity import Activity
 from datetime import datetime
 from app.utils.auth_helpers import require_admin
 from sqlalchemy import asc, desc, or_
@@ -208,3 +209,19 @@ def get_event_activities(event_id):
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener actividades', 'error': str(e)}), 500
+
+
+@events_bp.route('/<int:event_id>/departments', methods=['GET'])
+def get_event_departments(event_id):
+    try:
+        event = db.session.get(Event, event_id)
+        if not event:
+            return jsonify({'message': 'Evento no encontrado'}), 404
+
+        # Query distinct departments for the event
+        rows = db.session.query(db.distinct(Activity.department)).filter(
+            Activity.event_id == event_id).order_by(Activity.department.asc()).all()
+        departments = [r[0] for r in rows if r and r[0]]
+        return jsonify({'departments': departments}), 200
+    except Exception as e:
+        return jsonify({'message': 'Error al obtener departamentos', 'error': str(e)}), 500
