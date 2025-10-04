@@ -154,6 +154,65 @@ def import_external_student(control_number):
         db.session.rollback()
         return jsonify({'message': 'Error al importar estudiante', 'error': str(e)}), 500
 
+
+# Endpoint proxy para validación externa usada por el modal de Walk-in (no requiere auth)
+@students_bp.route('/validate', methods=['GET'])
+def validate_student_proxy():
+    """Proxy público que consulta el servicio externo de validación de estudiantes.
+
+    Query params:
+      - control_number (or username)
+
+    Returns standardized JSON: { student: { control_number, full_name, career, email } }
+    or 404 if not found, 503 on external errors.
+    """
+    control = request.args.get(
+        'control_number') or request.args.get('username')
+    if not control:
+        return jsonify({'message': 'control_number es requerido'}), 400
+
+    external_api = f"http://apps.tecvalles.mx:8091/api/validate/student?username={control}"
+    try:
+        resp = requests.get(external_api, timeout=8)
+    except requests.exceptions.RequestException:
+        return jsonify({'message': 'Error conectando al servicio externo'}), 503
+
+    if resp.status_code == 200:
+        try:
+            data = resp.json()
+        except Exception:
+            return jsonify({'message': 'Respuesta externa inválida'}), 502
+
+        if not isinstance(data, dict):
+            return jsonify({'message': 'Respuesta externa inválida'}), 502
+
+        # Some external services wrap payload in { success: true, data: { ... } }
+        if isinstance(data, dict) and 'data' in data and isinstance(data.get('data'), dict):
+            data = data.get('data')
+
+        # Work with a local dict reference to satisfy static analysis
+        d = data if isinstance(data, dict) else {}
+
+        # Normalize keys if possible; career may be an object
+        career = d.get('career') or d.get('carrera') or {}
+        career_name = None
+        if isinstance(career, dict):
+            career_name = career.get('name') or career.get('nombre') or None
+        else:
+            career_name = career
+
+        student = {
+            'control_number': d.get('username') or d.get('control_number') or control,
+            'full_name': d.get('name') or d.get('full_name') or d.get('nombre'),
+            'career': career_name,
+            'email': d.get('email') or ''
+        }
+        return jsonify({'student': student}), 200
+    elif resp.status_code == 404:
+        return jsonify({'message': 'Estudiante no encontrado'}), 404
+    else:
+        return jsonify({'message': 'Error desde servicio externo'}), 503
+
 # Obtener actividades de un estudiante
 
 
