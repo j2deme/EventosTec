@@ -7,6 +7,9 @@ import base64
 SALT = 'activity-token'
 SQIDS_PREFIX = 's:'  # prefix for sqids-based short tokens
 DEFAULT_PREFIX = 'd:'  # prefix for default itsdangerous tokens
+PUBLIC_PREFIX = 'p:'
+SALT_PUBLIC = 'public-activity-token'
+SALT_PUBLIC_EVENT = 'public-event-token'
 
 
 def _serializer():
@@ -106,3 +109,57 @@ def verify_activity_token(token: str):
         return int(val), None
     except Exception:
         return None, 'invalid'
+
+
+def _public_serializer():
+    secret = current_app.config.get('SECRET_KEY', 'fallback-key')
+    return URLSafeSerializer(secret, salt=SALT_PUBLIC)
+
+
+def generate_public_token(activity_id: int) -> str:
+    """Generate a token for public chief access distinct from self-register tokens."""
+    s = _public_serializer()
+    return PUBLIC_PREFIX + s.dumps(str(activity_id))
+
+
+def verify_public_token(token: str):
+    if not token:
+        return None, 'invalid'
+    if token.startswith(PUBLIC_PREFIX):
+        raw = token[len(PUBLIC_PREFIX):]
+        s = _public_serializer()
+        try:
+            val = s.loads(raw)
+            return int(val), None
+        except BadSignature:
+            return None, 'invalid'
+        except Exception:
+            return None, 'invalid'
+    return None, 'invalid'
+
+
+def _public_event_serializer():
+    secret = current_app.config.get('SECRET_KEY', 'fallback-key')
+    return URLSafeSerializer(secret, salt=SALT_PUBLIC_EVENT)
+
+
+def generate_public_event_token(event_id: int) -> str:
+    """Generate a token for event-level chief access."""
+    s = _public_event_serializer()
+    return 'pe:' + s.dumps(str(event_id))
+
+
+def verify_public_event_token(token: str):
+    if not token:
+        return None, 'invalid'
+    if token.startswith('pe:'):
+        raw = token[len('pe:'):]
+        s = _public_event_serializer()
+        try:
+            val = s.loads(raw)
+            return int(val), None
+        except BadSignature:
+            return None, 'invalid'
+        except Exception:
+            return None, 'invalid'
+    return None, 'invalid'
