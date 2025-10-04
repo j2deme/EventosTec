@@ -114,6 +114,26 @@ def get_event(event_id):
         return jsonify({'message': 'Error al obtener evento', 'error': str(e)}), 500
 
 
+@events_bp.route('/<int:event_id>/public-token', methods=['GET'])
+@jwt_required()
+@require_admin
+def get_event_public_token(event_id):
+    try:
+        event = db.session.get(Event, event_id)
+        if not event:
+            return jsonify({'message': 'Evento no encontrado'}), 404
+
+        from app.utils.token_utils import generate_public_event_token
+
+        token = generate_public_event_token(event.id)
+        url = request.host_url.rstrip(
+            '/') + '/public/event-registrations/' + token
+
+        return jsonify({'token': token, 'url': url}), 200
+    except Exception as e:
+        return jsonify({'message': 'Error generando token de evento', 'error': str(e)}), 500
+
+
 @events_bp.route('/<int:event_id>', methods=['PUT'])
 @jwt_required()
 @require_admin

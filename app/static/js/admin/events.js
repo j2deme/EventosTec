@@ -27,6 +27,8 @@ function eventsManager() {
     // Modal
     showModal: false,
     showDeleteModal: false,
+    showEventDetails: false,
+    eventDetails: {},
     editingEvent: null,
     currentEvent: {
       id: null,
@@ -332,9 +334,80 @@ function eventsManager() {
 
     // Ver detalles del evento (opcional)
     viewEvent(event) {
-      // Aquí podrías abrir un modal con más detalles
-      // o redirigir a una página de detalle
-      alert(`Ver detalles del evento: ${event.name}`);
+      // Abrir modal de detalles del evento (admin)
+      this.eventDetails = {
+        ...event,
+        // format dates for display if present
+        start_date:
+          event.start_date_formatted ||
+          this.formatDate(event.start_date) ||
+          event.start_date,
+        end_date:
+          event.end_date_formatted ||
+          this.formatDate(event.end_date) ||
+          event.end_date,
+        activities_count:
+          event.activities_count || event.activities_count === 0
+            ? event.activities_count
+            : undefined,
+        activities_by_type: event.activities_by_type || undefined,
+      };
+      this.showEventDetails = true;
+      // ensure we have the public token/url loaded
+      this.loadEventPublicToken(event.id);
+    },
+
+    closeEventDetails() {
+      this.showEventDetails = false;
+      this.eventDetails = {};
+    },
+
+    async loadEventPublicToken(eventId) {
+      try {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const resp = await f(`/api/events/${eventId}/public-token`);
+        if (!resp || !resp.ok) return;
+        const data = await resp.json();
+        // data is expected to contain { token, url }
+        this.eventDetails.public_token = data.token || null;
+        this.eventDetails.public_url = data.url || null;
+      } catch (e) {
+        console.error("loadEventPublicToken", e);
+      }
+    },
+
+    copyEventPublicUrl() {
+      const url = this.eventDetails && this.eventDetails.public_url;
+      if (!url) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(url)
+          .then(() => showToast("Enlace copiado"));
+      } else {
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = url;
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+          showToast("Enlace copiado");
+        } catch (e) {
+          showToast("No se pudo copiar el enlace", "error");
+        }
+      }
+    },
+
+    openEventPublicPanel() {
+      const token = this.eventDetails && this.eventDetails.public_token;
+      if (!token) return;
+      window.open(
+        `/public/event-registrations/${encodeURIComponent(token)}`,
+        "_blank"
+      );
     },
 
     // Delegar formateo de fechas a helpers centralizados
