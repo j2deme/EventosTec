@@ -46,6 +46,8 @@ def create_app(config_name=None):
     from app.api.stats_bp import stats_bp
     from app.api.reports_bp import reports_bp
     from app.api.self_register_bp import self_register_bp
+    from app.api.public_registrations_bp import public_registrations_bp
+    from app.api.public_event_bp import public_event_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(events_bp)
@@ -56,6 +58,8 @@ def create_app(config_name=None):
     app.register_blueprint(stats_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(self_register_bp)
+    app.register_blueprint(public_registrations_bp)
+    app.register_blueprint(public_event_bp)
 
     # Login
     @app.route('/')

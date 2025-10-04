@@ -1,0 +1,291 @@
+{% extends 'base.html' %} {% block title %}Confirmar preregistros{% endblock %}
+{% block content %}
+<div
+  class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
+>
+  <div
+    class="bg-white p-6 rounded-xl shadow-lg w-full max-w-4xl"
+    x-data="registrationsPublic()"
+    x-init="init()"
+    id="public-registrations-card"
+    data-activity-token="{{ activity_token or '' }}"
+    data-activity-name="{{ activity_name or '' }}"
+    data-activity-type="{{ activity_type or '' }}"
+    data-activity-deadline="{{ activity_deadline_iso or '' }}"
+    data-activity-start="{{ activity_start_iso or '' }}"
+    data-activity-end="{{ activity_end_iso or '' }}"
+    data-activity-location="{{ activity_location or '' }}"
+    data-activity-modality="{{ activity_modality or '' }}"
+    data-event-name="{{ event_name or '' }}"
+    data-event-id="{{ event_id or '' }}"
+    data-event-token="{{ event_token or '' }}"
+    data-initial-activity-id="{{ initial_activity_id or '' }}"
+  >
+    <div class="flex flex-col md:flex-row items-start justify-between mb-4">
+      <div class="md:w-1/5 w-full mb-3 md:mb-0">
+        <div class="pt-1">
+          <button
+            x-show="eventToken"
+            @click="window.location.href = '/public/event-registrations/' + eventToken"
+            type="button"
+            class="inline-flex items-center text-sm text-indigo-600 bg-transparent border-0 p-0 hover:bg-indigo-50 rounded"
+          >
+            <i class="ti ti-arrow-left mr-3 text-lg"></i>
+            <div class="flex flex-col leading-tight text-left">
+              <span
+                class="text-sm font-medium text-indigo-600"
+                x-text="eventName || 'Evento'"
+              ></span>
+              <span class="text-xs text-gray-500">Regresar</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <div class="md:w-3/5 w-full">
+        <div
+          class="text-2xl font-bold text-gray-800"
+          x-text="activityName || 'Actividad'"
+        ></div>
+        <div class="mt-2 flex items-center space-x-3 text-sm text-gray-600">
+          <div class="inline-flex items-center space-x-1">
+            <i class="ti ti-calendar text-gray-400"></i>
+            <span x-text="activityDateRange"></span>
+          </div>
+          <div class="inline-flex items-center space-x-1">
+            <i class="ti ti-map-pin text-gray-400"></i>
+            <span x-text="activityLocation || '-' "></span>
+          </div>
+          <div class="inline-flex items-center space-x-1">
+            <i class="ti ti-device-laptop text-gray-400"></i>
+            <span x-text="activityModality || '-' "></span>
+          </div>
+        </div>
+        <div class="text-sm text-gray-500 mt-1" x-text="timeLeftText"></div>
+      </div>
+
+      <div
+        class="md:w-1/5 w-full flex md:justify-end justify-start mt-3 md:mt-0"
+      >
+        <button
+          @click="openWalkin()"
+          class="bg-indigo-600 text-white px-3 py-2 rounded"
+        >
+          Registrar Walk-in
+        </button>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <input
+        x-model="q"
+        @input.debounce.500ms="fetchRegs"
+        placeholder="Buscar por nombre o número de control"
+        class="w-full rounded border p-2"
+      />
+    </div>
+
+    <div>
+      <table class="w-full table-auto">
+        <thead>
+          <tr class="text-left text-sm text-gray-600">
+            <th class="p-2">#</th>
+            <th class="p-2">Número</th>
+            <th class="p-2">Nombre</th>
+            <th class="p-2">Email</th>
+            <th class="p-2 w-36">Estado</th>
+            <th class="p-2">Asistió</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="(r, idx) in regs" :key="r.id">
+            <tr class="transition-colors duration-150">
+              <td class="p-2 text-sm" x-text="(page-1)*per_page + idx + 1"></td>
+              <td class="p-2 text-sm" x-text="r.control_number || '-' "></td>
+              <td class="p-2 text-sm" x-text="r.student_name || '-' "></td>
+              <td class="p-2 text-sm" x-text="r.email || '-' "></td>
+              <td class="p-2 text-sm w-36">
+                <div class="flex items-center justify-center">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                    :class="{
+                      'bg-green-100 text-green-800': r.attended || (r.status && (r.status === 'Asistió' || r.status === 'Confirmado')),
+                      'bg-yellow-100 text-yellow-800': !r.attended && (r.status && (r.status === 'Registrado' || r.status === 'Pre-registrado')),
+                      'bg-gray-100 text-gray-700': !r.attended && !(r.status && (r.status === 'Registrado' || r.status === 'Pre-registrado' || r.status === 'Asistió' || r.status === 'Confirmado'))
+                    }"
+                    x-text="r.attended ? 'Confirmado' : (r.status || 'Pre-registrado')"
+                  ></span>
+                </div>
+              </td>
+              <td class="p-2 text-sm">
+                <div class="flex items-center justify-center">
+                  <!-- Reserve fixed width so spinner or checkbox+label don't shift layout -->
+                  <div class="w-20 flex items-center justify-center">
+                    <!-- spinner while toggling -->
+                    <div
+                      x-show="r._toggling"
+                      class="flex items-center justify-center h-4"
+                    >
+                      <svg
+                        class="animate-spin text-indigo-600 w-4 h-4"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        aria-hidden="true"
+                      >
+                        <circle
+                          class="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        ></circle>
+                        <path
+                          class="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                        ></path>
+                      </svg>
+                    </div>
+
+                    <!-- checkbox + label when not toggling -->
+                    <label
+                      x-show="!r._toggling"
+                      class="flex items-center space-x-3 cursor-pointer select-none px-2"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="r.attended"
+                        @change="toggleAttendance(r)"
+                        class="form-checkbox h-4 w-4 border-gray-300 checked:bg-green-600 checked:border-green-600 checked:text-white"
+                        style="accent-color: #16a34a"
+                      />
+                      <span
+                        class="text-sm text-gray-700"
+                        x-text="r.attended ? 'Sí' : 'No'"
+                      ></span>
+                    </label>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-4 flex items-center justify-between">
+      <div class="text-sm text-gray-600">
+        Mostrando <span x-text="regs.length"></span>
+        <template x-if="total > 50"> de <span x-text="total"></span></template>
+      </div>
+      <div x-show="total > 50">
+        <button @click="prevPage()" class="px-2 py-1 border rounded mr-2">
+          Anterior
+        </button>
+        <button @click="nextPage()" class="px-2 py-1 border rounded">
+          Siguiente
+        </button>
+      </div>
+    </div>
+
+    <!-- Walk-in modal (simple) -->
+    <div
+      x-show="showWalkin"
+      x-cloak
+      class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center"
+    >
+      <div class="bg-white p-4 rounded w-full max-w-md">
+        <h3 class="text-lg font-bold mb-2">Registrar Walk-in</h3>
+        <div class="space-y-2">
+          <div>
+            <label class="block text-sm">Número de control</label>
+            <input
+              x-model="walkin.control_number"
+              class="w-full border rounded p-2"
+            />
+          </div>
+          <div x-show="walkinLookupState !== 'idle'">
+            <label class="block text-sm">Nombre completo</label>
+            <input
+              x-model="walkin.full_name"
+              class="w-full border rounded p-2"
+            />
+          </div>
+          <div x-show="walkinLookupState === 'found'">
+            <label class="block text-sm">Email (opcional)</label>
+            <input x-model="walkin.email" class="w-full border rounded p-2" />
+          </div>
+          <div class="flex justify-end items-center space-x-2">
+            <template
+              x-if="walkinLookupState === 'idle' || walkinLookupState === 'not_found' || walkinLookupState === 'error'"
+            >
+              <button
+                @click="lookupWalkin()"
+                class="bg-yellow-500 text-white px-3 py-2 rounded"
+              >
+                Buscar
+              </button>
+            </template>
+            <template x-if="walkinLookupState === 'searching'">
+              <div class="text-sm text-gray-600">Buscando...</div>
+            </template>
+            <template x-if="walkinLookupState === 'found'">
+              <button
+                @click="doWalkin()"
+                class="bg-indigo-600 text-white px-3 py-2 rounded"
+              >
+                Registrar
+              </button>
+            </template>
+            <button
+              @click="closeWalkin()"
+              class="ml-2 px-3 py-2 border rounded"
+            >
+              Cancelar
+            </button>
+          </div>
+          <div
+            x-show="walkinLookupState === 'not_found'"
+            class="text-sm text-gray-500"
+          >
+            Estudiante no encontrado en el sistema local ni en el servicio
+            externo. Puede ingresar manualmente los datos y registrar.
+          </div>
+          <div
+            x-show="walkinLookupState === 'error'"
+            class="text-sm text-red-500"
+          >
+            Error consultando servicio externo. Intente de nuevo o ingrese datos
+            manualmente.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  window.__registrationsPublic_init = (el) => {
+    try {
+      return {
+        token: el.getAttribute("data-activity-token") || "",
+        name: el.getAttribute("data-activity-name") || "",
+        type: el.getAttribute("data-activity-type") || "",
+        deadline: el.getAttribute("data-activity-deadline") || "",
+        start: el.getAttribute("data-activity-start") || "",
+        end: el.getAttribute("data-activity-end") || "",
+        location: el.getAttribute("data-activity-location") || "",
+        modality: el.getAttribute("data-activity-modality") || "",
+        eventName: el.getAttribute("data-event-name") || "",
+        eventId: el.getAttribute("data-event-id") || "",
+        eventToken: el.getAttribute("data-event-token") || "",
+      };
+    } catch (e) {
+      return { token: "", name: "", type: "", deadline: "" };
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/public/registrations_public.js') }}"></script>
+{% endblock %}

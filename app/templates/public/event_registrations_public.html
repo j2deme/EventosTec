@@ -1,0 +1,162 @@
+{% extends 'base.html' %} {% block title %}Panel para Jefes de Carrera{%
+endblock %} {% block content %}
+<div class="min-h-screen bg-gray-50 p-4">
+  <div class="max-w-5xl mx-auto">
+    <div class="bg-yellow-100 border-l-4 border-yellow-400 p-4 rounded mb-4">
+      <strong class="block text-sm font-semibold"
+        >VISTA PARA JEFES DE CARRERA</strong
+      >
+      <div class="text-sm text-gray-700">
+        <p>
+          Este enlace es exclusivo para JEFES DE CARRERA y
+          <strong>no</strong> debe compartirse con estudiantes.
+        </p>
+      </div>
+    </div>
+
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-xl font-bold mb-2">{{ event_name or 'Evento' }}</h2>
+      <div
+        x-data="window.eventRegistrationsPublic ? eventRegistrationsPublic() : {}"
+        x-init="(window.eventRegistrationsPublic ? init($el) : null)"
+        id="event-registrations-card"
+        data-event-token="{{ event_token or '' }}"
+        data-event-id="{{ event_id or '' }}"
+        data-event-name="{{ event_name or '' }}"
+      >
+        <div class="mb-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-sm">Buscar actividad</label>
+            <input
+              x-model="q"
+              @input.debounce="(filters.page=1, fetchActivities())"
+              placeholder="Filtrar por nombre"
+              class="w-full border rounded p-2"
+            />
+          </div>
+          <div>
+            <label class="block text-sm">Tipo</label>
+            <select
+              x-model="filters.activity_type"
+              @change="(filters.page=1, fetchActivities())"
+              class="w-full border rounded p-2"
+            >
+              <option value="">Todos</option>
+              <option>Magistral</option>
+              <option>Conferencia</option>
+              <option>Taller</option>
+              <option>Curso</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm">Departamento</label>
+            <select
+              x-model="filters.department"
+              @change="(filters.page=1, fetchActivities())"
+              class="w-full border rounded p-2"
+            >
+              <option value="">Todos</option>
+              <template x-for="d in (departments || [])" :key="d">
+                <option :value="d" x-text="d"></option>
+              </template>
+            </select>
+          </div>
+          <!-- Removed per-page select: using pagination controls below -->
+          <div class="hidden md:block"></div>
+        </div>
+
+        <template x-if="activities.length === 0">
+          <div class="text-sm text-gray-600">
+            No hay actividades encontradas.
+          </div>
+        </template>
+
+        <table class="w-full table-auto" x-show="activities.length > 0">
+          <thead class="text-left text-sm text-gray-600">
+            <tr>
+              <th class="p-2">#</th>
+              <th class="p-2">Nombre</th>
+              <th class="p-2">Fecha</th>
+              <th class="p-2">Tipo</th>
+              <th class="p-2">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(a, idx) in activities" :key="a.id">
+              <tr class="border-t">
+                <td class="p-2 text-sm" x-text="idx+1"></td>
+                <td class="p-2 text-sm" x-text="a.name"></td>
+                <td class="p-2 text-sm" x-text="a.dateDisplay"></td>
+                <td class="p-2 text-sm">
+                  <span
+                    x-bind:class="{
+                      'bg-indigo-100 text-indigo-800': a.activity_type === 'Magistral',
+                      'bg-green-100 text-green-800': a.activity_type === 'Conferencia',
+                      'bg-yellow-100 text-yellow-800': a.activity_type === 'Taller',
+                      'bg-orange-100 text-orange-800': a.activity_type === 'Curso',
+                      'bg-gray-100 text-gray-800': a.activity_type === 'Otro'
+                    }"
+                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                  >
+                    <span x-text="a.activity_type || '-' "></span>
+                  </span>
+                </td>
+                <td class="p-2 text-sm">
+                  <button
+                    @click.prevent="openRegistrationsForActivity(a)"
+                    class="bg-indigo-600 text-white px-2 py-1 rounded"
+                  >
+                    Administrar
+                  </button>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <!-- Pagination controls -->
+        <div
+          class="mt-4 flex items-center justify-between"
+          x-show="pagination.total > 0"
+        >
+          <div class="text-sm text-gray-700">
+            Mostrando <span x-text="pagination.from"></span> a
+            <span x-text="pagination.to"></span> de
+            <span x-text="pagination.total"></span> resultados
+          </div>
+          <div class="flex space-x-2">
+            <button
+              @click.prevent="changePage(pagination.current_page - 1)"
+              :disabled="pagination.current_page === 1"
+              class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            <template x-for="page in pagination.pages" :key="page">
+              <button
+                @click.prevent="changePage(page)"
+                :class="{
+                  'bg-indigo-600 text-white': page === pagination.current_page,
+                  'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
+                }"
+                class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md"
+              >
+                <span x-text="page"></span>
+              </button>
+            </template>
+            <button
+              @click.prevent="changePage(pagination.current_page + 1)"
+              :disabled="pagination.current_page === pagination.last_page"
+              class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script src="{{ url_for('static', filename='js/public/event_registrations_public.js') }}"></script>
+{% endblock %}
