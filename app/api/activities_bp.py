@@ -396,6 +396,26 @@ def get_activity_token(activity_id):
         return jsonify({'message': 'Error generando token', 'error': str(e)}), 500
 
 
+@activities_bp.route('/<int:activity_id>/public-token', methods=['GET'])
+@jwt_required()
+@require_admin
+def get_public_activity_token(activity_id):
+    """Devuelve un token público (para jefes) distinto del token de autorregistro."""
+    try:
+        activity = db.session.get(Activity, activity_id)
+        if not activity:
+            return jsonify({'message': 'Actividad no encontrada'}), 404
+
+        from app.utils.token_utils import generate_public_token
+
+        token = generate_public_token(activity.id)
+        url = request.host_url.rstrip('/') + '/public/registrations/' + token
+
+        return jsonify({'token': token, 'url': url}), 200
+    except Exception as e:
+        return jsonify({'message': 'Error generando public token', 'error': str(e)}), 500
+
+
 @activities_bp.route('/<int:activity_id>/related', methods=['POST'])
 @jwt_required()
 @require_admin

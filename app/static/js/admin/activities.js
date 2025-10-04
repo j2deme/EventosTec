@@ -40,6 +40,9 @@ function activitiesManager() {
     // Token modal state
     tokenUrl: "",
     token: "",
+    // Public (chief) token state
+    tokenUrlPublic: "",
+    tokenPublic: "",
     tokenLoading: false,
     tokenError: "",
     // Batch import modal
@@ -918,6 +921,8 @@ function activitiesManager() {
       this.token = "";
       this.tokenLoading = true;
       this.tokenError = "";
+      this.tokenUrlPublic = "";
+      this.tokenPublic = "";
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
@@ -938,6 +943,23 @@ function activitiesManager() {
         this.tokenUrl =
           data.url ||
           window.location.origin + "/self-register/" + (data.token || "");
+        // Also fetch public (chief) token in parallel
+        try {
+          const res2 = await f(
+            `/api/activities/${this.activityToView.id}/public-token`
+          );
+          if (res2 && res2.ok) {
+            const d2 = await res2.json();
+            this.tokenPublic = d2.token || "";
+            this.tokenUrlPublic =
+              d2.url ||
+              window.location.origin +
+                "/public/registrations/" +
+                (d2.token || "");
+          }
+        } catch (e) {
+          // ignore public token fetch errors
+        }
       } catch (e) {
         this.tokenError = e && e.message ? e.message : String(e);
       } finally {
