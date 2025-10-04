@@ -40,6 +40,9 @@ class Config:
     ENABLE_SQIDS = os.environ.get('ENABLE_SQIDS', '0') in ('1', 'true', 'yes')
     # Number of bytes to truncate HMAC signature for compact tokens (default 8)
     TOKEN_SIG_TRUNC = int(os.environ.get('TOKEN_SIG_TRUNC', '8'))
+    # Public confirmation window in days for chiefs' token (default 30 days)
+    PUBLIC_CONFIRM_WINDOW_DAYS = int(
+        os.environ.get('PUBLIC_CONFIRM_WINDOW_DAYS', '30'))
 
 
 class DevelopmentConfig(Config):
