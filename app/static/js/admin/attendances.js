@@ -826,6 +826,11 @@ function attendancesAdmin() {
           status: synth.status || (synth.registration || {}).status || null,
           registration_date:
             synth.registration_date || synth.created_at || null,
+          confirmation_date:
+            synth.confirmation_date ||
+            (synth.registration && synth.registration.confirmation_date) ||
+            (body.registration && body.registration.confirmation_date) ||
+            null,
           __raw: body.registration || null,
         };
 

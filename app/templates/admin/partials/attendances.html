@@ -737,6 +737,16 @@
                 class="text-sm text-gray-700"
                 x-text="formatDateAMPM(registrationModalData?.registration_date || registrationModalData?.created_at || (registrationModalData?.registration && registrationModalData.registration.registration_date)) || '—'"
               ></div>
+              <div
+                x-show="(registrationModalData && (registrationModalData.confirmation_date || (registrationModalData.registration && registrationModalData.registration.confirmation_date)))"
+                x-cloak
+              >
+                <div class="text-xs text-gray-500 mt-2">Fecha confirmación</div>
+                <div
+                  class="text-sm text-gray-700"
+                  x-text="formatDateAMPM(registrationModalData?.confirmation_date || (registrationModalData?.registration && registrationModalData.registration.confirmation_date)) || '—'"
+                ></div>
+              </div>
             </div>
           </div>
 
