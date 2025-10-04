@@ -4,6 +4,7 @@ from marshmallow import ValidationError
 from app import db
 from app.schemas import activity_schema, activities_schema
 from app.models.activity import Activity
+from sqlalchemy import func
 from app.models.event import Event
 from app.models.registration import Registration
 from app.services import activity_service
@@ -96,6 +97,21 @@ def get_activities():
         if event_id:
             query = query.filter(Activity.event_id == event_id)
 
+        # Filter by department (case-insensitive). Support both partial
+        # matches and exact case-insensitive equality to be tolerant with
+        # how departments are stored.
+        department = request.args.get('department')
+        if department:
+            dep = department.strip()
+            if dep:
+                dep_like = f"%{dep}%"
+                query = query.filter(
+                    db.or_(
+                        Activity.department.ilike(dep_like),
+                        func.lower(Activity.department) == dep.lower()
+                    )
+                )
+
         if for_student is not None:
             fs_val = str(for_student).lower()
             if fs_val in ('1', 'true', 'yes'):
@@ -112,8 +128,26 @@ def get_activities():
         if activity_type:
             query = query.filter(Activity.activity_type == activity_type)
 
-        # Ordenar por fecha de creación (más recientes primero)
-        query = query.order_by(Activity.created_at.desc())
+        # Ordenamiento: permitir parámetro sort=name:asc|name:desc o por created_at desc por defecto
+        sort = request.args.get('sort', None)
+        if sort:
+            try:
+                key, direction = sort.split(':', 1)
+                key = key.strip()
+                direction = direction.strip().lower()
+                if key == 'name':
+                    if direction == 'asc':
+                        query = query.order_by(Activity.name.asc())
+                    else:
+                        query = query.order_by(Activity.name.desc())
+                else:
+                    # Fallback al orden por creación
+                    query = query.order_by(Activity.created_at.desc())
+            except Exception:
+                query = query.order_by(Activity.created_at.desc())
+        else:
+            # Ordenar por fecha de creación (más recientes primero) por defecto
+            query = query.order_by(Activity.created_at.desc())
 
         activities = query.paginate(
             page=page, per_page=per_page, error_out=False
