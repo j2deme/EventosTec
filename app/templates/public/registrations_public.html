@@ -102,7 +102,7 @@
     <div class="mb-4">
       <input
         x-model="q"
-        @input.debounce.500ms="fetchRegs"
+        @input.debounce.500ms="$nextTick(() => fetchRegs())"
         placeholder="Buscar por nombre o número de control"
         class="w-full rounded border p-2"
       />

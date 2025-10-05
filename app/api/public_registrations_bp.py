@@ -230,6 +230,29 @@ def api_list_registrations():
 
     items.sort(key=sort_key)
 
+    # Apply server-side search filter (if provided)
+    q = (request.args.get('q') or '').strip()
+    if q:
+        q_lower = q.lower()
+
+        def matches_query(it):
+            # check control_number (as substring) and student_name (case-insensitive)
+            cn = it.get('control_number')
+            name = it.get('student_name')
+            try:
+                if cn and q_lower in str(cn).lower():
+                    return True
+            except Exception:
+                pass
+            try:
+                if name and q_lower in str(name).lower():
+                    return True
+            except Exception:
+                pass
+            return False
+
+        items = [it for it in items if matches_query(it)]
+
     total = len(items)
     start = (page - 1) * per_page
     end = start + per_page
