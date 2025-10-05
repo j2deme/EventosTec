@@ -4,7 +4,7 @@
   class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
 >
   <div
-    class="bg-white p-6 rounded-xl shadow-lg w-full max-w-4xl"
+    class="bg-white p-6 rounded-xl shadow-lg w-full max-w-4xl min-h-[60vh] md:min-h-[70vh]"
     x-data="registrationsPublic()"
     x-init="init()"
     id="public-registrations-card"
@@ -62,17 +62,40 @@
           </div>
         </div>
         <div class="text-sm text-gray-500 mt-1" x-text="timeLeftText"></div>
+        <!-- small legend for source icons -->
+        <div class="mt-2 text-xs text-gray-500 flex items-center space-x-4">
+          <div class="flex items-center space-x-1">
+            <i class="ti ti-list-check text-indigo-600"></i>
+            <span>Preregistro</span>
+          </div>
+          <div class="flex items-center space-x-1">
+            <i class="ti ti-check text-green-600"></i>
+            <span>Asistencia (sin preregistro)</span>
+          </div>
+        </div>
       </div>
 
       <div
         class="md:w-1/5 w-full flex md:justify-end justify-start mt-3 md:mt-0"
       >
-        <button
-          @click="openWalkin()"
-          class="bg-indigo-600 text-white px-3 py-2 rounded"
-        >
-          Registrar Walk-in
-        </button>
+        <div class="flex flex-col items-end w-full">
+          <button
+            @click="openWalkin()"
+            class="bg-indigo-600 text-white px-3 py-2 rounded inline-flex items-center space-x-2"
+          >
+            <i class="ti ti-user-plus"></i>
+            <span>Registrar Walk-in</span>
+          </button>
+
+          <!-- Moved explanation below the button and right-aligned on md+ -->
+          <div class="mt-2 text-sm text-gray-600 w-full">
+            <strong>¿Qué es un walk-in?</strong>
+            <div>
+              Es cuando un estudiante sin preregistro llega a la actividad y se
+              le registra su asistencia.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -89,6 +112,7 @@
       <table class="w-full table-auto">
         <thead>
           <tr class="text-left text-sm text-gray-600">
+            <th class="p-2"></th>
             <th class="p-2">#</th>
             <th class="p-2">Número</th>
             <th class="p-2">Nombre</th>
@@ -98,11 +122,33 @@
           </tr>
         </thead>
         <tbody>
-          <template x-for="(r, idx) in regs" :key="r.id">
+          <template
+            x-for="(r, idx) in regs"
+            :key="(r.registration_id || r.attendance_id || r.student_id)"
+          >
             <tr class="transition-colors duration-150">
+              <td class="p-2 text-center">
+                <!-- source icon column -->
+                <div class="flex items-center justify-center">
+                  <i
+                    x-show="r.source === 'registration'"
+                    class="ti ti-list-check text-indigo-600"
+                    title="Preregistro"
+                    aria-hidden="true"
+                  ></i>
+                  <i
+                    x-show="r.source === 'attendance'"
+                    class="ti ti-check text-green-600"
+                    title="Asistencia (sin preregistro)"
+                    aria-hidden="true"
+                  ></i>
+                </div>
+              </td>
               <td class="p-2 text-sm" x-text="(page-1)*per_page + idx + 1"></td>
               <td class="p-2 text-sm" x-text="r.control_number || '-' "></td>
-              <td class="p-2 text-sm" x-text="r.student_name || '-' "></td>
+              <td class="p-2 text-sm">
+                <span x-text="r.student_name || '-' "></span>
+              </td>
               <td class="p-2 text-sm" x-text="r.email || '-' "></td>
               <td class="p-2 text-sm w-36">
                 <div class="flex items-center justify-center">
