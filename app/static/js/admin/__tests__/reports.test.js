@@ -352,11 +352,17 @@ describe("reportsManager", () => {
 
       expect(mgr.fillLoading).toBe(false);
       expect(mgr.fillReport).toHaveLength(3);
-      expect(mgr.fillReport[0].percent).toBe(76); // rounded
-      expect(mgr.fillReport[0].status_label).toBe("Disponible");
-      expect(mgr.fillReport[1].status_label).toBe("Lleno");
-      expect(mgr.fillReport[2].percent).toBeNull();
-      expect(mgr.fillReport[2].status_label).toBe("Abierto");
+      // Find activities by id to avoid order issues
+      const act1 = mgr.fillReport.find(a => a.id === 1);
+      const act2 = mgr.fillReport.find(a => a.id === 2);
+      const act3 = mgr.fillReport.find(a => a.id === 3);
+      
+      expect(act1.percent).toBe(76); // 75.5 rounded
+      expect(act1.status_label).toBe("Disponible");
+      expect(act2.status_label).toBe("Lleno");
+      expect(act2.percent).toBe(100);
+      expect(act3.percent).toBeNull();
+      expect(act3.status_label).toBe("Abierto");
     });
 
     test("should handle errors in fill report", async () => {
