@@ -43,10 +43,31 @@
       </div>
 
       <div class="md:w-3/5 w-full">
-        <div
-          class="text-2xl font-bold text-gray-800"
-          x-text="activityName || 'Actividad'"
-        ></div>
+        <div class="flex items-center space-x-3">
+          <div
+            class="text-2xl font-bold text-gray-800"
+            x-text="activityName || 'Actividad'"
+          ></div>
+          <!-- status badge -->
+          <div
+            x-show="registerState === 'pending'"
+            class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-sm"
+          >
+            Por iniciar
+          </div>
+          <div
+            x-show="registerState === 'open'"
+            class="px-2 py-1 bg-green-100 text-green-800 rounded text-sm"
+          >
+            Abierto
+          </div>
+          <div
+            x-show="registerState === 'closed'"
+            class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm"
+          >
+            Cerrado
+          </div>
+        </div>
         <div class="mt-2 flex items-center space-x-3 text-sm text-gray-600">
           <div class="inline-flex items-center space-x-1">
             <i class="ti ti-calendar text-gray-400"></i>
@@ -74,13 +95,21 @@
           </div>
         </div>
       </div>
-
+      <div x-show="!controlsEnabled">
+        <!-- Placeholder to keep layout consistent when controls are hidden -->
+        <div class="md:w-1/5 w-full mt-3 md:mt-0" aria-hidden="true"></div>
+      </div>
       <div
+        x-show="controlsEnabled"
+        x-cloak
         class="md:w-1/5 w-full flex md:justify-end justify-start mt-3 md:mt-0"
+        aria-hidden="true"
       >
         <div class="flex flex-col items-end w-full">
           <button
             @click="openWalkin()"
+            :disabled="!controlsEnabled"
+            :class="{ 'opacity-50 cursor-not-allowed': !controlsEnabled }"
             class="bg-indigo-600 text-white px-3 py-2 rounded inline-flex items-center space-x-2"
           >
             <i class="ti ti-user-plus"></i>
@@ -213,7 +242,7 @@
                         type="checkbox"
                         :checked="r.attended"
                         @change="onToggleRow(r)"
-                        :disabled="!(r.registration_id || (r.source === 'attendance' && r.attended))"
+                        :disabled="!(controlsEnabled && (r.registration_id || (r.source === 'attendance' && r.attended)))"
                         class="form-checkbox h-4 w-4 border-gray-300 checked:bg-green-600 checked:border-green-600 checked:text-white"
                         style="accent-color: #16a34a"
                         :title="r.registration_id ? 'Confirmar/Desconfirmar preregistro' : (r.source === 'attendance' ? 'Desmarcar asistencia registrada' : 'Solo asistencia registrada (sin preregistro)')"

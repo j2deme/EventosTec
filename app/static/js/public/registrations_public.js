@@ -14,6 +14,8 @@ function registrationsPublic() {
     eventToken: null,
     timeLeftText: "",
     regs: [],
+    controlsEnabled: false,
+    registerState: "open", // 'pending' | 'open' | 'closed'
     page: 1,
     per_page: 50,
     total: 0,
@@ -81,8 +83,11 @@ function registrationsPublic() {
 
     initCountdown() {
       try {
-        if (!this.deadline || typeof dayjs === "undefined") return;
-        this.deadline = dayjs(this.deadline);
+        if (typeof dayjs === "undefined") return;
+
+        // parse start/deadline into dayjs objects if present
+        const start = this.start ? dayjs(this.start) : null;
+        const deadline = this.deadline ? dayjs(this.deadline) : null;
 
         // Clear any existing interval handle stored on the component
         if (this._countdownHandle) {
@@ -93,9 +98,7 @@ function registrationsPublic() {
         const formatUnit = (value, singular, plural) =>
           `${value} ${value === 1 ? singular : plural}`;
 
-        // Build a human-friendly array of unit tuples [value, singular, plural]
         const buildUnits = (duration) => {
-          // use absolute values
           const years = Math.floor(duration.asYears());
           const months = Math.floor(duration.asMonths() % 12);
           const weeks = Math.floor(duration.asWeeks() % 4);
@@ -123,7 +126,6 @@ function registrationsPublic() {
               parts.push(formatUnit(value, singular, plural));
             }
           }
-          // If nothing found (shouldn't happen), fallback to seconds
           if (parts.length === 0) {
             const s = Math.max(0, Math.floor(duration.asSeconds()));
             parts.push(formatUnit(s, "segundo", "segundos"));
@@ -131,7 +133,7 @@ function registrationsPublic() {
           return parts.join(" y ");
         };
 
-        // Choose update frequency based on remaining magnitude (ms)
+        // adaptive tick chooser reused from before
         const chooseIntervalMs = (diffMs) => {
           const diffSec = diffMs / 1000;
           const diffMin = diffSec / 60;
@@ -150,30 +152,50 @@ function registrationsPublic() {
 
         const updateOnce = () => {
           const now = dayjs();
-          const diffMs = this.deadline.diff(now);
-          if (diffMs <= 0) {
-            this.timeLeftText = "El registro de asistencias ha cerrado";
+
+          // If there's a start and we're before it, show time until start and disable controls
+          if (start && now.isBefore(start)) {
+            this.controlsEnabled = false;
+            const d = dayjs.duration(start.diff(now));
+            this.timeLeftText = `Registro de asistencias inicia en ${pickSignificant(
+              d,
+              2
+            )}`;
+            return start.diff(now);
+          }
+
+          // Activity started (or no explicit start): enable controls unless already past deadline
+          this.controlsEnabled = true;
+
+          if (deadline) {
+            const diffMs = deadline.diff(now);
+            if (diffMs <= 0) {
+              this.controlsEnabled = false;
+              this.timeLeftText = "El registro de asistencias ha cerrado";
+              return diffMs;
+            }
+            const d = dayjs.duration(diffMs);
+            this.timeLeftText = `El registro de asistencias cierra en ${pickSignificant(
+              d,
+              2
+            )}`;
             return diffMs;
           }
-          const d = dayjs.duration(diffMs);
 
-          // Prefer up to two most significant units
-          const text = pickSignificant(d, 2) + " restantes";
-          this.timeLeftText = `El registro de asistencias cierra en ${text}`;
-          return diffMs;
+          // No deadline: just indicate opened
+          this.timeLeftText = "Registro de asistencias abierto";
+          return 60 * 1000; // arbitrary 1m tick
         };
 
-        // Initial update
+        // initial update and scheduling similar to previous logic
         let diffMs = updateOnce();
 
-        // Install interval with adaptive frequency. We'll clear and re-create when frequency changes.
         const schedule = () => {
           if (this._countdownHandle) {
             clearInterval(this._countdownHandle);
             this._countdownHandle = null;
           }
           const nextInterval = chooseIntervalMs(Math.max(0, diffMs));
-          // store for potential cleanup
           this._countdownHandle = setInterval(() => {
             try {
               diffMs = updateOnce();
@@ -182,7 +204,6 @@ function registrationsPublic() {
                 this._countdownHandle = null;
                 return;
               }
-              // If the desired interval should change, reschedule
               const desired = chooseIntervalMs(diffMs);
               if (desired !== nextInterval) {
                 schedule();
@@ -317,6 +338,12 @@ function registrationsPublic() {
 
     async toggleAttendance(r, ev) {
       try {
+        if (!this.controlsEnabled) {
+          try {
+            showToast("El registro de asistencias aún no inicia", "info");
+          } catch (e) {}
+          return;
+        }
         // derive new checked state as toggle of current
         const checked = !Boolean(r.attended);
 
@@ -711,6 +738,12 @@ function registrationsPublic() {
 
     async doWalkin() {
       try {
+        if (!this.controlsEnabled) {
+          try {
+            showToast("El registro de asistencias aún no inicia", "info");
+          } catch (e) {}
+          return;
+        }
         // Require that lookup found the student (local or external). We do
         // not accept manual creation via this flow.
         if (!this.walkin.control_number) {
