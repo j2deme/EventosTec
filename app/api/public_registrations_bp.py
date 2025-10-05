@@ -610,6 +610,38 @@ def public_pause_attendance_view(token):
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message='Solo disponible para conferencias magistrales')
 
+    # Check time window: available 30 seconds after start and until 1 minute after end
+    now = datetime.now(timezone.utc)
+    
+    # Ensure start_datetime and end_datetime are timezone-aware
+    start_dt = activity.start_datetime
+    end_dt = activity.end_datetime
+    
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Calculate time windows
+    available_from = start_dt + timedelta(seconds=30)
+    available_until = end_dt + timedelta(minutes=1)
+    
+    if now < available_from:
+        return render_template(
+            'public/pause_attendance.html', 
+            token_provided=True, 
+            token_invalid=True, 
+            error_message=f'Esta vista estará disponible 30 segundos después del inicio de la actividad'
+        )
+    
+    if now > available_until:
+        return render_template(
+            'public/pause_attendance.html', 
+            token_provided=True, 
+            token_invalid=True, 
+            error_message='Esta vista ya no está disponible (la actividad finalizó hace más de 1 minuto)'
+        )
+
     return render_template(
         'public/pause_attendance.html',
         activity_token=token,
@@ -639,6 +671,28 @@ def api_public_search_attendances():
     # Only allow for Magistral activities
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
+
+    # Check time window: available 30 seconds after start and until 1 minute after end
+    now = datetime.now(timezone.utc)
+    
+    # Ensure start_datetime and end_datetime are timezone-aware
+    start_dt = activity.start_datetime
+    end_dt = activity.end_datetime
+    
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Calculate time windows
+    available_from = start_dt + timedelta(seconds=30)
+    available_until = end_dt + timedelta(minutes=1)
+    
+    if now < available_from:
+        return jsonify({'message': 'Esta funcionalidad estará disponible 30 segundos después del inicio de la actividad'}), 403
+    
+    if now > available_until:
+        return jsonify({'message': 'Esta funcionalidad ya no está disponible (la actividad finalizó hace más de 1 minuto)'}), 403
 
     if not search:
         return jsonify({'attendances': []}), 200
@@ -697,6 +751,28 @@ def api_public_pause_attendance(attendance_id):
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
 
+    # Check time window: available 30 seconds after start and until 1 minute after end
+    now = datetime.now(timezone.utc)
+    
+    # Ensure start_datetime and end_datetime are timezone-aware
+    start_dt = activity.start_datetime
+    end_dt = activity.end_datetime
+    
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Calculate time windows
+    available_from = start_dt + timedelta(seconds=30)
+    available_until = end_dt + timedelta(minutes=1)
+    
+    if now < available_from:
+        return jsonify({'message': 'Esta funcionalidad estará disponible 30 segundos después del inicio de la actividad'}), 403
+    
+    if now > available_until:
+        return jsonify({'message': 'Esta funcionalidad ya no está disponible (la actividad finalizó hace más de 1 minuto)'}), 403
+
     att = db.session.get(Attendance, int(attendance_id))
     if not att or att.activity_id != activity.id:
         return jsonify({'message': 'Asistencia no encontrada para esta actividad'}), 404
@@ -743,6 +819,28 @@ def api_public_resume_attendance(attendance_id):
     # Only allow for Magistral activities
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
+
+    # Check time window: available 30 seconds after start and until 1 minute after end
+    now = datetime.now(timezone.utc)
+    
+    # Ensure start_datetime and end_datetime are timezone-aware
+    start_dt = activity.start_datetime
+    end_dt = activity.end_datetime
+    
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Calculate time windows
+    available_from = start_dt + timedelta(seconds=30)
+    available_until = end_dt + timedelta(minutes=1)
+    
+    if now < available_from:
+        return jsonify({'message': 'Esta funcionalidad estará disponible 30 segundos después del inicio de la actividad'}), 403
+    
+    if now > available_until:
+        return jsonify({'message': 'Esta funcionalidad ya no está disponible (la actividad finalizó hace más de 1 minuto)'}), 403
 
     att = db.session.get(Attendance, int(attendance_id))
     if not att or att.activity_id != activity.id:
