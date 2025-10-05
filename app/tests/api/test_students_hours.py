@@ -243,3 +243,115 @@ def test_get_student_event_details_not_found(client, sample_student):
     assert resp.status_code == 404
     data = resp.get_json()
     assert 'message' in data
+
+
+def test_get_complementary_credits_requires_event_id(client, auth_headers):
+    """Test that complementary credits endpoint requires event_id."""
+    resp = client.get('/api/students/complementary-credits', headers=auth_headers)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert 'event_id' in data['message'].lower()
+
+
+def test_get_complementary_credits_filters_by_hours(app, client, auth_headers, sample_event):
+    """Test that only students with 10+ hours are returned."""
+    from app.models.student import Student
+    from app.models.activity import Activity
+    from app.models.registration import Registration
+    from app import db
+    from datetime import datetime, timedelta
+    
+    with app.app_context():
+        # Create two students
+        student1 = Student(
+            control_number="TEST100",
+            full_name="Student with 10+ hours",
+            career="Engineering",
+            email="test100@test.com"
+        )
+        student2 = Student(
+            control_number="TEST200",
+            full_name="Student with <10 hours",
+            career="Engineering",
+            email="test200@test.com"
+        )
+        db.session.add_all([student1, student2])
+        db.session.flush()
+        
+        # Create activities for student1 (12 hours total)
+        activity1 = Activity(
+            event_id=sample_event,
+            department="TEST",
+            name="Activity 1",
+            start_datetime=datetime.now(),
+            end_datetime=datetime.now() + timedelta(hours=8),
+            duration_hours=8.0,
+            activity_type="Conferencia",
+            location="Test",
+            modality="Presencial"
+        )
+        activity2 = Activity(
+            event_id=sample_event,
+            department="TEST",
+            name="Activity 2",
+            start_datetime=datetime.now(),
+            end_datetime=datetime.now() + timedelta(hours=4),
+            duration_hours=4.0,
+            activity_type="Taller",
+            location="Test",
+            modality="Presencial"
+        )
+        db.session.add_all([activity1, activity2])
+        db.session.flush()
+        
+        # Register student1 with both activities (12 hours)
+        reg1 = Registration(student_id=student1.id, activity_id=activity1.id, status='Asistió')
+        reg2 = Registration(student_id=student1.id, activity_id=activity2.id, status='Asistió')
+        
+        # Create activity for student2 (5 hours only)
+        activity3 = Activity(
+            event_id=sample_event,
+            department="TEST",
+            name="Activity 3",
+            start_datetime=datetime.now(),
+            end_datetime=datetime.now() + timedelta(hours=5),
+            duration_hours=5.0,
+            activity_type="Conferencia",
+            location="Test",
+            modality="Presencial"
+        )
+        db.session.add(activity3)
+        db.session.flush()
+        
+        reg3 = Registration(student_id=student2.id, activity_id=activity3.id, status='Asistió')
+        
+        db.session.add_all([reg1, reg2, reg3])
+        db.session.commit()
+    
+    # Query the endpoint
+    resp = client.get(
+        f'/api/students/complementary-credits?event_id={sample_event}',
+        headers=auth_headers
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    
+    # Should only return student1 with 12 hours
+    assert 'students' in data
+    assert len(data['students']) == 1
+    assert data['students'][0]['control_number'] == 'TEST100'
+    assert data['students'][0]['total_hours'] >= 10.0
+
+
+def test_export_complementary_credits_generates_excel(app, client, auth_headers, sample_event, sample_student, sample_activity, sample_registration):
+    """Test that Excel export endpoint returns file."""
+    resp = client.get(
+        f'/api/students/complementary-credits/export?event_id={sample_event}',
+        headers=auth_headers
+    )
+    
+    # Should return file or empty result depending on data
+    # If no students with 10+ hours, it should still work
+    assert resp.status_code == 200
+    assert resp.content_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+

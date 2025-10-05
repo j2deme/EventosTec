@@ -42,6 +42,16 @@ function studentsAdmin() {
     eventActivities: [],
     loadingEventDetail: false,
 
+    // Modal de exportación de créditos complementarios
+    showExportModal: false,
+    exportFilters: {
+      event_id: null,
+      career: "",
+    },
+    exportData: [],
+    loadingExport: false,
+    exportError: "",
+
     // Inicialización
     async init() {
       await this.loadEvents();
@@ -295,6 +305,98 @@ function studentsAdmin() {
         Cancelado: "bg-gray-100 text-gray-800",
       };
       return classes[status] || "bg-gray-100 text-gray-800";
+    },
+
+    // Abrir modal de exportación de créditos
+    openExportModal() {
+      this.showExportModal = true;
+      this.exportFilters = {
+        event_id: this.filters.event_id || null,
+        career: this.filters.career || "",
+      };
+      this.exportData = [];
+      this.exportError = "";
+    },
+
+    // Cerrar modal de exportación
+    closeExportModal() {
+      this.showExportModal = false;
+      this.exportData = [];
+      this.exportError = "";
+    },
+
+    // Cargar estudiantes con crédito complementario
+    async loadComplementaryCredits() {
+      if (!this.exportFilters.event_id) {
+        this.exportError = "Debe seleccionar un evento";
+        return;
+      }
+
+      this.loadingExport = true;
+      this.exportError = "";
+
+      try {
+        const params = new URLSearchParams({
+          event_id: this.exportFilters.event_id,
+        });
+
+        if (this.exportFilters.career) {
+          params.append("career", this.exportFilters.career);
+        }
+
+        const response = await fetch(
+          `/api/students/complementary-credits?${params}`,
+          {
+            headers: window.getAuthHeaders(),
+          }
+        );
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+          throw new Error(`Error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        this.exportData = data.students || [];
+      } catch (error) {
+        console.error("Error loading complementary credits:", error);
+        this.exportError = "Error al cargar estudiantes con créditos";
+        window.showToast && window.showToast(this.exportError, "error");
+      } finally {
+        this.loadingExport = false;
+      }
+    },
+
+    // Exportar a Excel
+    async exportToExcel() {
+      if (!this.exportFilters.event_id) {
+        window.showToast && window.showToast("Debe seleccionar un evento", "error");
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams({
+          event_id: this.exportFilters.event_id,
+        });
+
+        if (this.exportFilters.career) {
+          params.append("career", this.exportFilters.career);
+        }
+
+        // Abrir en nueva pestaña para descargar
+        window.open(
+          `/api/students/complementary-credits/export?${params}`,
+          "_blank"
+        );
+
+        window.showToast && window.showToast("Exportación iniciada", "success");
+      } catch (error) {
+        console.error("Error exporting to Excel:", error);
+        window.showToast && window.showToast("Error al exportar", "error");
+      }
     },
 
     // Redireccionar al login

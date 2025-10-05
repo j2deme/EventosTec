@@ -72,6 +72,14 @@
     <!-- Botones de acción -->
     <div class="flex justify-end gap-2 mt-4">
       <button
+        @click="openExportModal()"
+        class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+        title="Exportar estudiantes con 10+ horas"
+      >
+        <i class="ti ti-file-export mr-1"></i>
+        Exportar Créditos
+      </button>
+      <button
         @click="clearFilters()"
         class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
       >
@@ -486,6 +494,178 @@
                 </template>
               </ul>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de exportación de créditos complementarios -->
+  <div
+    x-show="showExportModal"
+    x-transition
+    class="fixed inset-0 overflow-y-auto z-50"
+    style="display: none"
+  >
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div
+        x-show="showExportModal"
+        x-transition
+        class="fixed inset-0 transition-opacity"
+        @click="closeExportModal()"
+      >
+        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+      </div>
+
+      <div
+        x-show="showExportModal"
+        x-transition
+        class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
+        @click.stop
+      >
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-medium text-gray-900 flex items-center">
+                <i class="ti ti-file-export text-green-600 mr-2 text-xl"></i>
+                Exportar Estudiantes con Crédito Complementario
+              </h3>
+              <p class="mt-2 text-sm text-gray-600">
+                Filtra y exporta estudiantes que han acumulado 10+ horas confirmadas en un evento específico.
+              </p>
+            </div>
+            <button
+              @click="closeExportModal()"
+              class="text-gray-400 hover:text-gray-500"
+            >
+              <i class="ti ti-x text-xl"></i>
+            </button>
+          </div>
+
+          <!-- Filtros -->
+          <div class="mt-6 border-t border-gray-200 pt-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Evento (requerido) -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Evento <span class="text-red-500">*</span>
+                </label>
+                <select
+                  x-model="exportFilters.event_id"
+                  @change="exportData = []; exportError = ''"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Seleccionar evento...</option>
+                  <template x-for="event in events" :key="event.id">
+                    <option :value="event.id" x-text="event.name"></option>
+                  </template>
+                </select>
+              </div>
+
+              <!-- Carrera (opcional) -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Carrera (opcional)
+                </label>
+                <input
+                  type="text"
+                  x-model="exportFilters.career"
+                  @input="exportData = []; exportError = ''"
+                  placeholder="Filtrar por carrera..."
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <!-- Botón de búsqueda -->
+            <div class="mt-4">
+              <button
+                @click="loadComplementaryCredits()"
+                :disabled="!exportFilters.event_id || loadingExport"
+                class="w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span x-show="!loadingExport">
+                  <i class="ti ti-search mr-1"></i>
+                  Buscar Estudiantes
+                </span>
+                <span x-show="loadingExport">
+                  <i class="ti ti-loader animate-spin mr-1"></i>
+                  Buscando...
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Error -->
+          <div x-show="exportError" class="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+            <p class="text-sm text-red-800" x-text="exportError"></p>
+          </div>
+
+          <!-- Resultados -->
+          <div x-show="exportData.length > 0" class="mt-6 border-t border-gray-200 pt-4">
+            <div class="mb-4 flex items-center justify-between">
+              <h4 class="text-sm font-medium text-gray-900">
+                Estudiantes encontrados: <span class="text-indigo-600" x-text="exportData.length"></span>
+              </h4>
+              <button
+                @click="exportToExcel()"
+                class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+              >
+                <i class="ti ti-download mr-1"></i>
+                Descargar Excel
+              </button>
+            </div>
+
+            <!-- Tabla de vista previa -->
+            <div class="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      No.
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      No. Control
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Nombre
+                    </th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Carrera
+                    </th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Horas
+                    </th>
+                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      Actividades
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                  <template x-for="(student, index) in exportData" :key="student.id">
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-4 py-3 text-sm text-gray-900" x-text="index + 1"></td>
+                      <td class="px-4 py-3 text-sm font-medium text-gray-900" x-text="student.control_number"></td>
+                      <td class="px-4 py-3 text-sm text-gray-900" x-text="student.full_name"></td>
+                      <td class="px-4 py-3 text-sm text-gray-600" x-text="student.career"></td>
+                      <td class="px-4 py-3 text-sm text-center">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <i class="ti ti-clock mr-1"></i>
+                          <span x-text="student.total_hours.toFixed(1) + ' hrs'"></span>
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-sm text-center text-gray-900" x-text="student.activities_count"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Estado vacío -->
+          <div x-show="!loadingExport && exportData.length === 0 && exportFilters.event_id" class="mt-6 text-center py-8 text-gray-500">
+            <i class="ti ti-users-off text-4xl mb-2"></i>
+            <p>No se encontraron estudiantes con 10+ horas para los filtros seleccionados</p>
           </div>
         </div>
       </div>
