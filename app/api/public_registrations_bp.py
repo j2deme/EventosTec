@@ -595,6 +595,175 @@ def api_toggle_attendance(attendance_id):
     return jsonify({'message': 'Asistencia existente', 'attendance_id': attendance_id}), 200
 
 
+@public_registrations_bp.route('/public/pause-attendance/<token>', methods=['GET'])
+def public_pause_attendance_view(token):
+    """Public view for pausing/resuming attendances for Magistral activities."""
+    aid, err = verify_public_token(str(token))
+    if err or aid is None:
+        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True)
+
+    activity = db.session.get(Activity, int(aid))
+    if not activity:
+        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True)
+
+    # Only allow for Magistral activities
+    if getattr(activity, 'activity_type', None) != 'Magistral':
+        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message='Solo disponible para conferencias magistrales')
+
+    return render_template(
+        'public/pause_attendance.html',
+        activity_token=token,
+        activity_name=activity.name,
+        token_provided=True,
+        token_invalid=False,
+    )
+
+
+@public_registrations_bp.route('/api/public/attendances/search', methods=['GET'])
+def api_public_search_attendances():
+    """Search attendances for a specific activity using public token."""
+    token = request.args.get('token')
+    search = request.args.get('search', '').strip()
+
+    if not token:
+        return jsonify({'message': 'Token requerido'}), 400
+
+    aid, err = verify_public_token(str(token))
+    if err or aid is None:
+        return jsonify({'message': 'Token inválido'}), 400
+
+    activity = db.session.get(Activity, int(aid))
+    if not activity:
+        return jsonify({'message': 'Actividad no encontrada'}), 404
+
+    # Only allow for Magistral activities
+    if getattr(activity, 'activity_type', None) != 'Magistral':
+        return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
+
+    if not search:
+        return jsonify({'attendances': []}), 200
+
+    # Search attendances for this activity
+    query = Attendance.query.filter_by(activity_id=activity.id)
+    query = query.join(Student)
+    query = query.filter(
+        db.or_(
+            Student.full_name.ilike(f'%{search}%'),
+            Student.control_number.ilike(f'%{search}%')
+        )
+    )
+    # Only return attendances with check_in_time (active or paused)
+    query = query.filter(Attendance.check_in_time.isnot(None))
+    attendances = query.all()
+
+    # Serialize with student info
+    result = []
+    for att in attendances:
+        try:
+            student = att.student if hasattr(att, 'student') else None
+            result.append({
+                'id': att.id,
+                'student_id': att.student_id,
+                'student_name': student.full_name if student else '',
+                'student_identifier': getattr(student, 'control_number', '') if student else '',
+                'is_paused': att.is_paused,
+                'check_in_time': att.check_in_time.isoformat() if att.check_in_time else None,
+                'check_out_time': att.check_out_time.isoformat() if att.check_out_time else None,
+            })
+        except Exception:
+            continue
+
+    return jsonify({'attendances': result}), 200
+
+
+@public_registrations_bp.route('/api/public/attendances/<int:attendance_id>/pause', methods=['POST'])
+def api_public_pause_attendance(attendance_id):
+    """Pause an attendance via public token."""
+    payload = request.get_json(silent=True) or {}
+    token = payload.get('token')
+
+    if not token:
+        return jsonify({'message': 'Token requerido'}), 400
+
+    aid, err = verify_public_token(str(token))
+    if err or aid is None:
+        return jsonify({'message': 'Token inválido'}), 400
+
+    activity = db.session.get(Activity, int(aid))
+    if not activity:
+        return jsonify({'message': 'Actividad no encontrada'}), 404
+
+    # Only allow for Magistral activities
+    if getattr(activity, 'activity_type', None) != 'Magistral':
+        return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
+
+    att = db.session.get(Attendance, int(attendance_id))
+    if not att or att.activity_id != activity.id:
+        return jsonify({'message': 'Asistencia no encontrada para esta actividad'}), 404
+
+    if not att.check_in_time:
+        return jsonify({'message': 'No se ha registrado check-in'}), 400
+
+    if att.check_out_time:
+        return jsonify({'message': 'Ya se ha registrado check-out'}), 400
+
+    if att.is_paused:
+        return jsonify({'message': 'La asistencia ya está pausada'}), 400
+
+    try:
+        from app.services.attendance_service import pause_attendance as svc_pause
+        attendance = svc_pause(att.id)
+        db.session.add(attendance)
+        db.session.commit()
+
+        return jsonify({'message': 'Asistencia pausada exitosamente'}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Error pausing attendance %s', attendance_id)
+        return jsonify({'message': 'Error al pausar asistencia', 'error': str(e)}), 400
+
+
+@public_registrations_bp.route('/api/public/attendances/<int:attendance_id>/resume', methods=['POST'])
+def api_public_resume_attendance(attendance_id):
+    """Resume a paused attendance via public token."""
+    payload = request.get_json(silent=True) or {}
+    token = payload.get('token')
+
+    if not token:
+        return jsonify({'message': 'Token requerido'}), 400
+
+    aid, err = verify_public_token(str(token))
+    if err or aid is None:
+        return jsonify({'message': 'Token inválido'}), 400
+
+    activity = db.session.get(Activity, int(aid))
+    if not activity:
+        return jsonify({'message': 'Actividad no encontrada'}), 404
+
+    # Only allow for Magistral activities
+    if getattr(activity, 'activity_type', None) != 'Magistral':
+        return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
+
+    att = db.session.get(Attendance, int(attendance_id))
+    if not att or att.activity_id != activity.id:
+        return jsonify({'message': 'Asistencia no encontrada para esta actividad'}), 404
+
+    if not att.is_paused:
+        return jsonify({'message': 'La asistencia no está pausada'}), 400
+
+    try:
+        from app.services.attendance_service import resume_attendance as svc_resume
+        attendance = svc_resume(att.id)
+        db.session.add(attendance)
+        db.session.commit()
+
+        return jsonify({'message': 'Asistencia reanudada exitosamente'}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Error resuming attendance %s', attendance_id)
+        return jsonify({'message': 'Error al reanudar asistencia', 'error': str(e)}), 400
+
+
 @public_registrations_bp.route('/api/public/registrations/export', methods=['POST'])
 def api_export_registrations_xlsx():
     """Exportar preregistros de una actividad a XLSX usando un token público.
