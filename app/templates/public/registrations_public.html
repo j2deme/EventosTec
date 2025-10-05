@@ -128,13 +128,22 @@
       </div>
     </div>
 
-    <div class="mb-4">
+    <div class="mb-4 flex items-center space-x-2">
       <input
         x-model="q"
         @input.debounce.500ms="$nextTick(() => fetchRegs())"
         placeholder="Buscar por nombre o número de control"
-        class="w-full rounded border p-2"
+        class="flex-1 rounded border p-2"
       />
+      <button
+        @click.prevent="downloadRegistrations()"
+        type="button"
+        class="bg-gray-700 text-white px-3 py-2 rounded inline-flex items-center text-sm"
+        title="Descargar inscritos"
+      >
+        <i class="ti ti-users mr-2"></i>
+        Lista
+      </button>
     </div>
 
     <div>
@@ -235,7 +244,7 @@
 
                     <!-- checkbox + label when not toggling -->
                     <label
-                      x-show="!r._toggling"
+                      x-show="!r._toggling && controlsEnabled"
                       class="flex items-center space-x-3 px-2"
                     >
                       <input
@@ -252,6 +261,17 @@
                         x-text="r.attended ? 'Sí' : 'No'"
                       ></span>
                     </label>
+                    <!-- When controls are not enabled yet, hide the checkbox/label and show a neutral icon -->
+                    <div
+                      x-show="!controlsEnabled && !r._toggling"
+                      class="flex items-center justify-center px-2"
+                    >
+                      <i
+                        class="ti ti-clock text-gray-400"
+                        title="En espera de registro"
+                        aria-hidden="true"
+                      ></i>
+                    </div>
                   </div>
                 </div>
               </td>

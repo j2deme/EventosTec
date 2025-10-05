@@ -182,19 +182,43 @@ def api_list_registrations():
     items = []
     registration_student_ids = set()
 
-    def _is_excluded_registration(r):
+    def _is_excluded_status(status_obj):
+        """Return True if status_obj represents an excluded status (ausente/cancelado).
+
+        Handles strings, Enum members (checking .name and .value) and falls back
+        to str(). Comparison is case-insensitive and tolerant (checks substring
+        'ausente' or 'cancel').
+        """
         try:
-            st = getattr(r, 'status', None)
-            if not st:
+            if not status_obj:
                 return False
-            st_norm = str(st).strip().lower()
-            return st_norm in ('ausente', 'cancelado')
+            candidates = []
+            if isinstance(status_obj, str):
+                candidates.append(status_obj)
+            else:
+                # Enum-like: try value and name
+                val = getattr(status_obj, 'value', None)
+                name = getattr(status_obj, 'name', None)
+                if val is not None:
+                    candidates.append(val)
+                if name is not None:
+                    candidates.append(name)
+                # fallback to str()
+                candidates.append(str(status_obj))
+
+            for c in candidates:
+                if not c:
+                    continue
+                s = str(c).strip().lower()
+                if 'ausente' in s or 'cancel' in s:
+                    return True
+            return False
         except Exception:
             return False
 
     for r in regs_all:
         # skip registrations explicitly marked as Ausente or Cancelado
-        if _is_excluded_registration(r):
+        if _is_excluded_status(getattr(r, 'status', None)):
             continue
         student = r.student
         registration_student_ids.add(r.student_id)
@@ -221,8 +245,7 @@ def api_list_registrations():
             continue
         # also skip attendance rows where status is ausente/cancelado
         try:
-            a_status = getattr(a, 'status', None)
-            if a_status and str(a_status).strip().lower() in ('ausente', 'cancelado'):
+            if _is_excluded_status(getattr(a, 'status', None)):
                 continue
         except Exception:
             pass

@@ -791,6 +791,85 @@ function registrationsPublic() {
         console.error("walkin error", e);
       }
     },
+
+    async downloadRegistrations() {
+      try {
+        if (!this.token) {
+          try {
+            showToast("Token público ausente", "error");
+          } catch (e) {}
+          return;
+        }
+
+        const payload = { token: this.token };
+        // If this is an event-level token (pe:...), server requires activity id
+        if (String(this.token).startsWith("pe:")) {
+          // Use initial activity id if provided in the page context, else try to derive
+          const el = document.getElementById("public-registrations-card");
+          const actId = el ? el.getAttribute("data-initial-activity-id") : null;
+          if (actId) payload.activity = actId;
+          else {
+            try {
+              showToast(
+                "Seleccione una actividad desde el panel de eventos para descargar",
+                "info"
+              );
+            } catch (e) {}
+            return;
+          }
+        }
+
+        const resp = await fetch("/api/public/registrations/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!resp) {
+          try {
+            showToast("Error de red al solicitar el archivo", "error");
+          } catch (e) {}
+          return;
+        }
+        if (!resp.ok) {
+          const j = await resp.json().catch(() => ({}));
+          try {
+            showToast(j.message || "Error generando archivo", "error");
+          } catch (e) {}
+          return;
+        }
+
+        const blob = await resp.blob();
+        const cd = resp.headers.get("Content-Disposition") || "";
+        let filename = `${(this.activityName || "actividad").replace(
+          /[^a-z0-9A-Z-_\.]/g,
+          "_"
+        )}.xlsx`;
+        const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+        if (m && m[1]) {
+          try {
+            filename = decodeURIComponent(m[1]);
+          } catch (e) {}
+        } else {
+          const m2 = /filename="?([^"]+)"?/i.exec(cd);
+          if (m2 && m2[1]) filename = m2[1];
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const ael = document.createElement("a");
+        ael.href = url;
+        ael.download = filename;
+        document.body.appendChild(ael);
+        ael.click();
+        ael.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error("downloadRegistrations", e);
+        try {
+          showToast("Error al descargar el archivo", "error");
+        } catch (e) {}
+      }
+    },
   };
 }
 
