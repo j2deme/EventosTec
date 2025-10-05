@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, render_template, current_app
+from flask import Blueprint, request, jsonify, render_template, current_app, send_file
 from app import db
 from app.models.activity import Activity
 from app.models.registration import Registration
@@ -8,6 +8,10 @@ from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.token_utils import verify_public_token, verify_public_event_token, generate_public_token
 from sqlalchemy.exc import IntegrityError
+import io
+import re
+import traceback
+import pandas as pd
 
 public_registrations_bp = Blueprint(
     'public_registrations', __name__, url_prefix='')
@@ -546,3 +550,100 @@ def api_toggle_attendance(attendance_id):
 
     # For confirm=True, if attendance already exists we simply return ok
     return jsonify({'message': 'Asistencia existente', 'attendance_id': attendance_id}), 200
+
+
+@public_registrations_bp.route('/api/public/registrations/export', methods=['POST'])
+def api_export_registrations_xlsx():
+    """Exportar preregistros de una actividad a XLSX usando un token público.
+
+    Body JSON expected: { token: <public token p:... or pe:...>, activity: <activity_id if token is pe:...> }
+    The endpoint does not expose internal activity ids in URLs — the client provides the token only.
+    The resulting XLSX will have Spanish headers: 'Número de control', 'Nombre completo', 'Correo', 'Carrera'.
+    """
+    payload = request.get_json(silent=True) or {}
+    token = payload.get('token')
+    activity_ref = payload.get('activity')
+
+    if not token:
+        return jsonify({'message': 'Token inválido'}), 400
+
+    # Try activity-level public token first
+    aid, aerr = verify_public_token(str(token))
+    activity = None
+    if aerr is None and aid is not None:
+        try:
+            activity = db.session.get(Activity, int(aid))
+        except Exception:
+            activity = None
+
+    # If not activity token, maybe it's an event-level token and client provided activity id
+    if not activity:
+        eid, eerr = verify_public_event_token(str(token))
+        if eerr is None and eid is not None:
+            # activity_ref must be provided and belong to the event
+            if not activity_ref:
+                return jsonify({'message': 'Falta el ID de la actividad para token de evento'}), 400
+            try:
+                a = db.session.get(Activity, int(activity_ref))
+                if not a or a.event_id != int(eid):
+                    return jsonify({'message': 'Actividad no encontrada para este token de evento'}), 404
+                activity = a
+            except Exception:
+                return jsonify({'message': 'Actividad inválida'}), 400
+
+    if not activity:
+        return jsonify({'message': 'Token inválido o actividad no encontrada'}), 400
+
+    # Collect registrations
+    regs = list(getattr(activity, 'registrations', []) or [])
+    rows = []
+    for r in regs:
+        try:
+            s = getattr(r, 'student', None)
+            rows.append({
+                'Número de control': getattr(s, 'control_number', None) if s else None,
+                'Nombre completo': getattr(s, 'full_name', None) if s else None,
+                'Correo': getattr(s, 'email', None) if s else None,
+                'Carrera': getattr(s, 'career', None) if s else None,
+            })
+        except Exception:
+            continue
+
+    # Build DataFrame with Spanish columns
+    try:
+        df = pd.DataFrame(
+            rows, columns=['Número de control', 'Nombre completo', 'Correo', 'Carrera'])
+    except Exception:
+        # Fallback: create DataFrame directly from rows
+        df = pd.DataFrame(rows)
+
+    # generate filename using activity name (slugify) + timestamp
+    def slugify(text, maxlen=50):
+        if not text:
+            return 'actividad'
+        t = text.lower()
+        t = re.sub(r"[^a-z0-9]+", '-', t)
+        t = t.strip('-')
+        if len(t) > maxlen:
+            t = t[:maxlen].rstrip('-')
+        return t or 'actividad'
+
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    slug = slugify(getattr(activity, 'name', '')[:50])
+    filename = f"{slug}-{ts}.xlsx"
+
+    bio = io.BytesIO()
+    try:
+        with pd.ExcelWriter(bio, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='preregistros')
+        bio.seek(0)
+        return send_file(
+            bio,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        tb = traceback.format_exc()
+        current_app.logger.exception('Error generando XLSX publico')
+        return jsonify({'message': 'Error generando XLSX', 'error': str(e), 'trace': tb}), 500

@@ -105,9 +105,19 @@ endblock %} {% block content %}
                 <td class="p-2 text-sm">
                   <button
                     @click.prevent="openRegistrationsForActivity(a)"
-                    class="bg-indigo-600 text-white px-2 py-1 rounded"
+                    class="bg-indigo-600 text-white px-2 py-1 rounded inline-flex items-center text-sm"
                   >
-                    Administrar
+                    <i class="ti ti-checklist mr-2"></i>
+                    Gestionar
+                  </button>
+                  <button
+                    x-show="a.current_registrations > 0"
+                    @click.prevent="downloadRegistrationsForActivity(a)"
+                    class="ml-2 bg-gray-700 text-white px-2 py-1 rounded inline-flex items-center text-sm"
+                    title="Descargar inscritos"
+                  >
+                    <i class="ti ti-users mr-2"></i>
+                    Lista
                   </button>
                 </td>
               </tr>

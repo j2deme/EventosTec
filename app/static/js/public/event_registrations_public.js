@@ -99,7 +99,7 @@ function eventRegistrationsPublic() {
         if (!resp || !resp.ok) return;
         const data = await resp.json();
 
-        // normalize activities
+        // normalize activities (include current_registrations/current_capacity when provided)
         this.activities = (data.activities || []).map((a) => ({
           id: a.id,
           name: a.name,
@@ -110,6 +110,10 @@ function eventRegistrationsPublic() {
           datesString: a.datesString || null,
           duration_hours: a.duration_hours || null,
           activity_deadline_iso: a.activity_deadline_iso || null,
+          // backend may provide either current_registrations or current_capacity
+          current_registrations: Number(
+            a.current_registrations || a.current_capacity || 0
+          ),
         }));
 
         // Compute date-only display (single day or range without times)
@@ -286,6 +290,68 @@ function eventRegistrationsPublic() {
         }
       } catch (e) {
         console.error("openRegistrationsForActivity", e);
+      }
+    },
+
+    async downloadRegistrationsForActivity(a) {
+      if (!a) return;
+      try {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        // Use the event-level token if provided by the surrounding page (this.token)
+        // If this.token is an event token (pe:...), server expects activity id in body.
+        const payload = { token: this.token || this.eventId };
+        // If token looks like an event-level token (starts with 'pe:'), include activity id
+        const t = payload.token || "";
+        if (String(t).startsWith("pe:")) {
+          payload.activity = a.id;
+        }
+
+        const resp = await f("/api/public/registrations/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!resp) {
+          alert("Error de red al solicitar el archivo");
+          return;
+        }
+
+        if (!resp.ok) {
+          const j = await resp.json().catch(() => ({}));
+          alert(j.message || "Error generando el archivo");
+          return;
+        }
+
+        const blob = await resp.blob();
+        // Try to obtain filename from Content-Disposition header
+        const cd = resp.headers.get("Content-Disposition") || "";
+        let filename = `${(a.name || "actividad").replace(
+          /[^a-z0-9A-Z-_\.]/g,
+          "_"
+        )}.xlsx`;
+        const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+        if (m && m[1]) {
+          try {
+            filename = decodeURIComponent(m[1]);
+          } catch (e) {}
+        } else {
+          const m2 = /filename="?([^\"]+)"?/i.exec(cd);
+          if (m2 && m2[1]) filename = m2[1];
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const ael = document.createElement("a");
+        ael.href = url;
+        ael.download = filename;
+        document.body.appendChild(ael);
+        ael.click();
+        ael.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error("downloadRegistrationsForActivity", e);
+        alert("Error al descargar el archivo");
       }
     },
 
