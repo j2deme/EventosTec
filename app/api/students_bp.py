@@ -31,9 +31,36 @@ def get_students():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '')
+        
+        # Nuevos filtros
+        event_id = request.args.get('event_id', type=int)
+        activity_id = request.args.get('activity_id', type=int)
+        career = request.args.get('career', '')
 
         query = Student.query
 
+        # Filtro por evento o actividad (require joins)
+        if event_id or activity_id:
+            from app.models.registration import Registration
+            from app.models.activity import Activity
+            
+            query = query.join(Registration, Registration.student_id == Student.id)
+            query = query.join(Activity, Activity.id == Registration.activity_id)
+            
+            if event_id:
+                query = query.filter(Activity.event_id == event_id)
+            
+            if activity_id:
+                query = query.filter(Activity.id == activity_id)
+            
+            # Eliminar duplicados cuando hay joins
+            query = query.distinct()
+
+        # Filtro por carrera
+        if career:
+            query = query.filter(Student.career.ilike(f"%{career}%"))
+
+        # Búsqueda general
         if search:
             search_filter = f"%{search}%"
             query = query.filter(
@@ -249,3 +276,138 @@ def get_student_activities(student_id):
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener actividades del estudiante', 'error': str(e)}), 500
+
+
+# Obtener horas acumuladas por evento de un estudiante
+@students_bp.route('/<int:student_id>/hours-by-event', methods=['GET'])
+def get_student_hours_by_event(student_id):
+    """
+    Calcula las horas confirmadas de un estudiante agrupadas por evento.
+    Solo cuenta registros con status='Asistió'.
+    """
+    try:
+        student = db.session.get(Student, student_id)
+        if not student:
+            return jsonify({'message': 'Estudiante no encontrado'}), 404
+
+        from app.models.registration import Registration
+        from app.models.activity import Activity
+        from app.models.event import Event
+        from sqlalchemy import func
+
+        # Query: agrupar por evento, sumar horas de actividades donde status='Asistió'
+        results = db.session.query(
+            Event.id.label('event_id'),
+            Event.name.label('event_name'),
+            Event.start_date.label('event_start_date'),
+            Event.end_date.label('event_end_date'),
+            func.sum(Activity.duration_hours).label('total_hours'),
+            func.count(Activity.id).label('activities_count')
+        ).join(
+            Activity, Activity.event_id == Event.id
+        ).join(
+            Registration, Registration.activity_id == Activity.id
+        ).filter(
+            Registration.student_id == student_id,
+            Registration.status == 'Asistió'
+        ).group_by(
+            Event.id, Event.name, Event.start_date, Event.end_date
+        ).order_by(
+            Event.start_date.desc()
+        ).all()
+
+        events_hours = []
+        for row in results:
+            total_hours = float(row.total_hours or 0)
+            has_credit = total_hours >= 10.0
+            
+            events_hours.append({
+                'event_id': row.event_id,
+                'event_name': row.event_name,
+                'event_start_date': row.event_start_date.isoformat() if row.event_start_date else None,
+                'event_end_date': row.event_end_date.isoformat() if row.event_end_date else None,
+                'total_hours': total_hours,
+                'activities_count': row.activities_count,
+                'has_complementary_credit': has_credit
+            })
+
+        return jsonify({
+            'student': student_schema.dump(student),
+            'events_hours': events_hours
+        }), 200
+
+    except Exception as e:
+        return jsonify({'message': 'Error al calcular horas por evento', 'error': str(e)}), 500
+
+
+# Obtener detalle de participación de un estudiante en un evento específico
+@students_bp.route('/<int:student_id>/event/<int:event_id>/details', methods=['GET'])
+def get_student_event_details(student_id, event_id):
+    """
+    Obtiene el detalle cronológico de participación del estudiante en un evento.
+    Incluye todas las actividades registradas y su status.
+    """
+    try:
+        student = db.session.get(Student, student_id)
+        if not student:
+            return jsonify({'message': 'Estudiante no encontrado'}), 404
+
+        from app.models.event import Event
+        event = db.session.get(Event, event_id)
+        if not event:
+            return jsonify({'message': 'Evento no encontrado'}), 404
+
+        from app.models.registration import Registration
+        from app.models.activity import Activity
+
+        # Obtener todas las registraciones del estudiante para este evento
+        registrations = db.session.query(Registration).join(
+            Activity, Activity.id == Registration.activity_id
+        ).filter(
+            Registration.student_id == student_id,
+            Activity.event_id == event_id
+        ).order_by(
+            Activity.start_datetime.asc()
+        ).all()
+
+        activities_detail = []
+        total_confirmed_hours = 0.0
+
+        for reg in registrations:
+            activity = reg.activity
+            hours = float(activity.duration_hours or 0)
+            
+            if reg.status == 'Asistió':
+                total_confirmed_hours += hours
+
+            activities_detail.append({
+                'registration_id': reg.id,
+                'activity_id': activity.id,
+                'activity_name': activity.name,
+                'activity_type': activity.activity_type,
+                'start_datetime': activity.start_datetime.isoformat() if activity.start_datetime else None,
+                'end_datetime': activity.end_datetime.isoformat() if activity.end_datetime else None,
+                'duration_hours': hours,
+                'location': activity.location,
+                'status': reg.status,
+                'registration_date': reg.registration_date.isoformat() if reg.registration_date else None,
+                'confirmation_date': reg.confirmation_date.isoformat() if reg.confirmation_date else None,
+            })
+
+        has_credit = total_confirmed_hours >= 10.0
+
+        return jsonify({
+            'student': student_schema.dump(student),
+            'event': {
+                'id': event.id,
+                'name': event.name,
+                'start_date': event.start_date.isoformat() if event.start_date else None,
+                'end_date': event.end_date.isoformat() if event.end_date else None,
+            },
+            'total_confirmed_hours': total_confirmed_hours,
+            'has_complementary_credit': has_credit,
+            'activities': activities_detail
+        }), 200
+
+    except Exception as e:
+        return jsonify({'message': 'Error al obtener detalle del evento', 'error': str(e)}), 500

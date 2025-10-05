@@ -51,6 +51,10 @@ admin_content %}
     {% include 'admin/partials/attendances.html' %}
   </div>
 
+  <div x-show="activeTab === 'students'">
+    {% include 'admin/partials/students.html' %}
+  </div>
+
   <div x-show="activeTab === 'reports' || activeTab === 'report'">
     {% include 'admin/partials/reports.html' %}
   </div>

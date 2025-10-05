@@ -30,6 +30,10 @@ block student_content %}
       {% include 'student/partials/registrations.html' %}
     </div>
 
+    <div x-show="activeTab === 'history'">
+      {% include 'student/partials/history.html' %}
+    </div>
+
     <div x-show="activeTab === 'profile'">
       {% include 'student/partials/profile.html' %}
     </div>
