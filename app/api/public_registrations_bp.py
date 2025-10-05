@@ -182,7 +182,20 @@ def api_list_registrations():
     items = []
     registration_student_ids = set()
 
+    def _is_excluded_registration(r):
+        try:
+            st = getattr(r, 'status', None)
+            if not st:
+                return False
+            st_norm = str(st).strip().lower()
+            return st_norm in ('ausente', 'cancelado')
+        except Exception:
+            return False
+
     for r in regs_all:
+        # skip registrations explicitly marked as Ausente or Cancelado
+        if _is_excluded_registration(r):
+            continue
         student = r.student
         registration_student_ids.add(r.student_id)
         attendance = atts_by_student.get(r.student_id)
@@ -206,6 +219,13 @@ def api_list_registrations():
     for a in atts_all:
         if a.student_id in registration_student_ids:
             continue
+        # also skip attendance rows where status is ausente/cancelado
+        try:
+            a_status = getattr(a, 'status', None)
+            if a_status and str(a_status).strip().lower() in ('ausente', 'cancelado'):
+                continue
+        except Exception:
+            pass
         student = a.student
         items.append({
             'id': None,
@@ -598,6 +618,13 @@ def api_export_registrations_xlsx():
     regs = list(getattr(activity, 'registrations', []) or [])
     rows = []
     for r in regs:
+        # Exclude registrations with status Ausente or Cancelado
+        try:
+            st = getattr(r, 'status', None)
+            if st and str(st).strip().lower() in ('ausente', 'cancelado'):
+                continue
+        except Exception:
+            pass
         try:
             s = getattr(r, 'student', None)
             rows.append({

@@ -1,21 +1,3 @@
-if (j && j.public_token) {
-  let url = `/public/registrations/${j.public_token}`;
-  if (this.token) {
-    url += `?event_token=${encodeURIComponent(this.token)}`;
-  }
-  window.location.href = url;
-} else {
-  alert("Respuesta inválida del servidor");
-}
-if (j && j.public_token) {
-  let url = `/public/registrations/${j.public_token}`;
-  if (this.token) {
-    url += `?event_token=${encodeURIComponent(this.token)}`;
-  }
-  window.location.href = url;
-} else {
-  alert("Respuesta inválida del servidor");
-}
 function eventRegistrationsPublic() {
   return {
     token: null,

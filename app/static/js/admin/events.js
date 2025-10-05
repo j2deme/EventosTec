@@ -366,8 +366,35 @@ function eventsManager() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const resp = await f(`/api/events/${eventId}/public-token`);
-        if (!resp || !resp.ok) return;
+        // attach Authorization header explicitly to avoid silent failures
+        const headers = {};
+        try {
+          const t =
+            window.localStorage && window.localStorage.getItem
+              ? window.localStorage.getItem("authToken")
+              : null;
+          if (t) headers["Authorization"] = `Bearer ${t}`;
+        } catch (e) {
+          // ignore localStorage errors
+        }
+
+        const resp = await f(`/api/events/${eventId}/public-token`, {
+          headers,
+        });
+        if (!resp) {
+          console.debug("loadEventPublicToken: no response");
+          return;
+        }
+        if (!resp.ok) {
+          // log response body for debugging in prod (without throwing)
+          try {
+            const err = await resp.json().catch(() => null);
+            console.debug("loadEventPublicToken: non-ok", resp.status, err);
+          } catch (e) {
+            console.debug("loadEventPublicToken: non-ok", resp.status);
+          }
+          return;
+        }
         const data = await resp.json();
         // data is expected to contain { token, url }
         this.eventDetails.public_token = data.token || null;

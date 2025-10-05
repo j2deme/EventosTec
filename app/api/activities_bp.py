@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
 from app import db
@@ -14,6 +14,9 @@ from typing import cast, Iterable
 from app.utils.datetime_utils import parse_datetime_with_timezone
 import json
 import traceback
+import io
+import re
+import pandas as pd
 
 activities_bp = Blueprint('activities', __name__, url_prefix='/api/activities')
 
@@ -390,6 +393,73 @@ def get_activity_registrations(activity_id):
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener preregistros', 'error': str(e)}), 500
+
+
+@activities_bp.route('/<int:activity_id>/export_registrations.xlsx', methods=['GET'])
+@jwt_required()
+@require_admin
+def export_activity_registrations_xlsx(activity_id):
+    """Exporta a XLSX los estudiantes preregistrados en una actividad.
+
+    El archivo contiene columnas: control_number, full_name, email, career.
+    Nombre del archivo: <slug(activity_name[:50])>-YYYYmmdd_HHMMSS.xlsx
+    """
+    try:
+        activity = db.session.get(Activity, activity_id)
+        if not activity:
+            return jsonify({'message': 'Actividad no encontrada'}), 404
+        # Recolectar preregistros (incluye student relationship si existe)
+        regs = list(cast(Iterable, getattr(
+            activity, 'registrations', []) or []))
+
+        rows = []
+        for r in regs:
+            try:
+                s = getattr(r, 'student', None)
+                rows.append({
+                    'control_number': getattr(s, 'control_number', None) if s else None,
+                    'full_name': getattr(s, 'full_name', None) if s else None,
+                    'email': getattr(s, 'email', None) if s else None,
+                    'career': getattr(s, 'career', None) if s else None,
+                })
+            except Exception:
+                # skip problematic row but continue
+                continue
+
+        # Build DataFrame
+        df = pd.DataFrame(
+            rows, columns=['control_number', 'full_name', 'email', 'career'])
+
+        # generate filename: slug of activity name (first 50 chars) + timestamp
+        def slugify(text, maxlen=50):
+            if not text:
+                return 'activity'
+            t = text.lower()
+            t = re.sub(r"[^a-z0-9]+", '-', t)
+            t = t.strip('-')
+            if len(t) > maxlen:
+                t = t[:maxlen].rstrip('-')
+            return t or 'activity'
+
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        slug = slugify(getattr(activity, 'name', '')[:50])
+        filename = f"{slug}-{ts}.xlsx"
+
+        # write to BytesIO with openpyxl engine (installed)
+        bio = io.BytesIO()
+        with pd.ExcelWriter(bio, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='registrations')
+        bio.seek(0)
+
+        return send_file(
+            bio,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        tb = traceback.format_exc()
+        return jsonify({'message': 'Error generando XLSX', 'error': str(e), 'trace': tb}), 500
 
 
 @activities_bp.route('/<int:activity_id>/related', methods=['GET'])
