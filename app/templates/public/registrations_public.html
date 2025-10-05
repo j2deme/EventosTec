@@ -197,68 +197,119 @@
       class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center"
     >
       <div class="bg-white p-4 rounded w-full max-w-md">
-        <h3 class="text-lg font-bold mb-2">Registrar Walk-in</h3>
-        <div class="space-y-2">
+        <h3 class="text-lg font-bold mb-3">Registrar Walk-in</h3>
+
+        <div class="space-y-4">
+          <!-- Control + boton integrado (addon) -->
           <div>
-            <label class="block text-sm">Número de control</label>
-            <input
-              x-model="walkin.control_number"
-              class="w-full border rounded p-2"
-            />
-          </div>
-          <div x-show="walkinLookupState !== 'idle'">
-            <label class="block text-sm">Nombre completo</label>
-            <input
-              x-model="walkin.full_name"
-              class="w-full border rounded p-2"
-            />
-          </div>
-          <div x-show="walkinLookupState === 'found'">
-            <label class="block text-sm">Email (opcional)</label>
-            <input x-model="walkin.email" class="w-full border rounded p-2" />
-          </div>
-          <div class="flex justify-end items-center space-x-2">
-            <template
-              x-if="walkinLookupState === 'idle' || walkinLookupState === 'not_found' || walkinLookupState === 'error'"
-            >
+            <label class="block text-sm mb-1">Número de control</label>
+            <div class="flex items-stretch">
+              <input
+                x-model="walkin.control_number"
+                @keydown.enter.prevent="lookupWalkin()"
+                class="flex-1 border rounded-l px-3 py-2 h-10"
+                placeholder="Número de control"
+              />
               <button
                 @click="lookupWalkin()"
-                class="bg-yellow-500 text-white px-3 py-2 rounded"
+                class="bg-gray-200 text-gray-800 px-4 rounded-r h-10 hover:bg-gray-300 flex items-center justify-center"
+                :disabled="walkinLookupState === 'searching'"
+                title="Buscar"
               >
-                Buscar
+                <!-- search icon when idle -->
+                <i
+                  class="ti ti-search"
+                  aria-hidden="true"
+                  x-show="walkinLookupState !== 'searching'"
+                ></i>
+                <!-- spinner when searching -->
+                <svg
+                  x-show="walkinLookupState === 'searching'"
+                  class="animate-spin w-4 h-4 text-gray-700"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  ></path>
+                </svg>
+                <span class="sr-only">Buscar</span>
               </button>
-            </template>
-            <template x-if="walkinLookupState === 'searching'">
-              <div class="text-sm text-gray-600">Buscando...</div>
-            </template>
-            <template x-if="walkinLookupState === 'found'">
-              <button
-                @click="doWalkin()"
-                class="bg-indigo-600 text-white px-3 py-2 rounded"
-              >
-                Registrar
-              </button>
-            </template>
-            <button
-              @click="closeWalkin()"
-              class="ml-2 px-3 py-2 border rounded"
+            </div>
+          </div>
+
+          <!-- Nombre (solo lectura) y badge de fuente; hidden until a search was performed -->
+          <div x-show="walkinLookupState !== 'idle'">
+            <label class="block text-sm mb-1">Nombre completo</label>
+            <div
+              class="w-full border rounded px-3 py-2 bg-gray-50 flex items-center justify-between"
             >
+              <span class="text-gray-800" x-text="walkin.full_name || '—'"
+                >—</span
+              >
+              <div class="ml-2 flex-shrink-0">
+                <!-- icons as source indicators (non-technical labels) -->
+                <i
+                  x-show="walkinFoundSource === 'local'"
+                  class="ti ti-user-check text-green-600"
+                  title="Encontrado localmente"
+                ></i>
+                <i
+                  x-show="walkinFoundSource === 'external'"
+                  class="ti ti-cloud-check text-blue-600"
+                  title="Encontrado externamente"
+                ></i>
+              </div>
+            </div>
+          </div>
+
+          <!-- Career (solo lectura) -->
+          <div x-show="walkinLookupState === 'found'">
+            <label class="block text-sm mb-1">Carrera</label>
+            <div class="w-full border rounded px-3 py-2 bg-gray-50">
+              <span x-text="walkin.career || '-'">-</span>
+            </div>
+          </div>
+
+          <!-- Acciones -->
+          <div class="flex justify-end items-center space-x-2">
+            <button
+              @click="doWalkin()"
+              :disabled="walkinLookupState !== 'found'"
+              class="bg-indigo-600 text-white px-3 py-2 rounded disabled:opacity-50"
+            >
+              Registrar
+            </button>
+            <button @click="closeWalkin()" class="px-3 py-2 border rounded">
               Cancelar
             </button>
           </div>
+
+          <!-- Mensajes de estado -->
           <div
             x-show="walkinLookupState === 'not_found'"
             class="text-sm text-gray-500"
           >
-            Estudiante no encontrado en el sistema local ni en el servicio
-            externo. Puede ingresar manualmente los datos y registrar.
+            Estudiante no encontrado. Verifique el número o contacte al
+            administrador.
           </div>
           <div
             x-show="walkinLookupState === 'error'"
             class="text-sm text-red-500"
           >
-            Error consultando servicio externo. Intente de nuevo o ingrese datos
-            manualmente.
+            Error consultando servicio externo. Intente de nuevo.
           </div>
         </div>
       </div>

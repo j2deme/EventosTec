@@ -19,8 +19,9 @@ function registrationsPublic() {
     total: 0,
     q: "",
     showWalkin: false,
-    walkin: { control_number: "", full_name: "", email: "" },
+    walkin: { control_number: "", full_name: "", email: "", career: "" },
     walkinLookupState: "idle", // idle | searching | found | not_found | error
+    walkinFoundSource: null, // null | 'local' | 'external'
 
     init() {
       try {
@@ -390,8 +391,14 @@ function registrationsPublic() {
     },
 
     openWalkin() {
-      this.walkin = { control_number: "", full_name: "", email: "" };
+      this.walkin = {
+        control_number: "",
+        full_name: "",
+        email: "",
+        career: "",
+      };
       this.walkinLookupState = "idle";
+      this.walkinFoundSource = null;
       this.showWalkin = true;
     },
     closeWalkin() {
@@ -409,6 +416,10 @@ function registrationsPublic() {
           }
           return;
         }
+        // start searching: clear any previous found data to avoid confusion
+        this.walkin.full_name = "";
+        this.walkin.email = "";
+        this.walkinFoundSource = null;
         this.walkinLookupState = "searching";
 
         // First try local search endpoint (exact match)
@@ -428,7 +439,9 @@ function registrationsPublic() {
           if (exact) {
             this.walkin.full_name = exact.full_name || "";
             this.walkin.email = exact.email || "";
+            this.walkin.career = exact.career || "";
             this.walkinLookupState = "found";
+            this.walkinFoundSource = "local";
             return;
           }
         }
@@ -446,15 +459,22 @@ function registrationsPublic() {
             if (student) {
               this.walkin.full_name = student.full_name || "";
               this.walkin.email = student.email || "";
+              this.walkin.career = student.career || "";
               this.walkinLookupState = "found";
+              this.walkinFoundSource = "external";
               return;
             }
             this.walkinLookupState = "not_found";
             return;
           } else if (ext && ext.status === 404) {
             this.walkinLookupState = "not_found";
+            // keep displayed fields cleared to avoid showing stale data
+            this.walkin.full_name = "";
+            this.walkin.email = "";
+            this.walkin.career = "";
+            this.walkinFoundSource = null;
             try {
-              showToast("Estudiante no encontrado", "info");
+              showToast("Estudiante no encontrado", "error");
             } catch (e) {
               /* fallback silent */
             }
@@ -485,19 +505,32 @@ function registrationsPublic() {
 
     async doWalkin() {
       try {
-        if (!this.walkin.control_number || !this.walkin.full_name) {
+        // Require that lookup found the student (local or external). We do
+        // not accept manual creation via this flow.
+        if (!this.walkin.control_number) {
           try {
-            showToast("Control y nombre requeridos", "info");
+            showToast("Ingrese número de control", "info");
           } catch (e) {
-            alert("Control y nombre requeridos");
+            alert("Ingrese número de control");
+          }
+          return;
+        }
+        if (this.walkinLookupState !== "found") {
+          try {
+            showToast(
+              "Primero busque y seleccione el estudiante (local o externo)",
+              "info"
+            );
+          } catch (e) {
+            alert(
+              "Primero busque y seleccione el estudiante (local o externo)"
+            );
           }
           return;
         }
         const payload = {
           token: this.token,
           control_number: this.walkin.control_number,
-          full_name: this.walkin.full_name,
-          email: this.walkin.email,
         };
         const resp = await fetch("/api/public/registrations/walkin", {
           method: "POST",

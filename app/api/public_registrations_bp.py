@@ -6,6 +6,7 @@ from app.models.attendance import Attendance
 from app.models.student import Student
 from datetime import datetime, timedelta, timezone
 from app.utils.token_utils import verify_public_token, verify_public_event_token, generate_public_token
+from sqlalchemy.exc import IntegrityError
 
 public_registrations_bp = Blueprint(
     'public_registrations', __name__, url_prefix='')
@@ -282,8 +283,12 @@ def api_walkin():
     full_name = payload.get('full_name')
     email = payload.get('email')
 
-    if not token or not control_number or not full_name:
-        return jsonify({'message': 'token, control_number y full_name son requeridos'}), 400
+    # For walk-in, only token and control_number are required. The frontend
+    # should perform local/external lookup and supply full_name when creating
+    # a student is desired. The backend must NOT create Student records
+    # automatically when the student is not present locally.
+    if not token or not control_number:
+        return jsonify({'message': 'token y control_number son requeridos'}), 400
 
     if not token:
         return jsonify({'message': 'Token inválido'}), 400
@@ -303,37 +308,66 @@ def api_walkin():
         if datetime.utcnow() > cutoff.replace(tzinfo=None):
             return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
 
-    # find or create student
+    # find existing student locally — do NOT create if missing
     student = Student.query.filter_by(control_number=control_number).first()
     if not student:
-        student = Student()
-        student.control_number = control_number
-        student.full_name = full_name
-        student.email = email or ''
-        db.session.add(student)
-        db.session.commit()
+        return jsonify({'message': 'Estudiante no encontrado localmente. Realice la búsqueda/validación desde el frontend.'}), 404
 
-    # avoid duplicate attendance
-    existing = Attendance.query.filter_by(
-        student_id=student.id, activity_id=activity.id).first()
-    if existing:
-        return jsonify({'message': 'Ya existe una asistencia registrada para este estudiante'}), 409
-
-    attendance = Attendance()
-    attendance.student_id = student.id
-    attendance.activity_id = activity.id
-    attendance.check_in_time = datetime.now(timezone.utc)
-    # Map walk-ins to a valid enum status
-    attendance.status = 'Asistió'
-    db.session.add(attendance)
-
-    # optionally create a Registration record for traceability
+    # perform all DB changes in a single transaction for atomicity
     try:
+
+        # ensure there is a Registration record for traceability; update attended/status if needed
+        reg = Registration.query.filter_by(
+            student_id=student.id, activity_id=activity.id).first()
+        if not reg:
+            reg = Registration()
+            reg.student_id = student.id
+            reg.activity_id = activity.id
+            reg.status = 'Asistió'
+            reg.confirmation_date = db.func.now()
+            reg.attended = True
+            db.session.add(reg)
+            db.session.flush()
+        else:
+            # If registration exists but not marked attended, mark it
+            if not reg.attended:
+                reg.attended = True
+                reg.status = 'Asistió'
+                reg.confirmation_date = db.func.now()
+                db.session.add(reg)
+
+        # avoid duplicate attendance
+        existing = Attendance.query.filter_by(
+            student_id=student.id, activity_id=activity.id).first()
+        if existing:
+            # Return conflict with existing attendance info
+            return jsonify({'message': 'Ya existe una asistencia registrada para este estudiante', 'attendance': existing.to_dict()}), 409
+
+        attendance = Attendance()
+        attendance.student_id = student.id
+        attendance.activity_id = activity.id
+        attendance.check_in_time = datetime.now(timezone.utc)
+        attendance.status = 'Asistió'
+        db.session.add(attendance)
+        db.session.flush()
+
         db.session.commit()
-    except Exception as e:
+    except IntegrityError as ie:
+        db.session.rollback()
+        current_app.logger.exception(
+            'Integrity error creating walk-in for activity %s', activity.id)
+        return jsonify({'message': 'Conflicto al crear walk-in'}), 409
+    except Exception:
         db.session.rollback()
         current_app.logger.exception(
             'Error creating walk-in for activity %s', activity.id)
         return jsonify({'message': 'Error al crear walk-in'}), 500
 
-    return jsonify({'message': 'Walk-in registrado', 'attendance': {'id': attendance.id, 'student_id': student.id}}), 201
+    # Build response with created/updated resources
+    resp = {
+        'message': 'Walk-in registrado',
+        'student': student.to_dict() if hasattr(student, 'to_dict') else {'id': student.id},
+        'attendance': attendance.to_dict() if hasattr(attendance, 'to_dict') else {'id': attendance.id, 'student_id': student.id},
+        'registration': reg.to_dict() if hasattr(reg, 'to_dict') else {'id': reg.id, 'student_id': student.id},
+    }
+    return jsonify(resp), 201

@@ -157,6 +157,22 @@ def calculate_attendance_percentage(attendance_id):
     expected_seconds = max(0, (act_end - act_start).total_seconds())
 
     if expected_seconds > 0:
+        # If the raw pause duration (resume - pause) exceeds or equals the
+        # activity expected duration, treat as absent. This covers cases where
+        # the user paused for longer than the activity length (external long
+        # pause) even if a small non-paused slice remains inside the window.
+        try:
+            if attendance.pause_time and attendance.resume_time:
+                raw_pause = (attendance.resume_time -
+                             attendance.pause_time).total_seconds()
+                if raw_pause >= expected_seconds:
+                    attendance.attendance_percentage = 0.0
+                    attendance.status = 'Ausente'
+                    return 0.0
+        except Exception:
+            # If any unexpected issue occurs computing raw pause, continue with
+            # the usual overlap-based calculation.
+            pass
         percentage = (net_seconds / expected_seconds) * 100
         attendance.attendance_percentage = round(max(0, percentage), 2)
         if attendance.attendance_percentage >= 80:
