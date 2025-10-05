@@ -517,14 +517,9 @@ function registrationsPublic() {
         }
         if (this.walkinLookupState !== "found") {
           try {
-            showToast(
-              "Primero busque y seleccione el estudiante (local o externo)",
-              "info"
-            );
+            showToast("Primero busque y seleccione el estudiante", "info");
           } catch (e) {
-            alert(
-              "Primero busque y seleccione el estudiante (local o externo)"
-            );
+            alert("Primero busque y seleccione el estudiante");
           }
           return;
         }
