@@ -19,6 +19,17 @@ function registrationsPublic() {
     total: 0,
     q: "",
     showWalkin: false,
+    // Confirm-delete modal state
+    showConfirmDelete: false,
+    deleteCandidate: null,
+    // Undo toast state
+    undoVisible: false,
+    undoDuration: 5000,
+    undoRemaining: 0,
+    _undoInterval: null,
+    _undoTimeout: null,
+    pendingDeleteId: null,
+    _lastRemoved: null,
     walkin: { control_number: "", full_name: "", email: "", career: "" },
     walkinLookupState: "idle", // idle | searching | found | not_found | error
     walkinFoundSource: null, // null | 'local' | 'external'
@@ -388,6 +399,201 @@ function registrationsPublic() {
         r.confirmation_date = previousConfirmationDate;
         r._toggling = false;
       }
+    },
+
+    async deleteAttendance(attendance_id) {
+      try {
+        const payload = { token: this.token, confirm: false };
+        const resp = await fetch(
+          `/api/public/attendances/${attendance_id}/toggle`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+        const json = await resp.json().catch(() => ({}));
+        if (resp.ok) {
+          try {
+            showToast("Asistencia eliminada", "success");
+          } catch (e) {}
+          this.fetchRegs();
+        } else {
+          try {
+            showToast(json.message || "Error", "error");
+          } catch (e) {}
+        }
+      } catch (e) {
+        console.error("deleteAttendance error", e);
+      }
+    },
+
+    // Modal controls for deletion with undo
+    cancelDeleteModal() {
+      // If user cancels the confirmation modal, revert the checkbox visually
+      // by restoring the `attended` flag on the original row instead of
+      // refetching the entire list. Also clear any _removing flag so the
+      // leave transition is cancelled.
+      if (this.deleteCandidate) {
+        try {
+          this.deleteCandidate._removing = false;
+          this.deleteCandidate.attended = true;
+        } catch (e) {
+          // fallback to full refresh if something goes wrong
+          this.fetchRegs();
+        }
+      }
+      this.showConfirmDelete = false;
+      this.deleteCandidate = null;
+    },
+
+    confirmDeleteInModal() {
+      if (!this.deleteCandidate || !this.deleteCandidate.attendance_id) {
+        this.showConfirmDelete = false;
+        this.deleteCandidate = null;
+        return;
+      }
+      // Do not allow multiple pending deletes simultaneously
+      if (this.undoVisible) {
+        try {
+          showToast("Espere a que finalice la acción previa", "info");
+        } catch (e) {}
+        this.showConfirmDelete = false;
+        this.deleteCandidate = null;
+        this.fetchRegs();
+        return;
+      }
+
+      const aid = this.deleteCandidate.attendance_id;
+      // find and stash the removed item and its index so we can restore it
+      const idx = this.regs.findIndex((r) => r.attendance_id === aid);
+      if (idx !== -1) {
+        // shallow clone to avoid accidental reference mutation
+        try {
+          this._lastRemoved = {
+            item: JSON.parse(JSON.stringify(this.regs[idx])),
+            index: idx,
+          };
+        } catch (e) {
+          // if cloning fails, fallback to storing reference
+          this._lastRemoved = { item: this.regs[idx], index: idx };
+        }
+      } else {
+        this._lastRemoved = null;
+      }
+
+      this.showConfirmDelete = false;
+      // mark row as removing so Alpine can run the leave transition
+      const row = this.regs.find((r) => r.attendance_id === aid);
+      if (row) row._removing = true;
+
+      // after a short delay (matching the transition duration) remove from array
+      setTimeout(() => {
+        this.regs = this.regs.filter((r) => r.attendance_id !== aid);
+      }, 220);
+
+      // show undo toast and start timer to perform final delete
+      this.startUndoTimer(aid);
+      this.deleteCandidate = null;
+    },
+
+    startUndoTimer(attendance_id) {
+      this.pendingDeleteId = attendance_id;
+      this.undoRemaining = this.undoDuration;
+      this.undoVisible = true;
+
+      // update every second
+      this._undoInterval = setInterval(() => {
+        this.undoRemaining = Math.max(0, this.undoRemaining - 1000);
+      }, 1000);
+
+      this._undoTimeout = setTimeout(async () => {
+        // perform the actual deletion on server
+        try {
+          await this.deleteAttendance(attendance_id);
+        } catch (e) {
+          console.error("error in scheduled delete", e);
+        }
+        // cleanup
+        this.undoVisible = false;
+        this.pendingDeleteId = null;
+        // final delete succeeded (or at least attempted). clear stash.
+        this._lastRemoved = null;
+        if (this._undoInterval) {
+          clearInterval(this._undoInterval);
+          this._undoInterval = null;
+        }
+        this._undoTimeout = null;
+      }, this.undoDuration);
+    },
+
+    async undoDelete() {
+      // cancel scheduled deletion
+      if (this._undoTimeout) {
+        clearTimeout(this._undoTimeout);
+        this._undoTimeout = null;
+      }
+      if (this._undoInterval) {
+        clearInterval(this._undoInterval);
+        this._undoInterval = null;
+      }
+      this.undoVisible = false;
+      this.pendingDeleteId = null;
+      // Restore the removed item locally in its previous position if we have it
+      if (this._lastRemoved && this._lastRemoved.item) {
+        const idx = this._lastRemoved.index;
+        // ensure index is within bounds
+        const insertAt = Math.min(Math.max(0, idx), this.regs.length);
+        try {
+          // Insert a clone so we don't keep references to old objects
+          const item = JSON.parse(JSON.stringify(this._lastRemoved.item));
+          // Start hidden/removing so enter transition will play when we clear it
+          item._removing = true;
+          this.regs.splice(insertAt, 0, item);
+          // next tick: replace the inserted element with a fresh clone that has _removing=false
+          setTimeout(() => {
+            try {
+              const fresh = JSON.parse(JSON.stringify(item));
+              fresh._removing = false;
+              // replace at the same index to trigger reactivity
+              this.regs.splice(insertAt, 1, fresh);
+              // ensure array reactive update
+              this.regs = this.regs.slice();
+            } catch (e) {
+              // if replacement fails, at least clear the flag on the current item
+              try {
+                const cur = this.regs[insertAt];
+                if (cur) cur._removing = false;
+              } catch (e2) {}
+            }
+          }, 40);
+        } catch (e) {
+          // fallback: push to end
+          this.regs.push(this._lastRemoved.item);
+        }
+        this._lastRemoved = null;
+      } else {
+        // no stash available: do a full refresh
+        this.fetchRegs();
+      }
+    },
+
+    async onToggleRow(r) {
+      // If row has registration_id, use existing toggle flow
+      if (r.registration_id) {
+        return this.toggleAttendance(r);
+      }
+
+      // If row is an attendance-only row and currently attended, toggling will attempt to remove it
+      if (r.source === "attendance" && r.attended && r.attendance_id) {
+        // Open custom modal to confirm delete with undo option
+        this.deleteCandidate = r;
+        this.showConfirmDelete = true;
+        return;
+      }
+
+      // Otherwise, do nothing
+      return;
     },
 
     openWalkin() {

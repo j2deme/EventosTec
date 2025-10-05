@@ -506,3 +506,43 @@ def api_walkin():
         'registration': (reg.to_dict() if reg and hasattr(reg, 'to_dict') else (reg and {'id': reg.id, 'student_id': student.id} or None)),
     }
     return jsonify(resp), 201
+
+
+@public_registrations_bp.route('/api/public/attendances/<int:attendance_id>/toggle', methods=['POST'])
+def api_toggle_attendance(attendance_id):
+    payload = request.get_json(silent=True) or {}
+    token = payload.get('token')
+    # confirm: True means ensure attendance exists; False means remove it
+    confirm = bool(payload.get('confirm', True))
+
+    if not token:
+        return jsonify({'message': 'Token inválido'}), 400
+
+    aid, err = verify_public_token(str(token))
+    if err or aid is None:
+        return jsonify({'message': 'Token inválido'}), 400
+
+    activity = db.session.get(Activity, int(aid))
+    if not activity:
+        return jsonify({'message': 'Actividad no encontrada'}), 404
+
+    att = db.session.get(Attendance, int(attendance_id))
+    if not att or att.activity_id != activity.id:
+        return jsonify({'message': 'Asistencia no encontrada para esta actividad'}), 404
+
+    # Only allow deletion (un-mark) via public flow for attendance-only rows.
+    # If confirm is False, delete the attendance record.
+    if not confirm:
+        try:
+            # If there is a registration linked to this student and activity, do not touch it here.
+            db.session.delete(att)
+            db.session.commit()
+            return jsonify({'message': 'Asistencia removida', 'attendance_id': attendance_id}), 200
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception(
+                'Error deleting attendance %s', attendance_id)
+            return jsonify({'message': 'Error al eliminar asistencia'}), 500
+
+    # For confirm=True, if attendance already exists we simply return ok
+    return jsonify({'message': 'Asistencia existente', 'attendance_id': attendance_id}), 200
