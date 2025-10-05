@@ -152,14 +152,16 @@
                     <!-- checkbox + label when not toggling -->
                     <label
                       x-show="!r._toggling"
-                      class="flex items-center space-x-3 cursor-pointer select-none px-2"
+                      class="flex items-center space-x-3 px-2"
                     >
                       <input
                         type="checkbox"
                         :checked="r.attended"
-                        @change="toggleAttendance(r)"
+                        @change="r.registration_id ? toggleAttendance(r) : null"
+                        :disabled="!r.registration_id"
                         class="form-checkbox h-4 w-4 border-gray-300 checked:bg-green-600 checked:border-green-600 checked:text-white"
                         style="accent-color: #16a34a"
+                        :title="r.registration_id ? 'Confirmar/Desconfirmar preregistro' : 'Solo asistencia registrada (sin preregistro)'"
                       />
                       <span
                         class="text-sm text-gray-700"

@@ -5,6 +5,7 @@ from app.models.registration import Registration
 from app.models.attendance import Attendance
 from app.models.student import Student
 from datetime import datetime, timedelta, timezone
+import requests
 from app.utils.token_utils import verify_public_token, verify_public_event_token, generate_public_token
 from sqlalchemy.exc import IntegrityError
 
@@ -155,17 +156,36 @@ def api_list_registrations():
     if not activity:
         return jsonify({'message': 'Actividad no encontrada'}), 404
 
-    # Basic pagination over registrations
-    qry = Registration.query.filter_by(activity_id=activity.id).order_by(
-        Registration.registration_date.desc())
-    total = qry.count()
-    regs = qry.offset((page - 1) * per_page).limit(per_page).all()
+    # Merge registrations and attendance-only records so the UI can display
+    # participants coming from either source. Strategy:
+    #  - Load all registrations for the activity
+    #  - Load all attendances for the activity and map them by student_id
+    #  - For registrations, attach attendance info if present
+    #  - For attendances without a registration, synthesize a row
+    #  - Merge, sort by control_number (fallback by name), and apply pagination in Python
 
-    out = []
-    for r in regs:
+    regs_all = Registration.query.filter_by(activity_id=activity.id).all()
+    atts_all = Attendance.query.filter_by(activity_id=activity.id).all()
+
+    # Map attendances by student_id for quick lookup
+    atts_by_student = {}
+    for a in atts_all:
+        if a.student_id:
+            # prefer the first attendance per student for display
+            if a.student_id not in atts_by_student:
+                atts_by_student[a.student_id] = a
+
+    items = []
+    registration_student_ids = set()
+
+    for r in regs_all:
         student = r.student
-        out.append({
+        registration_student_ids.add(r.student_id)
+        attendance = atts_by_student.get(r.student_id)
+        items.append({
             'id': r.id,
+            'registration_id': r.id,
+            'attendance_id': attendance.id if attendance else None,
             'student_id': student.id if student else None,
             'control_number': student.control_number if student else None,
             'student_name': student.full_name if student else r.name or None,
@@ -173,10 +193,49 @@ def api_list_registrations():
             'status': r.status,
             'attended': bool(r.attended),
             'registration_date': r.registration_date.isoformat() if getattr(r, 'registration_date', None) else None,
-            'notes': getattr(r, 'notes', None)
+            'check_in_time': attendance.check_in_time.isoformat() if attendance and getattr(attendance, 'check_in_time', None) else None,
+            'notes': getattr(r, 'notes', None),
+            'source': 'registration'
         })
 
-    return jsonify({'registrations': out, 'total': total, 'page': page, 'per_page': per_page}), 200
+    # Add attendance-only rows (those students without a registration)
+    for a in atts_all:
+        if a.student_id in registration_student_ids:
+            continue
+        student = a.student
+        items.append({
+            'id': None,
+            'registration_id': None,
+            'attendance_id': a.id,
+            'student_id': student.id if student else None,
+            'control_number': student.control_number if student else None,
+            'student_name': student.full_name if student else None,
+            'email': student.email if student else None,
+            'status': getattr(a, 'status', 'Asistió'),
+            'attended': True,
+            'registration_date': None,
+            'check_in_time': a.check_in_time.isoformat() if getattr(a, 'check_in_time', None) else None,
+            'notes': None,
+            'source': 'attendance'
+        })
+
+    # Sort by control_number if present, fallback to student_name
+    def sort_key(it):
+        cn = (it.get('control_number') or '')
+        # pad numeric-like values for better lexicographic order
+        try:
+            return (cn.zfill(20), it.get('student_name') or '')
+        except Exception:
+            return (cn, it.get('student_name') or '')
+
+    items.sort(key=sort_key)
+
+    total = len(items)
+    start = (page - 1) * per_page
+    end = start + per_page
+    page_items = items[start:end]
+
+    return jsonify({'registrations': page_items, 'total': total, 'page': page, 'per_page': per_page}), 200
 
 
 @public_registrations_bp.route('/api/public/registrations/<int:reg_id>/confirm', methods=['POST'])
@@ -282,6 +341,8 @@ def api_walkin():
     control_number = (payload.get('control_number') or '').strip()
     full_name = payload.get('full_name')
     email = payload.get('email')
+    # optional external student payload (from frontend's external lookup)
+    external_student = payload.get('external_student')
 
     # For walk-in, only token and control_number are required. The frontend
     # should perform local/external lookup and supply full_name when creating
@@ -308,27 +369,77 @@ def api_walkin():
         if datetime.utcnow() > cutoff.replace(tzinfo=None):
             return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
 
-    # find existing student locally — do NOT create if missing
+    # find existing student locally
     student = Student.query.filter_by(control_number=control_number).first()
     if not student:
-        return jsonify({'message': 'Estudiante no encontrado localmente. Realice la búsqueda/validación desde el frontend.'}), 404
+        # Backend will call the external validation API to fetch student data
+        # and create the Student locally. This prevents trusting client payloads.
+        external_api = f"http://apps.tecvalles.mx:8091/api/validate/student?username={control_number}"
+        try:
+            resp = requests.get(external_api, timeout=8)
+        except requests.exceptions.RequestException:
+            return jsonify({'message': 'Error conectando al servicio externo'}), 503
+
+        if resp.status_code == 404:
+            return jsonify({'message': 'Estudiante no encontrado en sistema externo'}), 404
+        if resp.status_code != 200:
+            return jsonify({'message': 'Error desde servicio externo'}), 503
+
+        try:
+            data = resp.json()
+        except Exception:
+            return jsonify({'message': 'Respuesta externa inválida'}), 502
+
+        # Normalize payload similar to students_bp.validate_student_proxy
+        if isinstance(data, dict) and 'data' in data and isinstance(data.get('data'), dict):
+            data = data.get('data')
+
+        d = data if isinstance(data, dict) else {}
+
+        career = d.get('career') or d.get('carrera') or {}
+        career_name = None
+        if isinstance(career, dict):
+            career_name = career.get('name') or career.get('nombre') or None
+        else:
+            career_name = career
+
+        ext_control = d.get('username') or d.get(
+            'control_number') or control_number
+        ext_full_name = d.get('name') or d.get('full_name') or d.get('nombre')
+        ext_email = d.get('email') or ''
+
+        if not ext_control or not ext_full_name:
+            return jsonify({'message': 'Datos externos incompletos para crear estudiante'}), 502
+
+        # Create student inside DB transaction below (so registration+attendance are atomic)
+        # We'll create it here but don't commit until the outer try/commit
+        try:
+            student = Student()
+            student.control_number = ext_control
+            student.full_name = ext_full_name
+            student.career = career_name
+            student.email = ext_email
+            db.session.add(student)
+            db.session.flush()
+        except IntegrityError:
+            db.session.rollback()
+            # Concurrent creation: try to load again
+            student = Student.query.filter_by(
+                control_number=control_number).first()
+            if not student:
+                current_app.logger.exception(
+                    'IntegrityError creating student during walk-in')
+                return jsonify({'message': 'Conflicto al crear estudiante'}), 409
 
     # perform all DB changes in a single transaction for atomicity
     try:
 
-        # ensure there is a Registration record for traceability; update attended/status if needed
+        # If a Registration exists, mark it attended; DO NOT create a new Registration
+        # when none existed previously. The walk-in flow should create only the
+        # Attendance record for students without a preregistro.
         reg = Registration.query.filter_by(
             student_id=student.id, activity_id=activity.id).first()
-        if not reg:
-            reg = Registration()
-            reg.student_id = student.id
-            reg.activity_id = activity.id
-            reg.status = 'Asistió'
-            reg.confirmation_date = db.func.now()
-            reg.attended = True
-            db.session.add(reg)
-            db.session.flush()
-        else:
+        if reg:
             # If registration exists but not marked attended, mark it
             if not reg.attended:
                 reg.attended = True
@@ -368,6 +479,7 @@ def api_walkin():
         'message': 'Walk-in registrado',
         'student': student.to_dict() if hasattr(student, 'to_dict') else {'id': student.id},
         'attendance': attendance.to_dict() if hasattr(attendance, 'to_dict') else {'id': attendance.id, 'student_id': student.id},
-        'registration': reg.to_dict() if hasattr(reg, 'to_dict') else {'id': reg.id, 'student_id': student.id},
+        # include registration only if it existed
+        'registration': (reg.to_dict() if reg and hasattr(reg, 'to_dict') else (reg and {'id': reg.id, 'student_id': student.id} or None)),
     }
     return jsonify(resp), 201
