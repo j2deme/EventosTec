@@ -357,6 +357,10 @@ describe("reportsManager", () => {
       const act2 = mgr.fillReport.find(a => a.id === 2);
       const act3 = mgr.fillReport.find(a => a.id === 3);
       
+      expect(act1).toBeDefined();
+      expect(act2).toBeDefined();
+      expect(act3).toBeDefined();
+      
       expect(act1.percent).toBe(76); // 75.5 rounded
       expect(act1.status_label).toBe("Disponible");
       expect(act2.status_label).toBe("Lleno");
