@@ -1,0 +1,298 @@
+<!-- templates/student/partials/history.html -->
+<div x-data="studentHistoryManager()" x-init="init()">
+  <!-- Header -->
+  <div class="bg-white rounded-lg shadow p-6 mb-6">
+    <div class="flex items-center">
+      <div class="flex-shrink-0 h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
+        <i class="ti ti-history text-indigo-600 text-xl"></i>
+      </div>
+      <div class="ml-4">
+        <h2 class="text-2xl font-bold text-gray-900">Histórico de Participación</h2>
+        <p class="text-gray-600">Consulta tus horas confirmadas por evento</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div x-show="loading" class="text-center py-12">
+    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+    <p class="mt-4 text-gray-600">Cargando histórico...</p>
+  </div>
+
+  <!-- Error state -->
+  <div x-show="!loading && errorMessage" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+    <p class="text-red-800" x-text="errorMessage"></p>
+  </div>
+
+  <!-- Empty state -->
+  <div x-show="!loading && !errorMessage && eventsHours.length === 0" class="bg-white rounded-lg shadow p-12 text-center">
+    <i class="ti ti-calendar-off text-6xl text-gray-400 mb-4"></i>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">No hay registros</h3>
+    <p class="text-gray-600">Aún no tienes horas confirmadas en ningún evento</p>
+  </div>
+
+  <!-- Tabla de eventos con horas -->
+  <div x-show="!loading && !errorMessage && eventsHours.length > 0" class="bg-white rounded-lg shadow overflow-hidden">
+    <!-- Desktop view -->
+    <div class="hidden md:block overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Evento
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Período
+            </th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Actividades
+            </th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Horas Confirmadas
+            </th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Crédito
+            </th>
+            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Acciones
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          <template x-for="eventData in eventsHours" :key="eventData.event_id">
+            <tr class="hover:bg-gray-50">
+              <td class="px-6 py-4">
+                <div class="text-sm font-medium text-gray-900" x-text="eventData.event_name"></div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">
+                  <div x-text="formatDate(eventData.event_start_date)"></div>
+                  <div class="text-gray-500" x-text="formatDate(eventData.event_end_date)"></div>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-center">
+                <div class="text-sm font-medium text-gray-900" x-text="eventData.activities_count"></div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-center">
+                <div class="text-sm font-bold text-indigo-600" x-text="eventData.total_hours.toFixed(1) + ' hrs'"></div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-center">
+                <span
+                  x-show="eventData.has_complementary_credit"
+                  class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                >
+                  <i class="ti ti-award mr-1"></i>
+                  Acreditado
+                </span>
+                <span
+                  x-show="!eventData.has_complementary_credit"
+                  class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600"
+                >
+                  <i class="ti ti-clock mr-1"></i>
+                  Pendiente
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button
+                  @click="viewEventDetail(eventData)"
+                  class="text-indigo-600 hover:text-indigo-900"
+                >
+                  <i class="ti ti-eye mr-1"></i>
+                  Ver Detalle
+                </button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile view -->
+    <div class="md:hidden">
+      <template x-for="eventData in eventsHours" :key="eventData.event_id">
+        <div class="p-4 border-b border-gray-200">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1">
+              <h3 class="text-base font-medium text-gray-900" x-text="eventData.event_name"></h3>
+              <p class="text-sm text-gray-500 mt-1">
+                <span x-text="formatDate(eventData.event_start_date)"></span>
+                -
+                <span x-text="formatDate(eventData.event_end_date)"></span>
+              </p>
+            </div>
+            <span
+              x-show="eventData.has_complementary_credit"
+              class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+            >
+              <i class="ti ti-award mr-1"></i>
+              Acreditado
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div class="bg-gray-50 rounded-lg p-3 text-center">
+              <div class="text-xs text-gray-500 mb-1">Actividades</div>
+              <div class="text-lg font-semibold text-gray-900" x-text="eventData.activities_count"></div>
+            </div>
+            <div class="bg-indigo-50 rounded-lg p-3 text-center">
+              <div class="text-xs text-indigo-600 mb-1">Horas Confirmadas</div>
+              <div class="text-lg font-bold text-indigo-600" x-text="eventData.total_hours.toFixed(1) + ' hrs'"></div>
+            </div>
+          </div>
+
+          <button
+            @click="viewEventDetail(eventData)"
+            class="w-full px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100"
+          >
+            <i class="ti ti-eye mr-1"></i>
+            Ver Detalle de Actividades
+          </button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Información adicional -->
+  <div x-show="!loading && !errorMessage && eventsHours.length > 0" class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+    <div class="flex">
+      <div class="flex-shrink-0">
+        <i class="ti ti-info-circle text-blue-600 text-xl"></i>
+      </div>
+      <div class="ml-3">
+        <h3 class="text-sm font-medium text-blue-900">Acerca del Crédito Complementario</h3>
+        <div class="mt-2 text-sm text-blue-800">
+          <p>Para obtener el crédito complementario en un evento, debes acumular al menos <strong>10 horas confirmadas</strong> de participación en actividades.</p>
+          <p class="mt-1">El estado "Asistió" indica que tu participación fue confirmada y cuenta para el total de horas.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de detalle de evento -->
+  <div
+    x-show="showEventDetailModal"
+    x-transition
+    class="fixed inset-0 overflow-y-auto z-50"
+    style="display: none"
+  >
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <div
+        x-show="showEventDetailModal"
+        x-transition
+        class="fixed inset-0 transition-opacity"
+        @click="closeEventDetailModal()"
+      >
+        <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+      </div>
+
+      <div
+        x-show="showEventDetailModal"
+        x-transition
+        class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full"
+        @click.stop
+      >
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-lg font-medium text-gray-900">
+                Cronología de Actividades
+              </h3>
+              <div class="mt-2" x-show="currentEventDetail">
+                <p class="text-sm text-gray-900 font-medium" x-text="currentEventDetail?.event_name"></p>
+                <div class="flex items-center gap-3 mt-1">
+                  <span class="text-sm text-gray-600">
+                    <i class="ti ti-clock mr-1"></i>
+                    <span class="font-medium" x-text="currentEventDetail?.total_confirmed_hours?.toFixed(1)"></span>
+                    horas confirmadas
+                  </span>
+                  <span
+                    x-show="currentEventDetail?.has_complementary_credit"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                  >
+                    <i class="ti ti-award mr-1"></i>
+                    Crédito Complementario
+                  </span>
+                </div>
+              </div>
+            </div>
+            <button
+              @click="closeEventDetailModal()"
+              class="text-gray-400 hover:text-gray-500"
+            >
+              <i class="ti ti-x text-xl"></i>
+            </button>
+          </div>
+
+          <!-- Loading -->
+          <div x-show="loadingEventDetail" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+            <p class="mt-4 text-gray-600">Cargando actividades...</p>
+          </div>
+
+          <!-- Cronología de actividades -->
+          <div x-show="!loadingEventDetail" class="mt-6">
+            <div class="flow-root">
+              <ul class="-mb-8">
+                <template x-for="(activity, index) in eventActivities" :key="activity.registration_id">
+                  <li>
+                    <div class="relative pb-8">
+                      <span
+                        x-show="index !== eventActivities.length - 1"
+                        class="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                      ></span>
+                      <div class="relative flex space-x-3">
+                        <div>
+                          <span
+                            :class="getStatusBadgeClass(activity.status)"
+                            class="h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white"
+                          >
+                            <i
+                              :class="{
+                                'ti ti-check': activity.status === 'Asistió',
+                                'ti ti-clock': activity.status === 'Confirmado',
+                                'ti ti-x': activity.status === 'Ausente' || activity.status === 'Cancelado',
+                                'ti ti-bookmark': activity.status === 'Registrado'
+                              }"
+                              class="text-sm"
+                            ></i>
+                          </span>
+                        </div>
+                        <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                          <div>
+                            <p class="text-sm font-medium text-gray-900" x-text="activity.activity_name"></p>
+                            <p class="text-xs text-gray-500 mt-0.5">
+                              <span x-text="activity.activity_type"></span>
+                              <span class="mx-1">•</span>
+                              <span x-text="activity.duration_hours + ' horas'"></span>
+                            </p>
+                            <p class="text-xs text-gray-500 mt-1">
+                              <i class="ti ti-calendar mr-1"></i>
+                              <span x-text="formatDateTime(activity.start_datetime)"></span>
+                            </p>
+                            <p class="text-xs text-gray-500">
+                              <i class="ti ti-map-pin mr-1"></i>
+                              <span x-text="activity.location"></span>
+                            </p>
+                          </div>
+                          <div class="text-right whitespace-nowrap text-sm">
+                            <span
+                              :class="getStatusBadgeClass(activity.status)"
+                              class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                              x-text="activity.status"
+                            ></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/student/history.js') }}"></script>

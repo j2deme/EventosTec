@@ -26,6 +26,7 @@ function studentDashboard() {
         hidden: true,
       },
       { id: "registrations", name: "Mis Preregistros", icon: "ti ti-bookmark" },
+      { id: "history", name: "Histórico de Horas", icon: "ti ti-history" },
       { id: "profile", name: "Mi Perfil", icon: "ti ti-user" },
     ],
 
@@ -625,6 +626,7 @@ function studentDashboard() {
         events: "Eventos Disponibles",
         event_activities: "Actividades del Evento",
         registrations: "Mis Preregistros",
+        history: "Histórico de Horas",
         profile: "Mi Perfil",
       };
       return titles[this.activeTab] || "Eventos Tec";

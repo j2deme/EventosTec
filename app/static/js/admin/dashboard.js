@@ -49,6 +49,7 @@ function adminDashboard() {
       { id: "activities", name: "Actividades", icon: "ti ti-book" },
       { id: "registrations", name: "Registros", icon: "ti ti-clipboard-list" },
       { id: "attendances", name: "Asistencias", icon: "ti ti-check" },
+      { id: "students", name: "Estudiantes", icon: "ti ti-users" },
       { id: "reports", name: "Reportes", icon: "ti ti-chart-bar" },
     ],
 
