@@ -435,7 +435,8 @@ def api_confirm_registration(reg_id):
     window_days = int(current_app.config.get('PUBLIC_CONFIRM_WINDOW_DAYS', 30))
     if getattr(activity, 'end_datetime', None) is not None:
         cutoff = activity.end_datetime + timedelta(days=window_days)
-        if datetime.utcnow() > cutoff.replace(tzinfo=None):
+        now = datetime.now(timezone.utc)
+        if now > cutoff:
             return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
 
     # update registration
@@ -544,7 +545,8 @@ def api_walkin():
     window_days = int(current_app.config.get('PUBLIC_CONFIRM_WINDOW_DAYS', 30))
     if getattr(activity, 'end_datetime', None) is not None:
         cutoff = activity.end_datetime + timedelta(days=window_days)
-        if datetime.utcnow() > cutoff.replace(tzinfo=None):
+        now = datetime.now(timezone.utc)
+        if now > cutoff:
             return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
 
     # find existing student locally

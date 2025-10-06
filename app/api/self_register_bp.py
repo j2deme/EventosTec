@@ -127,7 +127,7 @@ def self_register_api():
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = (activity.start_datetime + timedelta(minutes=20)
                   ) if activity.start_datetime else None
         if cutoff and now > cutoff:
