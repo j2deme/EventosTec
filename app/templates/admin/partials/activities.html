@@ -93,7 +93,7 @@
                     <div class="mt-2 flex gap-2 items-center">
                       <div class="flex-1">
                         <a
-                          :href="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : '#')"
+                          :href="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + encodeURIComponent(tokenPublic)) : '#')"
                           target="_blank" rel="noopener"
                           class="block w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words"
                           x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : 'No disponible')))"
@@ -103,7 +103,7 @@
                       </div>
 
                       <div x-data="{copiedPause:false}">
-                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : ''); if(!url) return; navigator.clipboard.writeText(url).then(()=>{ copiedPause=true; setTimeout(()=>copiedPause=false,1500) }); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + encodeURIComponent(tokenPublic)) : ''); if(!url) return; navigator.clipboard.writeText(url).then(()=>{ copiedPause=true; setTimeout(()=>copiedPause=false,1500) }); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
                           <i class="ti ti-copy mr-2"></i>
                           <span x-show="!copiedPause">Copiar</span>
                           <span x-show="copiedPause" class="text-sm">Copiado</span>
@@ -124,10 +124,10 @@
                     <label class="block text-sm font-medium text-gray-700">Vista staff (registro rápido)</label>
                     <div class="mt-2 flex gap-2 items-center">
                       <div class="flex-1">
-                        <a :href="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + tokenPublic) : '#')" target="_blank" rel="noopener" class="block w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words" x-text="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + tokenPublic) : 'No disponible')"></a>
+                        <a :href="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : '#')" target="_blank" rel="noopener" class="block w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words" x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : 'No disponible')) )"></a>
                       </div>
                       <div>
-                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + tokenPublic) : ''); if(!url) return navigator.clipboard.writeText(url).then(()=>{ window.showToast && window.showToast('Enlace copiado', 'success') }); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : ''); if(!url) return navigator.clipboard.writeText(url).then(()=>{ window.showToast && window.showToast('Enlace copiado', 'success') }); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
                           <i class="ti ti-copy mr-2"></i>
                           Copiar
                         </button>

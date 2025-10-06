@@ -787,6 +787,13 @@ def public_staff_walkin_view(token):
     return render_template('public/staff_walkin.html', activity_token=token, activity_name=activity.name, activity_start_iso=activity_start_iso, token_provided=True, token_invalid=False)
 
 
+@public_registrations_bp.route('/public/staff-walkin', methods=['GET'])
+def public_staff_walkin_query():
+    # Backwards-compatible alternative: accept token as query param to avoid path encoding issues
+    token = request.args.get('token') or ''
+    return public_staff_walkin_view(token)
+
+
 @public_registrations_bp.route('/api/public/attendances/search', methods=['GET'])
 def api_public_search_attendances():
     """Search attendances for a specific activity using public token."""
