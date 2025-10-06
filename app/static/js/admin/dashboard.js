@@ -149,6 +149,7 @@ function adminDashboard() {
         "registrations",
         "reports",
         "attendances",
+        "students",
       ].includes(tabId);
     },
 
