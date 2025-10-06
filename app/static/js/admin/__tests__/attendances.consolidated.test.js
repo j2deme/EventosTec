@@ -129,12 +129,14 @@ describe("attendancesAdmin helpers", () => {
       student_name: "John",
       activity_id: 10,
       key: 1,
+      __selected_for_sync: false,
     });
     expect(result[1]).toEqual({
       id: 2,
       student_name: "Jane",
       activity_id: 20,
       key: 2,
+      __selected_for_sync: false,
     });
   });
 
@@ -158,6 +160,7 @@ describe("attendancesAdmin helpers", () => {
       student_name: "John",
       activity_id: 10,
       key: 1,
+      __selected_for_sync: false,
     });
   });
 
@@ -181,6 +184,7 @@ describe("attendancesAdmin helpers", () => {
       student_name: "Jane",
       registration_id: null,
       key: 2,
+      __selected_for_sync: false,
     });
   });
 
@@ -215,6 +219,7 @@ describe("attendancesAdmin helpers", () => {
       student_identifier: "12345",
       activity_name: "Workshop",
       key: 1,
+      __selected_for_sync: false,
     });
   });
 
@@ -249,6 +254,7 @@ describe("attendancesAdmin helpers", () => {
       student_identifier: "67890",
       activity_name: "Conference",
       key: 2,
+      __selected_for_sync: false,
     });
   });
 
@@ -283,6 +289,7 @@ describe("attendancesAdmin helpers", () => {
       student_identifier: "67890",
       activity_name: "Conference",
       key: 2,
+      __selected_for_sync: false,
     });
   });
 });
