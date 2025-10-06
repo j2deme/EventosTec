@@ -926,7 +926,19 @@ function activitiesManager() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const res = await f(`/api/activities/${this.activityToView.id}/token`);
+        const headers = {};
+        try {
+          const t =
+            window.localStorage && window.localStorage.getItem
+              ? window.localStorage.getItem("authToken")
+              : null;
+          if (t) headers["Authorization"] = `Bearer ${t}`;
+        } catch (e) {
+          // ignore localStorage errors
+        }
+        const res = await f(`/api/activities/${this.activityToView.id}/token`, {
+          headers,
+        });
         if (!res.ok) {
           let msg = "Error obteniendo token";
           try {
@@ -946,7 +958,8 @@ function activitiesManager() {
         // Also fetch public (chief) token in parallel
         try {
           const res2 = await f(
-            `/api/activities/${this.activityToView.id}/public-token`
+            `/api/activities/${this.activityToView.id}/public-token`,
+            { headers }
           );
           if (res2 && res2.ok) {
             const d2 = await res2.json();

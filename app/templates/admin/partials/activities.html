@@ -82,6 +82,35 @@
                       </div>
                     </div>
                   </div>
+
+                  <!-- Enlace público: Control de asistencia (vista de pausa/reanudar) -->
+                  <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700">Control de asistencia (vista pública)</label>
+                    <div class="mt-2 flex gap-2 items-center">
+                      <div class="flex-1">
+                        <input type="text" readonly
+                          :value="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : 'No disponible')) )"
+                          class="w-full px-3 py-2 border rounded-md text-sm bg-gray-50"/>
+                        <p class="mt-1 text-xs text-gray-500" x-show="!tokenError">Enlace público para pausar/reanudar asistencias (disponible sólo para actividades tipo "Magistral" durante la ventana de control).</p>
+                        <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
+                      </div>
+
+                      <div x-data="{copiedPause:false}">
+                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : ''); if(!url) return; navigator.clipboard.writeText(url).then(()=>{ copiedPause=true; setTimeout(()=>copiedPause=false,1500) }); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                          <i class="ti ti-copy mr-2"></i>
+                          <span x-show="!copiedPause">Copiar</span>
+                          <span x-show="copiedPause" class="text-sm">Copiado</span>
+                        </button>
+                      </div>
+
+                      <div>
+                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : ''); if(!url) return window.open(url, '_blank'); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50">
+                          <i class="ti ti-external-link mr-2"></i>
+                          Abrir
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
