@@ -7,6 +7,7 @@ from app.models.student import Student
 from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.token_utils import verify_public_token, verify_public_event_token, generate_public_token
+from app.utils.datetime_utils import localize_naive_datetime
 from sqlalchemy.exc import IntegrityError
 import io
 import re
@@ -723,13 +724,16 @@ def public_pause_attendance_view(token):
     # Check time window: for public pause/resume we allow from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
 
-    # Ensure end_datetime is timezone-aware (we don't need start for public window)
+    # Get app timezone configuration
+    app_timezone = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
+
+    # Localize naive datetimes from database to app timezone, then convert to UTC
     end_dt = activity.end_datetime
     if end_dt is None:
         return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True)
-    if end_dt.tzinfo is None:
-        # assume UTC if naive
-        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Use localize_naive_datetime to properly handle naive datetimes
+    end_dt = localize_naive_datetime(end_dt, app_timezone)
 
     # Public window: derive from configuration (overridable via .env/config)
     from_seconds = int(current_app.config.get(
@@ -740,8 +744,7 @@ def public_pause_attendance_view(token):
     # available_from = start_dt + from_seconds (if start_dt exists and from_seconds>0), else now
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
-        if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        start_dt = localize_naive_datetime(start_dt, app_timezone)
         available_from = start_dt + timedelta(seconds=from_seconds)
     else:
         available_from = now
@@ -826,11 +829,16 @@ def api_public_search_attendances():
 
     # Check time window: public search available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
+    
+    # Get app timezone configuration
+    app_timezone = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
+    
     end_dt = activity.end_datetime
     if end_dt is None:
         return jsonify({'attendances': [], 'total': 0, 'page': 1, 'per_page': 0}), 200
-    if end_dt.tzinfo is None:
-        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Use localize_naive_datetime to properly handle naive datetimes
+    end_dt = localize_naive_datetime(end_dt, app_timezone)
 
     from_seconds = int(current_app.config.get(
         'PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', 0))
@@ -839,8 +847,7 @@ def api_public_search_attendances():
 
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
-        if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        start_dt = localize_naive_datetime(start_dt, app_timezone)
         available_from = start_dt + timedelta(seconds=from_seconds)
     else:
         available_from = now
@@ -912,11 +919,16 @@ def api_public_pause_attendance(attendance_id):
 
     # Check time window: public pause available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
+    
+    # Get app timezone configuration
+    app_timezone = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
+    
     end_dt = activity.end_datetime
     if end_dt is None:
         return jsonify({'message': 'Token inválido o actividad no encontrada.'}), 400
-    if end_dt.tzinfo is None:
-        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Use localize_naive_datetime to properly handle naive datetimes
+    end_dt = localize_naive_datetime(end_dt, app_timezone)
 
     from_seconds = int(current_app.config.get(
         'PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', 0))
@@ -925,8 +937,7 @@ def api_public_pause_attendance(attendance_id):
 
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
-        if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        start_dt = localize_naive_datetime(start_dt, app_timezone)
         available_from = start_dt + timedelta(seconds=from_seconds)
     else:
         available_from = now
@@ -989,11 +1000,16 @@ def api_public_resume_attendance(attendance_id):
 
     # Check time window: public resume available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
+    
+    # Get app timezone configuration
+    app_timezone = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
+    
     end_dt = activity.end_datetime
     if end_dt is None:
         return jsonify({'message': 'Token inválido o actividad no encontrada.'}), 400
-    if end_dt.tzinfo is None:
-        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    
+    # Use localize_naive_datetime to properly handle naive datetimes
+    end_dt = localize_naive_datetime(end_dt, app_timezone)
 
     from_seconds = int(current_app.config.get(
         'PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', 0))
@@ -1002,8 +1018,7 @@ def api_public_resume_attendance(attendance_id):
 
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
-        if start_dt.tzinfo is None:
-            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        start_dt = localize_naive_datetime(start_dt, app_timezone)
         available_from = start_dt + timedelta(seconds=from_seconds)
     else:
         available_from = now
@@ -1035,6 +1050,7 @@ def api_public_resume_attendance(attendance_id):
         current_app.logger.exception(
             'Error resuming attendance %s', attendance_id)
         return jsonify({'message': 'Error al reanudar asistencia', 'error': str(e)}), 400
+
 
 
 @public_registrations_bp.route('/api/public/registrations/export', methods=['POST'])
