@@ -43,6 +43,14 @@ class Config:
     # Public confirmation window in days for chiefs' token (default 30 days)
     PUBLIC_CONFIRM_WINDOW_DAYS = int(
         os.environ.get('PUBLIC_CONFIRM_WINDOW_DAYS', '30'))
+    # Public pause/resume window configuration (overridable via .env)
+    # Seconds after activity start when the public pause view becomes available.
+    # Set to 0 to allow immediately.
+    PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS = int(
+        os.environ.get('PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', '0'))
+    # Minutes after activity end that the public pause view remains available.
+    PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES = int(
+        os.environ.get('PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES', '5'))
 
 
 class DevelopmentConfig(Config):

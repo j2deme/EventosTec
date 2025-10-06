@@ -610,37 +610,39 @@ def public_pause_attendance_view(token):
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message='Solo disponible para conferencias magistrales')
 
-    # Check time window: available 30 seconds after start and until 1 minute after end
+    # Check time window: for public pause/resume we allow from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
-    
-    # Ensure start_datetime and end_datetime are timezone-aware
-    start_dt = activity.start_datetime
+
+    # Ensure end_datetime is timezone-aware (we don't need start for public window)
     end_dt = activity.end_datetime
-    
-    if start_dt.tzinfo is None:
-        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt is None:
+        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True)
     if end_dt.tzinfo is None:
+        # assume UTC if naive
         end_dt = end_dt.replace(tzinfo=timezone.utc)
-    
-    # Calculate time windows
-    available_from = start_dt + timedelta(seconds=30)
-    available_until = end_dt + timedelta(minutes=1)
-    
+
+    # Public window: derive from configuration (overridable via .env/config)
+    from_seconds = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', 0))
+    until_minutes = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES', 5))
+
+    # available_from = start_dt + from_seconds (if start_dt exists and from_seconds>0), else now
+    start_dt = activity.start_datetime
+    if from_seconds > 0 and start_dt is not None:
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        available_from = start_dt + timedelta(seconds=from_seconds)
+    else:
+        available_from = now
+
+    available_until = end_dt + timedelta(minutes=until_minutes)
+
     if now < available_from:
-        return render_template(
-            'public/pause_attendance.html', 
-            token_provided=True, 
-            token_invalid=True, 
-            error_message=f'Esta vista estará disponible 30 segundos después del inicio de la actividad'
-        )
-    
+        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message=f'Esta vista estará disponible a partir de {available_from.isoformat()}')
+
     if now > available_until:
-        return render_template(
-            'public/pause_attendance.html', 
-            token_provided=True, 
-            token_invalid=True, 
-            error_message='Esta vista ya no está disponible (la actividad finalizó hace más de 1 minuto)'
-        )
+        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message='La ventana pública de control ha expirado.')
 
     return render_template(
         'public/pause_attendance.html',
@@ -672,27 +674,34 @@ def api_public_search_attendances():
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
 
-    # Check time window: available 30 seconds after start and until 1 minute after end
+    # Check time window: public search available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
-    
-    # Ensure start_datetime and end_datetime are timezone-aware
-    start_dt = activity.start_datetime
     end_dt = activity.end_datetime
-    
-    if start_dt.tzinfo is None:
-        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt is None:
+        return jsonify({'attendances': [], 'total': 0, 'page': 1, 'per_page': 0}), 200
     if end_dt.tzinfo is None:
         end_dt = end_dt.replace(tzinfo=timezone.utc)
-    
-    # Calculate time windows
-    available_from = start_dt + timedelta(seconds=30)
-    available_until = end_dt + timedelta(minutes=1)
-    
+
+    from_seconds = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', 0))
+    until_minutes = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES', 5))
+
+    start_dt = activity.start_datetime
+    if from_seconds > 0 and start_dt is not None:
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        available_from = start_dt + timedelta(seconds=from_seconds)
+    else:
+        available_from = now
+
+    available_until = end_dt + timedelta(minutes=until_minutes)
+
     if now < available_from:
-        return jsonify({'message': 'Esta funcionalidad estará disponible 30 segundos después del inicio de la actividad'}), 403
-    
+        return jsonify({'attendances': [], 'total': 0, 'page': 1, 'per_page': 0}), 200
+
     if now > available_until:
-        return jsonify({'message': 'Esta funcionalidad ya no está disponible (la actividad finalizó hace más de 1 minuto)'}), 403
+        return jsonify({'attendances': [], 'total': 0, 'page': 1, 'per_page': 0}), 200
 
     if not search:
         return jsonify({'attendances': []}), 200
@@ -751,27 +760,34 @@ def api_public_pause_attendance(attendance_id):
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
 
-    # Check time window: available 30 seconds after start and until 1 minute after end
+    # Check time window: public pause available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
-    
-    # Ensure start_datetime and end_datetime are timezone-aware
-    start_dt = activity.start_datetime
     end_dt = activity.end_datetime
-    
-    if start_dt.tzinfo is None:
-        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt is None:
+        return jsonify({'message': 'Token inválido o actividad no encontrada.'}), 400
     if end_dt.tzinfo is None:
         end_dt = end_dt.replace(tzinfo=timezone.utc)
-    
-    # Calculate time windows
-    available_from = start_dt + timedelta(seconds=30)
-    available_until = end_dt + timedelta(minutes=1)
-    
+
+    from_seconds = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', 0))
+    until_minutes = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES', 5))
+
+    start_dt = activity.start_datetime
+    if from_seconds > 0 and start_dt is not None:
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        available_from = start_dt + timedelta(seconds=from_seconds)
+    else:
+        available_from = now
+
+    available_until = end_dt + timedelta(minutes=until_minutes)
+
     if now < available_from:
-        return jsonify({'message': 'Esta funcionalidad estará disponible 30 segundos después del inicio de la actividad'}), 403
-    
+        return jsonify({'message': f'Esta funcionalidad estará disponible a partir de {available_from.isoformat()}'}), 403
+
     if now > available_until:
-        return jsonify({'message': 'Esta funcionalidad ya no está disponible (la actividad finalizó hace más de 1 minuto)'}), 403
+        return jsonify({'message': 'La ventana pública de control ha expirado.'}), 403
 
     att = db.session.get(Attendance, int(attendance_id))
     if not att or att.activity_id != activity.id:
@@ -795,7 +811,8 @@ def api_public_pause_attendance(attendance_id):
         return jsonify({'message': 'Asistencia pausada exitosamente'}), 200
     except Exception as e:
         db.session.rollback()
-        current_app.logger.exception('Error pausing attendance %s', attendance_id)
+        current_app.logger.exception(
+            'Error pausing attendance %s', attendance_id)
         return jsonify({'message': 'Error al pausar asistencia', 'error': str(e)}), 400
 
 
@@ -820,27 +837,34 @@ def api_public_resume_attendance(attendance_id):
     if getattr(activity, 'activity_type', None) != 'Magistral':
         return jsonify({'message': 'Solo disponible para conferencias magistrales'}), 400
 
-    # Check time window: available 30 seconds after start and until 1 minute after end
+    # Check time window: public resume available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
-    
-    # Ensure start_datetime and end_datetime are timezone-aware
-    start_dt = activity.start_datetime
     end_dt = activity.end_datetime
-    
-    if start_dt.tzinfo is None:
-        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt is None:
+        return jsonify({'message': 'Token inválido o actividad no encontrada.'}), 400
     if end_dt.tzinfo is None:
         end_dt = end_dt.replace(tzinfo=timezone.utc)
-    
-    # Calculate time windows
-    available_from = start_dt + timedelta(seconds=30)
-    available_until = end_dt + timedelta(minutes=1)
-    
+
+    from_seconds = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', 0))
+    until_minutes = int(current_app.config.get(
+        'PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES', 5))
+
+    start_dt = activity.start_datetime
+    if from_seconds > 0 and start_dt is not None:
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+        available_from = start_dt + timedelta(seconds=from_seconds)
+    else:
+        available_from = now
+
+    available_until = end_dt + timedelta(minutes=until_minutes)
+
     if now < available_from:
-        return jsonify({'message': 'Esta funcionalidad estará disponible 30 segundos después del inicio de la actividad'}), 403
-    
+        return jsonify({'message': f'Esta funcionalidad estará disponible a partir de {available_from.isoformat()}'}), 403
+
     if now > available_until:
-        return jsonify({'message': 'Esta funcionalidad ya no está disponible (la actividad finalizó hace más de 1 minuto)'}), 403
+        return jsonify({'message': 'La ventana pública de control ha expirado.'}), 403
 
     att = db.session.get(Attendance, int(attendance_id))
     if not att or att.activity_id != activity.id:
@@ -858,7 +882,8 @@ def api_public_resume_attendance(attendance_id):
         return jsonify({'message': 'Asistencia reanudada exitosamente'}), 200
     except Exception as e:
         db.session.rollback()
-        current_app.logger.exception('Error resuming attendance %s', attendance_id)
+        current_app.logger.exception(
+            'Error resuming attendance %s', attendance_id)
         return jsonify({'message': 'Error al reanudar asistencia', 'error': str(e)}), 400
 
 
