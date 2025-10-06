@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from app.schemas import registration_schema, registrations_schema
@@ -7,8 +7,9 @@ from app.models.student import Student
 from app.models.activity import Activity
 from app.models.attendance import Attendance
 from app.utils.auth_helpers import get_user_or_403
-from sqlalchemy import func
-from sqlalchemy import or_, cast, String
+from sqlalchemy import cast, String
+from sqlalchemy import or_
+from sqlalchemy.orm import aliased
 
 registrations_bp = Blueprint(
     'registrations', __name__, url_prefix='/api/registrations')
@@ -144,15 +145,11 @@ def get_registrations():
         # Nuevo: filtrar por evento padre (actividad.event_id)
         event_id = request.args.get('event_id', type=int)
 
-        from sqlalchemy.orm import joinedload
-
-        # Modificar la consulta para cargar relaciones de forma eager
-        # Empezar la consulta con cargas eager de relaciones
-        query = Registration.query.options(
-            joinedload(getattr(Registration, 'activity')),
-            joinedload(getattr(Registration, 'student'))
-        )
-        from sqlalchemy import or_
+        # Avoid using joinedload on backref-created attributes because static
+        # analyzers may not see those attributes and raise type errors.
+        # We'll keep the base query simple and lazily load missing relations
+        # when needed (code below already fetches activity if missing).
+        query = Registration.query
 
         # Soporte para búsqueda de texto: buscar por nombre de estudiante,
         # número de control o nombre de actividad (si se proporcionó `search`).
@@ -160,19 +157,33 @@ def get_registrations():
         if search:
             try:
                 term = f"%{search}%"
-                # Use outer joins and cast control_number to string to avoid errors
-                # when control_number is stored as numeric type.
+                # Use aliased joins for Student and Activity to avoid colliding
+                # table aliases when other parts of the query also join the
+                # activities table (MySQL 'Not unique table/alias' error).
                 try:
-                    query = query.outerjoin(Student).outerjoin(Activity).filter(
+                    StudentAlias = aliased(Student)
+                    ActivityAlias = aliased(Activity)
+
+                    # Join via explicit FK conditions to avoid dereferencing
+                    # relationship attributes that static checkers may not
+                    # recognize (Registration does not declare the backref
+                    # attribute statically even though Activity.registrations
+                    # creates it at runtime).
+                    query = query.outerjoin(
+                        StudentAlias, StudentAlias.id == Registration.student_id
+                    ).outerjoin(
+                        ActivityAlias, ActivityAlias.id == Registration.activity_id
+                    ).filter(
                         or_(
-                            Student.full_name.ilike(term),
-                            cast(Student.control_number, String).ilike(term),
-                            Activity.name.ilike(term),
+                            StudentAlias.full_name.ilike(term),
+                            cast(StudentAlias.control_number,
+                                 String).ilike(term),
+                            ActivityAlias.name.ilike(term),
                         )
                     )
                 except Exception:
-                    # If the robust filter fails for some DB-specific reason, skip the
-                    # search filter instead of raising a hard error.
+                    # If the robust aliased filter fails for some DB-specific reason,
+                    # skip the search filter instead of raising a hard error.
                     pass
             except Exception:
                 # Query para estadísticas: contar por estado sobre la misma selección (sin paginar)
@@ -187,12 +198,19 @@ def get_registrations():
 
         # Filtrar por evento (actividad.event_id)
         if event_id:
-            # Necesitamos hacer join explícito a Activity si no se hizo
+            # Use a subquery on Activity.id to avoid adding JOINs that may
+            # conflict with other parts of the query (search joins). This
+            # produces: WHERE registration.activity_id IN (SELECT id FROM activities WHERE event_id = ?)
             try:
-                query = query.join(Activity).filter(
-                    Activity.event_id == event_id)
+                subq = db.session.query(Activity.id).filter(
+                    Activity.event_id == event_id).subquery()
+                query = query.filter(Registration.activity_id.in_(subq))
             except Exception:
-                # En caso de fallo en el join, ignorar el filtro para no romper la consulta
+                # If the subquery approach fails for any DB-specific reason,
+                # log and continue without the event filter to avoid breaking
+                # the listing endpoint.
+                current_app.logger.exception(
+                    'Failed to apply event_id subquery filter on registrations')
                 pass
 
         if status:
@@ -258,8 +276,12 @@ def get_registrations():
             'page': registrations.page
         }), 200
 
-    except Exception as e:
-        return jsonify({'message': 'Error al obtener preregistros', 'error': str(e)}), 500
+    except Exception:
+        # Log the full exception on the server, but do NOT expose internal
+        # database errors or stack traces to the client.
+        current_app.logger.exception(
+            'Unexpected error while fetching registrations')
+        return jsonify({'message': 'Error al obtener preregistros'}), 500
 
 # Obtener preregistro por ID
 
@@ -339,8 +361,10 @@ def get_registration(registration_id):
 
         return jsonify(payload), 200
 
-    except Exception as e:
-        return jsonify({'message': 'Error al obtener preregistro', 'error': str(e)}), 500
+    except Exception:
+        current_app.logger.exception(
+            'Unexpected error while fetching registration')
+        return jsonify({'message': 'Error al obtener preregistro'}), 500
 
 # Actualizar preregistro (confirmar asistencia)
 
