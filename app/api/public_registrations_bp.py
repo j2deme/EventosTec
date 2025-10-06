@@ -761,6 +761,13 @@ def public_pause_attendance_view(token):
     )
 
 
+@public_registrations_bp.route('/public/pause-attendance', methods=['GET'])
+def public_pause_attendance_query():
+    # Backwards-compatible alternative: accept token as query param to avoid path encoding issues
+    token = request.args.get('token') or ''
+    return public_pause_attendance_view(token)
+
+
 @public_registrations_bp.route('/public/staff-walkin/<token>', methods=['GET'])
 def public_staff_walkin_view(token):
     """Mobile-first public view for staff to register walk-ins quickly via activity public token."""

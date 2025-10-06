@@ -66,23 +66,22 @@
                     <label class="block text-sm font-medium text-gray-700">Enlace de registro (token seguro para kiosco / QR)</label>
                     <div class="mt-2 flex gap-2 items-center">
                       <div class="flex-1">
-                        <a
-                          :href="(tokenUrl) ? tokenUrl : (token ? (window.location.origin + '/self-register/' + token) : '#')"
-                          target="_blank" rel="noopener"
-                          class="block w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words"
-                          x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : (tokenUrl || (token ? (window.location.origin + '/self-register/' + token) : 'No disponible')) )"
-                        >
-                        </a>
+                        <div class="w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words">
+                          <div class="text-sm text-indigo-700" x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : (tokenUrl || (token ? (window.location.origin + '/self-register/' + token) : 'No disponible')) )"></div>
+                        </div>
                         <p class="mt-1 text-xs text-gray-500" x-show="!tokenError">Este enlace contiene un token firmado. Puedes copiarlo o generar un QR para uso en kioscos.</p>
                         <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
                       </div>
 
-                      <div x-data="{copied:false}">
-                        <button type="button" @click.prevent="(function(){ const url = tokenUrl || (token ? (window.location.origin + '/self-register/' + token) : ''); if(!url) return; navigator.clipboard.writeText(url).then(()=>{ copied=true; setTimeout(()=>copied=false,1500) }); })()" :disabled="tokenLoading || !(tokenUrl || token)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
-                          <i class="ti ti-copy mr-2"></i>
-                          <span x-show="!copied">Copiar</span>
-                          <span x-show="copied" class="text-sm">Copiado</span>
-                        </button>
+                      <div class="w-full space-y-2">
+                        <div>
+                          <label class="block text-xs text-gray-500">URL (path)</label>
+                          <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenUrl || (token ? (window.location.origin + '/self-register/' + token) : '')" @click="$el.select()" />
+                        </div>
+                        <div>
+                          <label class="block text-xs text-gray-500">URL alternativa (query)</label>
+                          <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenUrl ? ( (tokenUrl.split('?')[0] || tokenUrl) + '?token=' + (token ? encodeURIComponent(token) : '') ) : (token ? (window.location.origin + '/self-register?token=' + encodeURIComponent(token)) : '')" @click="$el.select()" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -92,29 +91,22 @@
                     <label class="block text-sm font-medium text-gray-700">Control de asistencia (vista pública)</label>
                     <div class="mt-2 flex gap-2 items-center">
                       <div class="flex-1">
-                        <a
-                          :href="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + encodeURIComponent(tokenPublic)) : '#')"
-                          target="_blank" rel="noopener"
-                          class="block w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words"
-                          x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : 'No disponible')))"
-                        ></a>
+                        <div class="w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words">
+                          <div class="text-sm text-indigo-700" x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : 'No disponible')))"></div>
+                        </div>
                         <p class="mt-1 text-xs text-gray-500" x-show="!tokenError">Enlace público para pausar/reanudar asistencias (disponible sólo para actividades tipo "Magistral" durante la ventana de control).</p>
                         <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
                       </div>
 
-                      <div x-data="{copiedPause:false}">
-                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + encodeURIComponent(tokenPublic)) : ''); if(!url) return; navigator.clipboard.writeText(url).then(()=>{ copiedPause=true; setTimeout(()=>copiedPause=false,1500) }); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
-                          <i class="ti ti-copy mr-2"></i>
-                          <span x-show="!copiedPause">Copiar</span>
-                          <span x-show="copiedPause" class="text-sm">Copiado</span>
-                        </button>
-                      </div>
-
-                      <div>
-                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + tokenPublic) : ''); if(!url) return window.open(url, '_blank'); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 disabled:opacity-50">
-                          <i class="ti ti-external-link mr-2"></i>
-                          Abrir
-                        </button>
+                      <div class="w-full space-y-2">
+                        <div>
+                          <label class="block text-xs text-gray-500">URL (path)</label>
+                          <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + encodeURIComponent(tokenPublic)) : '')" @click="$el.select()" />
+                        </div>
+                        <div>
+                          <label class="block text-xs text-gray-500">URL alternativa (query)</label>
+                          <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenPublic ? (window.location.origin + '/public/pause-attendance?token=' + encodeURIComponent(tokenPublic)) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/?token=') : '')" @click="$el.select()" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -124,13 +116,19 @@
                     <label class="block text-sm font-medium text-gray-700">Vista staff (registro rápido)</label>
                     <div class="mt-2 flex gap-2 items-center">
                       <div class="flex-1">
-                        <a :href="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : '#')" target="_blank" rel="noopener" class="block w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words" x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : 'No disponible')) )"></a>
+                        <div class="w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-indigo-600 break-words">
+                          <div class="text-sm text-indigo-700" x-text="tokenLoading ? 'Generando enlace...' : (tokenError ? ('Error: ' + tokenError) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : 'No disponible')) )"></div>
+                        </div>
                       </div>
-                      <div>
-                        <button type="button" @click.prevent="(function(){ const url = (tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : ''); if(!url) return navigator.clipboard.writeText(url).then(()=>{ window.showToast && window.showToast('Enlace copiado', 'success') }); })()" :disabled="tokenLoading || !(tokenUrlPublic || tokenPublic)" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
-                          <i class="ti ti-copy mr-2"></i>
-                          Copiar
-                        </button>
+                      <div class="w-full space-y-2">
+                        <div>
+                          <label class="block text-xs text-gray-500">URL (path)</label>
+                          <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : '')" @click="$el.select()" />
+                        </div>
+                        <div>
+                          <label class="block text-xs text-gray-500">URL alternativa (query)</label>
+                          <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenPublic ? (window.location.origin + '/public/staff-walkin?token=' + encodeURIComponent(tokenPublic)) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/?token=') : '')" @click="$el.select()" />
+                        </div>
                       </div>
                     </div>
                   </div>
