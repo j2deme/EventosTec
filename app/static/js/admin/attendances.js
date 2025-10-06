@@ -887,6 +887,78 @@ function attendancesAdmin() {
       }
     },
 
+    async pauseAttendance(row) {
+      if (!confirm("¿Pausar esta asistencia? Esto detiene el conteo de tiempo presente.")) return;
+
+      try {
+        const res = await this.sf(`/api/attendances/pause`, {
+          method: "POST",
+          body: JSON.stringify({
+            student_id: row.student_id,
+            activity_id: row.activity_id,
+          }),
+        });
+
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+          window.showToast &&
+            window.showToast(body.message || "Asistencia pausada", "success");
+          await this.refresh();
+
+          this.dispatchAttendanceChanged({
+            attendance_id: row.id,
+            activity_id: row.activity_id,
+            student_id: row.student_id,
+          });
+        } else {
+          window.showToast &&
+            window.showToast(
+              body.message || "Error al pausar asistencia",
+              "error"
+            );
+        }
+      } catch (err) {
+        console.error(err);
+        window.showToast && window.showToast("Error de conexión", "error");
+      }
+    },
+
+    async resumeAttendance(row) {
+      if (!confirm("¿Reanudar esta asistencia? Esto continúa el conteo de tiempo presente.")) return;
+
+      try {
+        const res = await this.sf(`/api/attendances/resume`, {
+          method: "POST",
+          body: JSON.stringify({
+            student_id: row.student_id,
+            activity_id: row.activity_id,
+          }),
+        });
+
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) {
+          window.showToast &&
+            window.showToast(body.message || "Asistencia reanudada", "success");
+          await this.refresh();
+
+          this.dispatchAttendanceChanged({
+            attendance_id: row.id,
+            activity_id: row.activity_id,
+            student_id: row.student_id,
+          });
+        } else {
+          window.showToast &&
+            window.showToast(
+              body.message || "Error al reanudar asistencia",
+              "error"
+            );
+        }
+      } catch (err) {
+        console.error(err);
+        window.showToast && window.showToast("Error de conexión", "error");
+      }
+    },
+
     // Helper to add dispatch method for backward compatibility
     dispatchAttendanceChanged(detail) {
       dispatchAttendanceChangedEvent(detail);

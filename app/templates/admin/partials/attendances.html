@@ -477,6 +477,27 @@
                           <i class="ti ti-book"></i>
                         </button>
 
+                        <!-- Pause/Resume buttons for Magistral activities -->
+                        <template x-if="row.activity_type === 'Magistral' && row.check_in_time && !row.check_out_time">
+                          <button
+                            x-show="!row.is_paused"
+                            @click="pauseAttendance(row)"
+                            class="text-orange-600 hover:text-orange-800 p-2 rounded"
+                            title="Pausar asistencia"
+                          >
+                            <i class="ti ti-player-pause"></i>
+                          </button>
+                        </template>
+                        <template x-if="row.activity_type === 'Magistral' && row.is_paused">
+                          <button
+                            @click="resumeAttendance(row)"
+                            class="text-green-600 hover:text-green-800 p-2 rounded"
+                            title="Reanudar asistencia"
+                          >
+                            <i class="ti ti-player-play"></i>
+                          </button>
+                        </template>
+
                         <button
                           @click="deleteAttendance(row)"
                           class="text-red-600 hover:text-red-800 p-2 rounded"
