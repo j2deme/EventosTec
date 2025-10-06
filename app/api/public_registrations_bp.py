@@ -308,12 +308,113 @@ def api_list_registrations():
     return jsonify({'registrations': page_items, 'total': total, 'page': page, 'per_page': per_page}), 200
 
 
+@public_registrations_bp.route('/api/public/registrations/lookup-student', methods=['GET'])
+def api_public_lookup_student():
+    """Lookup a student by control_number for a given activity token.
+
+    Query params: token=<public token>, control_number=<string>
+    Behavior:
+      - Verify public token -> activity
+      - Try to find Student locally by control_number
+      - If found: return { found: True, student: {...}, created: False }
+      - Else: query external validation API; if found, create local Student and return { found: True, student: {...}, created: True }
+      - Else: return { found: False }
+    """
+    token = request.args.get('token')
+    control_number = (request.args.get('control_number') or '').strip()
+    if not token or not control_number:
+        return jsonify({'found': False}), 400
+
+    aid, err = verify_public_token(str(token))
+    if err or aid is None:
+        return jsonify({'found': False}), 403
+
+    activity = db.session.get(Activity, int(aid))
+    if not activity:
+        return jsonify({'found': False}), 404
+
+    # Try local DB first
+    student = Student.query.filter_by(control_number=control_number).first()
+    if student:
+        return jsonify({'found': True, 'student': student.to_dict() if hasattr(student, 'to_dict') else {'id': student.id, 'full_name': student.full_name, 'control_number': student.control_number}, 'created': False}), 200
+
+    # Not found locally -> try external API (reuse same endpoint used by walkin)
+    external_api = f"http://apps.tecvalles.mx:8091/api/validate/student?username={control_number}"
+    try:
+        resp = requests.get(external_api, timeout=5)
+    except requests.exceptions.RequestException:
+        current_app.logger.exception(
+            'Error contacting external student API for %s', control_number)
+        return jsonify({'found': False}), 200
+
+    if resp.status_code == 404:
+        current_app.logger.debug(
+            'External API returned 404 for %s', control_number)
+        return jsonify({'found': False}), 200
+
+    if resp.status_code != 200:
+        current_app.logger.warning(
+            'External API returned status %s for %s', resp.status_code, control_number)
+        # log response body truncated for debugging (avoid huge logs)
+        try:
+            txt = resp.text or ''
+            current_app.logger.debug('External API body: %s', txt[:1000])
+        except Exception:
+            pass
+        return jsonify({'found': False}), 200
+
+    try:
+        data = resp.json() if resp.text else {}
+    except Exception:
+        current_app.logger.exception(
+            'Invalid JSON from external student API for %s', control_number)
+        data = {}
+
+    # Normalize response similar to walkin behavior
+    d = data if isinstance(data, dict) else {}
+    career = d.get('career') or d.get('carrera') or {}
+    career_name = None
+    if isinstance(career, dict):
+        career_name = career.get('name') or career.get('nombre')
+    else:
+        career_name = career
+
+    ext_control = d.get('username') or d.get(
+        'control_number') or control_number
+    ext_full_name = d.get('name') or d.get('full_name') or d.get('nombre')
+    ext_email = d.get('email') or ''
+
+    if not ext_control or not ext_full_name:
+        current_app.logger.warning(
+            'External student data incomplete for %s: control=%s name=%s', control_number, ext_control, ext_full_name)
+        return jsonify({'found': False}), 200
+
+    # Create local Student safely inside a transaction
+    try:
+        student = Student()
+        student.control_number = ext_control
+        student.full_name = ext_full_name
+        student.email = ext_email
+        student.career = career_name
+        db.session.add(student)
+        db.session.commit()
+        current_app.logger.info(
+            'Created local student %s (%s) from external API', student.full_name, student.control_number)
+        return jsonify({'found': True, 'student': student.to_dict() if hasattr(student, 'to_dict') else {'id': student.id, 'full_name': student.full_name, 'control_number': student.control_number}, 'created': True}), 201
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            'Error creating local student for %s', control_number)
+        return jsonify({'found': False}), 200
+
+
 @public_registrations_bp.route('/api/public/registrations/<int:reg_id>/confirm', methods=['POST'])
 def api_confirm_registration(reg_id):
     payload = request.get_json() or {}
     token = payload.get('token')
     confirm = bool(payload.get('confirm', True))
     create_attendance = bool(payload.get('create_attendance', True))
+    mark_absent = bool(payload.get('mark_absent', False))
 
     if not token:
         return jsonify({'message': 'Token inválido'}), 400
@@ -343,10 +444,17 @@ def api_confirm_registration(reg_id):
         reg.status = 'Asistió'
         reg.confirmation_date = db.func.now()
     else:
-        # Desconfirmación: remove attendance and set preregistro back to 'Registrado'
-        reg.attended = False
-        reg.status = 'Registrado'
-        reg.confirmation_date = None
+        # Desconfirmación: two possible flows
+        if mark_absent:
+            # explicit request to mark as Ausente
+            reg.attended = False
+            reg.status = 'Ausente'
+            reg.confirmation_date = db.func.now()
+        else:
+            # revert to preregistro state
+            reg.attended = False
+            reg.status = 'Registrado'
+            reg.confirmation_date = None
     db.session.add(reg)
 
     # create attendance if requested, avoid duplicates
@@ -651,6 +759,32 @@ def public_pause_attendance_view(token):
         token_provided=True,
         token_invalid=False,
     )
+
+
+@public_registrations_bp.route('/public/staff-walkin/<token>', methods=['GET'])
+def public_staff_walkin_view(token):
+    """Mobile-first public view for staff to register walk-ins quickly via activity public token."""
+    aid, err = verify_public_token(str(token))
+    if err or aid is None:
+        return render_template('public/staff_walkin.html', activity_token='', activity_name='', token_provided=True, token_invalid=True)
+
+    activity = db.session.get(Activity, int(aid))
+    if not activity:
+        return render_template('public/staff_walkin.html', activity_token='', activity_name='', token_provided=True, token_invalid=True)
+
+    # Only allow for Magistral activities (same restriction as other public controls)
+    if getattr(activity, 'activity_type', None) != 'Magistral':
+        return render_template('public/staff_walkin.html', activity_token='', activity_name=activity.name if activity else '', token_provided=True, token_invalid=True)
+
+    # include start datetime ISO so frontend can compute staff registration window
+    activity_start_iso = None
+    try:
+        if getattr(activity, 'start_datetime', None) is not None:
+            activity_start_iso = activity.start_datetime.isoformat()
+    except Exception:
+        activity_start_iso = None
+
+    return render_template('public/staff_walkin.html', activity_token=token, activity_name=activity.name, activity_start_iso=activity_start_iso, token_provided=True, token_invalid=False)
 
 
 @public_registrations_bp.route('/api/public/attendances/search', methods=['GET'])

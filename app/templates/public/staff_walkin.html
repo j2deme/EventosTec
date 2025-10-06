@@ -1,0 +1,622 @@
+{% extends 'base.html' %} {% block title %}Registro rápido - Staff{% endblock %}
+{% block content %}
+<div
+  class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-start"
+>
+  <div
+    class="w-full max-w-md mx-auto mt-6 bg-white rounded-xl shadow p-4"
+    x-data="staffWalkin()"
+    x-init="init()"
+    id="staff-walkin-card"
+    data-activity-token="{{ activity_token or '' }}"
+    data-activity-name="{{ activity_name or '' }}"
+    data-activity-start="{{ activity_start_iso or '' }}"
+  >
+    <div class="text-center mb-6">
+      <div
+        class="mx-auto bg-indigo-100 p-3 rounded-full w-14 h-14 flex items-center justify-center mb-3"
+      >
+        <i class="ti ti-calendar-event text-indigo-600 text-xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-800">Eventos Tec Valles</h1>
+      <p class="text-gray-600 text-sm mt-1">
+        Control de Asistencias y Registros
+      </p>
+      <div
+        class="mt-2 text-sm text-gray-600 font-bold"
+        x-text="activityName || 'Actividad'"
+      ></div>
+      <div class="text-xs text-gray-500">Registro rápido por personal</div>
+    </div>
+
+    <div class="mb-3" x-show="staffWindowOpen">
+      <label for="ctrl-input" class="sr-only">Número de control</label>
+      <div class="flex">
+        <input
+          id="ctrl-input"
+          x-ref="ctrl"
+          x-model="controlNumber"
+          @input.debounce.300ms="lookup()"
+          @keydown.enter.prevent="lookup()"
+          type="text"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          autocomplete="off"
+          placeholder="Número de control"
+          class="flex-1 px-3 py-3 border rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+    </div>
+
+    <div x-show="!staffWindowOpen" class="py-6 text-center text-gray-600">
+      <div class="flex flex-col items-center">
+        <i
+          class="ti ti-stopwatch text-4xl text-gray-400 mb-2"
+          aria-hidden="true"
+        ></i>
+        <div class="text-sm">
+          El período de registro por staff ha finalizado.
+        </div>
+        <div class="text-xs text-gray-500 mt-1">
+          Solo el personal administrativo puede gestionar asistencias ahora.
+        </div>
+      </div>
+    </div>
+
+    <div x-show="state === 'searching'" class="py-6 text-center text-gray-500">
+      <svg
+        class="animate-spin h-6 w-6 mx-auto text-indigo-600"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          class="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          stroke-width="4"
+          fill="none"
+        ></circle>
+        <path
+          class="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8v8z"
+        ></path>
+      </svg>
+      <div class="text-sm mt-2">Buscando...</div>
+    </div>
+
+    <div x-show="state === 'found'" class="border rounded p-3 mb-3">
+      <div class="text-sm text-gray-600">Nombre</div>
+      <div class="font-medium text-gray-900" x-text="student.full_name"></div>
+      <div
+        class="text-sm text-gray-500 mt-1"
+        x-text="student.career || '-' "
+      ></div>
+      <div class="mt-3 flex space-x-2">
+        <button
+          @click="performAction()"
+          :disabled="!actionMode"
+          :class="{
+            'bg-green-600 text-white': actionMode === 'create' || actionMode === 'confirm_reg',
+            'bg-red-600 text-white': actionMode === 'cancel_reg' || actionMode === 'cancel_attendance',
+            'opacity-50 cursor-not-allowed': !actionMode
+          }"
+          class="flex-1 px-3 py-2 rounded flex items-center justify-center space-x-2"
+        >
+          <template
+            x-if="actionMode === 'create' || actionMode === 'confirm_reg'"
+          >
+            <i class="ti ti-check" aria-hidden="true"></i>
+          </template>
+          <template
+            x-if="actionMode === 'cancel_reg' || actionMode === 'cancel_attendance'"
+          >
+            <i class="ti ti-user-x" aria-hidden="true"></i>
+          </template>
+          <span
+            x-text="(actionMode === 'create' && 'Registrar asistencia') || (actionMode === 'confirm_reg' && 'Confirmar asistencia') || (actionMode === 'cancel_reg' && 'Marcar Ausente') || (actionMode === 'cancel_attendance' && 'Cancelar asistencia') || 'Acción'"
+          >
+          </span>
+        </button>
+        <button
+          @click="clearSearch()"
+          class="flex-1 border px-3 py-2 rounded flex items-center justify-center space-x-2"
+        >
+          <i class="ti ti-eraser" aria-hidden="true"></i>
+          <span>Limpiar</span>
+        </button>
+      </div>
+    </div>
+
+    <div x-show="state === 'not_found'" class="text-sm text-red-600 py-4">
+      Estudiante no encontrado. Verifique el número o contacte al administrador.
+    </div>
+    <div x-show="state === 'idle'" class="text-sm text-gray-500 py-4">
+      Ingrese número de control; la búsqueda se realiza automáticamente.
+    </div>
+
+    <div
+      x-show="message"
+      class="mt-3 text-sm text-center"
+      :class="msgClass"
+      x-text="message"
+    ></div>
+  </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  function staffWalkin() {
+    return {
+      controlNumber: "",
+      activityToken: "",
+      activityName: "",
+      activityStartIso: null,
+      staffWindowOpen: true,
+      student: {},
+      state: "idle", // idle | searching | found | not_found
+      // derived action after lookup: 'create' | 'confirm_reg' | 'cancel_reg' | 'cancel_attendance'
+      actionMode: null,
+      actionTargetId: null,
+      message: "",
+      msgClass: "",
+
+      init() {
+        const card = document.getElementById("staff-walkin-card");
+        if (card) {
+          this.activityToken = card.dataset.activityToken || "";
+          this.activityName = card.dataset.activityName || "";
+          this.activityStartIso =
+            card.getAttribute("data-activity-start") || null;
+          this._computeStaffWindow();
+        }
+        this.$nextTick &&
+          this.$nextTick(
+            () =>
+              this.$refs &&
+              this.$refs.ctrl &&
+              this.$refs.ctrl.focus &&
+              this.$refs.ctrl.focus()
+          );
+      },
+
+      async lookup() {
+        const num = (this.controlNumber || "").trim();
+        // require at least 8 characters to reduce external lookups
+        if (!num || num.length < 8) {
+          this.state = "idle";
+          this.student = {};
+          this.actionMode = null;
+          this.actionTargetId = null;
+          return;
+        }
+        this.state = "searching";
+        this.message = "";
+        try {
+          if (!this.staffWindowOpen) {
+            this.state = "idle";
+            return;
+          }
+          // First: try local students search (same approach used in registrations_public.js)
+          try {
+            const local = await fetch(
+              `/api/students/?search=${encodeURIComponent(num)}&per_page=1`
+            );
+            if (local && local.ok) {
+              const j = await local.json().catch(() => ({}));
+              const students = j.students || [];
+              const exact =
+                (students.find &&
+                  students.find(
+                    (s) => String(s.control_number) === String(num)
+                  )) ||
+                null;
+              if (exact) {
+                this.student = {
+                  full_name: exact.full_name || "",
+                  career: exact.career || "",
+                  email: exact.email || "",
+                  control_number: exact.control_number || num,
+                };
+                // fallthrough: check registrations/attendances for this student
+              }
+            }
+          } catch (e) {
+            console.debug("local lookup failed", e);
+          }
+
+          // Not found locally -> try external proxy used by the public registrations UI
+          try {
+            const ext = await fetch(
+              `/api/students/validate?control_number=${encodeURIComponent(num)}`
+            );
+            if (ext && ext.ok) {
+              const j = await ext.json().catch(() => ({}));
+              const student = j.student || null;
+              if (student) {
+                this.student = {
+                  full_name: student.full_name || student.name || "",
+                  career: student.career || "",
+                  email: student.email || "",
+                  control_number: student.control_number || num,
+                };
+                // fallthrough to check registration/attendance
+              } else {
+                this.state = "not_found";
+                this.actionMode = null;
+                this.actionTargetId = null;
+                return;
+              }
+            } else if (ext && ext.status === 404) {
+              this.state = "not_found";
+              this.student = {};
+              this.actionMode = null;
+              this.actionTargetId = null;
+              try {
+                // optional feedback
+                // showToast('Estudiante no encontrado', 'error');
+              } catch (e) {}
+              return;
+            } else {
+              this.state = "not_found";
+              this.actionMode = null;
+              this.actionTargetId = null;
+              return;
+            }
+          } catch (e) {
+            console.error("external lookup error", e);
+            this.state = "not_found";
+            return;
+          }
+        } catch (err) {
+          console.error(err);
+          this.state = "not_found";
+          this.actionMode = null;
+          this.actionTargetId = null;
+          return;
+        }
+
+        // At this point we have `this.student` populated (from local or external).
+        // Check registrations/attendances for this activity to decide UI action.
+        try {
+          const qs = new URLSearchParams();
+          if (this.activityToken) qs.set("token", this.activityToken);
+          qs.set("q", num);
+          qs.set("per_page", "1");
+          const resp = await fetch(
+            `/api/public/registrations?${qs.toString()}`
+          );
+          if (resp && resp.ok) {
+            const j = await resp.json().catch(() => ({}));
+            const regs = j.registrations || [];
+            // find exact match by control_number or student_name
+            const match =
+              (regs.find &&
+                regs.find((r) => String(r.control_number) === String(num))) ||
+              regs[0] ||
+              null;
+            if (match) {
+              // registration row exists
+              if (match.source === "registration") {
+                if (match.attended) {
+                  // user already confirmed -> offer cancel (mark Ausente)
+                  this.actionMode = "cancel_reg";
+                  this.actionTargetId =
+                    match.registration_id || match.id || null;
+                } else {
+                  // preregistered but not attended -> offer confirm
+                  this.actionMode = "confirm_reg";
+                  this.actionTargetId =
+                    match.registration_id || match.id || null;
+                }
+                this.state = "found";
+                return;
+              }
+              if (match.source === "attendance") {
+                // attendance-only row
+                if (match.attended) {
+                  this.actionMode = "cancel_attendance";
+                  this.actionTargetId = match.attendance_id || null;
+                  this.state = "found";
+                  return;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.debug("registrations check failed", e);
+        }
+
+        // No registration/attendance found -> allow create walkin
+        this.actionMode = "create";
+        this.actionTargetId = null;
+        this.state = "found";
+      },
+
+      _computeStaffWindow() {
+        try {
+          // staff window: available from NOW until activity_start + 25 minutes
+          // If activity start is unknown or invalid, keep open.
+          if (!this.activityStartIso) {
+            this.staffWindowOpen = true;
+            return;
+          }
+          const start = new Date(this.activityStartIso);
+          if (isNaN(start.getTime())) {
+            this.staffWindowOpen = true;
+            return;
+          }
+          const now = new Date();
+          const until = new Date(start.getTime() + 25 * 60 * 1000);
+          // open while current time is <= until (start+25min)
+          this.staffWindowOpen = now <= until;
+        } catch (e) {
+          console.error("compute staff window error", e);
+          this.staffWindowOpen = true;
+        }
+      },
+
+      // helper to show toasts with control number included
+      _showResultToast(msg, level) {
+        const ctrl =
+          this.controlNumber ||
+          (this.student && this.student.control_number) ||
+          "";
+        const full = ctrl ? `[${ctrl}] ${msg}` : msg;
+        try {
+          showToast(full, level);
+        } catch (e) {
+          alert(full);
+        }
+      },
+
+      // Unified action handler: perform confirm/create or cancel depending on actionMode
+      async performAction() {
+        if (!this.actionMode) return;
+        try {
+          if (this.actionMode === "create") {
+            // create walkin (same as confirm for non-registered student)
+            if (
+              !confirm(
+                "Confirmar asistencia para " +
+                  (this.student.full_name || this.controlNumber) +
+                  "?"
+              )
+            )
+              return;
+            const payload = {
+              token: this.activityToken,
+              control_number: this.controlNumber,
+            };
+            const res = await fetch("/api/public/registrations/walkin", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            const body = await res.json().catch(() => ({}));
+            if (res.ok || res.status === 201) {
+              this.message = body.message || "Asistencia registrada";
+              this.msgClass = "text-green-600";
+              try {
+                this._showResultToast(this.message, "success");
+              } catch (e) {
+                alert(this.message);
+              }
+              this.clearSearch();
+            } else {
+              this.message = body.message || "Error al registrar";
+              this.msgClass = "text-red-600";
+              try {
+                this._showResultToast(this.message, "error");
+              } catch (e) {
+                alert(this.message);
+              }
+            }
+          } else if (this.actionMode === "confirm_reg") {
+            if (!this.actionTargetId) return;
+            if (
+              !confirm(
+                "Confirmar asistencia para " +
+                  (this.student.full_name || this.controlNumber) +
+                  "?"
+              )
+            )
+              return;
+            const payload = {
+              token: this.activityToken,
+              confirm: true,
+              create_attendance: true,
+            };
+            const res = await fetch(
+              `/api/public/registrations/${this.actionTargetId}/confirm`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              }
+            );
+            const body = await res.json().catch(() => ({}));
+            if (res.ok) {
+              this.message = body.message || "Asistencia confirmada";
+              this.msgClass = "text-green-600";
+              try {
+                this._showResultToast(this.message, "success");
+              } catch (e) {
+                alert(this.message);
+              }
+              this.clearSearch();
+            } else {
+              this.message = body.message || "Error al confirmar";
+              this.msgClass = "text-red-600";
+              try {
+                this._showResultToast(this.message, "error");
+              } catch (e) {
+                alert(this.message);
+              }
+            }
+          } else if (this.actionMode === "cancel_reg") {
+            if (!this.actionTargetId) return;
+            if (
+              !confirm(
+                "¿Desea marcar como AUSENTE a " +
+                  (this.student.full_name || this.controlNumber) +
+                  "? Esta acción se registrará como Ausente."
+              )
+            )
+              return;
+            const payload = {
+              token: this.activityToken,
+              confirm: false,
+              create_attendance: false,
+              mark_absent: true,
+            };
+            const res = await fetch(
+              `/api/public/registrations/${this.actionTargetId}/confirm`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              }
+            );
+            const body = await res.json().catch(() => ({}));
+            if (res.ok) {
+              this.message = body.message || "Registro marcado como Ausente";
+              this.msgClass = "text-green-600";
+              try {
+                this._showResultToast(this.message, "success");
+              } catch (e) {
+                alert(this.message);
+              }
+              this.clearSearch();
+            } else {
+              this.message = body.message || "Error al actualizar";
+              this.msgClass = "text-red-600";
+              try {
+                this._showResultToast(this.message, "error");
+              } catch (e) {
+                alert(this.message);
+              }
+            }
+          } else if (this.actionMode === "cancel_attendance") {
+            if (!this.actionTargetId) return;
+            if (
+              !confirm(
+                "¿Desea eliminar la asistencia registrada para " +
+                  (this.student.full_name || this.controlNumber) +
+                  "?"
+              )
+            )
+              return;
+            const payload = { token: this.activityToken, confirm: false };
+            const res = await fetch(
+              `/api/public/attendances/${this.actionTargetId}/toggle`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              }
+            );
+            const body = await res.json().catch(() => ({}));
+            if (res.ok) {
+              this.message = body.message || "Asistencia removida";
+              this.msgClass = "text-green-600";
+              try {
+                this._showResultToast(this.message, "success");
+              } catch (e) {
+                alert(this.message);
+              }
+              this.clearSearch();
+            } else {
+              this.message = body.message || "Error al eliminar asistencia";
+              this.msgClass = "text-red-600";
+              try {
+                this._showResultToast(this.message, "error");
+              } catch (e) {
+                alert(this.message);
+              }
+            }
+          }
+        } catch (e) {
+          console.error("performAction error", e);
+          this.message = "Error de conexión";
+          this.msgClass = "text-red-600";
+        }
+      },
+
+      async confirm() {
+        if (
+          !confirm(
+            "Confirmar asistencia para " +
+              (this.student.full_name || this.controlNumber) +
+              "?"
+          )
+        )
+          return;
+        this.message = "";
+        try {
+          const payload = {
+            token: this.activityToken,
+            control_number: this.controlNumber,
+          };
+          const res = await fetch("/api/public/registrations/walkin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (res.ok) {
+            this.message = body.message || "Asistencia registrada";
+            this.msgClass = "text-green-600";
+            try {
+              this._showResultToast(this.message, "success");
+            } catch (e) {
+              alert(this.message);
+            }
+            // reset for next student
+            this.controlNumber = "";
+            this.student = {};
+            this.state = "idle";
+            this.$nextTick &&
+              this.$nextTick(
+                () =>
+                  this.$refs &&
+                  this.$refs.ctrl &&
+                  this.$refs.ctrl.focus &&
+                  this.$refs.ctrl.focus()
+              );
+          } else {
+            this.message = body.message || "Error al registrar";
+            this.msgClass = "text-red-600";
+            try {
+              this._showResultToast(this.message, "error");
+            } catch (e) {
+              alert(this.message);
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          this.message = "Error de conexión";
+          this.msgClass = "text-red-600";
+        }
+      },
+
+      clearSearch() {
+        this.controlNumber = "";
+        this.student = {};
+        this.state = "idle";
+        this.message = "";
+        this.$nextTick &&
+          this.$nextTick(
+            () =>
+              this.$refs &&
+              this.$refs.ctrl &&
+              this.$refs.ctrl.focus &&
+              this.$refs.ctrl.focus()
+          );
+      },
+    };
+  }
+
+  if (typeof window !== "undefined") window.staffWalkin = staffWalkin;
+</script>
+{% endblock %}
