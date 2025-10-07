@@ -9,7 +9,7 @@ function eventRegistrationsPublic() {
     activityDeadlineIso: null,
     filters: {
       activity_type: "",
-      per_page: 10,
+      per_page: 20,
       page: 1,
       department: "",
     },
@@ -22,12 +22,26 @@ function eventRegistrationsPublic() {
       pages: [],
     },
     departments: [],
+    // track whether we've already fetched the full departments list for the current event
+    _departmentsLoadedForEvent: null,
+    // show loading overlay while activities are being fetched
+    loadingActivities: false,
 
     init(el) {
       try {
         this.token = el.getAttribute("data-event-token") || "";
         this.eventId = el.getAttribute("data-event-id") || "";
         this.eventName = el.getAttribute("data-event-name") || "";
+        const initialActivityToken =
+          el.getAttribute("data-initial-activity-token") || "";
+        // If the server injected an initial activity token, immediately open it
+        if (initialActivityToken) {
+          // Redirect to the public registrations page for the activity
+          window.location.href = `/public/registrations/${encodeURIComponent(
+            initialActivityToken
+          )}`;
+          return;
+        }
       } catch (e) {
         // ignore
       }
@@ -45,6 +59,8 @@ function eventRegistrationsPublic() {
             .then((j) => {
               if (j && Array.isArray(j.departments))
                 this.departments = j.departments;
+              // remember we loaded departments for this event so we don't refetch unnecessarily
+              this._departmentsLoadedForEvent = this.eventId;
             })
             .catch(() => {});
         }
@@ -55,6 +71,8 @@ function eventRegistrationsPublic() {
 
     async fetchActivities() {
       try {
+        // mark loading state so template can show spinner overlay
+        this.loadingActivities = true;
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
 
@@ -78,7 +96,10 @@ function eventRegistrationsPublic() {
 
         const url = `/api/activities?${params.toString()}`;
         const resp = await f(url);
-        if (!resp || !resp.ok) return;
+        if (!resp || !resp.ok) {
+          this.loadingActivities = false;
+          return;
+        }
         const data = await resp.json();
 
         // normalize activities (include current_registrations/current_capacity when provided)
@@ -96,6 +117,10 @@ function eventRegistrationsPublic() {
           current_registrations: Number(
             a.current_registrations || a.current_capacity || 0
           ),
+          // UI flags
+          _loading_copy: false,
+          _loading_manage: false,
+          _loading_download: false,
         }));
 
         // Compute date-only display (single day or range without times)
@@ -154,6 +179,33 @@ function eventRegistrationsPublic() {
           if (!this.departments) this.departments = [];
         }
 
+        // If we have an eventId, ensure we fetch the full departments list at least once
+        // (the paginated activities response may only include a subset of departments).
+        try {
+          if (
+            this.eventId &&
+            String(this.eventId).toLowerCase() !== "null" &&
+            this._departmentsLoadedForEvent !== this.eventId
+          ) {
+            const f =
+              typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+            f(`/api/events/${encodeURIComponent(this.eventId)}/departments`)
+              .then((r) => {
+                if (!r.ok) return;
+                return r.json();
+              })
+              .then((j) => {
+                if (j && Array.isArray(j.departments) && j.departments.length) {
+                  this.departments = j.departments;
+                  this._departmentsLoadedForEvent = this.eventId;
+                }
+              })
+              .catch(() => {});
+          }
+        } catch (e) {
+          // ignore
+        }
+
         // Ensure alphabetical order client-side as fallback
         try {
           this.activities.sort((x, y) =>
@@ -175,8 +227,11 @@ function eventRegistrationsPublic() {
           to: Math.min(current * per_page, total),
           pages: Array.from({ length: pages }, (_, i) => i + 1),
         };
+        // finished loading
+        this.loadingActivities = false;
       } catch (e) {
         console.error("fetchActivities", e);
+        this.loadingActivities = false;
       }
     },
 
@@ -235,6 +290,8 @@ function eventRegistrationsPublic() {
 
     async openRegistrationsForActivity(a) {
       if (!a) return;
+      // mark loading state for this activity to provide UI feedback
+      a._loading_manage = true;
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
@@ -244,6 +301,7 @@ function eventRegistrationsPublic() {
             "Missing event token/id for generating public activity token"
           );
           alert("No se pudo generar el link público: token de evento ausente");
+          a._loading_manage = false;
           return;
         }
         const resp = await f(
@@ -256,27 +314,153 @@ function eventRegistrationsPublic() {
         );
         if (!resp) {
           alert("Error de red al generar el link");
+          a._loading_manage = false;
           return;
         }
         if (!resp.ok) {
           const j = await resp.json().catch(() => ({}));
           console.error("server error", j);
           alert(j.message || "Error generando link público");
+          a._loading_manage = false;
           return;
         }
         const j = await resp.json();
         if (j && j.public_token) {
+          // telemetry: log which activity requested a public token
+          try {
+            console.debug("public-token-generated", { activity: a.id });
+          } catch (e) {}
           window.location.href = `/public/registrations/${j.public_token}`;
         } else {
           alert("Respuesta inválida del servidor");
+          a._loading_manage = false;
         }
       } catch (e) {
         console.error("openRegistrationsForActivity", e);
+        a._loading_manage = false;
+      }
+    },
+
+    async copyLinkForActivity(a, ev) {
+      if (!a) return;
+      // set loading flag to update button state
+      a._loading_copy = true;
+      try {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const eventRef = this.token || this.eventId;
+        if (!eventRef) {
+          console.error(
+            "Missing event token/id for generating public activity token"
+          );
+          if (typeof showToast === "function")
+            showToast(
+              "No se pudo generar el link público: token de evento ausente",
+              "error"
+            );
+          else
+            alert(
+              "No se pudo generar el link público: token de evento ausente"
+            );
+          a._loading_copy = false;
+          return;
+        }
+        const resp = await f(
+          `/api/public/event/${encodeURIComponent(eventRef)}/activity-token`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ activity_id: a.id }),
+          }
+        );
+        if (!resp) {
+          if (typeof showToast === "function")
+            showToast("Error de red al generar el link", "error");
+          else alert("Error de red al generar el link");
+          a._loading_copy = false;
+          return;
+        }
+        if (!resp.ok) {
+          const j = await resp.json().catch(() => ({}));
+          console.error("server error", j);
+          if (typeof showToast === "function")
+            showToast(j.message || "Error generando link público", "error");
+          else alert(j.message || "Error generando link público");
+          a._loading_copy = false;
+          return;
+        }
+        const j = await resp.json();
+        if (j && j.public_token) {
+          const url = `${
+            location.origin
+          }/public/registrations/${encodeURIComponent(j.public_token)}`;
+          // telemetry / debug
+          try {
+            console.debug("copy-link", { activity: a.id });
+          } catch (e) {}
+          // copy to clipboard
+          try {
+            await navigator.clipboard.writeText(url);
+            if (typeof showToast === "function") {
+              showToast("Enlace copiado al portapapeles");
+            } else {
+              // tooltip fallback near the clicked element
+              try {
+                const btn =
+                  ev && ev.currentTarget
+                    ? ev.currentTarget
+                    : document.activeElement;
+                const tip = document.createElement("div");
+                tip.textContent = "Enlace copiado";
+                tip.style.position = "absolute";
+                tip.style.background = "#111827";
+                tip.style.color = "white";
+                tip.style.padding = "6px 8px";
+                tip.style.borderRadius = "6px";
+                tip.style.zIndex = 10000;
+                document.body.appendChild(tip);
+                const rect = btn.getBoundingClientRect();
+                tip.style.left = rect.left + window.scrollX + "px";
+                tip.style.top = rect.top + window.scrollY - 36 + "px";
+                setTimeout(() => tip.remove(), 2000);
+              } catch (e) {
+                // final fallback: alert
+                alert("Enlace copiado al portapapeles: " + url);
+              }
+            }
+            a._loading_copy = false;
+          } catch (e) {
+            // Fallback: create a temporary element
+            const ta = document.createElement("textarea");
+            ta.value = url;
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+              document.execCommand("copy");
+              if (typeof showToast === "function")
+                showToast("Enlace copiado al portapapeles");
+              else alert("Enlace copiado al portapapeles: " + url);
+            } catch (err) {
+              alert("No se pudo copiar el enlace. Aquí está: " + url);
+            }
+            ta.remove();
+            a._loading_copy = false;
+          }
+        } else {
+          if (typeof showToast === "function")
+            showToast("Respuesta inválida del servidor", "error");
+          else alert("Respuesta inválida del servidor");
+          a._loading_copy = false;
+        }
+      } catch (e) {
+        console.error("copyLinkForActivity", e);
+        a._loading_copy = false;
       }
     },
 
     async downloadRegistrationsForActivity(a) {
       if (!a) return;
+      a._loading_download = true;
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
@@ -296,13 +480,19 @@ function eventRegistrationsPublic() {
         });
 
         if (!resp) {
-          alert("Error de red al solicitar el archivo");
+          if (typeof showToast === "function")
+            showToast("Error de red al solicitar el archivo", "error");
+          else alert("Error de red al solicitar el archivo");
+          a._loading_download = false;
           return;
         }
 
         if (!resp.ok) {
           const j = await resp.json().catch(() => ({}));
-          alert(j.message || "Error generando el archivo");
+          if (typeof showToast === "function")
+            showToast(j.message || "Error generando el archivo", "error");
+          else alert(j.message || "Error generando el archivo");
+          a._loading_download = false;
           return;
         }
 
@@ -331,9 +521,13 @@ function eventRegistrationsPublic() {
         ael.click();
         ael.remove();
         window.URL.revokeObjectURL(url);
+        a._loading_download = false;
       } catch (e) {
         console.error("downloadRegistrationsForActivity", e);
-        alert("Error al descargar el archivo");
+        if (typeof showToast === "function")
+          showToast("Error al descargar el archivo", "error");
+        else alert("Error al descargar el archivo");
+        a._loading_download = false;
       }
     },
 

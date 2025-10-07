@@ -23,6 +23,7 @@ endblock %} {% block content %}
         data-event-token="{{ event_token or '' }}"
         data-event-id="{{ event_id or '' }}"
         data-event-name="{{ event_name or '' }}"
+        data-initial-activity-token="{{ initial_activity_token or '' }}"
       >
         <div class="mb-3 grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
@@ -72,101 +73,150 @@ endblock %} {% block content %}
           </div>
         </template>
 
-        <table class="w-full table-auto" x-show="activities.length > 0">
-          <thead class="text-left text-sm text-gray-600">
-            <tr>
-              <th class="p-2">#</th>
-              <th class="p-2">Nombre</th>
-              <th class="p-2">Fecha</th>
-              <th class="p-2">Tipo</th>
-              <th class="p-2">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template x-for="(a, idx) in activities" :key="a.id">
-              <tr class="border-t">
-                <td class="p-2 text-sm" x-text="idx+1"></td>
-                <td class="p-2 text-sm" x-text="a.name"></td>
-                <td class="p-2 text-sm" x-text="a.dateDisplay"></td>
-                <td class="p-2 text-sm">
-                  <span
-                    x-bind:class="{
+        <div class="relative">
+          <!-- overlay spinner while loading activities -->
+          <div
+            x-show="loadingActivities"
+            x-cloak
+            class="absolute inset-0 bg-white/70 flex items-center justify-center z-20"
+            aria-hidden="true"
+          >
+            <div class="flex flex-col items-center space-y-2">
+              <i class="ti ti-loader text-3xl animate-spin text-indigo-600"></i>
+              <div class="text-sm text-gray-700">Cargando actividades...</div>
+            </div>
+          </div>
+
+          <table
+            class="w-full table-fixed"
+            x-show="activities.length > 0"
+            style="table-layout: fixed"
+          >
+            <thead class="text-left text-sm text-gray-600">
+              <tr>
+                <th class="p-2" style="width: 5%">#</th>
+                <th class="p-2" style="width: 50%">Nombre</th>
+                <th class="p-2" style="width: 15%">Fecha</th>
+                <th class="p-2" style="width: 10%">Tipo</th>
+                <th class="p-2" style="width: 20%">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(a, idx) in activities" :key="a.id">
+                <tr class="border-t">
+                  <td class="p-2 text-sm" x-text="idx+1"></td>
+                  <td class="p-2 text-sm" x-text="a.name"></td>
+                  <td class="p-2 text-sm" x-text="a.dateDisplay"></td>
+                  <td class="p-2 text-sm">
+                    <span
+                      x-bind:class="{
                       'bg-indigo-100 text-indigo-800': a.activity_type === 'Magistral',
                       'bg-green-100 text-green-800': a.activity_type === 'Conferencia',
                       'bg-yellow-100 text-yellow-800': a.activity_type === 'Taller',
                       'bg-orange-100 text-orange-800': a.activity_type === 'Curso',
                       'bg-gray-100 text-gray-800': a.activity_type === 'Otro'
                     }"
-                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                  >
-                    <span x-text="a.activity_type || '-' "></span>
-                  </span>
-                </td>
-                <td class="p-2 text-sm">
-                  <button
-                    @click.prevent="openRegistrationsForActivity(a)"
-                    class="bg-indigo-600 text-white px-2 py-1 rounded inline-flex items-center text-sm"
-                  >
-                    <i class="ti ti-checklist mr-2"></i>
-                    Gestionar
-                  </button>
-                  <button
-                    x-show="a.current_registrations > 0"
-                    @click.prevent="downloadRegistrationsForActivity(a)"
-                    class="ml-2 bg-gray-700 text-white px-2 py-1 rounded inline-flex items-center text-sm"
-                    title="Descargar inscritos"
-                  >
-                    <i class="ti ti-users mr-2"></i>
-                    Lista
-                  </button>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-        <!-- Pagination controls -->
-        <div
-          class="mt-4 flex items-center justify-between"
-          x-show="pagination.total > 0"
-        >
-          <div class="text-sm text-gray-700">
-            Mostrando <span x-text="pagination.from"></span> a
-            <span x-text="pagination.to"></span> de
-            <span x-text="pagination.total"></span> resultados
-          </div>
-          <div class="flex space-x-2">
-            <button
-              @click.prevent="changePage(pagination.current_page - 1)"
-              :disabled="pagination.current_page === 1"
-              class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Anterior
-            </button>
-            <template x-for="page in pagination.pages" :key="page">
+                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                    >
+                      <span x-text="a.activity_type || '-' "></span>
+                    </span>
+                  </td>
+                  <td class="p-2 text-sm">
+                    <!-- Gestionar button -->
+                    <button
+                      :disabled="a._loading_manage"
+                      @click.prevent="openRegistrationsForActivity(a)"
+                      class="bg-indigo-600 text-white px-2 py-1 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      :aria-disabled="a._loading_manage ? 'true' : 'false'"
+                    >
+                      <i class="ti ti-checklist mr-2"></i>
+                      <span
+                        x-text="a._loading_manage ? 'Abriendo...' : 'Gestionar'"
+                      ></span>
+                    </button>
+                    <!-- Lista (download) button -->
+                    <button
+                      x-show="a.current_registrations > 0"
+                      :disabled="a._loading_download"
+                      @click.prevent="downloadRegistrationsForActivity(a)"
+                      class="ml-2 bg-gray-700 text-white p-2 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Descargar inscritos"
+                      :aria-disabled="a._loading_download ? 'true' : 'false'"
+                    >
+                      <template x-if="a._loading_download">
+                        <i class="ti ti-loader animate-spin"></i>
+                        <span class="sr-only">Generando...</span>
+                      </template>
+                      <template x-if="!a._loading_download">
+                        <i class="ti ti-users"></i>
+                        <span class="sr-only">Lista</span>
+                      </template>
+                    </button>
+                    <!-- Copiar enlace button -->
+                    <button
+                      :disabled="a._loading_copy"
+                      @click.prevent="copyLinkForActivity(a, $event)"
+                      class="ml-2 bg-blue-600 text-white p-2 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Copiar enlace público"
+                      :aria-disabled="a._loading_copy ? 'true' : 'false'"
+                    >
+                      <template x-if="a._loading_copy">
+                        <i class="ti ti-loader animate-spin"></i>
+                      </template>
+                      <template x-if="!a._loading_copy">
+                        <i class="ti ti-link"></i>
+                        <span class="sr-only">Copiar enlace</span>
+                      </template>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <!-- Pagination controls -->
+          <div
+            class="mt-4 flex items-center justify-between"
+            x-show="pagination.total > 0"
+          >
+            <div class="text-sm text-gray-700">
+              Mostrando <span x-text="pagination.from"></span> a
+              <span x-text="pagination.to"></span> de
+              <span x-text="pagination.total"></span> resultados
+            </div>
+            <div class="flex space-x-2">
               <button
-                @click.prevent="changePage(page)"
-                :class="{
+                @click.prevent="changePage(pagination.current_page - 1)"
+                :disabled="pagination.current_page === 1"
+                class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <template x-for="page in pagination.pages" :key="page">
+                <button
+                  @click.prevent="changePage(page)"
+                  :class="{
                   'bg-indigo-600 text-white': page === pagination.current_page,
                   'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
                 }"
-                class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md"
+                  class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md"
+                >
+                  <span x-text="page"></span>
+                </button>
+              </template>
+              <button
+                @click.prevent="changePage(pagination.current_page + 1)"
+                :disabled="pagination.current_page === pagination.last_page"
+                class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span x-text="page"></span>
+                Siguiente
               </button>
-            </template>
-            <button
-              @click.prevent="changePage(pagination.current_page + 1)"
-              :disabled="pagination.current_page === pagination.last_page"
-              class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Siguiente
-            </button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+  {% endblock %} {% block scripts %}
+  <script src="{{ url_for('static', filename='js/public/event_registrations_public.js') }}"></script>
+  {% endblock %}
 </div>
-{% endblock %} {% block scripts %}
-<script src="{{ url_for('static', filename='js/public/event_registrations_public.js') }}"></script>
-{% endblock %}
