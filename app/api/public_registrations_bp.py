@@ -52,6 +52,52 @@ def public_registrations_view(token):
                 except Exception:
                     activity = None
 
+    # If still no activity and the path didn't look like a token, try slug-based resolution
+    if not activity and ':' not in (token or ''):
+        # Try parse leading numeric id (e.g. '123-activity-slug') or slug-only
+        m = re.match(r'^(\d+)(?:-.*)?$', token or '')
+        if m:
+            try:
+                aid2 = int(m.group(1))
+                a = db.session.get(Activity, aid2)
+                if a:
+                    activity = a
+                    try:
+                        activity_token_to_use = generate_public_token(
+                            activity.id)
+                    except Exception:
+                        activity_token_to_use = None
+            except Exception:
+                activity = None
+        else:
+            # fallback: slug-only match by slugifying activity.name
+            def slugify(text, maxlen=50):
+                if not text:
+                    return ''
+                t = text.lower()
+                t = re.sub(r"[^a-z0-9]+", '-', t)
+                t = t.strip('-')
+                if len(t) > maxlen:
+                    t = t[:maxlen].rstrip('-')
+                return t or ''
+
+            try:
+                target = token or ''
+                for a in Activity.query.all():
+                    try:
+                        if slugify(getattr(a, 'name', '') or '') == target:
+                            activity = a
+                            try:
+                                activity_token_to_use = generate_public_token(
+                                    activity.id)
+                            except Exception:
+                                activity_token_to_use = None
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                activity = None
+
     if not activity:
         return render_template('public/registrations_public.html', token_provided=True, token_invalid=True)
 
@@ -1004,6 +1050,7 @@ def public_event_registrations_by_slug(event_slug):
         event_token=event_token_for_back,
         event_name=found_event.name,
         event_id=found_event.id,
+        event_slug=target,
         initial_activity_token=initial_activity_token,
     )
 
@@ -1284,20 +1331,24 @@ def api_export_registrations_xlsx():
     token = payload.get('token')
     activity_ref = payload.get('activity')
 
-    if not token:
+    activity_slug = payload.get('activity_slug') or payload.get('slug')
+
+    # If no token provided, allow resolving activity by slug when supplied
+    if not token and not activity_slug:
         return jsonify({'message': 'Token inválido'}), 400
 
-    # Try activity-level public token first
-    aid, aerr = verify_public_token(str(token))
+    # Try activity-level public token first (if token provided)
     activity = None
-    if aerr is None and aid is not None:
-        try:
-            activity = db.session.get(Activity, int(aid))
-        except Exception:
-            activity = None
+    if token:
+        aid, aerr = verify_public_token(str(token))
+        if aerr is None and aid is not None:
+            try:
+                activity = db.session.get(Activity, int(aid))
+            except Exception:
+                activity = None
 
     # If not activity token, maybe it's an event-level token and client provided activity id
-    if not activity:
+    if not activity and token:
         eid, eerr = verify_public_event_token(str(token))
         if eerr is None and eid is not None:
             # activity_ref must be provided and belong to the event
@@ -1310,6 +1361,30 @@ def api_export_registrations_xlsx():
                 activity = a
             except Exception:
                 return jsonify({'message': 'Actividad inválida'}), 400
+
+    # If still no activity but client provided an activity_slug, resolve by slug
+    if not activity and activity_slug:
+        def slugify(text, maxlen=80):
+            if not text:
+                return ''
+            t = text.lower()
+            t = re.sub(r"[^a-z0-9]+", '-', t)
+            t = t.strip('-')
+            if len(t) > maxlen:
+                t = t[:maxlen].rstrip('-')
+            return t or ''
+
+        try:
+            target = str(activity_slug or '')
+            for a in Activity.query.all():
+                try:
+                    if slugify(getattr(a, 'name', '') or '') == target:
+                        activity = a
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            activity = None
 
     if not activity:
         return jsonify({'message': 'Token inválido o actividad no encontrada'}), 400

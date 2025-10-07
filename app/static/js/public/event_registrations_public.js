@@ -30,7 +30,13 @@ function eventRegistrationsPublic() {
     init(el) {
       try {
         this.token = el.getAttribute("data-event-token") || "";
-        this.eventId = el.getAttribute("data-event-id") || "";
+        // normalize eventId: accept only integer-like values, else null
+        const rawEventId = el.getAttribute("data-event-id") || "";
+        this.eventId = /^\d+$/.test(String(rawEventId || "").trim())
+          ? Number(String(rawEventId).trim())
+          : null;
+        // read eventSlug (if provided) as fallback
+        this.eventSlug = el.getAttribute("data-event-slug") || null;
         this.eventName = el.getAttribute("data-event-name") || "";
         const initialActivityToken =
           el.getAttribute("data-initial-activity-token") || "";
@@ -251,8 +257,27 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const eventRef = this.token || this.eventId;
+        // prefer explicit public event token; fall back to numeric eventId when available
+        // prefer explicit public event token; fall back to numeric eventId or slug
+        let eventRef =
+          this.token ||
+          (Number.isInteger(this.eventId) ? String(this.eventId) : null);
+        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
+          // fallback: build slug-only URL from activity name so server can resolve
+          const slugify = (t) =>
+            String(t || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "")
+              .slice(0, 80);
+          const slug = slugify(this.selectedActivity.name || "");
+          if (slug) {
+            window.location.href = `/public/registrations/${encodeURIComponent(
+              slug
+            )}`;
+            return;
+          }
           console.error(
             "Missing event token/id for generating public activity token"
           );
@@ -295,8 +320,26 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const eventRef = this.token || this.eventId;
+        let eventRef =
+          this.token ||
+          (Number.isInteger(this.eventId) ? String(this.eventId) : null);
+        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
+          // fallback to slug-only URL using activity name so server can generate token on page load
+          const slugify = (t) =>
+            String(t || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "")
+              .slice(0, 80);
+          const slug = slugify(a.name || "");
+          if (slug) {
+            window.location.href = `/public/registrations/${encodeURIComponent(
+              slug
+            )}`;
+            a._loading_manage = false;
+            return;
+          }
           console.error(
             "Missing event token/id for generating public activity token"
           );
@@ -348,8 +391,46 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const eventRef = this.token || this.eventId;
+        let eventRef =
+          this.token ||
+          (Number.isInteger(this.eventId) ? String(this.eventId) : null);
+        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
+          // fallback: copy slug-only URL built from activity name
+          const slugify = (t) =>
+            String(t || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "")
+              .slice(0, 80);
+          const slug = slugify(a.name || "");
+          if (slug) {
+            const url = `${
+              location.origin
+            }/public/registrations/${encodeURIComponent(slug)}`;
+            try {
+              await navigator.clipboard.writeText(url);
+              if (typeof showToast === "function")
+                showToast("Enlace copiado al portapapeles");
+              else alert("Enlace copiado al portapapeles: " + url);
+            } catch (e) {
+              const ta = document.createElement("textarea");
+              ta.value = url;
+              document.body.appendChild(ta);
+              ta.select();
+              try {
+                document.execCommand("copy");
+                if (typeof showToast === "function")
+                  showToast("Enlace copiado al portapapeles");
+                else alert("Enlace copiado al portapapeles: " + url);
+              } catch (err) {
+                alert("No se pudo copiar el enlace. Aquí está: " + url);
+              }
+              ta.remove();
+            }
+            a._loading_copy = false;
+            return;
+          }
           console.error(
             "Missing event token/id for generating public activity token"
           );
@@ -464,9 +545,35 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        // Use the event-level token if provided by the surrounding page (this.token)
-        // If this.token is an event token (pe:...), server expects activity id in body.
-        const payload = { token: this.token || this.eventId };
+        let eventRef =
+          this.token ||
+          (Number.isInteger(this.eventId) ? String(this.eventId) : null);
+        const payload = {};
+        if (eventRef) {
+          payload.token = eventRef;
+          // If token looks like an event-level token (starts with 'pe:'), include activity id
+          if (String(eventRef).startsWith("pe:")) payload.activity = a.id;
+        } else {
+          // fallback: send activity slug so server can resolve without exposing id
+          const slugify = (t) =>
+            String(t || "")
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "-")
+              .replace(/^-+|-+$/g, "")
+              .slice(0, 80);
+          const slug = slugify(a.name || "");
+          if (!slug) {
+            if (typeof showToast === "function")
+              showToast(
+                "No se pudo generar el archivo: actividad inválida",
+                "error"
+              );
+            else alert("No se pudo generar el archivo: actividad inválida");
+            a._loading_download = false;
+            return;
+          }
+          payload.slug = slug;
+        }
         // If token looks like an event-level token (starts with 'pe:'), include activity id
         const t = payload.token || "";
         if (String(t).startsWith("pe:")) {

@@ -20,7 +20,18 @@ def public_event_view(token):
         return render_template('public/event_registrations_public.html', token_provided=True, token_invalid=True)
 
     # Build context: event name, id, token
-    return render_template('public/event_registrations_public.html', event_token=token, event_name=event.name, event_id=event.id)
+    # derive slug from name for client-side fallback
+    def slugify(text):
+        import re
+
+        if not text:
+            return ''
+        t = str(text).lower()
+        t = re.sub(r'[^a-z0-9]+', '-', t)
+        t = t.strip('-')
+        return t
+
+    return render_template('public/event_registrations_public.html', event_token=token, event_name=event.name, event_id=event.id, event_slug=slugify(event.name))
 
 
 @public_event_bp.route('/api/public/event/<token>/activity-token', methods=['POST'])
@@ -30,7 +41,8 @@ def api_public_event_activity_token(token):
     POST body: { activity_id }
     Response: { public_token }
     """
-    # Accept either a public event token (pe:...) or a plain numeric event id
+    # Accept either a public event token (pe:...), a plain numeric event id,
+    # or a slug identifying the event by its name.
     eid = None
     err = None
     try:
@@ -38,7 +50,37 @@ def api_public_event_activity_token(token):
         if str(token).isdigit():
             eid = int(token)
         else:
+            # try verifying as an event token (pe:...)
             eid, err = verify_public_event_token(token)
+            # If verification failed, try to resolve token as an event slug
+            if (err or eid is None) and token:
+                # slugify helper matching server-side usage
+                import re
+
+                def slugify(text):
+                    if not text:
+                        return ''
+                    t = str(text).lower()
+                    t = re.sub(r'[^a-z0-9]+', '-', t)
+                    t = t.strip('-')
+                    return t
+
+                slug = str(token).strip()
+                try:
+                    from app.models.event import Event
+
+                    events = Event.query.all()
+                    target = slugify(slug)
+                    for e in events:
+                        try:
+                            if slugify(getattr(e, 'name', '') or '') == target:
+                                eid = int(e.id)
+                                err = None
+                                break
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
     except Exception:
         eid = None
 

@@ -22,6 +22,7 @@ endblock %} {% block content %}
         id="event-registrations-card"
         data-event-token="{{ event_token or '' }}"
         data-event-id="{{ event_id or '' }}"
+        data-event-slug="{{ event_slug or '' }}"
         data-event-name="{{ event_name or '' }}"
         data-initial-activity-token="{{ initial_activity_token or '' }}"
       >
@@ -87,136 +88,213 @@ endblock %} {% block content %}
             </div>
           </div>
 
-          <table
-            class="w-full table-fixed"
-            x-show="activities.length > 0"
-            style="table-layout: fixed"
-          >
-            <thead class="text-left text-sm text-gray-600">
-              <tr>
-                <th class="p-2" style="width: 5%">#</th>
-                <th class="p-2" style="width: 50%">Nombre</th>
-                <th class="p-2" style="width: 15%">Fecha</th>
-                <th class="p-2" style="width: 10%">Tipo</th>
-                <th class="p-2" style="width: 20%">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <template x-for="(a, idx) in activities" :key="a.id">
-                <tr class="border-t">
-                  <td class="p-2 text-sm" x-text="idx+1"></td>
-                  <td class="p-2 text-sm" x-text="a.name"></td>
-                  <td class="p-2 text-sm" x-text="a.dateDisplay"></td>
-                  <td class="p-2 text-sm">
-                    <span
-                      x-bind:class="{
+          <div class="overflow-x-auto">
+            <table
+              class="w-full table-auto md:table-fixed md:min-w-[700px]"
+              x-show="activities.length > 0"
+            >
+              <thead class="text-left text-sm text-gray-600">
+                <tr>
+                  <th
+                    class="p-2 w-[5ch] max-w-[5ch] text-center whitespace-nowrap"
+                  >
+                    #
+                  </th>
+                  <th class="p-2 max-w-full">Nombre</th>
+                  <th class="p-2 hidden md:table-cell md:w-32">Fecha</th>
+                  <th class="p-2 hidden md:table-cell md:w-32">Tipo</th>
+                  <th class="p-2 md:hidden">Info</th>
+                  <th class="p-2 md:w-48">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(a, idx) in activities" :key="a.id">
+                  <tr class="border-t">
+                    <td
+                      class="p-2 text-sm w-[3ch] max-w-[3ch] text-center whitespace-nowrap"
+                      x-text="idx+1"
+                    ></td>
+                    <td
+                      class="p-2 text-sm break-words md:truncate"
+                      :title="a.name"
+                    >
+                      <span class="block md:truncate" x-text="a.name"></span>
+                    </td>
+                    <!-- Mobile-only combined column: Date + icon for Type -->
+                    <td class="p-2 md:hidden text-sm text-gray-600">
+                      <div class="flex items-center space-x-2">
+                        <div class="flex-1 min-w-0">
+                          <span
+                            class="block text-sm truncate"
+                            :title="a.dateDisplay"
+                            x-text="a.dateDisplay"
+                          ></span>
+                        </div>
+                        <div class="flex-shrink-0">
+                          <template x-if="a.activity_type === 'Magistral'">
+                            <i
+                              class="ti ti-school text-indigo-600"
+                              :title="a.activity_type"
+                              aria-hidden="true"
+                            ></i>
+                          </template>
+                          <template x-if="a.activity_type === 'Conferencia'">
+                            <i
+                              class="ti ti-presentation text-green-600"
+                              :title="a.activity_type"
+                              aria-hidden="true"
+                            ></i>
+                          </template>
+                          <template x-if="a.activity_type === 'Taller'">
+                            <i
+                              class="ti ti-tools text-yellow-600"
+                              :title="a.activity_type"
+                              aria-hidden="true"
+                            ></i>
+                          </template>
+                          <template x-if="a.activity_type === 'Curso'">
+                            <i
+                              class="ti ti-device-laptop text-orange-600"
+                              :title="a.activity_type"
+                              aria-hidden="true"
+                            ></i>
+                          </template>
+                          <template
+                            x-if="!a.activity_type || a.activity_type === 'Otro'"
+                          >
+                            <i
+                              class="ti ti-tag text-gray-600"
+                              :title="a.activity_type || 'Otro'"
+                              aria-hidden="true"
+                            ></i>
+                          </template>
+                        </div>
+                      </div>
+                    </td>
+                    <td
+                      class="p-2 text-sm hidden md:table-cell whitespace-nowrap md:whitespace-normal md:truncate"
+                      x-text="a.dateDisplay"
+                    ></td>
+                    <td class="p-2 text-sm hidden md:table-cell">
+                      <span
+                        x-bind:class="{
                       'bg-indigo-100 text-indigo-800': a.activity_type === 'Magistral',
                       'bg-green-100 text-green-800': a.activity_type === 'Conferencia',
                       'bg-yellow-100 text-yellow-800': a.activity_type === 'Taller',
                       'bg-orange-100 text-orange-800': a.activity_type === 'Curso',
                       'bg-gray-100 text-gray-800': a.activity_type === 'Otro'
                     }"
-                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                        class="inline-flex items-center px-2 py-0.5 rounded-full text-xs leading-5 font-semibold md:max-w-none truncate justify-center whitespace-nowrap overflow-hidden"
+                        :title="a.activity_type || '-'"
+                      >
+                        <span
+                          class="truncate"
+                          x-text="a.activity_type || '-' "
+                        ></span>
+                      </span>
+                    </td>
+                    <td
+                      class="p-2 text-sm whitespace-nowrap md:whitespace-normal"
                     >
-                      <span x-text="a.activity_type || '-' "></span>
-                    </span>
-                  </td>
-                  <td class="p-2 text-sm">
-                    <!-- Gestionar button -->
-                    <button
-                      :disabled="a._loading_manage"
-                      @click.prevent="openRegistrationsForActivity(a)"
-                      class="bg-indigo-600 text-white px-2 py-1 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      :aria-disabled="a._loading_manage ? 'true' : 'false'"
-                    >
-                      <i class="ti ti-checklist mr-2"></i>
-                      <span
-                        x-text="a._loading_manage ? 'Abriendo...' : 'Gestionar'"
-                      ></span>
-                    </button>
-                    <!-- Lista (download) button -->
-                    <button
-                      x-show="a.current_registrations > 0"
-                      :disabled="a._loading_download"
-                      @click.prevent="downloadRegistrationsForActivity(a)"
-                      class="ml-2 bg-gray-700 text-white p-2 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Descargar inscritos"
-                      :aria-disabled="a._loading_download ? 'true' : 'false'"
-                    >
-                      <template x-if="a._loading_download">
-                        <i class="ti ti-loader animate-spin"></i>
-                        <span class="sr-only">Generando...</span>
-                      </template>
-                      <template x-if="!a._loading_download">
-                        <i class="ti ti-users"></i>
-                        <span class="sr-only">Lista</span>
-                      </template>
-                    </button>
-                    <!-- Copiar enlace button -->
-                    <button
-                      :disabled="a._loading_copy"
-                      @click.prevent="copyLinkForActivity(a, $event)"
-                      class="ml-2 bg-blue-600 text-white p-2 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Copiar enlace público"
-                      :aria-disabled="a._loading_copy ? 'true' : 'false'"
-                    >
-                      <template x-if="a._loading_copy">
-                        <i class="ti ti-loader animate-spin"></i>
-                      </template>
-                      <template x-if="!a._loading_copy">
-                        <i class="ti ti-link"></i>
-                        <span class="sr-only">Copiar enlace</span>
-                      </template>
-                    </button>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-          <!-- Pagination controls -->
-          <div
-            class="mt-4 flex items-center justify-between"
-            x-show="pagination.total > 0"
-          >
-            <div class="text-sm text-gray-700">
-              Mostrando <span x-text="pagination.from"></span> a
-              <span x-text="pagination.to"></span> de
-              <span x-text="pagination.total"></span> resultados
-            </div>
-            <div class="flex space-x-2">
-              <button
-                @click.prevent="changePage(pagination.current_page - 1)"
-                :disabled="pagination.current_page === 1"
-                class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Anterior
-              </button>
-              <template x-for="page in pagination.pages" :key="page">
+                      <!-- Gestionar button -->
+                      <button
+                        :disabled="a._loading_manage"
+                        @click.prevent="openRegistrationsForActivity(a)"
+                        class="ml-2 p-2 bg-indigo-600 text-white rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        :aria-disabled="a._loading_manage ? 'true' : 'false'"
+                        :title="a._loading_manage ? 'Abriendo...' : 'Gestionar'"
+                        :aria-label="a._loading_manage ? 'Abriendo...' : 'Gestionar'"
+                      >
+                        <i class="ti ti-checklist mr-0 md:mr-2"></i>
+                        <span
+                          class="hidden md:inline text-xs"
+                          x-text="a._loading_manage ? 'Abriendo...' : 'Gestionar'"
+                        ></span>
+                      </button>
+                      <!-- Lista (download) button -->
+                      <button
+                        x-show="a.current_registrations > 0"
+                        :disabled="a._loading_download"
+                        @click.prevent="downloadRegistrationsForActivity(a)"
+                        class="ml-2 bg-gray-700 text-white p-2 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Descargar inscritos"
+                        :aria-disabled="a._loading_download ? 'true' : 'false'"
+                      >
+                        <template x-if="a._loading_download">
+                          <i class="ti ti-loader animate-spin"></i>
+                          <span class="sr-only">Generando...</span>
+                        </template>
+                        <template x-if="!a._loading_download">
+                          <i class="ti ti-users"></i>
+                          <span class="sr-only">Lista</span>
+                        </template>
+                      </button>
+                      <!-- Copiar enlace button -->
+                      <!--<button
+                        :disabled="a._loading_copy"
+                        @click.prevent="copyLinkForActivity(a, $event)"
+                        class="ml-2 bg-blue-600 text-white p-2 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Copiar enlace público"
+                        :aria-disabled="a._loading_copy ? 'true' : 'false'"
+                      >
+                        <template x-if="a._loading_copy">
+                          <i class="ti ti-loader animate-spin"></i>
+                        </template>
+                        <template x-if="!a._loading_copy">
+                          <i class="ti ti-link"></i>
+                          <span class="sr-only">Copiar enlace</span>
+                        </template>
+                      </button>-->
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <!-- Pagination controls -->
+            <div
+              class="mt-4 flex items-center justify-between"
+              x-show="pagination.total > 0"
+            >
+              <div class="text-sm text-gray-700">
+                Mostrando <span x-text="pagination.from"></span> a
+                <span x-text="pagination.to"></span> de
+                <span x-text="pagination.total"></span> resultados
+              </div>
+              <div class="flex space-x-2">
                 <button
-                  @click.prevent="changePage(page)"
-                  :class="{
+                  @click.prevent="changePage(pagination.current_page - 1)"
+                  :disabled="pagination.current_page === 1"
+                  class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Anterior
+                </button>
+                <template x-for="page in pagination.pages" :key="page">
+                  <button
+                    @click.prevent="changePage(page)"
+                    :class="{
                   'bg-indigo-600 text-white': page === pagination.current_page,
                   'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
                 }"
-                  class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md"
+                    class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md"
+                  >
+                    <span x-text="page"></span>
+                  </button>
+                </template>
+                <button
+                  @click.prevent="changePage(pagination.current_page + 1)"
+                  :disabled="pagination.current_page === pagination.last_page"
+                  class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span x-text="page"></span>
+                  Siguiente
                 </button>
-              </template>
-              <button
-                @click.prevent="changePage(pagination.current_page + 1)"
-                :disabled="pagination.current_page === pagination.last_page"
-                class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Siguiente
-              </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+    {% endblock %} {% block scripts %}
+    <script src="{{ url_for('static', filename='js/public/event_registrations_public.js') }}"></script>
+    {% endblock %}
   </div>
-  {% endblock %} {% block scripts %}
-  <script src="{{ url_for('static', filename='js/public/event_registrations_public.js') }}"></script>
-  {% endblock %}
 </div>

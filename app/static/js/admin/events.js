@@ -353,7 +353,35 @@ function eventsManager() {
         activities_by_type: event.activities_by_type || undefined,
       };
       this.showEventDetails = true;
-      // ensure we have the public token/url loaded
+      // ensure we have the public token/url loaded, but prefer showing a slug URL immediately
+      try {
+        // build a slug-only path for the event and expose an absolute URL for copying/opening
+        const makeSlug = (s) =>
+          String(s || "")
+            .toString()
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "")
+            .slice(0, 50);
+        const slug = makeSlug(
+          this.eventDetails.name || this.eventDetails.id || "evento"
+        );
+        const slugPath = `/public/event-registrations/${encodeURIComponent(
+          slug
+        )}`;
+        // prefer existing event.public_url if present, otherwise use the slug URL
+        if (!this.eventDetails.public_url) {
+          try {
+            this.eventDetails.public_url =
+              (window.location && window.location.origin
+                ? window.location.origin
+                : "") + slugPath;
+          } catch (e) {
+            this.eventDetails.public_url = slugPath;
+          }
+        }
+      } catch (e) {}
+      // still load the server-generated token in background (don't overwrite public_url)
       this.loadEventPublicToken(event.id);
     },
 
@@ -398,7 +426,8 @@ function eventsManager() {
         const data = await resp.json();
         // data is expected to contain { token, url }
         this.eventDetails.public_token = data.token || null;
-        this.eventDetails.public_url = data.url || null;
+        // keep server-generated token url separate so we don't overwrite the slug-based public_url
+        this.eventDetails.public_token_url = data.url || null;
       } catch (e) {
         console.error("loadEventPublicToken", e);
       }
@@ -429,12 +458,12 @@ function eventsManager() {
     },
 
     openEventPublicPanel() {
-      const token = this.eventDetails && this.eventDetails.public_token;
-      if (!token) return;
-      window.open(
-        `/public/event-registrations/${encodeURIComponent(token)}`,
-        "_blank"
-      );
+      // Open the slug-based public URL by default (preferred). If not present, fall back to token URL.
+      const url =
+        this.eventDetails &&
+        (this.eventDetails.public_url || this.eventDetails.public_token_url);
+      if (!url) return;
+      window.open(url, "_blank");
     },
 
     // Delegar formateo de fechas a helpers centralizados

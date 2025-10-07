@@ -278,8 +278,8 @@
                     <div class="flex-1">
                       <div class="break-words">
                         <a
-                          :href="eventDetails.public_url || ('/public/event-registrations/' + (eventDetails.id + '-' + (eventDetails.name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0,50)) )"
-                          x-text="eventDetails.public_url || ('/public/event-registrations/' + (eventDetails.id + '-' + (eventDetails.name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0,50)) )"
+                          :href="eventDetails.public_url || ('/public/event-registrations/' + ((eventDetails.name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0,50)))"
+                          x-text="eventDetails.public_url || ('/public/event-registrations/' + ((eventDetails.name || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0,50)))"
                           target="_blank"
                           class="text-blue-600 underline break-all"
                         ></a>
