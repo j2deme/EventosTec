@@ -11,6 +11,7 @@ from app.models.activity import Activity
 from app.utils.auth_helpers import require_admin, get_user_or_403
 from app.services.attendance_service import calculate_attendance_percentage
 from app.models.registration import Registration
+import traceback
 
 
 attendances_bp = Blueprint('attendances', __name__,
@@ -808,3 +809,39 @@ def batch_checkout():
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error en batch checkout', 'error': str(e)}), 500
+
+
+@attendances_bp.route('/batch', methods=['POST'])
+@jwt_required()
+@require_admin
+def batch_upload_attendances():
+    """Upload a TXT or XLSX file containing control numbers and create attendances in batch.
+
+    Form data:
+      - file: the TXT or XLSX file (required)
+      - activity_id: the activity ID (required)
+      - dry_run: optional (1/0) default 1 -> if 1 only validate and return report
+    """
+    try:
+        if 'file' not in request.files:
+            return jsonify({'message': 'Falta el archivo.'}), 400
+
+        file = request.files['file']
+        activity_id = request.form.get('activity_id')
+        dry_run = request.form.get('dry_run', '1')
+        dry = str(dry_run).strip() in ('1', 'true', 'yes')
+
+        if not activity_id:
+            return jsonify({'message': 'activity_id es requerido'}), 400
+
+        # Call service
+        from app.services.attendance_service import create_attendances_from_file
+        report = create_attendances_from_file(
+            file.stream, activity_id=int(activity_id), dry_run=dry)
+
+        status_code = 200 if dry else 201
+        return jsonify({'message': 'Batch procesado', 'report': report}), status_code
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        return jsonify({'message': 'Error en importación batch', 'error': str(e), 'trace': tb}), 500
