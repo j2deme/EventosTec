@@ -7,6 +7,7 @@ from app.models.registration import Registration
 from app.models.attendance import Attendance
 from app.schemas import attendance_schema
 from datetime import datetime, timedelta, timezone
+from app.utils.datetime_utils import localize_naive_datetime
 from app.utils.token_utils import verify_activity_token, generate_activity_token
 
 self_register_bp = Blueprint('self_register', __name__, url_prefix='')
@@ -61,10 +62,14 @@ def self_register_form(token_param=None):
     activity_deadline_iso = None
     activity_type = None
     if activity:
-        # start datetime
+        # start datetime (localized to UTC for consistency)
         try:
             if getattr(activity, 'start_datetime', None) is not None:
-                activity_start_iso = activity.start_datetime.isoformat()
+                app_tz = current_app.config.get(
+                    'APP_TIMEZONE', 'America/Mexico_City')
+                s_local = localize_naive_datetime(
+                    activity.start_datetime, app_tz)
+                activity_start_iso = s_local.isoformat() if s_local is not None else None
         except Exception:
             activity_start_iso = None
 
@@ -76,12 +81,18 @@ def self_register_form(token_param=None):
         except Exception:
             activity_duration_hours = None
 
-        # compute registration deadline = start + 20 minutes
+        # compute registration deadline = start + 20 minutes (use localized UTC)
         try:
             start_dt = getattr(activity, 'start_datetime', None)
             if start_dt is not None:
-                deadline_dt = start_dt + timedelta(minutes=20)
-                activity_deadline_iso = deadline_dt.isoformat()
+                app_tz = current_app.config.get(
+                    'APP_TIMEZONE', 'America/Mexico_City')
+                s_local = localize_naive_datetime(start_dt, app_tz)
+                if s_local is not None:
+                    deadline_dt = s_local + timedelta(minutes=20)
+                    activity_deadline_iso = deadline_dt.isoformat()
+                else:
+                    activity_deadline_iso = None
         except Exception:
             activity_deadline_iso = None
         try:
@@ -127,9 +138,16 @@ def self_register_api():
         if not activity:
             return jsonify({'message': 'Actividad no encontrada'}), 404
 
+        # Use timezone-aware datetimes for comparison to avoid naive/aware errors
         now = datetime.now(timezone.utc)
-        cutoff = (activity.start_datetime + timedelta(minutes=20)
-                  ) if activity.start_datetime else None
+        cutoff = None
+        if getattr(activity, 'start_datetime', None):
+            app_tz = current_app.config.get(
+                'APP_TIMEZONE', 'America/Mexico_City')
+            s_local = localize_naive_datetime(activity.start_datetime, app_tz)
+            if s_local is not None:
+                cutoff = s_local + timedelta(minutes=20)
+
         if cutoff and now > cutoff:
             return jsonify({'message': 'La ventana de registro in situ ha terminado'}), 400
 
