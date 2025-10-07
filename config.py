@@ -51,6 +51,10 @@ class Config:
     # Minutes after activity end that the public pause view remains available.
     PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES = int(
         os.environ.get('PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES', '5'))
+    # Application timezone for interpreting naive datetimes from database
+    # This should match the timezone where the app is deployed and users are located
+    # Default: America/Mexico_City (UTC-6 in winter, UTC-5 in DST)
+    APP_TIMEZONE = os.environ.get('APP_TIMEZONE', 'America/Mexico_City')
 
 
 class DevelopmentConfig(Config):

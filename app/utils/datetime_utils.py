@@ -33,3 +33,46 @@ def parse_datetime_with_timezone(dt_string):
         return dt
 
     raise ValidationError(f"Valor de fecha no reconocido: {dt_string}")
+
+
+def localize_naive_datetime(dt, app_timezone='America/Mexico_City'):
+    """
+    Localiza un datetime naive al timezone de la aplicación y lo convierte a UTC.
+    
+    Args:
+        dt: datetime object (puede ser naive o timezone-aware)
+        app_timezone: string con el nombre del timezone (default: America/Mexico_City)
+        
+    Returns:
+        datetime objeto timezone-aware en UTC
+        
+    Note:
+        Si dt ya tiene timezone, se convierte a UTC sin cambiar la interpretación.
+        Si dt es naive, se asume que está en app_timezone y se convierte a UTC.
+    """
+    if dt is None:
+        return None
+        
+    # Si ya tiene timezone, convertir a UTC
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc)
+    
+    # Si es naive, localizarlo al timezone de la app
+    try:
+        import zoneinfo
+        tz = zoneinfo.ZoneInfo(app_timezone)
+    except (ImportError, Exception):
+        # Fallback: usar pytz si zoneinfo no está disponible (Python < 3.9)
+        try:
+            import pytz
+            tz = pytz.timezone(app_timezone)
+            localized = tz.localize(dt)
+            return localized.astimezone(timezone.utc)
+        except ImportError:
+            # Si no hay pytz ni zoneinfo, asumir UTC (no ideal pero es el fallback)
+            return dt.replace(tzinfo=timezone.utc)
+    
+    # Localizar y convertir a UTC
+    localized = dt.replace(tzinfo=tz)
+    return localized.astimezone(timezone.utc)
+
