@@ -68,6 +68,18 @@ function attendancesAdmin() {
     batchActivityId: null,
     batchEventId: null,
     batchResult: null,
+    // Batch upload modal state
+    showBatchUploadModal: false,
+    batchUploadEventId: "",
+    batchUploadDepartment: "",
+    batchUploadActivityId: null,
+    batchUploadFile: null,
+    batchUploadDryRun: true,
+    batchUploadReport: null,
+    batchUploadError: null,
+    batchUploadUploading: false,
+    batchUploadProgress: 0,
+    batchUploadView: "file",
     // UI helpers
     selectAllForSync: false,
     syncRunning: false,
@@ -956,6 +968,142 @@ function attendancesAdmin() {
       } catch (err) {
         console.error(err);
         window.showToast && window.showToast("Error de conexión", "error");
+      }
+    },
+
+    // Batch upload modal handlers
+    openBatchUploadModal() {
+      this.batchUploadEventId = this.filters.event_id || "";
+      this.batchUploadDepartment = "";
+      this.batchUploadActivityId = null;
+      this.batchUploadFile = null;
+      this.batchUploadDryRun = true;
+      this.batchUploadReport = null;
+      this.batchUploadError = null;
+      this.batchUploadProgress = 0;
+      this.batchUploadView = "file";
+      this.showBatchUploadModal = true;
+    },
+
+    closeBatchUploadModal() {
+      this.showBatchUploadModal = false;
+      this.batchUploadUploading = false;
+      this.batchUploadFile = null;
+      this.batchUploadReport = null;
+      this.batchUploadError = null;
+      this.batchUploadProgress = 0;
+    },
+
+    onBatchUploadFileChange(e) {
+      const f = e && e.target && e.target.files ? e.target.files[0] : null;
+      this.batchUploadFile = f;
+      this.batchUploadError = null;
+    },
+
+    batchUploadFilteredDepartments() {
+      if (!this.batchUploadEventId) return [];
+      const eventActivities = this.activities.filter(
+        (a) => String(a.event_id) === String(this.batchUploadEventId)
+      );
+      const depts = new Set(
+        eventActivities.map((a) => a.department).filter(Boolean)
+      );
+      return Array.from(depts).sort();
+    },
+
+    batchUploadFilteredActivities() {
+      if (!this.batchUploadEventId || !this.batchUploadDepartment) return [];
+      return this.activities.filter(
+        (a) =>
+          String(a.event_id) === String(this.batchUploadEventId) &&
+          a.department === this.batchUploadDepartment
+      );
+    },
+
+    async submitBatchUpload() {
+      if (!this.batchUploadActivityId) {
+        this.batchUploadError = "Seleccione una actividad para la carga";
+        return;
+      }
+      if (!this.batchUploadFile) {
+        this.batchUploadError = "Seleccione un archivo TXT o XLSX";
+        return;
+      }
+
+      this.batchUploadUploading = true;
+      this.batchUploadReport = null;
+      this.batchUploadError = null;
+      this.batchUploadProgress = 0;
+
+      try {
+        const fd = new FormData();
+        fd.append("file", this.batchUploadFile);
+        fd.append("activity_id", String(this.batchUploadActivityId));
+        fd.append("dry_run", this.batchUploadDryRun ? "1" : "0");
+
+        await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", "/api/attendances/batch", true);
+          // Inject Authorization header if token is present
+          try {
+            const token =
+              typeof window.getAuthToken === "function"
+                ? window.getAuthToken()
+                : localStorage.getItem("authToken");
+            if (token) {
+              xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+            }
+          } catch (e) {
+            // ignore
+          }
+
+          xhr.upload.onprogress = (ev) => {
+            if (ev.lengthComputable) {
+              this.batchUploadProgress = Math.round((ev.loaded / ev.total) * 100);
+            }
+          };
+
+          xhr.onload = () => {
+            this.batchUploadUploading = false;
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const report = JSON.parse(xhr.responseText || "{}");
+                this.batchUploadReport = report.report || report;
+                this.batchUploadView = "report";
+                // If this was not a dry run and attendances were created, reload list
+                if (
+                  !this.batchUploadDryRun &&
+                  this.batchUploadReport &&
+                  this.batchUploadReport.created &&
+                  this.batchUploadReport.created > 0
+                ) {
+                  this.refresh();
+                }
+                window.showToast &&
+                  window.showToast("Importación procesada", "success");
+                resolve();
+              } catch (e) {
+                reject(new Error("Respuesta inválida del servidor"));
+              }
+            } else {
+              try {
+                const err = JSON.parse(xhr.responseText || "{}");
+                reject(new Error(err.message || JSON.stringify(err)));
+              } catch (e) {
+                reject(new Error(`Error ${xhr.status}`));
+              }
+            }
+          };
+
+          xhr.onerror = () =>
+            reject(new Error("Error de red durante la subida"));
+
+          xhr.send(fd);
+        });
+      } catch (err) {
+        this.batchUploadUploading = false;
+        this.batchUploadError = err.message || String(err);
+        window.showToast && window.showToast("Error al subir archivo", "error");
       }
     },
 
