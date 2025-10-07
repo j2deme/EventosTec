@@ -78,11 +78,11 @@
           </div>
           <div class="inline-flex items-center space-x-1">
             <i class="ti ti-map-pin text-gray-400"></i>
-            <span x-text="activityLocation || '-' "></span>
+            <span x-text="activityLocation || '-'"></span>
           </div>
           <div class="inline-flex items-center space-x-1">
             <i class="ti ti-device-laptop text-gray-400"></i>
-            <span x-text="activityModality || '-' "></span>
+            <span x-text="activityModality || '-'"></span>
           </div>
         </div>
         <div class="text-sm text-gray-500 mt-1" x-text="timeLeftText"></div>
@@ -98,15 +98,16 @@
           </div>
         </div>
       </div>
-      <div x-show="!controlsEnabled">
-        <!-- Placeholder to keep layout consistent when controls are hidden -->
-        <div class="md:w-1/5 w-full mt-3 md:mt-0" aria-hidden="true"></div>
-      </div>
+
+      <div
+        x-show="!controlsEnabled"
+        class="md:w-1/5 w-full mt-3 md:mt-0"
+        aria-hidden="true"
+      ></div>
       <div
         x-show="controlsEnabled"
         x-cloak
         class="md:w-1/5 w-full flex md:justify-end justify-start mt-3 md:mt-0"
-        aria-hidden="true"
       >
         <div class="flex flex-col items-end w-full">
           <button
@@ -119,7 +120,6 @@
             <span>Registrar Walk-in</span>
           </button>
 
-          <!-- Moved explanation below the button and right-aligned on md+ -->
           <div class="mt-2 text-sm text-gray-600 w-full">
             <strong>¿Qué es un walk-in?</strong>
             <div>
@@ -155,7 +155,9 @@
           <thead>
             <tr class="text-left text-sm text-gray-600">
               <th class="p-2"></th>
-              <th class="p-2 w-[3ch] max-w-[3ch] text-center whitespace-nowrap">#</th>
+              <th class="p-2 w-[3ch] max-w-[3ch] text-center whitespace-nowrap">
+                #
+              </th>
               <th class="p-2">Número</th>
               <th class="p-2">Nombre</th>
               <th class="p-2">Email</th>
@@ -179,7 +181,6 @@
                 x-transition:enter-end="opacity-100 scale-100"
               >
                 <td class="p-2 text-center">
-                  <!-- source icon column -->
                   <div class="flex items-center justify-center">
                     <i
                       x-show="r.source === 'registration'"
@@ -201,35 +202,34 @@
                 ></td>
                 <td
                   class="p-2 text-sm truncate"
-                  x-text="r.control_number || '-' "
+                  x-text="r.control_number || '-'"
                 ></td>
                 <td class="p-2 text-sm">
                   <span
                     class="block truncate"
                     :title="r.student_name"
-                    x-text="r.student_name || '-' "
+                    x-text="r.student_name || '-'"
                   ></span>
                 </td>
-                <td class="p-2 text-sm truncate" x-text="r.email || '-' "></td>
+                <td class="p-2 text-sm truncate" x-text="r.email || '-'"></td>
                 <td class="p-2 text-sm w-36">
                   <div class="flex items-center justify-center">
                     <span
                       class="inline-flex items-center px-2 py-0.5 rounded text-xs md:text-sm font-medium max-w-[160px] truncate whitespace-nowrap overflow-hidden"
                       :title="r.attended ? 'Confirmado' : (r.status || 'Pre-registrado')"
                       :class="{
-                      'bg-green-100 text-green-800': r.attended || (r.status && (r.status === 'Asistió' || r.status === 'Confirmado')),
-                      'bg-yellow-100 text-yellow-800': !r.attended && (r.status && (r.status === 'Registrado' || r.status === 'Pre-registrado')),
-                      'bg-gray-100 text-gray-700': !r.attended && !(r.status && (r.status === 'Registrado' || r.status === 'Pre-registrado' || r.status === 'Asistió' || r.status === 'Confirmado'))
-                    }"
+                        'bg-green-100 text-green-800': r.attended || (r.status && ['Asistió', 'Confirmado'].includes(r.status)),
+                        'bg-yellow-100 text-yellow-800': !r.attended && (r.status && ['Registrado', 'Pre-registrado'].includes(r.status)),
+                        'bg-gray-100 text-gray-700': !r.attended && !(r.status && ['Registrado', 'Pre-registrado', 'Asistió', 'Confirmado'].includes(r.status))
+                      }"
                       x-text="r.attended ? 'Confirmado' : (r.status || 'Pre-registrado')"
                     ></span>
                   </div>
                 </td>
                 <td class="p-2 text-sm" style="width: 10%">
                   <div class="flex items-center justify-center">
-                    <!-- Reserve fixed width so spinner or checkbox+label don't shift layout -->
                     <div class="w-20 flex items-center justify-center">
-                      <!-- spinner while toggling -->
+                      <!-- Spinner while toggling -->
                       <div
                         x-show="r._toggling"
                         class="flex items-center justify-center h-4"
@@ -238,36 +238,33 @@
                           class="animate-spin text-indigo-600 w-4 h-4"
                           xmlns="http://www.w3.org/2000/svg"
                           viewBox="0 0 24 24"
-                          <td
-                            class="p-2 text-sm"
-                            x-text="(page-1)*per_page + idx + 1"
-                          ></td>
-                          <td
-                            class="p-2 text-sm md:truncate"
-                            x-text="r.control_number || '-' "
-                          ></td>
-                          <td class="p-2 text-sm break-words md:truncate">
-                            <span
-                              class="block md:truncate"
-                              :title="r.student_name"
-                              x-text="r.student_name || '-' "
-                            ></span>
-                          </td>
-                          <td class="p-2 text-sm md:truncate" x-text="r.email || '-' "></td>
-                          <td class="p-2 text-sm">
+                        >
+                          <circle
+                            class="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          ></circle>
+                          <path
+                            class="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                          ></path>
+                        </svg>
                       </div>
 
-                                class="inline-flex items-center px-2 py-0.5 rounded text-xs md:text-sm font-medium max-w-[160px] md:max-w-none truncate whitespace-nowrap overflow-hidden"
+                      <!-- Checkbox + label (when controls enabled and not toggling) -->
                       <label
                         x-show="!r._toggling && controlsEnabled"
                         class="flex items-center space-x-3 px-2"
                       >
                         <input
-                                x-text="r.attended ? 'Confirmado' : (r.status || 'Pre-registrado')"
+                          type="checkbox"
                           :checked="r.attended"
                           @change="onToggleRow(r)"
                           :disabled="!(controlsEnabled && (r.registration_id || (r.source === 'attendance' && r.attended)))"
-                          <td class="p-2 text-sm">
                           style="accent-color: #16a34a"
                           :title="r.registration_id ? 'Confirmar/Desconfirmar preregistro' : (r.source === 'attendance' ? 'Desmarcar asistencia registrada' : 'Solo asistencia registrada (sin preregistro)')"
                         />
@@ -276,7 +273,8 @@
                           x-text="r.attended ? 'Sí' : 'No'"
                         ></span>
                       </label>
-                      <!-- When controls are not enabled yet, hide the checkbox/label and show a neutral icon -->
+
+                      <!-- Clock icon (when controls not enabled) -->
                       <div
                         x-show="!controlsEnabled && !r._toggling"
                         class="flex items-center justify-center px-2"
@@ -300,8 +298,8 @@
         <div class="text-sm text-gray-600">
           Mostrando <span x-text="regs.length"></span>
           <template x-if="total > 50">
-            de <span x-text="total"></span
-          ></template>
+            de <span x-text="total"></span>
+          </template>
         </div>
         <div x-show="total > 50">
           <button @click="prevPage()" class="px-2 py-1 border rounded mr-2">
@@ -313,17 +311,15 @@
         </div>
       </div>
 
-      <!-- Walk-in modal (simple) -->
+      <!-- Walk-in modal -->
       <div
         x-show="showWalkin"
         x-cloak
-        class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center"
+        class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
       >
         <div class="bg-white p-4 rounded w-full max-w-md">
           <h3 class="text-lg font-bold mb-3">Registrar Walk-in</h3>
-
           <div class="space-y-4">
-            <!-- Control + boton integrado (addon) -->
             <div>
               <label class="block text-sm mb-1">Número de control</label>
               <div class="flex items-stretch">
@@ -339,13 +335,11 @@
                   :disabled="walkinLookupState === 'searching'"
                   title="Buscar"
                 >
-                  <!-- search icon when idle -->
                   <i
                     class="ti ti-search"
                     aria-hidden="true"
                     x-show="walkinLookupState !== 'searching'"
                   ></i>
-                  <!-- spinner when searching -->
                   <svg
                     x-show="walkinLookupState === 'searching'"
                     class="animate-spin w-4 h-4 text-gray-700"
@@ -373,7 +367,6 @@
               </div>
             </div>
 
-            <!-- Nombre (solo lectura) y badge de fuente; hidden until a search was performed -->
             <div x-show="walkinLookupState !== 'idle'">
               <label class="block text-sm mb-1">Nombre completo</label>
               <div
@@ -383,7 +376,6 @@
                   >—</span
                 >
                 <div class="ml-2 flex-shrink-0">
-                  <!-- icons as source indicators (non-technical labels) -->
                   <i
                     x-show="walkinFoundSource === 'local'"
                     class="ti ti-user-check text-green-600"
@@ -398,7 +390,6 @@
               </div>
             </div>
 
-            <!-- Career (solo lectura) -->
             <div x-show="walkinLookupState === 'found'">
               <label class="block text-sm mb-1">Carrera</label>
               <div class="w-full border rounded px-3 py-2 bg-gray-50">
@@ -406,7 +397,6 @@
               </div>
             </div>
 
-            <!-- Acciones -->
             <div class="flex justify-end items-center space-x-2">
               <button
                 @click="doWalkin()"
@@ -420,7 +410,6 @@
               </button>
             </div>
 
-            <!-- Mensajes de estado -->
             <div
               x-show="walkinLookupState === 'not_found'"
               class="text-sm text-gray-500"
@@ -437,44 +426,13 @@
           </div>
         </div>
       </div>
-      <!-- Confirm delete modal for attendance-only deletions -->
+
+      <!-- Confirm delete modal (solo uno, con estilo mejorado) -->
       <div
         x-show="showConfirmDelete"
         x-cloak
-        class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center"
+        class="fixed inset-0 flex items-center justify-center z-50"
       >
-        <div class="bg-white p-4 rounded w-full max-w-md">
-          <h3 class="text-lg font-bold mb-3">Eliminar asistencia</h3>
-          <div class="mb-4 text-sm text-gray-700">
-            ¿Desea eliminar la asistencia de
-            <strong
-              x-text="deleteCandidate ? deleteCandidate.student_name : ''"
-            ></strong
-            >? Esta acción se podrá deshacer durante
-            <span x-text="Math.ceil(undoDuration/1000)"></span> segundos.
-          </div>
-          <div class="flex justify-end space-x-2">
-            <button
-              @click="cancelDeleteModal()"
-              class="px-3 py-2 border rounded"
-            >
-              Cancelar
-            </button>
-            <button
-              @click="confirmDeleteInModal()"
-              class="bg-red-600 text-white px-3 py-2 rounded"
-            >
-              Eliminar
-            </button>
-          </div>
-        </div>
-      </div>
-      <div
-        x-show="showConfirmDelete"
-        x-cloak
-        class="fixed inset-0 flex items-center justify-center"
-      >
-        <!-- stronger overlay with subtle blur -->
         <div
           class="absolute inset-0 bg-gradient-to-br from-black/40 to-black/60 backdrop-blur-sm"
         ></div>
@@ -484,7 +442,6 @@
           <div
             class="flex items-center space-x-3 px-4 py-3 bg-red-600 text-white"
           >
-            <!-- alert icon -->
             <svg
               xmlns="http://www.w3.org/2000/svg"
               class="h-6 w-6"
@@ -524,7 +481,6 @@
                 @click="confirmDeleteInModal()"
                 class="flex items-center bg-red-600 text-white px-3 py-2 rounded"
               >
-                <!-- trash icon using webfont -->
                 <i class="ti ti-trash h-4 w-4 mr-2" aria-hidden="true"></i>
                 Eliminar
               </button>
@@ -533,8 +489,8 @@
         </div>
       </div>
 
-      <!-- Undo toast (bottom-right) - amber alert style -->
-      <div x-show="undoVisible" x-cloak class="fixed bottom-6 right-6">
+      <!-- Undo toast -->
+      <div x-show="undoVisible" x-cloak class="fixed bottom-6 right-6 z-50">
         <div
           class="bg-amber-600 text-white px-4 py-3 rounded shadow-lg flex items-center space-x-3"
           role="status"
@@ -563,28 +519,29 @@
       </div>
     </div>
   </div>
-  {% endblock %} {% block scripts %}
-  <script>
-    window.__registrationsPublic_init = (el) => {
-      try {
-        return {
-          token: el.getAttribute("data-activity-token") || "",
-          name: el.getAttribute("data-activity-name") || "",
-          type: el.getAttribute("data-activity-type") || "",
-          deadline: el.getAttribute("data-activity-deadline") || "",
-          start: el.getAttribute("data-activity-start") || "",
-          end: el.getAttribute("data-activity-end") || "",
-          location: el.getAttribute("data-activity-location") || "",
-          modality: el.getAttribute("data-activity-modality") || "",
-          eventName: el.getAttribute("data-event-name") || "",
-          eventId: el.getAttribute("data-event-id") || "",
-          eventToken: el.getAttribute("data-event-token") || "",
-        };
-      } catch (e) {
-        return { token: "", name: "", type: "", deadline: "" };
-      }
-    };
-  </script>
-  <script src="{{ url_for('static', filename='js/public/registrations_public.js') }}"></script>
-  {% endblock %}
 </div>
+{% endblock %} {% block scripts %}
+<script>
+  window.__registrationsPublic_init = (el) => {
+    try {
+      return {
+        token: el.getAttribute("data-activity-token") || "",
+        name: el.getAttribute("data-activity-name") || "",
+        type: el.getAttribute("data-activity-type") || "",
+        deadline: el.getAttribute("data-activity-deadline") || "",
+        start: el.getAttribute("data-activity-start") || "",
+        end: el.getAttribute("data-activity-end") || "",
+        location: el.getAttribute("data-activity-location") || "",
+        modality: el.getAttribute("data-activity-modality") || "",
+        eventName: el.getAttribute("data-event-name") || "",
+        eventId: el.getAttribute("data-event-id") || "",
+        eventToken: el.getAttribute("data-event-token") || "",
+      };
+    } catch (e) {
+      console.error("Error initializing registration public data", e);
+      return { token: "", name: "", type: "", deadline: "" };
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/public/registrations_public.js') }}"></script>
+{% endblock %}
