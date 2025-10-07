@@ -386,8 +386,9 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
         try:
             import pandas as pd
             file_stream.seek(0)
+            # Read without treating first row as header
             df = pd.read_excel(io.BytesIO(
-                file_stream.read()), sheet_name=0, engine='openpyxl')
+                file_stream.read()), sheet_name=0, engine='openpyxl', header=None)
             # Tomar la primera columna
             if df.shape[0] > 0:
                 control_numbers = [str(val).strip()
