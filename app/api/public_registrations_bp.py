@@ -7,7 +7,7 @@ from app.models.student import Student
 from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.token_utils import verify_public_token, verify_public_event_token, generate_public_token
-from app.utils.datetime_utils import localize_naive_datetime
+from app.utils.datetime_utils import localize_naive_datetime, safe_iso
 from sqlalchemy.exc import IntegrityError
 import io
 import re
@@ -16,6 +16,9 @@ import pandas as pd
 
 public_registrations_bp = Blueprint(
     'public_registrations', __name__, url_prefix='')
+
+
+# use centralized safe_iso from app.utils.datetime_utils
 
 
 @public_registrations_bp.route('/public/registrations/<token>', methods=['GET'])
@@ -113,20 +116,36 @@ def public_registrations_view(token):
     event_id = getattr(activity, 'event_id', None)
     event_token_for_back = None
     try:
-        # confirmation window: activity.end_datetime + configured days (default 30)
+        # confirmation window: localize activity.end_datetime then add configured days (default 30)
         window_days = int(current_app.config.get(
             'PUBLIC_CONFIRM_WINDOW_DAYS', 30))
         if getattr(activity, 'end_datetime', None) is not None:
-            deadline_dt = activity.end_datetime + timedelta(days=window_days)
-            activity_deadline_iso = deadline_dt.isoformat()
+            app_timezone = current_app.config.get(
+                'APP_TIMEZONE', 'America/Mexico_City')
+            end_dt = localize_naive_datetime(
+                activity.end_datetime, app_timezone)
+            if end_dt is not None:
+                deadline_dt = end_dt + timedelta(days=window_days)
+                activity_deadline_iso = safe_iso(deadline_dt)
     except Exception:
         activity_deadline_iso = None
 
     try:
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
         if getattr(activity, 'start_datetime', None) is not None:
-            activity_start_iso = activity.start_datetime.isoformat()
+            sdt = localize_naive_datetime(
+                activity.start_datetime, app_timezone)
+            if sdt is not None:
+                activity_start_iso = safe_iso(sdt)
+            else:
+                activity_start_iso = safe_iso(activity.start_datetime)
         if getattr(activity, 'end_datetime', None) is not None:
-            activity_end_iso = activity.end_datetime.isoformat()
+            edt = localize_naive_datetime(activity.end_datetime, app_timezone)
+            if edt is not None:
+                activity_end_iso = safe_iso(edt)
+            else:
+                activity_end_iso = safe_iso(activity.end_datetime)
     except Exception:
         activity_start_iso = None
         activity_end_iso = None
@@ -259,16 +278,32 @@ def public_event_registrations_view(ref):
         window_days = int(current_app.config.get(
             'PUBLIC_CONFIRM_WINDOW_DAYS', 30))
         if getattr(activity, 'end_datetime', None) is not None:
-            deadline_dt = activity.end_datetime + timedelta(days=window_days)
-            activity_deadline_iso = deadline_dt.isoformat()
+            app_timezone = current_app.config.get(
+                'APP_TIMEZONE', 'America/Mexico_City')
+            end_dt = localize_naive_datetime(
+                activity.end_datetime, app_timezone)
+            if end_dt is not None:
+                deadline_dt = end_dt + timedelta(days=window_days)
+                activity_deadline_iso = safe_iso(deadline_dt)
     except Exception:
         activity_deadline_iso = None
 
     try:
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
         if getattr(activity, 'start_datetime', None) is not None:
-            activity_start_iso = activity.start_datetime.isoformat()
+            sdt = localize_naive_datetime(
+                activity.start_datetime, app_timezone)
+            if sdt is not None:
+                activity_start_iso = safe_iso(sdt)
+            else:
+                activity_start_iso = safe_iso(activity.start_datetime)
         if getattr(activity, 'end_datetime', None) is not None:
-            activity_end_iso = activity.end_datetime.isoformat()
+            edt = localize_naive_datetime(activity.end_datetime, app_timezone)
+            if edt is not None:
+                activity_end_iso = safe_iso(edt)
+            else:
+                activity_end_iso = safe_iso(activity.end_datetime)
     except Exception:
         activity_start_iso = None
         activity_end_iso = None
@@ -401,8 +436,8 @@ def api_list_registrations():
             'email': student.email if student else None,
             'status': r.status,
             'attended': bool(r.attended),
-            'registration_date': r.registration_date.isoformat() if getattr(r, 'registration_date', None) else None,
-            'check_in_time': attendance.check_in_time.isoformat() if attendance and getattr(attendance, 'check_in_time', None) else None,
+            'registration_date': safe_iso(getattr(r, 'registration_date', None)),
+            'check_in_time': safe_iso(getattr(attendance, 'check_in_time', None)) if attendance else None,
             'notes': getattr(r, 'notes', None),
             'source': 'registration'
         })
@@ -429,7 +464,7 @@ def api_list_registrations():
             'status': getattr(a, 'status', 'Asistió'),
             'attended': True,
             'registration_date': None,
-            'check_in_time': a.check_in_time.isoformat() if getattr(a, 'check_in_time', None) else None,
+            'check_in_time': safe_iso(getattr(a, 'check_in_time', None)),
             'notes': None,
             'source': 'attendance'
         })
@@ -602,7 +637,12 @@ def api_confirm_registration(reg_id):
 
     window_days = int(current_app.config.get('PUBLIC_CONFIRM_WINDOW_DAYS', 30))
     if getattr(activity, 'end_datetime', None) is not None:
-        cutoff = activity.end_datetime + timedelta(days=window_days)
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
+        end_dt = localize_naive_datetime(activity.end_datetime, app_timezone)
+        if end_dt is None:
+            return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
+        cutoff = end_dt + timedelta(days=window_days)
         now = datetime.now(timezone.utc)
         if now > cutoff:
             return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
@@ -671,7 +711,7 @@ def api_confirm_registration(reg_id):
             'id': reg.id,
             'attended': reg.attended,
             'status': reg.status,
-            'confirmation_date': conf.isoformat() if conf else None
+            'confirmation_date': safe_iso(conf)
         }
     return jsonify({
         'message': 'Confirmación registrada',
@@ -712,7 +752,12 @@ def api_walkin():
     # allow walk-in within confirmation window
     window_days = int(current_app.config.get('PUBLIC_CONFIRM_WINDOW_DAYS', 30))
     if getattr(activity, 'end_datetime', None) is not None:
-        cutoff = activity.end_datetime + timedelta(days=window_days)
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
+        end_dt = localize_naive_datetime(activity.end_datetime, app_timezone)
+        if end_dt is None:
+            return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
+        cutoff = end_dt + timedelta(days=window_days)
         now = datetime.now(timezone.utc)
         if now > cutoff:
             return jsonify({'message': 'La ventana de confirmación ha expirado'}), 400
@@ -928,7 +973,7 @@ def public_pause_attendance_view(token):
     available_until = end_dt + timedelta(minutes=until_minutes)
 
     if now < available_from:
-        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message=f'Esta vista estará disponible a partir de {available_from.isoformat()}')
+        return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message=f'Esta vista estará disponible a partir de {safe_iso(available_from)}')
 
     if now > available_until:
         return render_template('public/pause_attendance.html', token_provided=True, token_invalid=True, error_message='La ventana pública de control ha expirado.')
@@ -968,7 +1013,7 @@ def public_staff_walkin_view(token):
     activity_start_iso = None
     try:
         if getattr(activity, 'start_datetime', None) is not None:
-            activity_start_iso = activity.start_datetime.isoformat()
+            activity_start_iso = safe_iso(activity.start_datetime)
     except Exception:
         activity_start_iso = None
 
@@ -1142,8 +1187,8 @@ def api_public_search_attendances():
                 'student_name': student.full_name if student else '',
                 'student_identifier': getattr(student, 'control_number', '') if student else '',
                 'is_paused': att.is_paused,
-                'check_in_time': att.check_in_time.isoformat() if att.check_in_time else None,
-                'check_out_time': att.check_out_time.isoformat() if att.check_out_time else None,
+                'check_in_time': safe_iso(getattr(att, 'check_in_time', None)),
+                'check_out_time': safe_iso(getattr(att, 'check_out_time', None)),
             })
         except Exception:
             continue
@@ -1206,7 +1251,7 @@ def api_public_pause_attendance(attendance_id):
     available_until = end_dt + timedelta(minutes=until_minutes)
 
     if now < available_from:
-        return jsonify({'message': f'Esta funcionalidad estará disponible a partir de {available_from.isoformat()}'}), 403
+        return jsonify({'message': f'Esta funcionalidad estará disponible a partir de {safe_iso(available_from)}'}), 403
 
     if now > available_until:
         return jsonify({'message': 'La ventana pública de control ha expirado.'}), 403
@@ -1293,7 +1338,7 @@ def api_public_resume_attendance(attendance_id):
     available_until = end_dt + timedelta(minutes=until_minutes)
 
     if now < available_from:
-        return jsonify({'message': f'Esta funcionalidad estará disponible a partir de {available_from.isoformat()}'}), 403
+        return jsonify({'message': f'Esta funcionalidad estará disponible a partir de {safe_iso(available_from)}'}), 403
 
     if now > available_until:
         return jsonify({'message': 'La ventana pública de control ha expirado.'}), 403
@@ -1430,7 +1475,8 @@ def api_export_registrations_xlsx():
             t = t[:maxlen].rstrip('-')
         return t or 'actividad'
 
-    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # Use UTC-aware timestamp for filename
+    ts = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
     slug = slugify(getattr(activity, 'name', '')[:50])
     filename = f"{slug}-{ts}.xlsx"
 

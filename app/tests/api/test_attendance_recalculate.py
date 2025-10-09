@@ -1,5 +1,6 @@
 import pytest
 from datetime import datetime, timezone, timedelta
+from app.utils.datetime_utils import safe_iso
 
 
 def test_recalculate_attendance(client, auth_headers, sample_data):
@@ -16,8 +17,8 @@ def test_recalculate_attendance(client, auth_headers, sample_data):
             'department': 'ISC',
             'name': 'Actividad para recalcular',
             'description': 'desc',
-            'start_datetime': start.isoformat(),
-            'end_datetime': end.isoformat(),
+            'start_datetime': safe_iso(start),
+            'end_datetime': safe_iso(end),
             'duration_hours': 2.0,
             'activity_type': 'Taller',
             'location': 'Aula X',

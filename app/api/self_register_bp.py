@@ -7,10 +7,13 @@ from app.models.registration import Registration
 from app.models.attendance import Attendance
 from app.schemas import attendance_schema
 from datetime import datetime, timedelta, timezone
-from app.utils.datetime_utils import localize_naive_datetime
+from app.utils.datetime_utils import localize_naive_datetime, safe_iso
 from app.utils.token_utils import verify_activity_token, generate_activity_token
 
 self_register_bp = Blueprint('self_register', __name__, url_prefix='')
+
+
+# use centralized safe_iso from app.utils.datetime_utils
 
 
 @self_register_bp.route('/self-register', methods=['GET'])
@@ -63,15 +66,15 @@ def self_register_form(token_param=None):
     activity_type = None
     if activity:
         # start datetime (localized to UTC for consistency)
-        try:
-            if getattr(activity, 'start_datetime', None) is not None:
+        if getattr(activity, 'start_datetime', None) is not None:
+            try:
                 app_tz = current_app.config.get(
                     'APP_TIMEZONE', 'America/Mexico_City')
                 s_local = localize_naive_datetime(
                     activity.start_datetime, app_tz)
-                activity_start_iso = s_local.isoformat() if s_local is not None else None
-        except Exception:
-            activity_start_iso = None
+                activity_start_iso = safe_iso(s_local)
+            except Exception:
+                activity_start_iso = None
 
         # compute a safe float for duration_hours
         try:
@@ -90,7 +93,7 @@ def self_register_form(token_param=None):
                 s_local = localize_naive_datetime(start_dt, app_tz)
                 if s_local is not None:
                     deadline_dt = s_local + timedelta(minutes=20)
-                    activity_deadline_iso = deadline_dt.isoformat()
+                    activity_deadline_iso = safe_iso(deadline_dt)
                 else:
                     activity_deadline_iso = None
         except Exception:

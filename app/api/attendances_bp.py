@@ -733,9 +733,14 @@ def batch_checkout():
                     def _ensure_tz(dt):
                         if dt is None:
                             return None
-                        if dt.tzinfo is None:
-                            return dt.replace(tzinfo=timezone.utc)
-                        return dt
+                        if dt.tzinfo is not None:
+                            return dt.astimezone(timezone.utc)
+                        # interpret naive DB datetimes in app timezone
+                        from flask import current_app
+                        from app.utils.datetime_utils import localize_naive_datetime
+                        app_timezone = current_app.config.get(
+                            'APP_TIMEZONE', 'America/Mexico_City')
+                        return localize_naive_datetime(dt, app_timezone)
 
                     start = _ensure_tz(att.check_in_time)
                     end = _ensure_tz(emulate_check_out)

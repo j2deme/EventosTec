@@ -61,6 +61,21 @@ def create_app(config_name=None):
     app.register_blueprint(public_registrations_bp)
     app.register_blueprint(public_event_bp)
 
+    # Registrar filtros Jinja útiles
+    try:
+        from app.utils.datetime_utils import safe_iso
+
+        @app.template_filter('safe_iso')
+        def _jinja_safe_iso(dt):
+            try:
+                return safe_iso(dt)
+            except Exception:
+                # En plantillas, preferir devolver cadena vacía en caso de fallo
+                return ''
+    except Exception:
+        # No fallar la creación de la app si por alguna razón no se puede importar
+        pass
+
     # Login
     @app.route('/')
     def index():

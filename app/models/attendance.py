@@ -35,17 +35,19 @@ class Attendance(db.Model):
         return f'<Attendance Student:{self.student_id} Activity:{self.activity_id}>'
 
     def to_dict(self):
+        from app.utils.datetime_utils import safe_iso
+
         return {
             'id': self.id,
             'student_id': self.student_id,
             'activity_id': self.activity_id,
-            'check_in_time': self.check_in_time.isoformat() if self.check_in_time else None,
-            'check_out_time': self.check_out_time.isoformat() if self.check_out_time else None,
+            'check_in_time': safe_iso(self.check_in_time),
+            'check_out_time': safe_iso(self.check_out_time),
             'is_paused': self.is_paused,
-            'pause_time': self.pause_time.isoformat() if self.pause_time else None,
-            'resume_time': self.resume_time.isoformat() if self.resume_time else None,
+            'pause_time': safe_iso(self.pause_time),
+            'resume_time': safe_iso(self.resume_time),
             'attendance_percentage': self.attendance_percentage,
             'status': self.status,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': safe_iso(self.created_at),
+            'updated_at': safe_iso(self.updated_at)
         }

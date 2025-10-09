@@ -1,4 +1,6 @@
 from datetime import timezone
+from flask import current_app
+from app.utils.datetime_utils import localize_naive_datetime, safe_iso
 from app import db
 from app.models.activity import Activity
 from app.models.event import Event
@@ -30,11 +32,15 @@ def validate_activity_dates(activity_data):
         start_datetime = activity_data.get('start_datetime')
         end_datetime = activity_data.get('end_datetime')
 
-        # Asegurar que las fechas sean timezone-aware
-        if start_datetime and start_datetime.tzinfo is None:
-            start_datetime = start_datetime.replace(tzinfo=timezone.utc)
-        if end_datetime and end_datetime.tzinfo is None:
-            end_datetime = end_datetime.replace(tzinfo=timezone.utc)
+        # Asegurar que las fechas sean timezone-aware: interpretar datetimes
+        # naive usando APP_TIMEZONE y convertir a UTC
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
+        if start_datetime is not None:
+            start_datetime = localize_naive_datetime(
+                start_datetime, app_timezone)
+        if end_datetime is not None:
+            end_datetime = localize_naive_datetime(end_datetime, app_timezone)
 
         if not event_id:
             raise ValidationError('El evento es requerido')
@@ -46,16 +52,18 @@ def validate_activity_dates(activity_data):
         # Asegurar que las fechas del evento sean timezone-aware
         event_start = event.start_date
         event_end = event.end_date
-        if event_start and event_start.tzinfo is None:
-            event_start = event_start.replace(tzinfo=timezone.utc)
-        if event_end and event_end.tzinfo is None:
-            event_end = event_end.replace(tzinfo=timezone.utc)
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
+        if event_start is not None:
+            event_start = localize_naive_datetime(event_start, app_timezone)
+        if event_end is not None:
+            event_end = localize_naive_datetime(event_end, app_timezone)
 
-        if start_datetime and (start_datetime < event_start or start_datetime > event_end):
+        if start_datetime and event_start is not None and event_end is not None and (start_datetime < event_start or start_datetime > event_end):
             raise ValidationError(
                 'La fecha de inicio de la actividad debe estar dentro del rango del evento')
 
-        if end_datetime and (end_datetime < event_start or end_datetime > event_end):
+        if end_datetime and event_start is not None and event_end is not None and (end_datetime < event_start or end_datetime > event_end):
             raise ValidationError(
                 'La fecha de fin de la actividad debe estar dentro del rango del evento')
 
@@ -85,13 +93,15 @@ def create_activity(activity_data):
     # Validar fechas
     validate_activity_dates(activity_data)
 
-    # Asegurar que las fechas sean timezone-aware
-    if 'start_datetime' in activity_data and activity_data['start_datetime'].tzinfo is None:
-        activity_data['start_datetime'] = activity_data['start_datetime'].replace(
-            tzinfo=timezone.utc)
-    if 'end_datetime' in activity_data and activity_data['end_datetime'].tzinfo is None:
-        activity_data['end_datetime'] = activity_data['end_datetime'].replace(
-            tzinfo=timezone.utc)
+    # Asegurar que las fechas sean timezone-aware: interpretar naive en APP_TIMEZONE
+    app_timezone = current_app.config.get(
+        'APP_TIMEZONE', 'America/Mexico_City')
+    if 'start_datetime' in activity_data and activity_data['start_datetime'] is not None:
+        activity_data['start_datetime'] = localize_naive_datetime(
+            activity_data['start_datetime'], app_timezone)
+    if 'end_datetime' in activity_data and activity_data['end_datetime'] is not None:
+        activity_data['end_datetime'] = localize_naive_datetime(
+            activity_data['end_datetime'], app_timezone)
 
     # Calcular duración si no se proporciona
     if 'duration_hours' not in activity_data or activity_data['duration_hours'] is None:
@@ -164,12 +174,14 @@ def update_activity(activity_id, activity_data):
         validate_activity_dates(validation_data)
 
     # Asegurar que las fechas sean timezone-aware si se actualizan
-    if 'start_datetime' in activity_data and activity_data['start_datetime'].tzinfo is None:
-        activity_data['start_datetime'] = activity_data['start_datetime'].replace(
-            tzinfo=timezone.utc)
-    if 'end_datetime' in activity_data and activity_data['end_datetime'].tzinfo is None:
-        activity_data['end_datetime'] = activity_data['end_datetime'].replace(
-            tzinfo=timezone.utc)
+    app_timezone = current_app.config.get(
+        'APP_TIMEZONE', 'America/Mexico_City')
+    if 'start_datetime' in activity_data and activity_data['start_datetime'] is not None:
+        activity_data['start_datetime'] = localize_naive_datetime(
+            activity_data['start_datetime'], app_timezone)
+    if 'end_datetime' in activity_data and activity_data['end_datetime'] is not None:
+        activity_data['end_datetime'] = localize_naive_datetime(
+            activity_data['end_datetime'], app_timezone)
 
     if 'duration_hours' in activity_data and activity_data['duration_hours'] is not None:
         start_dt = activity_data.get('start_datetime', activity.start_datetime)
@@ -595,37 +607,10 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                     ed = parsed_ed or ed
 
             # If sd/ed are datetime-like, convert to ISO strings so Marshmallow DateTime loader parses them reliably.
-            def _to_iso(val):
-                try:
-                    # Prefer python datetime objects
-                    if isinstance(val, datetime):
-                        return val.isoformat()
+            # use centralized safe_iso from app.utils.datetime_utils
 
-                    # pandas Timestamp or numpy datetime64 -> try to coerce via pandas
-                    if pd is not None:
-                        parsed = pd.to_datetime(val, errors='coerce')
-                        if parsed is not None and not pd.isna(parsed):
-                            # convert to python datetime
-                            try:
-                                if hasattr(parsed, 'to_pydatetime'):
-                                    return parsed.to_pydatetime().isoformat()
-                                else:
-                                    return parsed.isoformat()
-                            except Exception:
-                                # fallback to string representation
-                                return str(parsed)
-
-                    # As a last resort, if it's already a string, return trimmed string
-                    if isinstance(val, str):
-                        return val.strip()
-
-                    # Unknown type: return as-is (schema validation will catch it)
-                    return val
-                except Exception:
-                    return val
-
-            activity_data['start_datetime'] = _to_iso(sd)
-            activity_data['end_datetime'] = _to_iso(ed)
+            activity_data['start_datetime'] = safe_iso(sd)
+            activity_data['end_datetime'] = safe_iso(ed)
 
             dur_val = rowdict.get('duration_hours')
             if dur_val not in (None, ''):
@@ -845,7 +830,8 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             # Datetime objects -> ISO strings
             try:
                 if hasattr(v, 'isoformat') and callable(v.isoformat):
-                    out[k] = v.isoformat()
+                    iso = safe_iso(v)
+                    out[k] = iso if iso is not None else v
                     continue
             except Exception:
                 pass

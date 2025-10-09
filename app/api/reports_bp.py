@@ -1,9 +1,10 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, current_app
 from flask import Response
 from flask_jwt_extended import jwt_required
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from app import db
 from app.utils.auth_helpers import require_admin
+from app.utils.datetime_utils import localize_naive_datetime
 from app.models.registration import Registration
 from app.models.activity import Activity
 from app.models.event import Event
@@ -96,19 +97,24 @@ def attendance_list():
             'career': s.career,
         })
 
-    # Determine if activity spans multiple days
+    # Determine if activity spans multiple days (localize DB datetimes first)
     multi_day = False
     try:
+        app_tz = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
         start = activity.start_datetime
         end = activity.end_datetime
-        if start and end and start.date() != end.date():
+        sdt = localize_naive_datetime(
+            start, app_tz) if start is not None else None
+        edt = localize_naive_datetime(end, app_tz) if end is not None else None
+        if sdt and edt and sdt.date() != edt.date():
             multi_day = True
             # build list of dates inclusive
-            delta = (end.date() - start.date()).days
-            dates = [start.date() + timedelta(days=i)
+            delta = (edt.date() - sdt.date()).days
+            dates = [sdt.date() + timedelta(days=i)
                      for i in range(delta + 1)]
         else:
-            dates = [start.date()]
+            dates = [(sdt.date() if sdt is not None else (
+                edt.date() if edt is not None else None))]
     except Exception:
         dates = []
 
@@ -148,21 +154,25 @@ def participation_matrix():
         rows = q.all()
 
         # Determinar la fecha de referencia para calcular semestre
-        from datetime import datetime
-
-        ref_date = datetime.utcnow()
+        # Use timezone-aware UTC now as reference date and localize DB datetimes
+        ref_date = datetime.now(timezone.utc)
+        app_tz = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
         if activity_id:
             try:
                 act = db.session.get(Activity, activity_id)
                 if act and getattr(act, 'start_datetime', None):
-                    ref_date = act.start_datetime
+                    rd = localize_naive_datetime(act.start_datetime, app_tz)
+                    if rd is not None:
+                        ref_date = rd
             except Exception:
                 pass
         elif event_id:
             try:
                 ev = db.session.get(Event, event_id)
                 if ev and getattr(ev, 'start_date', None):
-                    ref_date = ev.start_date
+                    rd = localize_naive_datetime(ev.start_date, app_tz)
+                    if rd is not None:
+                        ref_date = rd
             except Exception:
                 pass
 
@@ -406,8 +416,8 @@ def event_registrations_txt():
         content = "\n".join(lines)
 
         # Generar filename seguro
-        from datetime import datetime
-        ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+        # Use UTC-aware timestamp for filename
+        ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         safe_event_name = (event.name or 'evento').replace(
             ' ', '_').replace('/', '_')
         filename = f"{safe_event_name}_{ts}.txt"

@@ -441,7 +441,7 @@ def export_activity_registrations_xlsx(activity_id):
                 t = t[:maxlen].rstrip('-')
             return t or 'activity'
 
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        ts = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
         slug = slugify(getattr(activity, 'name', '')[:50])
         filename = f"{slug}-{ts}.xlsx"
 

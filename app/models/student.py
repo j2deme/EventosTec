@@ -25,12 +25,14 @@ class Student(db.Model):
         return f'<Student {self.control_number}>'
 
     def to_dict(self):
+        from app.utils.datetime_utils import safe_iso
+
         return {
             'id': self.id,
             'control_number': self.control_number,
             'full_name': self.full_name,
             'career': self.career,
             'email': self.email,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': safe_iso(self.created_at),
+            'updated_at': safe_iso(self.updated_at)
         }

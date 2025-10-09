@@ -29,12 +29,14 @@ class User(db.Model):
         return f'<User {self.username}>'
 
     def to_dict(self):
+        from app.utils.datetime_utils import safe_iso
+
         return {
             'id': self.id,
             'username': self.username,
             'email': self.email,
             'role': self.role,
             'is_active': self.is_active,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': safe_iso(self.created_at),
+            'updated_at': safe_iso(self.updated_at)
         }

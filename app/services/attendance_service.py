@@ -1,4 +1,6 @@
 from datetime import datetime, timezone, timedelta
+from flask import current_app
+from app.utils.datetime_utils import localize_naive_datetime
 from typing import Iterable, cast
 
 from app.models.attendance import Attendance
@@ -47,13 +49,16 @@ def calculate_net_duration_seconds(attendance):
     # Si no hay check-out, usar ahora
     end_time = attendance.check_out_time or datetime.now(timezone.utc)
 
-    # Helper: ensure datetime is timezone-aware (assume UTC if naive)
+    # Helper: ensure datetime is timezone-aware. If naive, interpret it in
+    # the app timezone and convert to UTC using localize_naive_datetime.
     def _ensure_tz(dt):
         if dt is None:
             return None
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
-        return dt
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc)
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
+        return localize_naive_datetime(dt, app_timezone)
 
     start = _ensure_tz(attendance.check_in_time)
     end = _ensure_tz(end_time)
@@ -94,9 +99,11 @@ def calculate_attendance_percentage(attendance_id):
     def _ensure_tz(dt):
         if dt is None:
             return None
-        if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
-        return dt
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc)
+        app_timezone = current_app.config.get(
+            'APP_TIMEZONE', 'America/Mexico_City')
+        return localize_naive_datetime(dt, app_timezone)
 
     pres_start = _ensure_tz(attendance.check_in_time)
     pres_end = _ensure_tz(attendance.check_out_time)

@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_jwt_extended import jwt_required
 import requests
 from app import db
@@ -6,9 +6,18 @@ from app.schemas import student_schema, students_schema
 from app.models.student import Student
 from app.utils.auth_helpers import require_admin
 from openpyxl import Workbook
+from typing import Any
+from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.cell.cell import Cell
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timezone
+from app.utils.datetime_utils import localize_naive_datetime, safe_iso
+from flask import current_app
+
+
+# use centralized safe_iso from app.utils.datetime_utils
+
 
 students_bp = Blueprint('students', __name__, url_prefix='/api/students')
 
@@ -18,14 +27,13 @@ def search_students():
     q = request.args.get('q', '').strip()
     if not q or len(q) < 2:
         return jsonify([])
+    # Realizar búsqueda por nombre cuando la consulta es suficiente
     results = Student.query.filter(
         Student.full_name.ilike(f'%{q}%')).limit(10).all()
     return jsonify([
         {'id': s.id, 'full_name': s.full_name, 'control_number': s.control_number}
         for s in results
     ])
-
-# Listar estudiantes (con búsqueda)
 
 
 @students_bp.route('/', methods=['GET'])
@@ -35,7 +43,7 @@ def get_students():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         search = request.args.get('search', '')
-        
+
         # Nuevos filtros
         event_id = request.args.get('event_id', type=int)
         activity_id = request.args.get('activity_id', type=int)
@@ -47,16 +55,18 @@ def get_students():
         if event_id or activity_id:
             from app.models.registration import Registration
             from app.models.activity import Activity
-            
-            query = query.join(Registration, Registration.student_id == Student.id)
-            query = query.join(Activity, Activity.id == Registration.activity_id)
-            
+
+            query = query.join(
+                Registration, Registration.student_id == Student.id)
+            query = query.join(Activity, Activity.id ==
+                               Registration.activity_id)
+
             if event_id:
                 query = query.filter(Activity.event_id == event_id)
-            
+
             if activity_id:
                 query = query.filter(Activity.id == activity_id)
-            
+
             # Eliminar duplicados cuando hay joins
             query = query.distinct()
 
@@ -321,15 +331,26 @@ def get_student_hours_by_event(student_id):
         ).all()
 
         events_hours = []
+        app_tz = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
         for row in results:
             total_hours = float(row.total_hours or 0)
             has_credit = total_hours >= 10.0
-            
+            try:
+                es = localize_naive_datetime(row.event_start_date, app_tz) if getattr(
+                    row, 'event_start_date', None) is not None else None
+            except Exception:
+                es = None
+            try:
+                ee = localize_naive_datetime(row.event_end_date, app_tz) if getattr(
+                    row, 'event_end_date', None) is not None else None
+            except Exception:
+                ee = None
+
             events_hours.append({
                 'event_id': row.event_id,
                 'event_name': row.event_name,
-                'event_start_date': row.event_start_date.isoformat() if row.event_start_date else None,
-                'event_end_date': row.event_end_date.isoformat() if row.event_end_date else None,
+                'event_start_date': safe_iso(es) if es else None,
+                'event_end_date': safe_iso(ee) if ee else None,
                 'total_hours': total_hours,
                 'activities_count': row.activities_count,
                 'has_complementary_credit': has_credit
@@ -378,35 +399,80 @@ def get_student_event_details(student_id, event_id):
         total_confirmed_hours = 0.0
 
         for reg in registrations:
-            activity = reg.activity
+            # Avoid direct attribute access that some static analyzers flag.
+            # Prefer safe resolution via relationship if present, otherwise load by FK.
+            try:
+                activity = getattr(reg, 'activity', None) or db.session.get(
+                    Activity, getattr(reg, 'activity_id', None))
+            except Exception:
+                activity = None
+
+            # If activity could not be resolved for any reason, skip this registration
+            # to avoid attribute access on None.
+            if not activity:
+                continue
             hours = float(activity.duration_hours or 0)
-            
+
             if reg.status == 'Asistió':
                 total_confirmed_hours += hours
+
+            try:
+                sdt = localize_naive_datetime(activity.start_datetime, current_app.config.get(
+                    'APP_TIMEZONE', 'America/Mexico_City')) if getattr(activity, 'start_datetime', None) is not None else None
+            except Exception:
+                sdt = None
+            try:
+                edt = localize_naive_datetime(activity.end_datetime, current_app.config.get(
+                    'APP_TIMEZONE', 'America/Mexico_City')) if getattr(activity, 'end_datetime', None) is not None else None
+            except Exception:
+                edt = None
+
+            # normalize reg dates
+            try:
+                reg_dt = localize_naive_datetime(reg.registration_date, current_app.config.get(
+                    'APP_TIMEZONE', 'America/Mexico_City')) if getattr(reg, 'registration_date', None) else None
+            except Exception:
+                reg_dt = None
+            try:
+                conf_dt = localize_naive_datetime(reg.confirmation_date, current_app.config.get(
+                    'APP_TIMEZONE', 'America/Mexico_City')) if getattr(reg, 'confirmation_date', None) else None
+            except Exception:
+                conf_dt = None
 
             activities_detail.append({
                 'registration_id': reg.id,
                 'activity_id': activity.id,
                 'activity_name': activity.name,
                 'activity_type': activity.activity_type,
-                'start_datetime': activity.start_datetime.isoformat() if activity.start_datetime else None,
-                'end_datetime': activity.end_datetime.isoformat() if activity.end_datetime else None,
+                'start_datetime': safe_iso(sdt) if sdt else None,
+                'end_datetime': safe_iso(edt) if edt else None,
                 'duration_hours': hours,
                 'location': activity.location,
                 'status': reg.status,
-                'registration_date': reg.registration_date.isoformat() if reg.registration_date else None,
-                'confirmation_date': reg.confirmation_date.isoformat() if reg.confirmation_date else None,
+                'registration_date': safe_iso(reg_dt) if reg_dt else None,
+                'confirmation_date': safe_iso(conf_dt) if conf_dt else None,
             })
 
         has_credit = total_confirmed_hours >= 10.0
+
+        try:
+            ev_s = localize_naive_datetime(event.start_date, current_app.config.get(
+                'APP_TIMEZONE', 'America/Mexico_City')) if getattr(event, 'start_date', None) is not None else None
+        except Exception:
+            ev_s = None
+        try:
+            ev_e = localize_naive_datetime(event.end_date, current_app.config.get(
+                'APP_TIMEZONE', 'America/Mexico_City')) if getattr(event, 'end_date', None) is not None else None
+        except Exception:
+            ev_e = None
 
         return jsonify({
             'student': student_schema.dump(student),
             'event': {
                 'id': event.id,
                 'name': event.name,
-                'start_date': event.start_date.isoformat() if event.start_date else None,
-                'end_date': event.end_date.isoformat() if event.end_date else None,
+                'start_date': safe_iso(ev_s) if ev_s else None,
+                'end_date': safe_iso(ev_e) if ev_e else None,
             },
             'total_confirmed_hours': total_confirmed_hours,
             'has_complementary_credit': has_credit,
@@ -429,7 +495,7 @@ def get_students_with_complementary_credits():
     try:
         event_id = request.args.get('event_id', type=int)
         career = request.args.get('career', '')
-        
+
         if not event_id:
             return jsonify({'message': 'event_id es requerido'}), 400
 
@@ -462,7 +528,7 @@ def get_students_with_complementary_credits():
 
         # Agrupar por estudiante y filtrar por horas >= 10
         query = query.group_by(
-            Student.id, Student.control_number, Student.full_name, 
+            Student.id, Student.control_number, Student.full_name,
             Student.career, Student.email
         ).having(
             func.sum(Activity.duration_hours) >= 10.0
@@ -490,12 +556,26 @@ def get_students_with_complementary_credits():
                 'has_complementary_credit': True  # Ya filtrados por >= 10 horas
             })
 
+        # Localizar fechas del evento de forma consistente antes de serializar
+        try:
+            app_tz = current_app.config.get(
+                'APP_TIMEZONE', 'America/Mexico_City')
+            ev_s = localize_naive_datetime(event.start_date, app_tz) if getattr(
+                event, 'start_date', None) is not None else None
+        except Exception:
+            ev_s = None
+        try:
+            ev_e = localize_naive_datetime(event.end_date, app_tz) if getattr(
+                event, 'end_date', None) is not None else None
+        except Exception:
+            ev_e = None
+
         return jsonify({
             'event': {
                 'id': event.id,
                 'name': event.name,
-                'start_date': event.start_date.isoformat() if event.start_date else None,
-                'end_date': event.end_date.isoformat() if event.end_date else None,
+                'start_date': safe_iso(ev_s) if ev_s else None,
+                'end_date': safe_iso(ev_e) if ev_e else None,
             },
             'students': students_list,
             'total_students': len(students_list)
@@ -516,7 +596,7 @@ def export_complementary_credits():
     try:
         event_id = request.args.get('event_id', type=int)
         career = request.args.get('career', '')
-        
+
         if not event_id:
             return jsonify({'message': 'event_id es requerido'}), 400
 
@@ -563,12 +643,13 @@ def export_complementary_credits():
             return jsonify({'message': 'Evento no encontrado'}), 404
 
         # Crear archivo Excel
-        wb = Workbook()
-        ws = wb.active
+        wb: Workbook = Workbook()
+        ws: Any = wb.active
         ws.title = "Créditos Complementarios"
 
         # Estilos
-        header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+        header_fill = PatternFill(
+            start_color="4F46E5", end_color="4F46E5", fill_type="solid")
         header_font = Font(color="FFFFFF", bold=True, size=12)
         header_alignment = Alignment(horizontal="center", vertical="center")
 
@@ -577,12 +658,13 @@ def export_complementary_credits():
         title_cell = ws['A1']
         title_cell.value = f"Estudiantes con Crédito Complementario - {event.name}"
         title_cell.font = Font(bold=True, size=14)
-        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        title_cell.alignment = Alignment(
+            horizontal="center", vertical="center")
 
         # Información adicional
         ws.merge_cells('A2:G2')
         info_cell = ws['A2']
-        info_cell.value = f"Generado el: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        info_cell.value = f"Generado el: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M')}"
         info_cell.alignment = Alignment(horizontal="center")
 
         if career:
@@ -595,9 +677,10 @@ def export_complementary_credits():
             header_row = 4
 
         # Encabezados
-        headers = ['No.', 'Número de Control', 'Nombre Completo', 'Carrera', 'Email', 'Horas Confirmadas', 'Actividades']
+        headers = ['No.', 'Número de Control', 'Nombre Completo',
+                   'Carrera', 'Email', 'Horas Confirmadas', 'Actividades']
         for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=header_row, column=col_num)
+            cell: Any = ws.cell(row=header_row, column=col_num)
             cell.value = header
             cell.fill = header_fill
             cell.font = header_font
@@ -626,7 +709,7 @@ def export_complementary_credits():
         # Resumen al final
         summary_row = header_row + len(results) + 2
         ws.merge_cells(f'A{summary_row}:E{summary_row}')
-        summary_cell = ws.cell(row=summary_row, column=1)
+        summary_cell: Any = ws.cell(row=summary_row, column=1)
         summary_cell.value = f"Total de estudiantes: {len(results)}"
         summary_cell.font = Font(bold=True)
         summary_cell.alignment = Alignment(horizontal="right")
@@ -637,8 +720,23 @@ def export_complementary_credits():
         output.seek(0)
 
         # Generar nombre de archivo
-        filename = f"creditos_complementarios_{event.name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        filename = f"creditos_complementarios_{event.name.replace(' ', '_')}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.xlsx"
 
+        # Localizar fechas del evento antes de devolver metadatos en la exportación
+        try:
+            app_tz = current_app.config.get(
+                'APP_TIMEZONE', 'America/Mexico_City')
+            ev_s = localize_naive_datetime(event.start_date, app_tz) if getattr(
+                event, 'start_date', None) is not None else None
+        except Exception:
+            ev_s = None
+        try:
+            ev_e = localize_naive_datetime(event.end_date, app_tz) if getattr(
+                event, 'end_date', None) is not None else None
+        except Exception:
+            ev_e = None
+
+        # (filename ya fue generado arriba con UTC now)
         return send_file(
             output,
             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -648,4 +746,3 @@ def export_complementary_credits():
 
     except Exception as e:
         return jsonify({'message': 'Error al exportar datos', 'error': str(e)}), 500
-

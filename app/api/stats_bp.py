@@ -42,7 +42,8 @@ def get_general_stats():
     stats_data['total_students'] = Student.query.count()
 
     # Agregar estadísticas específicas de registros
-    today = datetime.now().date()
+    from datetime import timezone as _tz
+    today = datetime.now(_tz.utc).date()
 
     # Asistencias de hoy
     stats_data['today_attendances'] = Attendance.query.filter(

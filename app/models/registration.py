@@ -30,14 +30,16 @@ class Registration(db.Model):
         return f'<Registration Student:{self.student_id} Activity:{self.activity_id}>'
 
     def to_dict(self):
+        from app.utils.datetime_utils import safe_iso
+
         return {
             'id': self.id,
             'student_id': self.student_id,
             'activity_id': self.activity_id,
-            'registration_date': self.registration_date.isoformat() if self.registration_date else None,
+            'registration_date': safe_iso(self.registration_date),
             'status': self.status,
-            'confirmation_date': self.confirmation_date.isoformat() if self.confirmation_date else None,
+            'confirmation_date': safe_iso(self.confirmation_date),
             'attended': self.attended,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': safe_iso(self.created_at),
+            'updated_at': safe_iso(self.updated_at)
         }

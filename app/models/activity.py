@@ -48,6 +48,8 @@ class Activity(db.Model):
         return f'<Activity {self.name}>'
 
     def to_dict(self):
+        from app.utils.datetime_utils import safe_iso
+
         out = {
             'id': self.id,
             'event_id': self.event_id,
@@ -55,16 +57,16 @@ class Activity(db.Model):
             'department': self.department,
             'name': self.name,
             'description': self.description,
-            'start_datetime': self.start_datetime.isoformat() if self.start_datetime else None,
-            'end_datetime': self.end_datetime.isoformat() if self.end_datetime else None,
+            'start_datetime': safe_iso(self.start_datetime),
+            'end_datetime': safe_iso(self.end_datetime),
             'duration_hours': self.duration_hours,
             'activity_type': self.activity_type,
             'location': self.location,
             'modality': self.modality,
             'requirements': self.requirements,
             'max_capacity': self.max_capacity,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'created_at': safe_iso(self.created_at),
+            'updated_at': safe_iso(self.updated_at)
         }
 
         # Parse speakers and target_audience if stored as JSON text
