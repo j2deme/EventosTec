@@ -32,28 +32,74 @@ app/
 
 ## Instalación y ejecución
 
-1. Instala dependencias Python:
+Las instrucciones siguientes están adaptadas para entornos Windows (PowerShell). Ajusta los comandos si usas Linux/macOS.
+
+1. Crear y activar un entorno virtual (recomendado):
+
+   PowerShell:
+
+   ```powershell
+   python -m venv venv; .\venv\Scripts\Activate.ps1
    ```
+
+2. Instalar dependencias Python:
+
+   ```powershell
    pip install -r requirements.txt
    ```
-2. Ejecuta el servidor de desarrollo:
+
+3. Ejecutar el servidor de desarrollo (opciones):
+
+   - Usando el helper `run.py` (recomendado en desarrollo local):
+
+   ```powershell
+   .\venv\Scripts\python.exe .\run.py
    ```
-   flask run
+
+   - O con Flask directamente (establecer variables de entorno primero):
+
+   ```powershell
+   $Env:FLASK_APP = 'run.py'; $Env:FLASK_ENV = 'development'; .\venv\Scripts\python.exe -m flask run
    ```
-3. Ejecuta tests backend:
+
+4. Ejecutar tests backend (pytest):
+
+   ```powershell
+   .\venv\Scripts\python.exe -m pytest -q
    ```
-   python -m pytest -q
-   ```
-4. Ejecuta tests frontend:
-   ```
+
+5. Ejecutar tests frontend (Jest):
+
+   ```powershell
    npx jest --coverage --colors
    ```
 
+Si usas Linux/macOS (bash), los comandos equivalentes son:
+
+```bash
+python3 -m venv venv; source venv/bin/activate
+pip install -r requirements.txt
+python3 run.py
+# o
+FLASK_APP=run.py FLASK_ENV=development python3 -m flask run
+python3 -m pytest -q
+npx jest --coverage --colors
+```
+
 ## Contribución
 
-- Revisa las [instrucciones para agentes AI](.github/copilot-instructions.md) para detalles sobre el stack, patrones de módulos JS y buenas prácticas de testing.
-- Antes de modificar endpoints, modelos o schemas, asegúrate de actualizar los tests y documentar cambios breaking.
-- Para cambios en frontend JS, considera los efectos en los tests y sigue las convenciones de exportación y mocking descritas en la documentación interna.
+- Revisa las [instrucciones para agentes AI](.github/copilot-instructions.md) y `AGENTS.md` para detalles sobre el stack, patrones de módulos JS y buenas prácticas de testing y cambios.
+- Antes de modificar endpoints, modelos o schemas, actualiza los tests y documenta cambios breaking; si es necesario, versiona el endpoint (por ejemplo `/api/v2/...`).
+- Para cambios en frontend JS, ten en cuenta que `app/static/js/app.js` instala un interceptor global de `fetch`; los tests Jest deben mockear `global.fetch` y `global.localStorage` antes de `require()` del módulo y usar `jest.resetModules()` entre escenarios.
+
+Notas rápidas y recomendaciones:
+
+- Base de datos de ejemplo: `instance/test_eventostec.db` se incluye para pruebas locales; no subir información sensible.
+- Comandos útiles (ya configurados como tareas en VS Code):
+  - "Run pytest (venv)": ejecuta `pytest` usando el intérprete del venv.
+  - "Run Flask (venv)": ejecuta `run.py` con el intérprete del venv.
+  - "Run Jest (frontend)": ejecuta las pruebas Jest para `app/static/js/admin/__tests__`.
+- Si modificas el interceptor global en `app/static/js/app.js`, actualiza los tests Jest que dependen de su comportamiento.
 
 ## Licencia
 
