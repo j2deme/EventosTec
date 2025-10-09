@@ -345,3 +345,175 @@ def sync_related_attendances_from_source(source_activity_id, student_ids=None, d
         db.session.commit()
 
     return summary
+
+
+def create_attendances_from_file(file_stream, activity_id, dry_run=True):
+    """
+    Crea asistencias en batch desde un archivo TXT o XLSX.
+
+    Archivo TXT: un número de control por línea
+    Archivo XLSX: números de control en la primera columna
+
+    Retorna un dict: {
+        'created': int,
+        'skipped': int,
+        'not_found': int,
+        'errors': [{'control_number': str, 'message': str}],
+        'details': [{'control_number': str, 'action': str, 'student_name': str}]
+    }
+    """
+    from app import db
+    from app.models.student import Student
+    from app.models.attendance import Attendance
+    from app.models.registration import Registration
+    import requests
+    import io
+
+    summary = {
+        'created': 0,
+        'skipped': 0,
+        'not_found': 0,
+        'errors': [],
+        'details': []
+    }
+
+    # Verificar que la actividad existe
+    activity = db.session.get(Activity, activity_id)
+    if not activity:
+        summary['errors'].append({
+            'control_number': '',
+            'message': 'Actividad no encontrada'
+        })
+        return summary
+
+    # Leer números de control del archivo
+    control_numbers = []
+    try:
+        # Intentar leer como XLSX primero
+        try:
+            import pandas as pd
+            file_stream.seek(0)
+            # Read without treating first row as header
+            df = pd.read_excel(io.BytesIO(
+                file_stream.read()), sheet_name=0, engine='openpyxl', header=None)
+            # Tomar la primera columna
+            if df.shape[0] > 0:
+                control_numbers = [str(val).strip()
+                                   for val in df.iloc[:, 0] if str(val).strip()]
+        except Exception:
+            # Si falla, intentar leer como TXT
+            file_stream.seek(0)
+            content = file_stream.read()
+            if isinstance(content, bytes):
+                content = content.decode('utf-8', errors='ignore')
+            lines = content.strip().split('\n')
+            control_numbers = [line.strip()
+                               for line in lines if line.strip()]
+    except Exception as e:
+        summary['errors'].append({
+            'control_number': '',
+            'message': f'Error al leer archivo: {str(e)}'
+        })
+        return summary
+
+    if not control_numbers:
+        summary['errors'].append({
+            'control_number': '',
+            'message': 'El archivo no contiene números de control'
+        })
+        return summary
+
+    # Procesar cada número de control
+    for control_number in control_numbers:
+        # Evitar valores inválidos
+        if not control_number or control_number.lower() in ['nan', 'none', '']:
+            continue
+
+        # Buscar estudiante en BD
+        student = Student.query.filter_by(
+            control_number=control_number).first()
+
+        # Si no existe, buscar en API externa
+        if not student:
+            try:
+                external_api_url = f"http://apps.tecvalles.mx:8091/api/estudiantes?search={control_number}"
+                response = requests.get(external_api_url, timeout=10)
+                if response.status_code == 200:
+                    external_data = response.json()
+                    # Crear nuevo estudiante
+                    student = Student()
+                    student.control_number = control_number
+                    student.full_name = external_data.get(
+                        'full_name', external_data.get('nombre', ''))
+                    student.career = external_data.get(
+                        'career', external_data.get('carrera', ''))
+                    student.email = external_data.get('email', '')
+                    if not dry_run:
+                        db.session.add(student)
+                        db.session.flush()  # Para obtener el ID
+                else:
+                    summary['not_found'] += 1
+                    summary['errors'].append({
+                        'control_number': control_number,
+                        'message': 'No encontrado en BD ni API externa'
+                    })
+                    continue
+            except Exception as e:
+                summary['not_found'] += 1
+                summary['errors'].append({
+                    'control_number': control_number,
+                    'message': f'Error al buscar en API externa: {str(e)}'
+                })
+                continue
+
+        # Verificar si ya existe asistencia
+        existing = Attendance.query.filter_by(
+            student_id=student.id, activity_id=activity_id).first()
+        if existing:
+            summary['skipped'] += 1
+            summary['details'].append({
+                'control_number': control_number,
+                'action': 'skipped',
+                'student_name': student.full_name,
+                'reason': 'Ya existe asistencia'
+            })
+            continue
+
+        # Crear asistencia
+        if not dry_run:
+            attendance = Attendance()
+            attendance.student_id = student.id
+            attendance.activity_id = activity_id
+            attendance.attendance_percentage = 100.0
+            attendance.status = 'Asistió'
+            db.session.add(attendance)
+
+            # Actualizar registro si existe
+            registration = Registration.query.filter_by(
+                student_id=student.id, activity_id=activity_id).first()
+            if registration:
+                registration.attended = True
+                registration.status = 'Asistió'
+                registration.confirmation_date = db.func.now()
+                db.session.add(registration)
+
+        summary['created'] += 1
+        summary['details'].append({
+            'control_number': control_number,
+            'action': 'created',
+            'student_name': student.full_name
+        })
+
+    # Commit si no es dry_run
+    if not dry_run:
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            summary['errors'].append({
+                'control_number': '',
+                'message': f'Error al guardar cambios: {str(e)}'
+            })
+            summary['created'] = 0
+
+    return summary
