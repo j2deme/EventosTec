@@ -514,7 +514,8 @@ def hours_compliance():
             }
         }), 200
     except Exception as e:
-        return jsonify({'message': 'Error generando reporte de horas', 'error': str(e)}), 500
+        current_app.logger.error(f'Error generando reporte de horas: {str(e)}')
+        return jsonify({'message': 'Error generando reporte de horas'}), 500
 
 
 @reports_bp.route('/hours_compliance_excel', methods=['GET'])
@@ -634,7 +635,8 @@ def hours_compliance_excel():
         resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
         return resp
     except Exception as e:
-        return jsonify({'message': 'Error generando archivo Excel', 'error': str(e)}), 500
+        current_app.logger.error(f'Error generando archivo Excel: {str(e)}')
+        return jsonify({'message': 'Error generando archivo Excel'}), 500
 
 
 @reports_bp.route('/student_participations/<int:student_id>', methods=['GET'])
@@ -705,4 +707,5 @@ def student_participations(student_id):
             'participations': participations
         }), 200
     except Exception as e:
-        return jsonify({'message': 'Error obteniendo participaciones', 'error': str(e)}), 500
+        current_app.logger.error(f'Error obteniendo participaciones: {str(e)}')
+        return jsonify({'message': 'Error obteniendo participaciones'}), 500
