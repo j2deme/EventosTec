@@ -18,9 +18,27 @@ function reportsManager() {
     generations: [],
     semesters: [],
 
+    // Hours compliance report
+    hoursFilters: {
+      event_id: "",
+      career: "",
+      search: "",
+      min_hours: 0,
+      filter_10_plus: false,
+    },
+    hoursLoading: false,
+    hoursStudents: [],
+    uniqueCareers: [],
+    showParticipationModal: false,
+    currentStudent: null,
+    participationDetails: [],
+    participationDetailsLoading: false,
+    totalParticipationHours: 0,
+
     init() {
       this.loadEvents();
       this.loadActivities();
+      this.loadCareers();
     },
 
     departments: [],
@@ -267,6 +285,207 @@ function reportsManager() {
         console.error("Error downloading registrations txt", e);
         window.showToast &&
           window.showToast("Error descargando archivo", "error");
+      }
+    },
+
+    // Hours compliance methods
+    async loadCareers() {
+      try {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f("/api/students?per_page=1000");
+        if (res && res.ok) {
+          const d = await res.json();
+          const students = d.students || [];
+          const careerSet = new Set();
+          students.forEach((s) => {
+            if (s.career) careerSet.add(s.career);
+          });
+          this.uniqueCareers = Array.from(careerSet).sort();
+        }
+      } catch (e) {
+        console.error("Error loading careers", e);
+      }
+    },
+
+    onHoursEventChange() {
+      // Reset other filters when event changes
+      this.hoursFilters.career = "";
+      this.hoursFilters.search = "";
+      this.hoursStudents = [];
+    },
+
+    apply10PlusFilter() {
+      if (this.hoursFilters.filter_10_plus) {
+        this.hoursFilters.min_hours = 10;
+      } else {
+        this.hoursFilters.min_hours = 0;
+      }
+    },
+
+    async generateHoursReport() {
+      if (!this.hoursFilters.event_id) {
+        window.showToast &&
+          window.showToast("Selecciona un evento primero", "error");
+        return;
+      }
+
+      this.hoursLoading = true;
+      this.hoursStudents = [];
+      try {
+        const params = new URLSearchParams();
+        params.set("event_id", this.hoursFilters.event_id);
+        if (this.hoursFilters.career)
+          params.set("career", this.hoursFilters.career);
+        if (this.hoursFilters.search)
+          params.set("search", this.hoursFilters.search);
+        params.set("min_hours", this.hoursFilters.min_hours || 0);
+
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(
+          `/api/reports/hours_compliance?${params.toString()}`
+        );
+        if (res && res.ok) {
+          const d = await res.json();
+          this.hoursStudents = d.students || [];
+          if (this.hoursStudents.length === 0) {
+            window.showToast &&
+              window.showToast(
+                "No se encontraron estudiantes con los filtros seleccionados",
+                "info"
+              );
+          }
+        } else {
+          const err = await res.json().catch(() => ({}));
+          window.showToast &&
+            window.showToast(
+              err.message || "Error generando reporte de horas",
+              "error"
+            );
+        }
+      } catch (e) {
+        console.error("Error generating hours report", e);
+        window.showToast &&
+          window.showToast("Error generando reporte de horas", "error");
+      } finally {
+        this.hoursLoading = false;
+      }
+    },
+
+    async downloadHoursExcel() {
+      if (!this.hoursFilters.event_id) {
+        window.showToast &&
+          window.showToast("Selecciona un evento primero", "error");
+        return;
+      }
+
+      try {
+        const params = new URLSearchParams();
+        params.set("event_id", this.hoursFilters.event_id);
+        if (this.hoursFilters.career)
+          params.set("career", this.hoursFilters.career);
+        if (this.hoursFilters.search)
+          params.set("search", this.hoursFilters.search);
+        params.set("min_hours", this.hoursFilters.min_hours || 0);
+
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(
+          `/api/reports/hours_compliance_excel?${params.toString()}`
+        );
+        if (!res) return;
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          const cd = res.headers.get("Content-Disposition") || "";
+          const m = cd.match(/filename="?(.*?)"?$/);
+          const filename =
+            m && m[1] ? m[1] : `hours_compliance_${Date.now()}.xlsx`;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          window.showToast &&
+            window.showToast(
+              err.message || "Error descargando archivo Excel",
+              "error"
+            );
+        }
+      } catch (e) {
+        console.error("Error downloading hours excel", e);
+        window.showToast &&
+          window.showToast("Error descargando archivo Excel", "error");
+      }
+    },
+
+    async viewParticipationDetails(studentId) {
+      if (!this.hoursFilters.event_id) {
+        return;
+      }
+
+      this.showParticipationModal = true;
+      this.participationDetailsLoading = true;
+      this.participationDetails = [];
+      this.totalParticipationHours = 0;
+
+      // Find student info
+      const student = this.hoursStudents.find((s) => s.id === studentId);
+      if (student) {
+        this.currentStudent = student;
+      }
+
+      try {
+        const params = new URLSearchParams();
+        params.set("event_id", this.hoursFilters.event_id);
+
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(
+          `/api/reports/student_participations/${studentId}?${params.toString()}`
+        );
+        if (res && res.ok) {
+          const d = await res.json();
+          this.participationDetails = d.participations || [];
+          this.totalParticipationHours = this.participationDetails.reduce(
+            (sum, p) => sum + (p.duration_hours || 0),
+            0
+          );
+        } else {
+          const err = await res.json().catch(() => ({}));
+          window.showToast &&
+            window.showToast(
+              err.message || "Error obteniendo participaciones",
+              "error"
+            );
+        }
+      } catch (e) {
+        console.error("Error getting participation details", e);
+        window.showToast &&
+          window.showToast("Error obteniendo participaciones", "error");
+      } finally {
+        this.participationDetailsLoading = false;
+      }
+    },
+
+    formatDateTime(isoString) {
+      if (!isoString) return "";
+      try {
+        const date = new Date(isoString);
+        return date.toLocaleString("es-MX", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      } catch (e) {
+        return isoString;
       }
     },
   };
