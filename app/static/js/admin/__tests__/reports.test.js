@@ -428,4 +428,363 @@ describe("reportsManager", () => {
       expect(mgr.formatSemester("Otro")).toBe("Otro");
     });
   });
+
+  describe("Hours Compliance Report", () => {
+    describe("initialization", () => {
+      test("should initialize hours filters with default values", () => {
+        const mgr = reportsManager();
+        expect(mgr.hoursFilters).toEqual({
+          event_id: "",
+          career: "",
+          search: "",
+          min_hours: 0,
+          filter_10_plus: false,
+        });
+        expect(mgr.hoursLoading).toBe(false);
+        expect(mgr.hoursStudents).toEqual([]);
+        expect(mgr.uniqueCareers).toEqual([]);
+        expect(mgr.showParticipationModal).toBe(false);
+      });
+    });
+
+    describe("loadCareers", () => {
+      test("should load unique careers from students", async () => {
+        const mockStudents = [
+          { id: 1, career: "Ingeniería en Sistemas" },
+          { id: 2, career: "Ingeniería Mecánica" },
+          { id: 3, career: "Ingeniería en Sistemas" },
+          { id: 4, career: "Ingeniería Industrial" },
+        ];
+
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ students: mockStudents }),
+        });
+
+        const mgr = reportsManager();
+        await mgr.loadCareers();
+
+        expect(mgr.uniqueCareers).toHaveLength(3);
+        expect(mgr.uniqueCareers).toContain("Ingeniería en Sistemas");
+        expect(mgr.uniqueCareers).toContain("Ingeniería Mecánica");
+        expect(mgr.uniqueCareers).toContain("Ingeniería Industrial");
+      });
+
+      test("should handle empty student list", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ students: [] }),
+        });
+
+        const mgr = reportsManager();
+        await mgr.loadCareers();
+
+        expect(mgr.uniqueCareers).toEqual([]);
+      });
+    });
+
+    describe("onHoursEventChange", () => {
+      test("should reset filters when event changes", () => {
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+        mgr.hoursFilters.career = "Ingeniería";
+        mgr.hoursFilters.search = "12345";
+        mgr.hoursStudents = [{ id: 1 }];
+
+        mgr.onHoursEventChange();
+
+        expect(mgr.hoursFilters.career).toBe("");
+        expect(mgr.hoursFilters.search).toBe("");
+        expect(mgr.hoursStudents).toEqual([]);
+      });
+    });
+
+    describe("apply10PlusFilter", () => {
+      test("should set min_hours to 10 when filter is enabled", () => {
+        const mgr = reportsManager();
+        mgr.hoursFilters.filter_10_plus = true;
+
+        mgr.apply10PlusFilter();
+
+        expect(mgr.hoursFilters.min_hours).toBe(10);
+      });
+
+      test("should reset min_hours to 0 when filter is disabled", () => {
+        const mgr = reportsManager();
+        mgr.hoursFilters.filter_10_plus = false;
+        mgr.hoursFilters.min_hours = 10;
+
+        mgr.apply10PlusFilter();
+
+        expect(mgr.hoursFilters.min_hours).toBe(0);
+      });
+    });
+
+    describe("generateHoursReport", () => {
+      test("should generate hours report successfully", async () => {
+        const mockStudents = [
+          {
+            id: 1,
+            control_number: "18001234",
+            full_name: "Ana García",
+            career: "Ingeniería en Sistemas",
+            total_hours: 11.5,
+          },
+          {
+            id: 2,
+            control_number: "19005678",
+            full_name: "Carlos Martínez",
+            career: "Ingeniería Mecánica",
+            total_hours: 10.0,
+          },
+        ];
+
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ students: mockStudents, event: { id: 1, name: "Test Event" } }),
+        });
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+
+        await mgr.generateHoursReport();
+
+        expect(mgr.hoursStudents).toEqual(mockStudents);
+        expect(mgr.hoursLoading).toBe(false);
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/reports/hours_compliance")
+        );
+      });
+
+      test("should require event_id", async () => {
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "";
+
+        await mgr.generateHoursReport();
+
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("Selecciona un evento"),
+          "error"
+        );
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+
+      test("should include filters in request", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ students: [], event: { id: 1, name: "Test" } }),
+        });
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+        mgr.hoursFilters.career = "Ingeniería";
+        mgr.hoursFilters.search = "12345";
+        mgr.hoursFilters.min_hours = 10;
+
+        await mgr.generateHoursReport();
+
+        const callArgs = mockFetch.mock.calls[0][0];
+        expect(callArgs).toContain("event_id=1");
+        expect(callArgs).toContain("career=Ingenier%C3%ADa");
+        expect(callArgs).toContain("search=12345");
+        expect(callArgs).toContain("min_hours=10");
+      });
+
+      test("should show info toast when no students found", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ students: [], event: { id: 1, name: "Test" } }),
+        });
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+
+        await mgr.generateHoursReport();
+
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("No se encontraron estudiantes"),
+          "info"
+        );
+      });
+
+      test("should handle API errors", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({ message: "Error del servidor" }),
+        });
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+
+        await mgr.generateHoursReport();
+
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("Error del servidor"),
+          "error"
+        );
+      });
+    });
+
+    describe("downloadHoursExcel", () => {
+      test("should download Excel file", async () => {
+        const mockBlob = new Blob(["test data"], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          blob: async () => mockBlob,
+          headers: {
+            get: (name) => name === "Content-Disposition" ? 'attachment; filename="test-event_20241026.xlsx"' : null,
+          },
+        });
+
+        // Mock DOM methods
+        const mockCreateElement = jest.spyOn(document, "createElement");
+        const mockAppendChild = jest.spyOn(document.body, "appendChild");
+        const mockRemove = jest.fn();
+        const mockClick = jest.fn();
+        
+        mockCreateElement.mockReturnValue({
+          href: "",
+          download: "",
+          click: mockClick,
+          remove: mockRemove,
+        });
+        mockAppendChild.mockImplementation(() => {});
+
+        global.URL.createObjectURL = jest.fn(() => "blob:mock-url");
+        global.URL.revokeObjectURL = jest.fn();
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+
+        await mgr.downloadHoursExcel();
+
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining("/api/reports/hours_compliance_excel")
+        );
+        expect(mockClick).toHaveBeenCalled();
+        expect(mockRemove).toHaveBeenCalled();
+      });
+
+      test("should require event_id", async () => {
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "";
+
+        await mgr.downloadHoursExcel();
+
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("Selecciona un evento"),
+          "error"
+        );
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("viewParticipationDetails", () => {
+      test("should load and display participation details", async () => {
+        const mockParticipations = [
+          {
+            id: 1,
+            name: "Workshop Python",
+            start_datetime: "2024-10-01T09:00:00",
+            duration_hours: 3,
+            activity_type: "Taller",
+            status: "Confirmado",
+          },
+          {
+            id: 2,
+            name: "AI Conference",
+            start_datetime: "2024-10-02T10:00:00",
+            duration_hours: 8,
+            activity_type: "Conferencia",
+            status: "Asistió",
+          },
+        ];
+
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            student: { id: 1, control_number: "18001234", full_name: "Ana García" },
+            participations: mockParticipations,
+          }),
+        });
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+        mgr.hoursStudents = [
+          { id: 1, control_number: "18001234", full_name: "Ana García" },
+        ];
+
+        await mgr.viewParticipationDetails(1);
+
+        expect(mgr.showParticipationModal).toBe(true);
+        expect(mgr.participationDetails).toEqual(mockParticipations);
+        expect(mgr.totalParticipationHours).toBe(11);
+        expect(mgr.currentStudent).toEqual(mgr.hoursStudents[0]);
+      });
+
+      test("should calculate total hours correctly", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            student: { id: 1 },
+            participations: [
+              { duration_hours: 3 },
+              { duration_hours: 5.5 },
+              { duration_hours: 2.5 },
+            ],
+          }),
+        });
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+
+        await mgr.viewParticipationDetails(1);
+
+        expect(mgr.totalParticipationHours).toBe(11);
+      });
+
+      test("should handle API errors", async () => {
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          json: async () => ({ message: "Error al obtener participaciones" }),
+        });
+
+        const mgr = reportsManager();
+        mgr.hoursFilters.event_id = "1";
+
+        await mgr.viewParticipationDetails(1);
+
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("Error al obtener participaciones"),
+          "error"
+        );
+      });
+    });
+
+    describe("formatDateTime", () => {
+      test("should format ISO datetime to locale string", () => {
+        const mgr = reportsManager();
+        const result = mgr.formatDateTime("2024-10-01T09:00:00");
+        
+        // Check that it returns a formatted string (exact format depends on locale)
+        expect(result).toBeTruthy();
+        expect(result).not.toBe("2024-10-01T09:00:00");
+      });
+
+      test("should handle null/empty strings", () => {
+        const mgr = reportsManager();
+        expect(mgr.formatDateTime(null)).toBe("");
+        expect(mgr.formatDateTime("")).toBe("");
+      });
+
+      test("should handle invalid dates gracefully", () => {
+        const mgr = reportsManager();
+        const result = mgr.formatDateTime("invalid-date");
+        
+        // Should return the original string or empty, depending on implementation
+        expect(typeof result).toBe("string");
+      });
+    });
+  });
 });
