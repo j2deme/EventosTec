@@ -756,7 +756,7 @@ describe("reportsManager", () => {
         await mgr.viewParticipationDetails(1);
 
         expect(global.showToast).toHaveBeenCalledWith(
-          expect.stringContaining("Error al obtener participaciones"),
+          expect.stringContaining("Error obteniendo participaciones"),
           "error"
         );
       });
