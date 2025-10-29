@@ -257,31 +257,20 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        // prefer explicit public event token; fall back to numeric eventId when available
-        // prefer explicit public event token; fall back to numeric eventId or slug
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
-        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
-          // fallback: build slug-only URL from activity name so server can resolve
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(this.selectedActivity.name || "");
-          if (slug) {
-            window.location.href = `/public/registrations/${encodeURIComponent(
-              slug
-            )}`;
-            return;
-          }
+          // Without an eventRef (token/id/slug) we must not generate slugs client-side.
+          // The server is authoritative for slugs; instruct the user/admin to use the server-provided event link.
           console.error(
             "Missing event token/id for generating public activity token"
           );
-          alert("No se pudo generar el link público: token de evento ausente");
+          alert(
+            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento."
+          );
           return;
         }
         const resp = await f(
@@ -320,30 +309,19 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
-        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
-          // fallback to slug-only URL using activity name so server can generate token on page load
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(a.name || "");
-          if (slug) {
-            window.location.href = `/public/registrations/${encodeURIComponent(
-              slug
-            )}`;
-            a._loading_manage = false;
-            return;
-          }
+          // Do not construct slugs in the client. Server must provide event slug or token.
           console.error(
             "Missing event token/id for generating public activity token"
           );
-          alert("No se pudo generar el link público: token de evento ausente");
+          alert(
+            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento."
+          );
           a._loading_manage = false;
           return;
         }
@@ -391,57 +369,24 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
-        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
-          // fallback: copy slug-only URL built from activity name
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(a.name || "");
-          if (slug) {
-            const url = `${
-              location.origin
-            }/public/registrations/${encodeURIComponent(slug)}`;
-            try {
-              await navigator.clipboard.writeText(url);
-              if (typeof showToast === "function")
-                showToast("Enlace copiado al portapapeles");
-              else alert("Enlace copiado al portapapeles: " + url);
-            } catch (e) {
-              const ta = document.createElement("textarea");
-              ta.value = url;
-              document.body.appendChild(ta);
-              ta.select();
-              try {
-                document.execCommand("copy");
-                if (typeof showToast === "function")
-                  showToast("Enlace copiado al portapapeles");
-                else alert("Enlace copiado al portapapeles: " + url);
-              } catch (err) {
-                alert("No se pudo copiar el enlace. Aquí está: " + url);
-              }
-              ta.remove();
-            }
-            a._loading_copy = false;
-            return;
-          }
+          // Do not generate slugs client-side. Inform user to use server-provided link.
           console.error(
             "Missing event token/id for generating public activity token"
           );
           if (typeof showToast === "function")
             showToast(
-              "No se pudo generar el link público: token de evento ausente",
+              "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor.",
               "error"
             );
           else
             alert(
-              "No se pudo generar el link público: token de evento ausente"
+              "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor."
             );
           a._loading_copy = false;
           return;
@@ -545,7 +490,9 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
         const payload = {};
@@ -554,25 +501,18 @@ function eventRegistrationsPublic() {
           // If token looks like an event-level token (starts with 'pe:'), include activity id
           if (String(eventRef).startsWith("pe:")) payload.activity = a.id;
         } else {
-          // fallback: send activity slug so server can resolve without exposing id
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(a.name || "");
-          if (!slug) {
-            if (typeof showToast === "function")
-              showToast(
-                "No se pudo generar el archivo: actividad inválida",
-                "error"
-              );
-            else alert("No se pudo generar el archivo: actividad inválida");
-            a._loading_download = false;
-            return;
-          }
-          payload.slug = slug;
+          // If no eventRef, we must not fabricate slugs client-side. Abort and require server-provided event reference.
+          if (typeof showToast === "function")
+            showToast(
+              "No se pudo generar el archivo: token de evento ausente. Use el enlace proporcionado por el servidor.",
+              "error"
+            );
+          else
+            alert(
+              "No se pudo generar el archivo: token de evento ausente. Use el enlace proporcionado por el servidor."
+            );
+          a._loading_download = false;
+          return;
         }
         // If token looks like an event-level token (starts with 'pe:'), include activity id
         const t = payload.token || "";
