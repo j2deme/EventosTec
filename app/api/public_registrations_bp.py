@@ -7,6 +7,7 @@ from app.models.student import Student
 from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.token_utils import verify_public_token, verify_public_event_token, generate_public_token
+from app.utils.slug_utils import slugify as canonical_slugify
 from app.utils.datetime_utils import localize_naive_datetime, safe_iso
 from sqlalchemy.exc import IntegrityError
 import io
@@ -73,33 +74,44 @@ def public_registrations_view(token):
             except Exception:
                 activity = None
         else:
-            # fallback: slug-only match by slugifying activity.name
-            def slugify(text, maxlen=50):
-                if not text:
-                    return ''
-                t = text.lower()
-                t = re.sub(r"[^a-z0-9]+", '-', t)
-                t = t.strip('-')
-                if len(t) > maxlen:
-                    t = t[:maxlen].rstrip('-')
-                return t or ''
-
+            # First try DB lookup by public_slug column (normalize incoming ref)
+            target = canonical_slugify(token or '')
             try:
-                target = token or ''
-                for a in Activity.query.all():
+                a = Activity.query.filter_by(public_slug=target).first()
+                if a:
+                    activity = a
                     try:
-                        if slugify(getattr(a, 'name', '') or '') == target:
-                            activity = a
-                            try:
-                                activity_token_to_use = generate_public_token(
-                                    activity.id)
-                            except Exception:
-                                activity_token_to_use = None
-                            break
+                        activity_token_to_use = generate_public_token(
+                            activity.id)
                     except Exception:
-                        continue
+                        activity_token_to_use = None
             except Exception:
                 activity = None
+
+            if not activity:
+                # fallback: try matching by slugifying activity.name using the
+                # canonical server slugifier. Also allow a "compact" comparison
+                # where hyphens are removed to tolerate cases where an accented
+                # character in the incoming ref was replaced by a dash.
+                try:
+                    target = canonical_slugify(token or '')
+                    target_compact = target.replace('-', '')
+                    for a in Activity.query.all():
+                        try:
+                            name_slug = canonical_slugify(
+                                getattr(a, 'name', '') or '')
+                            if name_slug == target or name_slug.replace('-', '') == target_compact:
+                                activity = a
+                                try:
+                                    activity_token_to_use = generate_public_token(
+                                        activity.id)
+                                except Exception:
+                                    activity_token_to_use = None
+                                break
+                        except Exception:
+                            continue
+                except Exception:
+                    activity = None
 
     if not activity:
         return render_template('public/registrations_public.html', token_provided=True, token_invalid=True)
@@ -157,6 +169,15 @@ def public_registrations_view(token):
     except Exception:
         event_name = None
 
+    # Prefer to expose an event-level slug generated server-side when possible
+    event_slug = None
+    try:
+        if event_name:
+            # Use canonical slugify so frontend can trust the server-provided slug
+            event_slug = canonical_slugify(event_name)
+    except Exception:
+        event_slug = None
+
     # optional activity id from query string (used when redirected from event-level view)
     initial_activity = request.args.get('activity')
     # if request used an event-level token, expose it so the template can link back to the event list
@@ -199,6 +220,7 @@ def public_registrations_view(token):
         event_name=event_name,
         event_id=event_id,
         event_token=event_token_for_back,
+        event_slug=event_slug,
         initial_activity_id=initial_activity,
     )
 
@@ -222,37 +244,45 @@ def public_event_registrations_view(ref):
     activity = None
     activity_token_to_use = None
 
-    # Try to parse a leading numeric id (e.g. '123-my-event-slug')
-    m = re.match(r'^(\d+)(?:-.*)?$', ref or '')
-    if m:
-        try:
-            aid = int(m.group(1))
-            activity = db.session.get(Activity, aid)
-            if activity:
-                activity_token_to_use = generate_public_token(activity.id)
-        except Exception:
-            activity = None
-    else:
-        # Fallback: try slug-only match by comparing a simple slugified name.
-        def slugify(text, maxlen=50):
-            if not text:
-                return ''
-            t = text.lower()
-            t = re.sub(r"[^a-z0-9]+", '-', t)
-            t = t.strip('-')
-            if len(t) > maxlen:
-                t = t[:maxlen].rstrip('-')
-            return t or ''
+    # Prefer DB lookup by public_slug first (normalize incoming ref), then try
+    # a leading numeric id, and finally a fallback scanning by slugified name.
+    target = canonical_slugify(ref or '')
+    try:
+        a = Activity.query.filter_by(public_slug=target).first()
+        if a:
+            activity = a
+            activity_token_to_use = generate_public_token(activity.id)
+    except Exception:
+        activity = None
 
+    # If not found by slug, try parse a leading numeric id (e.g. '123-my-event-slug')
+    if not activity:
+        m = re.match(r'^(\d+)(?:-.*)?$', ref or '')
+        if m:
+            try:
+                aid = int(m.group(1))
+                a = db.session.get(Activity, aid)
+                if a:
+                    activity = a
+                    activity_token_to_use = generate_public_token(activity.id)
+            except Exception:
+                activity = None
+
+    # Final fallback: compare canonical slugified activity.name (also allow compact form)
+    if not activity:
         try:
-            target = ref or ''
-            # naive scan: usually fast because number of activities is small for public pages
+            target = canonical_slugify(ref or '')
+            target_compact = target.replace('-', '')
             for a in Activity.query.all():
                 try:
-                    if slugify(getattr(a, 'name', '') or '') == target:
+                    name_slug = canonical_slugify(getattr(a, 'name', '') or '')
+                    if name_slug == target or name_slug.replace('-', '') == target_compact:
                         activity = a
-                        activity_token_to_use = generate_public_token(
-                            activity.id)
+                        try:
+                            activity_token_to_use = generate_public_token(
+                                activity.id)
+                        except Exception:
+                            activity_token_to_use = None
                         break
                 except Exception:
                     continue
@@ -1409,25 +1439,30 @@ def api_export_registrations_xlsx():
 
     # If still no activity but client provided an activity_slug, resolve by slug
     if not activity and activity_slug:
-        def slugify(text, maxlen=80):
-            if not text:
-                return ''
-            t = text.lower()
-            t = re.sub(r"[^a-z0-9]+", '-', t)
-            t = t.strip('-')
-            if len(t) > maxlen:
-                t = t[:maxlen].rstrip('-')
-            return t or ''
-
+        target = str(activity_slug or '')
         try:
-            target = str(activity_slug or '')
-            for a in Activity.query.all():
-                try:
-                    if slugify(getattr(a, 'name', '') or '') == target:
-                        activity = a
-                        break
-                except Exception:
-                    continue
+            # Prefer direct DB lookup by public_slug
+            a = Activity.query.filter_by(public_slug=target).first()
+            if a:
+                activity = a
+            else:
+                def slugify(text, maxlen=80):
+                    if not text:
+                        return ''
+                    t = text.lower()
+                    t = re.sub(r"[^a-z0-9]+", '-', t)
+                    t = t.strip('-')
+                    if len(t) > maxlen:
+                        t = t[:maxlen].rstrip('-')
+                    return t or ''
+
+                for a in Activity.query.all():
+                    try:
+                        if slugify(getattr(a, 'name', '') or '') == target:
+                            activity = a
+                            break
+                    except Exception:
+                        continue
         except Exception:
             activity = None
 

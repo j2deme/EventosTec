@@ -60,8 +60,15 @@ def get_events():
         events = query.paginate(page=page, per_page=per_page, error_out=False)
 
         total = events.total or 0
+        items = events_schema.dump(events.items)
+        # Add public_url for items that have public_slug
+        for ev in items:
+            if isinstance(ev, dict) and ev.get('public_slug'):
+                ev['public_url'] = request.host_url.rstrip(
+                    '/') + '/public/event-registrations/' + ev['public_slug']
+
         return jsonify({
-            'events': events_schema.dump(events.items),
+            'events': items,
             'total': total,
             'pages': events.pages,
             'current_page': page,
@@ -90,9 +97,13 @@ def create_event():
         db.session.add(event)
         db.session.commit()
 
+        ev = event_schema.dump(event)
+        if isinstance(ev, dict) and ev.get('public_slug'):
+            ev['public_url'] = request.host_url.rstrip(
+                '/') + '/public/event-registrations/' + ev['public_slug']
         return jsonify({
             'message': 'Evento creado exitosamente',
-            'event': event_schema.dump(event)
+            'event': ev
         }), 201
 
     except Exception as e:
@@ -109,7 +120,11 @@ def get_event(event_id):
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
-        return jsonify({'event': event_schema.dump(event)}), 200
+        ev = event_schema.dump(event)
+        if isinstance(ev, dict) and ev.get('public_slug'):
+            ev['public_url'] = request.host_url.rstrip(
+                '/') + '/public/event-registrations/' + ev['public_slug']
+        return jsonify({'event': ev}), 200
 
     except Exception as e:
         return jsonify({'message': 'Error al obtener evento', 'error': str(e)}), 500
@@ -152,9 +167,13 @@ def update_event(event_id):
 
         db.session.commit()
 
+        ev = event_schema.dump(event)
+        if isinstance(ev, dict) and ev.get('public_slug'):
+            ev['public_url'] = request.host_url.rstrip(
+                '/') + '/public/event-registrations/' + ev['public_slug']
         return jsonify({
             'message': 'Evento actualizado exitosamente',
-            'event': event_schema.dump(event)
+            'event': ev
         }), 200
 
     except Exception as e:

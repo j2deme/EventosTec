@@ -8,6 +8,7 @@ from sqlalchemy import func
 from app.models.event import Event
 from app.models.registration import Registration
 from app.services import activity_service
+from app.utils.slug_utils import slugify, generate_unique_slug
 from app.utils.auth_helpers import require_admin, get_user_or_403
 from datetime import datetime, timezone
 from typing import cast, Iterable
@@ -174,6 +175,14 @@ def get_activities():
             counts = {r[0]: int(r[1]) for r in rows}
 
         dumped = _safe_dump_activities(activities.items)
+        # Añadir public_url si existe public_slug en la representación
+        for item in dumped:
+            try:
+                if isinstance(item, dict) and item.get('public_slug'):
+                    item['public_url'] = request.host_url.rstrip(
+                        '/') + '/public/registrations/' + item['public_slug']
+            except Exception:
+                pass
 
         # Adjuntar current_capacity (número de preregistros 'Registrado') a cada actividad
         # También añadimos un alias `current_registrations` para compatibilidad
@@ -215,6 +224,13 @@ def create_activity():
 
         data = activity_schema.load(payload)
 
+        # Accept optional manual public_slug from payload; normalize it
+        if 'public_slug' in payload and payload.get('public_slug'):
+            try:
+                data['public_slug'] = slugify(str(payload.get('public_slug')))
+            except Exception:
+                data['public_slug'] = None
+
         if 'start_datetime' in data:
             data['start_datetime'] = parse_datetime_with_timezone(
                 data['start_datetime'])
@@ -230,9 +246,13 @@ def create_activity():
         # Crear actividad
         activity = activity_service.create_activity(data)
 
+        act = activity_schema.dump(activity)
+        if isinstance(act, dict) and act.get('public_slug'):
+            act['public_url'] = request.host_url.rstrip(
+                '/') + '/public/registrations/' + act['public_slug']
         return jsonify({
             'message': 'Actividad creada exitosamente',
-            'activity': activity_schema.dump(activity)
+            'activity': act
         }), 201
 
     except ValidationError as err:
@@ -270,6 +290,10 @@ def get_activity(activity_id):
                 except Exception:
                     pass
 
+        # Añadir public_url si corresponde en la representación individual
+        if isinstance(dumped, dict) and dumped.get('public_slug'):
+            dumped['public_url'] = request.host_url.rstrip(
+                '/') + '/public/registrations/' + dumped['public_slug']
         return jsonify({'activity': dumped}), 200
 
     except Exception as e:
@@ -292,6 +316,13 @@ def update_activity(activity_id):
 
         data = activity_schema.load(payload, partial=True)
 
+        # Normalize public_slug if provided
+        if 'public_slug' in payload and payload.get('public_slug'):
+            try:
+                data['public_slug'] = slugify(str(payload.get('public_slug')))
+            except Exception:
+                data['public_slug'] = None
+
         # Parsear fechas con zona horaria si se proporcionan
         if 'start_datetime' in data:
             data['start_datetime'] = parse_datetime_with_timezone(
@@ -302,9 +333,13 @@ def update_activity(activity_id):
 
         activity = activity_service.update_activity(activity_id, data)
 
+        act = activity_schema.dump(activity)
+        if isinstance(act, dict) and act.get('public_slug'):
+            act['public_url'] = request.host_url.rstrip(
+                '/') + '/public/registrations/' + act['public_slug']
         return jsonify({
             'message': 'Actividad actualizada exitosamente',
-            'activity': activity_schema.dump(activity)
+            'activity': act
         }), 200
 
     except ValidationError as err:
@@ -312,6 +347,28 @@ def update_activity(activity_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'message': 'Error al actualizar actividad', 'error': str(e)}), 400
+
+
+@activities_bp.route('/generate-slug', methods=['POST'])
+@jwt_required()
+@require_admin
+def api_generate_slug():
+    """Generate a unique slug for a given name server-side.
+
+    Body: { name: <string>, maxlen: <int, optional> }
+    Returns: { slug: <unique-slug> }
+    """
+    try:
+        payload = request.get_json() or {}
+        name = payload.get('name') or ''
+        maxlen = int(payload.get('maxlen') or 200)
+        if not name:
+            return jsonify({'message': 'Name required'}), 400
+        slug = generate_unique_slug(
+            db.session, Activity, name, column='public_slug', maxlen=maxlen)
+        return jsonify({'slug': slug}), 200
+    except Exception as e:
+        return jsonify({'message': 'Error generando slug', 'error': str(e)}), 500
 
 # Eliminar actividad
 
