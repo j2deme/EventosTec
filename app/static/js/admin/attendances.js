@@ -57,6 +57,11 @@ function attendancesAdmin() {
     // Registration view modal
     showRegistrationModal: false,
     registrationModalData: null,
+    // Edit attendance modal state
+    showEditAttendanceModal: false,
+    // initialize as object to avoid Alpine binding errors when template renders
+    editAttendanceData: {},
+    editSubmitting: false,
     // Sync modal state
     showSyncModal: false,
     syncDryRun: true,
@@ -862,6 +867,139 @@ function attendancesAdmin() {
       this.openRegistrationModal(row);
     },
 
+    // Open editor for an attendance row.
+    // Opens a dedicated edit modal (showEditAttendanceModal) prefilled with
+    // attendance data. If the row has an associated registration the modal
+    // still opens and shows a link to view the registration.
+    openEditor(row) {
+      try {
+        if (!row) return;
+
+        // Build a normalized edit object with safe defaults
+        const edit = {
+          id: row.id || null,
+          attendance_id: row.id || null,
+          student_id: row.student_id || (row.student && row.student.id) || null,
+          student_name:
+            row.student_name || (row.student && row.student.full_name) || "",
+          student_identifier:
+            row.student_identifier ||
+            (row.student && row.student.control_number) ||
+            "",
+          activity_id: row.activity_id || null,
+          activity_name:
+            row.activity_name || (row.activity && row.activity.name) || "",
+          event_name:
+            row.event_name ||
+            (row.activity && row.activity.event && row.activity.event.name) ||
+            "",
+          registration_id: row.registration_id || null,
+          check_in_time: row.check_in_time || row.check_in_time_input || null,
+          check_out_time:
+            row.check_out_time || row.check_out_time_input || null,
+          mark_present: !!(
+            row.status === "present" ||
+            row.status === "Asistió" ||
+            row.mark_present
+          ),
+          notes: row.notes || "",
+        };
+
+        this.editAttendanceData = edit;
+        this.showEditAttendanceModal = true;
+      } catch (e) {
+        console.error("openEditor error", e);
+      }
+    },
+
+    closeEditModal() {
+      this.showEditAttendanceModal = false;
+      // keep as an empty object so bindings don't throw when modal hidden/shown
+      this.editAttendanceData = {};
+      this.editSubmitting = false;
+    },
+
+    async submitEdit() {
+      // Basic validation: need an attendance id and the underlying student/activity
+      if (!this.editAttendanceData || !this.editAttendanceData.id) {
+        window.showToast && window.showToast("Registro no válido", "error");
+        return;
+      }
+
+      if (
+        !this.editAttendanceData.student_id ||
+        !this.editAttendanceData.activity_id
+      ) {
+        window.showToast &&
+          window.showToast(
+            "Faltan student_id o activity_id necesarios para guardar",
+            "error"
+          );
+        return;
+      }
+
+      this.editSubmitting = true;
+      try {
+        // Build payload expected by /api/attendances/register
+        const payload = {
+          student_id: this.editAttendanceData.student_id,
+          activity_id: this.editAttendanceData.activity_id,
+        };
+
+        if (this.editAttendanceData.check_in_time)
+          payload.check_in_time = this.editAttendanceData.check_in_time;
+        if (this.editAttendanceData.check_out_time)
+          payload.check_out_time = this.editAttendanceData.check_out_time;
+        if (typeof this.editAttendanceData.mark_present !== "undefined")
+          payload.mark_present = !!this.editAttendanceData.mark_present;
+        if (this.editAttendanceData.notes)
+          payload.notes = this.editAttendanceData.notes;
+
+        // The backend does not expose PATCH for attendances; use the register
+        // endpoint which accepts student_id + activity_id and will create or
+        // update the existing attendance as appropriate.
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f("/api/attendances/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const body = res && res.json ? await res.json().catch(() => ({})) : {};
+        if (res && res.ok) {
+          const msg =
+            body.message ||
+            (res.status === 201
+              ? "Asistencia creada"
+              : "Asistencia actualizada");
+          window.showToast && window.showToast(msg, "success");
+          await this.refresh();
+          this.closeEditModal();
+          this.dispatchAttendanceChanged({
+            attendance_id: this.editAttendanceData.id,
+            activity_id: this.editAttendanceData.activity_id,
+            student_id: this.editAttendanceData.student_id,
+          });
+        } else {
+          window.showToast &&
+            window.showToast(
+              body.message || "Error al actualizar asistencia",
+              "error"
+            );
+        }
+      } catch (e) {
+        console.error("submitEdit error", e);
+        window.showToast &&
+          window.showToast(
+            "Error de conexión al actualizar asistencia",
+            "error"
+          );
+      } finally {
+        this.editSubmitting = false;
+      }
+    },
+
     closeRegistrationModal() {
       this.showRegistrationModal = false;
       this.registrationModalData = null;
@@ -900,7 +1038,12 @@ function attendancesAdmin() {
     },
 
     async pauseAttendance(row) {
-      if (!confirm("¿Pausar esta asistencia? Esto detiene el conteo de tiempo presente.")) return;
+      if (
+        !confirm(
+          "¿Pausar esta asistencia? Esto detiene el conteo de tiempo presente."
+        )
+      )
+        return;
 
       try {
         const res = await this.sf(`/api/attendances/pause`, {
@@ -936,7 +1079,12 @@ function attendancesAdmin() {
     },
 
     async resumeAttendance(row) {
-      if (!confirm("¿Reanudar esta asistencia? Esto continúa el conteo de tiempo presente.")) return;
+      if (
+        !confirm(
+          "¿Reanudar esta asistencia? Esto continúa el conteo de tiempo presente."
+        )
+      )
+        return;
 
       try {
         const res = await this.sf(`/api/attendances/resume`, {
@@ -1059,7 +1207,9 @@ function attendancesAdmin() {
 
           xhr.upload.onprogress = (ev) => {
             if (ev.lengthComputable) {
-              this.batchUploadProgress = Math.round((ev.loaded / ev.total) * 100);
+              this.batchUploadProgress = Math.round(
+                (ev.loaded / ev.total) * 100
+              );
             }
           };
 
