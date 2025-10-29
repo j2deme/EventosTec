@@ -16,6 +16,8 @@ class Event(db.Model):
         db.DateTime, server_default=db.func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=db.func.now(
     ), onupdate=db.func.now(), nullable=False)
+    # Public slug para URL pública (e.g. '45-aniversario-tec-valles')
+    public_slug = db.Column(db.String(200), nullable=True)
 
     # Relaciones
     activities = db.relationship(
@@ -35,7 +37,8 @@ class Event(db.Model):
             'end_date': safe_iso(self.end_date),
             'is_active': self.is_active,
             'created_at': safe_iso(self.created_at),
-            'updated_at': safe_iso(self.updated_at)
+            'updated_at': safe_iso(self.updated_at),
+            'public_slug': getattr(self, 'public_slug', None)
         }
 
     @classmethod

@@ -28,6 +28,8 @@ class Activity(db.Model):
         db.DateTime, server_default=db.func.now(), nullable=False)
     updated_at = db.Column(db.DateTime, server_default=db.func.now(
     ), onupdate=db.func.now(), nullable=False)
+    # Public slug para URL pública (e.g. 'atr-vete-a-innovar')
+    public_slug = db.Column(db.String(200), nullable=True)
 
     # Relaciones
     attendances = db.relationship(
@@ -93,6 +95,7 @@ class Activity(db.Model):
             out['target_audience'] = None
 
         out['knowledge_area'] = self.knowledge_area
+        out['public_slug'] = getattr(self, 'public_slug', None)
 
         return out
 
