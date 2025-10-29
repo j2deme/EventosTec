@@ -15,6 +15,7 @@ import unicodedata
 import difflib
 import re
 from datetime import datetime
+from app.utils.slug_utils import slugify, generate_unique_slug
 
 
 def validate_activity_dates(activity_data):
@@ -138,6 +139,18 @@ def create_activity(activity_data):
     for key, value in activity_data.items():
         setattr(activity, key, value)
 
+    # Handle public_slug: if not provided, generate from name
+    try:
+        if not getattr(activity, 'public_slug', None):
+            # generate a unique slug based on activity name
+            base_name = getattr(activity, 'name', '') or ''
+            if base_name:
+                activity.public_slug = generate_unique_slug(
+                    db.session, Activity, base_name, column='public_slug')
+    except Exception:
+        # best-effort: leave public_slug as None on failure
+        pass
+
     db.session.add(activity)
     db.session.commit()
 
@@ -218,6 +231,37 @@ def update_activity(activity_id, activity_data):
                     'Campo target_audience debe ser JSON serializable')
 
         setattr(activity, key, value)
+    # Special handling for public_slug when name changes
+    try:
+        # If name changed in payload
+        if 'name' in activity_data:
+            new_name = activity_data.get('name')
+            # canonical slug for new name
+            canonical_new = slugify(new_name or '')
+
+            current_slug = getattr(activity, 'public_slug', None)
+
+            # If there was no slug, generate one automatically
+            if not current_slug:
+                if new_name:
+                    activity.public_slug = generate_unique_slug(
+                        db.session, Activity, new_name, column='public_slug')
+            else:
+                # If current_slug equals canonical slug generated from previous name,
+                # then it wasn't manually edited -> update it to new canonical + uniqueness
+                # To detect previous canonical, compute from previous name by reversing: we don't have previous name here,
+                # so detect manual edit by comparing current_slug to slugify(new_name) and slugify(old_name) not available.
+                # Simpler heuristics: if current_slug == slugify(new_name) -> leave as is; if current_slug != slugify(new_name)
+                # and payload contains flag 'apply_generated_slug'==True, then replace; otherwise keep current_slug.
+                apply_flag = bool(activity_data.get(
+                    'apply_generated_slug', False))
+                if apply_flag and new_name:
+                    activity.public_slug = generate_unique_slug(
+                        db.session, Activity, new_name, column='public_slug')
+                # else: honor manual slug (do nothing)
+    except Exception:
+        # ignore slug generation failures and proceed with commit
+        pass
 
     db.session.commit()
     return activity
