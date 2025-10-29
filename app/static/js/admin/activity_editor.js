@@ -1,6 +1,9 @@
 // app/static/js/admin/activity_editor.js
 function activityEditorManager() {
   return {
+    slugChangePrompt: false,
+    _lastKnownSlug: null,
+    _applyGeneratedSlugFlag: false,
     visible: false,
     loading: false,
     saving: false,
@@ -44,6 +47,67 @@ function activityEditorManager() {
       };
       window.addEventListener("open-activity-editor", listener);
       this._openActivityEditorListener = listener;
+    },
+
+    onNameChange() {
+      // If editing and there is an existing public_slug that looks manual,
+      // show prompt asking whether to regenerate the slug.
+      try {
+        if (!this.editingActivity) return;
+        const cur = this.currentActivity || {};
+        const name = cur.name || "";
+        const slug = cur.public_slug || "";
+        // compute canonical slug locally (simple client-side normalization)
+        const canonical = (name || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[^a-z0-9\s-]/g, "")
+          .trim()
+          .replace(/\s+/g, "-");
+        // If slug exists and differs from canonical, it's likely manual -> prompt
+        if (slug && slug !== canonical && slug !== this._lastKnownSlug) {
+          this.slugChangePrompt = true;
+        } else {
+          this.slugChangePrompt = false;
+        }
+      } catch (e) {
+        // noop
+      }
+    },
+
+    async generateSlugFromName() {
+      // Call server-side generator for uniqueness
+      try {
+        const name = this.currentActivity && this.currentActivity.name;
+        if (!name) return;
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f("/api/activities/generate-slug", {
+          method: "POST",
+          body: JSON.stringify({ name }),
+        });
+        if (!res.ok) {
+          // ignore silently
+          return;
+        }
+        const j = await res.json();
+        if (j && j.slug) {
+          this.currentActivity.public_slug = j.slug;
+          this._lastKnownSlug = j.slug;
+          this.slugChangePrompt = false;
+        }
+      } catch (e) {
+        // ignore
+      }
+    },
+
+    applyGeneratedSlugChoice(apply) {
+      this.slugChangePrompt = false;
+      this._applyGeneratedSlugFlag = !!apply;
+      if (apply) {
+        // generate and apply immediately
+        this.generateSlugFromName();
+      }
     },
 
     async loadActivity(id) {
@@ -136,8 +200,9 @@ function activityEditorManager() {
     async saveActivity() {
       // Client-side guard: require an event association before saving
       if (!this.currentActivity || !this.currentActivity.event_id) {
-        this.errorMessage = 'Selecciona un evento antes de guardar la actividad.';
-        showToast(this.errorMessage, 'error');
+        this.errorMessage =
+          "Selecciona un evento antes de guardar la actividad.";
+        showToast(this.errorMessage, "error");
         return;
       }
       this.saving = true;

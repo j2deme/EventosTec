@@ -353,35 +353,12 @@ function eventsManager() {
         activities_by_type: event.activities_by_type || undefined,
       };
       this.showEventDetails = true;
-      // ensure we have the public token/url loaded, but prefer showing a slug URL immediately
-      try {
-        // build a slug-only path for the event and expose an absolute URL for copying/opening
-        const makeSlug = (s) =>
-          String(s || "")
-            .toString()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "")
-            .slice(0, 50);
-        const slug = makeSlug(
-          this.eventDetails.name || this.eventDetails.id || "evento"
-        );
-        const slugPath = `/public/event-registrations/${encodeURIComponent(
-          slug
-        )}`;
-        // prefer existing event.public_url if present, otherwise use the slug URL
-        if (!this.eventDetails.public_url) {
-          try {
-            this.eventDetails.public_url =
-              (window.location && window.location.origin
-                ? window.location.origin
-                : "") + slugPath;
-          } catch (e) {
-            this.eventDetails.public_url = slugPath;
-          }
-        }
-      } catch (e) {}
-      // still load the server-generated token in background (don't overwrite public_url)
+      // Do NOT fabricate slug-based URLs client-side. Prefer server-provided
+      // `public_url` when available. We will always try to load the server
+      // generated token/url in background; the UI should use `public_url` if
+      // present, otherwise `public_token_url` once the background call completes.
+      // This prevents divergence between frontend-generated slugs and the
+      // canonical server slugification.
       this.loadEventPublicToken(event.id);
     },
 
@@ -434,7 +411,9 @@ function eventsManager() {
     },
 
     copyEventPublicUrl() {
-      const url = this.eventDetails && this.eventDetails.public_url;
+      const url =
+        this.eventDetails &&
+        (this.eventDetails.public_url || this.eventDetails.public_token_url);
       if (!url) return;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard
@@ -458,7 +437,7 @@ function eventsManager() {
     },
 
     openEventPublicPanel() {
-      // Open the slug-based public URL by default (preferred). If not present, fall back to token URL.
+      // Open the slug-based public URL by default (preferred). If not present, fall back to server token URL.
       const url =
         this.eventDetails &&
         (this.eventDetails.public_url || this.eventDetails.public_token_url);

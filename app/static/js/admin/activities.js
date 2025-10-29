@@ -58,10 +58,16 @@ function activitiesManager() {
     showPanel: false,
     showDeleteModal: false,
     editingActivity: null,
+    // Flags para manejo de public_slug
+    slugChangePrompt: false,
+    _lastKnownSlug: null,
+    _applyGeneratedSlugFlag: false,
     currentActivity: {
       id: null,
       event_id: "",
       department: "",
+      // valor público editable por el admin
+      public_slug: "",
       name: "",
       description: "",
       start_datetime: "",
@@ -365,6 +371,8 @@ function activitiesManager() {
           department: this.currentActivity.department,
           name: this.currentActivity.name,
           description: this.currentActivity.description,
+          // Include public_slug if set (backend will generate if empty)
+          public_slug: this.currentActivity.public_slug || null,
           start_datetime: this.currentActivity.start_datetime,
           end_datetime: this.currentActivity.end_datetime,
           ...(this.currentActivity.duration_hours !== null &&
@@ -462,6 +470,8 @@ function activitiesManager() {
           department: this.currentActivity.department,
           name: this.currentActivity.name,
           description: this.currentActivity.description,
+          // always send the current public_slug value (null -> backend auto-generate)
+          public_slug: this.currentActivity.public_slug || null,
           start_datetime: this.currentActivity.start_datetime,
           end_datetime: this.currentActivity.end_datetime,
           duration_hours: parseFloat(this.currentActivity.duration_hours),
@@ -489,6 +499,13 @@ function activitiesManager() {
         const validationError = this.validateActivityDates(activityData);
         if (validationError) {
           throw new Error(validationError);
+        }
+
+        // Include apply_generated_slug flag when the editor indicated to apply server-generated slug
+        if (this._applyGeneratedSlugFlag) {
+          activityData.apply_generated_slug = true;
+          // reset flag after attaching to payload
+          this._applyGeneratedSlugFlag = false;
         }
 
         const f =
@@ -775,6 +792,8 @@ function activitiesManager() {
       }
       mapped.knowledge_area = activity.knowledge_area || "";
       this.currentActivity = mapped;
+      // inicializar tracking del slug
+      this._lastKnownSlug = activity.public_slug || null;
       this.updateDateLimits();
       // abrir panel/modal (compatibilidad)
       this.showModal = true;
@@ -795,6 +814,7 @@ function activitiesManager() {
         id: null,
         event_id: "",
         department: "",
+        public_slug: "",
         name: "",
         description: "",
         start_datetime: "",
@@ -823,6 +843,7 @@ function activitiesManager() {
         id: null,
         event_id: "",
         department: "",
+        public_slug: "",
         name: "",
         description: "",
         start_datetime: "",
@@ -872,6 +893,12 @@ function activitiesManager() {
           mapped.target_audience_careersList = [];
         }
         mapped.knowledge_area = act.knowledge_area || "";
+        // Track last known slug to detect manual edits vs canonical changes
+        try {
+          this._lastKnownSlug = act.public_slug || null;
+        } catch (e) {
+          this._lastKnownSlug = null;
+        }
         this.currentActivity = mapped;
         this.updateDateLimits();
         this.dateValidationError = "";

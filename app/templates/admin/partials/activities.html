@@ -61,22 +61,22 @@
                     <div class="mt-1 text-sm text-gray-600" x-text="activityToView?.description || '-'">-</div>
                   </div>
 
-                  <!-- Enlace de registro (token-based via /self-register/<token>) -->
+                  <!-- Enlace de registro (preferir SLUG: /public/registrations/<slug>) -->
                   <div class="mt-4">
                     <label class="block text-sm font-medium text-gray-700">Enlace de registro (token seguro para kiosco / QR)</label>
                     <div class="mt-2 flex flex-col sm:flex-row gap-2 items-start">
                       <div class="w-full space-y-2">
-                        <p class="text-sm text-gray-500" x-show="!tokenError">Este enlace contiene un token firmado. Puedes copiarlo o generar un QR para uso en kioscos.</p>
+                        <p class="text-sm text-gray-500" x-show="!tokenError">Este enlace público usa la vista por SLUG. Copia o abre el enlace para acceder a la vista pública.</p>
                         <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <label class="block text-xs text-gray-500">URL (path)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenUrl || (token ? (window.location.origin + '/self-register/' + token) : '')" @click="$el.select()" />
+                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                           </div>
                           <div>
                             <label class="block text-xs text-gray-500">URL alternativa (query)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenUrl ? ( (tokenUrl.split('?')[0] || tokenUrl) + '?token=' + (token ? encodeURIComponent(token) : '') ) : (token ? (window.location.origin + '/self-register?token=' + encodeURIComponent(token)) : '')" @click="$el.select()" />
+                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                           </div>
                         </div>
                       </div>
@@ -94,11 +94,11 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <label class="block text-xs text-gray-500">URL (path)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/') : (tokenPublic ? (window.location.origin + '/public/pause-attendance/' + encodeURIComponent(tokenPublic)) : '')" @click="$el.select()" />
+                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_pause_url || (activityToView.public_slug ? (window.location.origin + '/public/pause-attendance/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                           </div>
                           <div>
                             <label class="block text-xs text-gray-500">URL alternativa (query)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenPublic ? (window.location.origin + '/public/pause-attendance?token=' + encodeURIComponent(tokenPublic)) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/pause-attendance/?token=') : '')" @click="$el.select()" />
+                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_pause_url || (activityToView.public_slug ? (window.location.origin + '/public/pause-attendance/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                           </div>
                         </div>
                       </div>
@@ -113,11 +113,11 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
                             <label class="block text-xs text-gray-500">URL (path)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/') : (tokenPublic ? (window.location.origin + '/public/staff-walkin/' + encodeURIComponent(tokenPublic)) : '')" @click="$el.select()" />
+                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_staff_walkin_url || (activityToView.public_slug ? (window.location.origin + '/public/staff-walkin/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                           </div>
                           <div>
                             <label class="block text-xs text-gray-500">URL alternativa (query)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="tokenPublic ? (window.location.origin + '/public/staff-walkin?token=' + encodeURIComponent(tokenPublic)) : ((tokenUrlPublic && tokenUrlPublic.replace) ? tokenUrlPublic.replace('/public/registrations/','/public/staff-walkin/?token=') : '')" @click="$el.select()" />
+                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_staff_walkin_url || (activityToView.public_slug ? (window.location.origin + '/public/staff-walkin/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                           </div>
                         </div>
                       </div>
@@ -129,7 +129,7 @@
           </div>
           <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
             <button type="button" @click="showViewModal=false" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:ml-3 sm:w-auto sm:text-sm">Cerrar</button>
-            <button type="button" @click="(function(){ const url = tokenUrl || (token ? (window.location.origin + '/self-register/' + token) : ''); if(!url) return window.open(url, '_blank'); })()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Abrir enlace</button>
+            <button type="button" @click="(function(){ const slugUrl = (activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : ''))); if(!slugUrl) return; window.open(slugUrl, '_blank'); })()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Abrir enlace</button>
           </div>
         </div>
       </div>
@@ -840,9 +840,34 @@
                 type="text"
                 id="name"
                 x-model="currentActivity.name"
+                @input.debounce.300ms="onNameChange()"
                 required
                 class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
               />
+            </div>
+
+            <!-- Slug público editable -->
+            <div>
+              <label for="public_slug" class="block text-sm font-medium text-gray-700">Slug público (URL)</label>
+              <div class="mt-1 flex gap-2">
+                <input
+                  type="text"
+                  id="public_slug"
+                  x-model="currentActivity.public_slug"
+                  placeholder="ej. mi-actividad-innovadora"
+                  class="flex-1 block w-full border-gray-300 rounded-md p-2"
+                />
+                <button type="button" @click.prevent="generateSlugFromName()" class="px-3 py-1 bg-gray-100 rounded border">Generar</button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Si dejas este campo vacío, el sistema generará automáticamente un slug desde el nombre cuando guardes.</p>
+              <!-- Prompt cuando el nombre cambia y el slug parece manual -->
+              <div x-show="slugChangePrompt" class="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded text-sm flex items-center justify-between">
+                <div>El nombre cambió. ¿Deseas generar y aplicar un nuevo slug basado en el nombre o conservar el slug manual?</div>
+                <div class="flex gap-2">
+                  <button type="button" @click.prevent="applyGeneratedSlugChoice(true)" class="px-2 py-1 bg-indigo-600 text-white rounded">Generar y aplicar</button>
+                  <button type="button" @click.prevent="applyGeneratedSlugChoice(false)" class="px-2 py-1 border rounded">Conservar</button>
+                </div>
+              </div>
             </div>
 
             <!-- Área de conocimiento (compact) -->
