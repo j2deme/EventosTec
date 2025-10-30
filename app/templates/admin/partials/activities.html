@@ -61,24 +61,57 @@
                     <div class="mt-1 text-sm text-gray-600" x-text="activityToView?.description || '-'">-</div>
                   </div>
 
+                  <!-- Relaciones de actividad (resumen compacto) -->
+                  <div class="mt-4">
+                    <h4 class="text-sm font-medium text-gray-900">Relaciones</h4>
+                    <div class="mt-2 text-sm text-gray-700">
+                      <!-- Mostrar primero quien enlaza (incoming), luego a quién enlaza (outgoing) -->
+                      <template x-if="relationInfoFor(activityToView?.id) && ( (relationInfoFor(activityToView?.id).incoming.length) || (relationInfoFor(activityToView?.id).outgoing.length) )">
+                        <div class="space-y-2">
+                          <template x-if="relationInfoFor(activityToView?.id).incoming.length">
+                            <div>
+                              <div class="text-xs text-gray-600">Enlazada por:</div>
+                              <ul class="mt-1 ml-3 list-none text-gray-800 space-y-1">
+                                <template x-for="r in relationInfoFor(activityToView?.id).incoming" :key="r.id">
+                                  <li class="flex items-center gap-2">
+                                    <i class="ti ti-arrow-down-right text-blue-600" aria-hidden="true"></i>
+                                    <span class="text-gray-800" x-text="r.name"></span>
+                                  </li>
+                                </template>
+                              </ul>
+                            </div>
+                          </template>
+
+                          <template x-if="relationInfoFor(activityToView?.id).outgoing.length">
+                            <div>
+                              <div class="text-xs text-gray-600">Enlaza a:</div>
+                              <ul class="mt-1 ml-3 list-none text-gray-800 space-y-1">
+                                <template x-for="r in relationInfoFor(activityToView?.id).outgoing" :key="r.id">
+                                  <li class="flex items-center gap-2">
+                                    <i class="ti ti-arrow-up-right text-green-600" aria-hidden="true"></i>
+                                    <span class="text-gray-800" x-text="r.name"></span>
+                                  </li>
+                                </template>
+                              </ul>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <template x-if="relationInfoFor(activityToView?.id) && !( (relationInfoFor(activityToView?.id).incoming.length) || (relationInfoFor(activityToView?.id).outgoing.length) )">
+                        <div class="text-sm text-gray-500">Esta actividad no tiene relaciones con otras actividades.</div>
+                      </template>
+                    </div>
+                  </div>
+
                   <!-- Enlace de registro (preferir SLUG: /public/registrations/<slug>) -->
                   <div class="mt-4">
                     <label class="block text-sm font-medium text-gray-700">Enlace de registro (token seguro para kiosco / QR)</label>
-                    <div class="mt-2 flex flex-col sm:flex-row gap-2 items-start">
-                      <div class="w-full space-y-2">
-                        <p class="text-sm text-gray-500" x-show="!tokenError">Este enlace público usa la vista por SLUG. Copia o abre el enlace para acceder a la vista pública.</p>
-                        <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <div>
-                            <label class="block text-xs text-gray-500">URL (path)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
-                          </div>
-                          <div>
-                            <label class="block text-xs text-gray-500">URL alternativa (query)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
-                          </div>
-                        </div>
+                    <div class="mt-2">
+                      <p class="text-sm text-gray-500" x-show="!tokenError">Este enlace público usa la vista por SLUG. Copia o abre el enlace para acceder a la vista pública.</p>
+                      <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
+                      <div class="mt-2">
+                        <label class="block text-xs text-gray-500">URL (path)</label>
+                        <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                       </div>
                     </div>
                   </div>
@@ -86,21 +119,12 @@
                   <!-- Enlace público: Control de asistencia (vista de pausa/reanudar) -->
                   <div class="mt-4">
                     <label class="block text-sm font-medium text-gray-700">Control de asistencia (vista pública)</label>
-                    <div class="mt-2 flex flex-col sm:flex-row gap-2 items-start">
-                      <div class="w-full space-y-2">
-                        <p class="text-sm text-gray-500" x-show="!tokenError">Enlace público para pausar/reanudar asistencias (disponible sólo para actividades tipo "Magistral" durante la ventana de control).</p>
-                        <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
-
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <div>
-                            <label class="block text-xs text-gray-500">URL (path)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_pause_url || (activityToView.public_slug ? (window.location.origin + '/public/pause-attendance/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
-                          </div>
-                          <div>
-                            <label class="block text-xs text-gray-500">URL alternativa (query)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_pause_url || (activityToView.public_slug ? (window.location.origin + '/public/pause-attendance/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
-                          </div>
-                        </div>
+                    <div class="mt-2">
+                      <p class="text-sm text-gray-500" x-show="!tokenError">Enlace público para pausar/reanudar asistencias (disponible sólo para actividades tipo "Magistral" durante la ventana de control).</p>
+                      <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
+                      <div class="mt-2">
+                        <label class="block text-xs text-gray-500">URL (path)</label>
+                        <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_pause_url || (activityToView.public_slug ? (window.location.origin + '/public/pause-attendance/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                       </div>
                     </div>
                   </div>
@@ -108,18 +132,10 @@
                   <!-- Enlace staff: Registro rápido (vista mobile) -->
                   <div class="mt-3">
                     <label class="block text-sm font-medium text-gray-700">Vista staff (registro rápido)</label>
-                    <div class="mt-2 flex flex-col sm:flex-row gap-2 items-start">
-                      <div class="w-full space-y-2">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <div>
-                            <label class="block text-xs text-gray-500">URL (path)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_staff_walkin_url || (activityToView.public_slug ? (window.location.origin + '/public/staff-walkin/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
-                          </div>
-                          <div>
-                            <label class="block text-xs text-gray-500">URL alternativa (query)</label>
-                            <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_staff_walkin_url || (activityToView.public_slug ? (window.location.origin + '/public/staff-walkin/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
-                          </div>
-                        </div>
+                    <div class="mt-2">
+                      <div class="mt-2">
+                        <label class="block text-xs text-gray-500">URL (path)</label>
+                        <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_staff_walkin_url || (activityToView.public_slug ? (window.location.origin + '/public/staff-walkin/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                       </div>
                     </div>
                   </div>
@@ -655,13 +671,37 @@
                     class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
                   >
                     <div class="flex justify-end space-x-2">
-                      <button
-                        @click="viewActivity(activity)"
-                        class="text-indigo-600 hover:text-indigo-900"
-                        title="Ver detalles"
-                      >
-                        <i class="ti ti-eye"></i>
-                      </button>
+                        <!-- Relation indicator: single icon summarizing state -->
+                        <div class="flex items-center mr-2">
+                          <!-- Incoming only -->
+                          <template x-if="relationInfoFor(activity.id).incoming.length && !relationInfoFor(activity.id).outgoing.length">
+                            <span class="text-blue-600" :title="relationTooltip(activity.id)" aria-label="Enlazada por otras">
+                              <i class="ti ti-arrow-down-right" aria-hidden="true"></i>
+                            </span>
+                          </template>
+
+                          <!-- Outgoing only -->
+                          <template x-if="relationInfoFor(activity.id).outgoing.length && !relationInfoFor(activity.id).incoming.length">
+                            <span class="text-green-600" :title="relationTooltip(activity.id)" aria-label="Apunta a otra actividad">
+                              <i class="ti ti-arrow-up-right" aria-hidden="true"></i>
+                            </span>
+                          </template>
+
+                          <!-- Both incoming and outgoing (chain middle) -->
+                          <template x-if="relationInfoFor(activity.id).incoming.length && relationInfoFor(activity.id).outgoing.length">
+                            <span class="text-amber-600" :title="relationTooltip(activity.id)" aria-label="Enlaza y es enlazada">
+                              <i class="ti ti-arrows-cross" aria-hidden="true"></i>
+                            </span>
+                          </template>
+                        </div>
+
+                        <button
+                          @click="viewActivity(activity)"
+                          class="text-indigo-600 hover:text-indigo-900"
+                          title="Ver detalles"
+                        >
+                          <i class="ti ti-eye"></i>
+                        </button>
                       <button
                         @click="openEditModal(activity)"
                         class="text-indigo-600 hover:text-indigo-900"
@@ -1198,6 +1238,69 @@
                   >
                     Agregar
                   </button>
+                </div>
+              </div>
+            </div>
+            <!-- Actividades relacionadas (enlaces salientes e entrantes) -->
+            <div class="mt-4">
+              <h4 class="text-sm font-medium text-gray-900">Actividades relacionadas</h4>
+              <p class="text-xs text-gray-500 mt-1">Aquí puedes enlazar esta actividad hacia otra (cadena C → B → A). Una actividad sólo puede enlazarse a UNA otra a la vez.</p>
+
+              <div class="mt-3 space-y-2">
+                <!-- Enlaces salientes (esta actividad → otra) -->
+                <div>
+                  <div class="text-xs text-gray-600">Enlaza a (saliente):</div>
+                  <template x-if="relatedActivities && relatedActivities.length">
+                    <ul class="mt-2 space-y-1">
+                      <template x-for="ra in relatedActivities" :key="ra.id">
+                        <li class="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <div class="text-sm text-gray-900" x-text="ra.name"></div>
+                          <div class="flex items-center gap-2">
+                            <button type="button" @click.prevent="unlinkAndRefresh(ra.id)" class="text-sm text-red-600 hover:text-red-800">Desenlazar</button>
+                          </div>
+                        </li>
+                      </template>
+                    </ul>
+                  </template>
+                  <template x-if="!relatedActivities || relatedActivities.length === 0">
+                    <div class="mt-2 text-sm text-gray-500">Esta actividad no enlaza a ninguna otra.</div>
+                  </template>
+                </div>
+
+                <!-- Enlaces entrantes (otras → esta actividad) -->
+                <div>
+                  <div class="text-xs text-gray-600">Enlazada por (entrante):</div>
+                  <template x-if="(activityRelations && activityRelations.length)">
+                    <ul class="mt-2 space-y-1">
+                      <template x-for="a in (activityRelations.filter(x => (x.related_activities || []).some(r => r.id === currentActivity.id)))" :key="a.id">
+                        <li class="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <div class="text-sm text-gray-900" x-text="a.name"></div>
+                        </li>
+                      </template>
+                    </ul>
+                  </template>
+                </div>
+
+                <!-- Selector para enlazar a otra actividad (solo disponibles en mismo evento y no ya enlazadas) -->
+                <div class="pt-2 border-t">
+                  <label class="block text-xs text-gray-600">Enlazar a otra actividad</label>
+                  <div class="mt-2 flex gap-2 items-center">
+                    <select x-model="selectedToLink" class="block w-full p-2 border rounded" :disabled="(relatedActivities && relatedActivities.length > 0)">
+                      <option value="">Seleccionar actividad...</option>
+                      <template x-for="a in getAvailableActivities()" :key="a.id">
+                        <option :value="a.id" x-text="a.name + ' — ' + (a.datesString || '')"></option>
+                      </template>
+                    </select>
+                    <button type="button" @click.prevent="linkAndRefresh()" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded disabled:opacity-50" :disabled="!selectedToLink || (relatedActivities && relatedActivities.length > 0)">Enlazar</button>
+                  </div>
+                  <div class="mt-2 text-xs text-gray-500">
+                    <template x-if="relatedActivities && relatedActivities.length > 0">
+                      <div>Esta actividad ya enlaza a otra. Elimina el enlace existente para enlazar a una distinta.</div>
+                    </template>
+                    <template x-if="!(relatedActivities && relatedActivities.length > 0)">
+                      <div>Selecciona sólo actividades del mismo evento. No se listan actividades que ya están enlazadas por otra.</div>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>

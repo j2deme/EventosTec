@@ -1095,6 +1095,37 @@ function activitiesManager() {
       return data.related_activities || [];
     },
 
+    // Obtener información de relaciones (outgoing/incoming) para una actividad
+    relationInfoFor(activityId) {
+      const entry = (this.activityRelations || []).find(
+        (a) => String(a.id) === String(activityId)
+      );
+      if (!entry) return { outgoing: [], incoming: [] };
+      return {
+        outgoing: Array.isArray(entry.related_activities)
+          ? entry.related_activities
+          : [],
+        incoming: Array.isArray(entry.linked_by) ? entry.linked_by : [],
+      };
+    },
+
+    // Texto breve para tooltip describiendo la relación
+    relationTooltip(activityId) {
+      const info = this.relationInfoFor(activityId);
+      const parts = [];
+      if (info.outgoing && info.outgoing.length) {
+        parts.push(
+          "Enlaza a: " + info.outgoing.map((r) => r.name || r.id).join(", ")
+        );
+      }
+      if (info.incoming && info.incoming.length) {
+        parts.push(
+          "Enlazada por: " + info.incoming.map((r) => r.name || r.id).join(", ")
+        );
+      }
+      return parts.join(" | ");
+    },
+
     // Enlazar actividad
     async linkActivity(activityId, relatedId) {
       const f =
@@ -1122,27 +1153,59 @@ function activitiesManager() {
       if (typeof showToast === "function")
         showToast("Actividades desenlazadas exitosamente", "success");
     },
+
+    // Helpers that perform the link/unlink and refresh related lists/UI
+    async linkAndRefresh() {
+      if (!this.currentActivity || !this.currentActivity.id) return;
+      if (!this.selectedToLink) {
+        showToast &&
+          showToast("Selecciona una actividad para enlazar", "error");
+        return;
+      }
+      try {
+        await this.linkActivity(this.currentActivity.id, this.selectedToLink);
+        // refresh related lists and global relations
+        await this.loadRelatedActivities(this.currentActivity.id);
+        await this.loadActivityRelations();
+        await this.loadActivities(this.pagination.current_page || 1);
+        this.selectedToLink = "";
+      } catch (e) {
+        console.error("linkAndRefresh error", e);
+        showToast && showToast(e.message || "Error al enlazar", "error");
+      }
+    },
+
+    async unlinkAndRefresh(relatedId) {
+      if (!this.currentActivity || !this.currentActivity.id) return;
+      try {
+        await this.unlinkActivity(this.currentActivity.id, relatedId);
+        await this.loadRelatedActivities(this.currentActivity.id);
+        await this.loadActivityRelations();
+        await this.loadActivities(this.pagination.current_page || 1);
+      } catch (e) {
+        console.error("unlinkAndRefresh error", e);
+        showToast && showToast(e.message || "Error al desenlazar", "error");
+      }
+    },
     getAvailableActivities() {
-      // Usar activityRelations para saber si una actividad está enlazada como A o B
-      const linkedIds = new Set();
+      // Excluir actividades que ya tienen enlaces entrantes (ya son target de otra)
+      // y excluir la misma actividad actual.
+      const excludedTargets = new Set();
       this.activityRelations.forEach((act) => {
-        if (
-          (act.related_activities && act.related_activities.length > 0) ||
-          (act.linked_by && act.linked_by.length > 0)
-        ) {
-          linkedIds.add(act.id);
-        }
-        if (Array.isArray(act.related_activities)) {
-          act.related_activities.forEach((rel) => linkedIds.add(rel.id));
-        }
-        if (Array.isArray(act.linked_by)) {
-          act.linked_by.forEach((rel) => linkedIds.add(rel.id));
+        // Si `act` tiene linked_by no vacío, significa que otra actividad ya
+        // enlaza a `act` (act es target) — excluir de la lista de targets.
+        if (Array.isArray(act.linked_by) && act.linked_by.length > 0) {
+          excludedTargets.add(act.id);
         }
       });
-      return this.activityRelations.filter(
-        (a) =>
-          a.event_id === this.currentActivity.event_id && !linkedIds.has(a.id)
-      );
+
+      return this.activityRelations.filter((a) => {
+        if (a.event_id !== this.currentActivity.event_id) return false;
+        if (!this.currentActivity || !this.currentActivity.id) return false;
+        if (a.id === this.currentActivity.id) return false; // no enlazar a sí mismo
+        if (excludedTargets.has(a.id)) return false; // ya es target de otro
+        return true;
+      });
     },
 
     // Cargar relaciones de actividades (A y B)

@@ -596,9 +596,45 @@ def add_related_activity(activity_id):
     # Solo permitir enlazar actividades del mismo evento
     if activity.event_id != related.event_id:
         return jsonify({'message': 'Solo se pueden enlazar actividades del mismo evento.'}), 400
-    if related in list(cast(Iterable, activity.related_activities)):
+    # Enforce single outgoing link: una actividad sólo puede enlazarse a UNA otra
+    existing_outgoing = list(cast(Iterable, activity.related_activities))
+    if existing_outgoing and len(existing_outgoing) > 0:
+        # If the existing link is exactly the same as requested, return a duplicate message
+        if related in existing_outgoing:
+            return jsonify({'message': 'Las actividades ya están enlazadas'}), 400
+        return jsonify({'message': 'Esta actividad ya está enlazada a otra. Quita el enlace existente antes de añadir uno nuevo.'}), 400
+    if related in existing_outgoing:
         return jsonify({'message': 'Las actividades ya están enlazadas'}), 400
     try:
+        # Protección extra: evitar crear ciclos en la grafo de relaciones.
+        # Si a partir de `related` se puede alcanzar `activity`, crear el enlace
+        # produciría un ciclo (por ejemplo: A <- ... <- related -> A). Rechazar.
+        def _creates_cycle(start_id, target_id):
+            # DFS desde start_id buscando target_id
+            seen = set()
+            stack = [start_id]
+            while stack:
+                cur = stack.pop()
+                if cur in seen:
+                    continue
+                seen.add(cur)
+                if cur == target_id:
+                    return True
+                node = db.session.get(Activity, cur)
+                if not node:
+                    continue
+                try:
+                    for r in getattr(node, 'related_activities', []) or []:
+                        rid = getattr(r, 'id', None)
+                        if rid and rid not in seen:
+                            stack.append(rid)
+                except Exception:
+                    # Si hay algún problema al navegar relaciones, no asumir ciclo
+                    continue
+
+        if _creates_cycle(related.id, activity.id):
+            return jsonify({'message': 'Enlazar crearía un ciclo de relaciones; operación rechazada.'}), 400
+
         activity.related_activities.append(related)
         db.session.commit()
     except pymysql.err.OperationalError as e:
