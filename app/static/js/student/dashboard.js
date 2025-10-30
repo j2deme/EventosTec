@@ -122,6 +122,7 @@ function studentDashboard() {
         "events",
         "event_activities",
         "registrations",
+        "history",
         "profile",
       ];
       const isValid = validTabs.includes(tabId);
@@ -238,6 +239,24 @@ function studentDashboard() {
                 "function"
               ) {
                 await activitiesManager.refreshCurrentEventActivities();
+              }
+            }
+            break;
+
+          case "history":
+            // Forzar la carga del histórico cuando el usuario cambia a la pestaña
+            // (cubre el caso en que el manager no haya podido cargar en init)
+            const historyElement = document.querySelector(
+              '[x-data*="studentHistoryManager"]'
+            );
+            if (historyElement && historyElement.__x) {
+              const historyManager = historyElement.__x.getUnobservedData();
+              if (typeof historyManager.loadHistory === "function") {
+                try {
+                  await historyManager.loadHistory();
+                } catch (err) {
+                  console.error("Error forcing history load:", err);
+                }
               }
             }
             break;

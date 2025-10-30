@@ -329,7 +329,6 @@ def get_student_hours_by_event(student_id):
         ).order_by(
             Event.start_date.desc()
         ).all()
-
         events_hours = []
         app_tz = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
         for row in results:
@@ -355,6 +354,56 @@ def get_student_hours_by_event(student_id):
                 'activities_count': row.activities_count,
                 'has_complementary_credit': has_credit
             })
+        # Si no se encontraron resultados por Registration (p. ej. se registró
+        # asistencia directamente en la tabla attendances), hacer un fallback
+        # que calcule horas sumando las actividades relacionadas a partir de
+        # la tabla Attendance.
+        if len(events_hours) == 0:
+            from app.models.attendance import Attendance
+
+            attendance_results = db.session.query(
+                Event.id.label('event_id'),
+                Event.name.label('event_name'),
+                Event.start_date.label('event_start_date'),
+                Event.end_date.label('event_end_date'),
+                func.sum(Activity.duration_hours).label('total_hours'),
+                func.count(Activity.id).label('activities_count')
+            ).join(
+                Activity, Activity.event_id == Event.id
+            ).join(
+                Attendance, Attendance.activity_id == Activity.id
+            ).filter(
+                Attendance.student_id == student_id,
+                Attendance.status == 'Asistió'
+            ).group_by(
+                Event.id, Event.name, Event.start_date, Event.end_date
+            ).order_by(
+                Event.start_date.desc()
+            ).all()
+
+            for row in attendance_results:
+                total_hours = float(row.total_hours or 0)
+                has_credit = total_hours >= 10.0
+                try:
+                    es = localize_naive_datetime(row.event_start_date, app_tz) if getattr(
+                        row, 'event_start_date', None) is not None else None
+                except Exception:
+                    es = None
+                try:
+                    ee = localize_naive_datetime(row.event_end_date, app_tz) if getattr(
+                        row, 'event_end_date', None) is not None else None
+                except Exception:
+                    ee = None
+
+                events_hours.append({
+                    'event_id': row.event_id,
+                    'event_name': row.event_name,
+                    'event_start_date': safe_iso(es) if es else None,
+                    'event_end_date': safe_iso(ee) if ee else None,
+                    'total_hours': total_hours,
+                    'activities_count': row.activities_count,
+                    'has_complementary_credit': has_credit
+                })
 
         return jsonify({
             'student': student_schema.dump(student),
@@ -454,6 +503,95 @@ def get_student_event_details(student_id, event_id):
             })
 
         has_credit = total_confirmed_hours >= 10.0
+
+        # ---- Integrar registros desde Attendance (walk-ins o asistencias directas) ----
+        try:
+            from app.models.attendance import Attendance
+
+            # Mapear activities_detail por activity_id para facilitar actualizaciones
+            activity_index = {a['activity_id']: idx for idx,
+                              a in enumerate(activities_detail)}
+
+            attendance_rows = db.session.query(Attendance).join(
+                Activity, Activity.id == Attendance.activity_id
+            ).filter(
+                Attendance.student_id == student_id,
+                Activity.event_id == event_id
+            ).all()
+
+            for att in attendance_rows:
+                # Resolver la actividad
+                try:
+                    activity = getattr(att, 'activity', None) or db.session.get(
+                        Activity, getattr(att, 'activity_id', None))
+                except Exception:
+                    activity = None
+
+                if not activity:
+                    continue
+
+                hours = float(activity.duration_hours or 0)
+
+                # Si ya existe una entrada por registration, actualizar estado/horas
+                if activity.id in activity_index:
+                    idx = activity_index[activity.id]
+                    existing = activities_detail[idx]
+                    # Si la asistencia confirma la participación y el registro no lo hacía,
+                    # actualizar el estado y sumar las horas al total confirmado.
+                    if att.status == 'Asistió' and existing.get('status') != 'Asistió':
+                        existing['status'] = 'Asistió'
+                        total_confirmed_hours += hours
+                    # Añadir metadatos de attendance si procede
+                    existing['attendance_id'] = att.id
+                    existing['attendance_percentage'] = getattr(
+                        att, 'attendance_percentage', None)
+                    existing['check_in_time'] = safe_iso(att.check_in_time) if getattr(
+                        att, 'check_in_time', None) else None
+                    existing['check_out_time'] = safe_iso(att.check_out_time) if getattr(
+                        att, 'check_out_time', None) else None
+                else:
+                    # Entrada basada únicamente en Attendance
+                    try:
+                        sdt = localize_naive_datetime(activity.start_datetime, current_app.config.get(
+                            'APP_TIMEZONE', 'America/Mexico_City')) if getattr(activity, 'start_datetime', None) is not None else None
+                    except Exception:
+                        sdt = None
+                    try:
+                        edt = localize_naive_datetime(activity.end_datetime, current_app.config.get(
+                            'APP_TIMEZONE', 'America/Mexico_City')) if getattr(activity, 'end_datetime', None) is not None else None
+                    except Exception:
+                        edt = None
+
+                    att_entry = {
+                        'registration_id': att.id,
+                        'activity_id': activity.id,
+                        'activity_name': activity.name,
+                        'activity_type': activity.activity_type,
+                        'start_datetime': safe_iso(sdt) if sdt else None,
+                        'end_datetime': safe_iso(edt) if edt else None,
+                        'duration_hours': hours,
+                        'location': activity.location,
+                        'status': att.status,
+                        'registration_date': None,
+                        'confirmation_date': None,
+                        'attendance_id': att.id,
+                        'attendance_percentage': getattr(att, 'attendance_percentage', None),
+                        'check_in_time': safe_iso(att.check_in_time) if getattr(att, 'check_in_time', None) else None,
+                        'check_out_time': safe_iso(att.check_out_time) if getattr(att, 'check_out_time', None) else None,
+                    }
+                    activities_detail.append(att_entry)
+                    if att.status == 'Asistió':
+                        total_confirmed_hours += hours
+
+            # Reordenar activities_detail por start_datetime asc
+            try:
+                activities_detail.sort(
+                    key=lambda x: x.get('start_datetime') or '')
+            except Exception:
+                pass
+        except Exception:
+            # No bloquear en caso de error de fallback
+            pass
 
         try:
             ev_s = localize_naive_datetime(event.start_date, current_app.config.get(
