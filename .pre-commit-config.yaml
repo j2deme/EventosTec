@@ -17,4 +17,4 @@ repos:
     rev: v3.0.0
     hooks:
       - id: prettier
-        files: "\.(js|json|md|css)$"
+        files: '\.(js|json|md|css)$'
