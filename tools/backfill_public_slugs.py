@@ -55,8 +55,11 @@ def run(commit=False):
 
         for Model in (Event, Activity):
             print(f"Processing {Model.__tablename__}...")
+            # Use filter with is_(None) for proper NULL comparison in SQLAlchemy
             missing = (
-                session.query(Model).filter(getattr(Model, "public_slug") is None).all()
+                session.query(Model)
+                .filter(getattr(Model, "public_slug").is_(None))
+                .all()
             )
             print(f"  Found {len(missing)} records without public_slug")
             for obj in missing:
