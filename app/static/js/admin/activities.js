@@ -43,6 +43,10 @@ function activitiesManager() {
     // Public (chief) token state
     tokenUrlPublic: "",
     tokenPublic: "",
+    // Pause-attendance URL (for Magistral activities)
+    tokenUrlPause: "",
+    // Staff-walkin URL (for Magistral activities)
+    tokenUrlStaffWalkin: "",
     tokenLoading: false,
     tokenError: "",
     // Batch import modal
@@ -58,10 +62,16 @@ function activitiesManager() {
     showPanel: false,
     showDeleteModal: false,
     editingActivity: null,
+    // Flags para manejo de public_slug
+    slugChangePrompt: false,
+    _lastKnownSlug: null,
+    _applyGeneratedSlugFlag: false,
     currentActivity: {
       id: null,
       event_id: "",
       department: "",
+      // valor público editable por el admin
+      public_slug: "",
       name: "",
       description: "",
       start_datetime: "",
@@ -146,7 +156,7 @@ function activitiesManager() {
         const response = await f(url);
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar actividades: ${response && response.status}`
+            `Error al cargar actividades: ${response && response.status}`,
           );
 
         const data = await response.json();
@@ -155,7 +165,7 @@ function activitiesManager() {
           const act = {
             ...activity,
             start_datetime: this.formatDateTimeForInput(
-              activity.start_datetime
+              activity.start_datetime,
             ),
             end_datetime: this.formatDateTimeForInput(activity.end_datetime),
           };
@@ -198,14 +208,14 @@ function activitiesManager() {
               const sameDay = s.isSame(e, "day");
               if (sameDay) {
                 act.datesString = `${s.format("DD/MM/YY")} ${s.format(
-                  "h:mm A"
+                  "h:mm A",
                 )} - ${e.format("h:mm A")}`;
               } else {
                 // Mostrar rango de días y mes abreviado en español (MMM)
                 act.datesString = `${s.format("D")} - ${e.format(
-                  "D"
+                  "D",
                 )} / ${s.format("MMM/YY")} ${s.format("h:mm A")} - ${e.format(
-                  "h:mm A"
+                  "h:mm A",
                 )}`;
               }
             } else if (hasDayjs && s && s.isValid()) {
@@ -238,16 +248,16 @@ function activitiesManager() {
                   sd.getDate() === ed.getDate();
                 if (sameDay) {
                   act.datesString = `${day(sd)}/${month(sd)}/${year2(
-                    sd
+                    sd,
                   )} ${time12(sd)} - ${time12(ed)}`;
                 } else {
                   act.datesString = `${day(sd)} - ${day(ed)} / ${month(
-                    sd
+                    sd,
                   )}/${year2(sd)} ${time12(sd)} - ${time12(ed)}`;
                 }
               } else if (sd && !isNaN(sd)) {
                 act.datesString = `${day(sd)}/${month(sd)}/${year2(
-                  sd
+                  sd,
                 )} ${time12(sd)}`;
               } else {
                 act.datesString = "Sin fecha";
@@ -296,7 +306,7 @@ function activitiesManager() {
         const response = await f("/api/events/");
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar eventos: ${response && response.status}`
+            `Error al cargar eventos: ${response && response.status}`,
           );
         const data = await response.json();
         this.events = Array.isArray(data) ? data : data.events || [];
@@ -332,7 +342,7 @@ function activitiesManager() {
 
       if (this.currentActivity.event_id) {
         const selectedEvent = this.events.find(
-          (e) => String(e.id) === String(this.currentActivity.event_id)
+          (e) => String(e.id) === String(this.currentActivity.event_id),
         );
 
         if (selectedEvent) {
@@ -365,6 +375,8 @@ function activitiesManager() {
           department: this.currentActivity.department,
           name: this.currentActivity.name,
           description: this.currentActivity.description,
+          // Include public_slug if set (backend will generate if empty)
+          public_slug: this.currentActivity.public_slug || null,
           start_datetime: this.currentActivity.start_datetime,
           end_datetime: this.currentActivity.end_datetime,
           ...(this.currentActivity.duration_hours !== null &&
@@ -383,7 +395,7 @@ function activitiesManager() {
           target_audience: {
             general: !!this.currentActivity.target_audience_general,
             careers: Array.isArray(
-              this.currentActivity.target_audience_careersList
+              this.currentActivity.target_audience_careersList,
             )
               ? this.currentActivity.target_audience_careersList
               : [],
@@ -409,7 +421,7 @@ function activitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear actividad: ${response.status} ${response.statusText}`
+              `Error al crear actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -425,7 +437,7 @@ function activitiesManager() {
               action: "created",
               eventId: newActivity.id,
             },
-          })
+          }),
         );
 
         showToast("Actividad creada exitosamente", "success");
@@ -452,7 +464,7 @@ function activitiesManager() {
         // Validación: event_id es obligatorio
         if (!this.currentActivity || !this.currentActivity.event_id) {
           throw new Error(
-            "Seleccione un evento antes de actualizar la actividad"
+            "Seleccione un evento antes de actualizar la actividad",
           );
         }
 
@@ -462,6 +474,8 @@ function activitiesManager() {
           department: this.currentActivity.department,
           name: this.currentActivity.name,
           description: this.currentActivity.description,
+          // always send the current public_slug value (null -> backend auto-generate)
+          public_slug: this.currentActivity.public_slug || null,
           start_datetime: this.currentActivity.start_datetime,
           end_datetime: this.currentActivity.end_datetime,
           duration_hours: parseFloat(this.currentActivity.duration_hours),
@@ -476,7 +490,7 @@ function activitiesManager() {
           target_audience: {
             general: !!this.currentActivity.target_audience_general,
             careers: Array.isArray(
-              this.currentActivity.target_audience_careersList
+              this.currentActivity.target_audience_careersList,
             )
               ? this.currentActivity.target_audience_careersList
               : [],
@@ -491,6 +505,13 @@ function activitiesManager() {
           throw new Error(validationError);
         }
 
+        // Include apply_generated_slug flag when the editor indicated to apply server-generated slug
+        if (this._applyGeneratedSlugFlag) {
+          activityData.apply_generated_slug = true;
+          // reset flag after attaching to payload
+          this._applyGeneratedSlugFlag = false;
+        }
+
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(`/api/activities/${this.currentActivity.id}`, {
@@ -502,7 +523,7 @@ function activitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar actividad: ${response.status} ${response.statusText}`
+              `Error al actualizar actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -518,7 +539,7 @@ function activitiesManager() {
               action: "updated",
               eventId: updatedActivity.id,
             },
-          })
+          }),
         );
 
         showToast("Actividad actualizada exitosamente", "success");
@@ -546,14 +567,14 @@ function activitiesManager() {
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(
           `/api/activities/${this.activityToDelete.id}`,
-          { method: "DELETE" }
+          { method: "DELETE" },
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar actividad: ${response.status} ${response.statusText}`
+              `Error al eliminar actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -570,7 +591,7 @@ function activitiesManager() {
               action: "deleted",
               eventId: deletedId,
             },
-          })
+          }),
         );
 
         showToast("Actividad eliminada exitosamente", "success");
@@ -757,15 +778,15 @@ function activitiesManager() {
       mapped.speakersList = Array.isArray(activity.speakers)
         ? activity.speakers
         : activity.speakers
-        ? Array.isArray(activity.speakers)
-          ? activity.speakers
-          : []
-        : [];
+          ? Array.isArray(activity.speakers)
+            ? activity.speakers
+            : []
+          : [];
 
       if (activity.target_audience) {
         mapped.target_audience_general = !!activity.target_audience.general;
         mapped.target_audience_careersList = Array.isArray(
-          activity.target_audience.careers
+          activity.target_audience.careers,
         )
           ? activity.target_audience.careers
           : [];
@@ -775,6 +796,8 @@ function activitiesManager() {
       }
       mapped.knowledge_area = activity.knowledge_area || "";
       this.currentActivity = mapped;
+      // inicializar tracking del slug
+      this._lastKnownSlug = activity.public_slug || null;
       this.updateDateLimits();
       // abrir panel/modal (compatibilidad)
       this.showModal = true;
@@ -795,6 +818,7 @@ function activitiesManager() {
         id: null,
         event_id: "",
         department: "",
+        public_slug: "",
         name: "",
         description: "",
         start_datetime: "",
@@ -823,6 +847,7 @@ function activitiesManager() {
         id: null,
         event_id: "",
         department: "",
+        public_slug: "",
         name: "",
         description: "",
         start_datetime: "",
@@ -854,7 +879,7 @@ function activitiesManager() {
         const response = await f(`/api/activities/${this.currentActivity.id}`);
         if (!response || !response.ok)
           throw new Error(
-            `Error al recargar actividad: ${response && response.status}`
+            `Error al recargar actividad: ${response && response.status}`,
           );
         const data = await response.json();
         const act = data.activity || data;
@@ -863,7 +888,7 @@ function activitiesManager() {
         if (act.target_audience) {
           mapped.target_audience_general = !!act.target_audience.general;
           mapped.target_audience_careersList = Array.isArray(
-            act.target_audience.careers
+            act.target_audience.careers,
           )
             ? act.target_audience.careers
             : [];
@@ -872,6 +897,12 @@ function activitiesManager() {
           mapped.target_audience_careersList = [];
         }
         mapped.knowledge_area = act.knowledge_area || "";
+        // Track last known slug to detect manual edits vs canonical changes
+        try {
+          this._lastKnownSlug = act.public_slug || null;
+        } catch (e) {
+          this._lastKnownSlug = null;
+        }
         this.currentActivity = mapped;
         this.updateDateLimits();
         this.dateValidationError = "";
@@ -923,7 +954,38 @@ function activitiesManager() {
       this.tokenError = "";
       this.tokenUrlPublic = "";
       this.tokenPublic = "";
+      this.tokenUrlPause = "";
+      this.tokenUrlStaffWalkin = "";
       try {
+        // Use slug-based URLs instead of tokens
+        const activitySlug = this.activityToView.public_slug || "";
+        const origin = window.location.origin || "";
+
+        if (!activitySlug) {
+          this.tokenError = "La actividad no tiene un slug público asignado.";
+          this.tokenLoading = false;
+          return;
+        }
+
+        // Self-register URL (slug-based)
+        this.tokenUrl =
+          origin + "/public/self-register/" + encodeURIComponent(activitySlug);
+
+        // Public registration URL (slug-based) - for managing registrations
+        this.tokenUrlPublic =
+          origin + "/public/registrations/" + encodeURIComponent(activitySlug);
+
+        // Pause-attendance URL (slug-based) - for Magistral activities only
+        this.tokenUrlPause =
+          origin +
+          "/public/pause-attendance/" +
+          encodeURIComponent(activitySlug);
+
+        // Staff-walkin URL (slug-based) - for Magistral activities only
+        this.tokenUrlStaffWalkin =
+          origin + "/public/staff-walkin/" + encodeURIComponent(activitySlug);
+
+        // Optionally also generate token-based URLs as fallback (for backwards compatibility)
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const headers = {};
@@ -936,43 +998,12 @@ function activitiesManager() {
         } catch (e) {
           // ignore localStorage errors
         }
-        const res = await f(`/api/activities/${this.activityToView.id}/token`, {
-          headers,
-        });
-        if (!res.ok) {
-          let msg = "Error obteniendo token";
-          try {
-            const j = await res.json();
-            msg = j.message || msg;
-          } catch (e) {
-            msg = await res.text();
-          }
-          this.tokenError = msg;
-          return;
-        }
-        const data = await res.json();
-        this.token = data.token || "";
-        this.tokenUrl =
-          data.url ||
-          window.location.origin + "/self-register/" + (data.token || "");
-        // Also fetch public (chief) token in parallel
-        try {
-          const res2 = await f(
-            `/api/activities/${this.activityToView.id}/public-token`,
-            { headers }
-          );
-          if (res2 && res2.ok) {
-            const d2 = await res2.json();
-            this.tokenPublic = d2.token || "";
-            this.tokenUrlPublic =
-              d2.url ||
-              window.location.origin +
-                "/public/registrations/" +
-                (d2.token || "");
-          }
-        } catch (e) {
-          // ignore public token fetch errors
-        }
+
+        // Tokens have been removed from public flows. We intentionally do not
+        // call `/api/activities/:id/token` or `/api/activities/:id/public-token`.
+        // Slug-based URLs (above) are the canonical public entrypoints.
+        this.token = "";
+        this.tokenPublic = "";
       } catch (e) {
         this.tokenError = e && e.message ? e.message : String(e);
       } finally {
@@ -985,7 +1016,7 @@ function activitiesManager() {
 
       // Obtener el evento seleccionado
       const selectedEvent = this.events.find(
-        (e) => String(e.id) === String(activityData.event_id)
+        (e) => String(e.id) === String(activityData.event_id),
       );
       if (!selectedEvent) {
         this.dateValidationError = "Por favor seleccione un evento válido";
@@ -1001,14 +1032,14 @@ function activitiesManager() {
       // Validar que las fechas de la actividad estén dentro del rango del evento
       if (activityStart < eventStart) {
         this.dateValidationError = `La fecha de inicio de la actividad no puede ser anterior a la fecha de inicio del evento (${this.formatDateTime(
-          eventStart
+          eventStart,
         )})`;
         return this.dateValidationError;
       }
 
       if (activityEnd > eventEnd) {
         this.dateValidationError = `La fecha de fin de la actividad no puede ser posterior a la fecha de fin del evento (${this.formatDateTime(
-          eventEnd
+          eventEnd,
         )})`;
         return this.dateValidationError;
       }
@@ -1068,6 +1099,38 @@ function activitiesManager() {
       return data.related_activities || [];
     },
 
+    // Obtener información de relaciones (outgoing/incoming) para una actividad
+    relationInfoFor(activityId) {
+      const entry = (this.activityRelations || []).find(
+        (a) => String(a.id) === String(activityId),
+      );
+      if (!entry) return { outgoing: [], incoming: [] };
+      return {
+        outgoing: Array.isArray(entry.related_activities)
+          ? entry.related_activities
+          : [],
+        incoming: Array.isArray(entry.linked_by) ? entry.linked_by : [],
+      };
+    },
+
+    // Texto breve para tooltip describiendo la relación
+    relationTooltip(activityId) {
+      const info = this.relationInfoFor(activityId);
+      const parts = [];
+      if (info.outgoing && info.outgoing.length) {
+        parts.push(
+          "Enlaza a: " + info.outgoing.map((r) => r.name || r.id).join(", "),
+        );
+      }
+      if (info.incoming && info.incoming.length) {
+        parts.push(
+          "Enlazada por: " +
+            info.incoming.map((r) => r.name || r.id).join(", "),
+        );
+      }
+      return parts.join(" | ");
+    },
+
     // Enlazar actividad
     async linkActivity(activityId, relatedId) {
       const f =
@@ -1088,34 +1151,66 @@ function activitiesManager() {
         typeof window.safeFetch === "function" ? window.safeFetch : fetch;
       const response = await f(
         `/api/activities/${activityId}/related/${relatedId}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
       if (!response || !response.ok)
         throw new Error("Error al desenlazar actividades");
       if (typeof showToast === "function")
         showToast("Actividades desenlazadas exitosamente", "success");
     },
+
+    // Helpers that perform the link/unlink and refresh related lists/UI
+    async linkAndRefresh() {
+      if (!this.currentActivity || !this.currentActivity.id) return;
+      if (!this.selectedToLink) {
+        showToast &&
+          showToast("Selecciona una actividad para enlazar", "error");
+        return;
+      }
+      try {
+        await this.linkActivity(this.currentActivity.id, this.selectedToLink);
+        // refresh related lists and global relations
+        await this.loadRelatedActivities(this.currentActivity.id);
+        await this.loadActivityRelations();
+        await this.loadActivities(this.pagination.current_page || 1);
+        this.selectedToLink = "";
+      } catch (e) {
+        console.error("linkAndRefresh error", e);
+        showToast && showToast(e.message || "Error al enlazar", "error");
+      }
+    },
+
+    async unlinkAndRefresh(relatedId) {
+      if (!this.currentActivity || !this.currentActivity.id) return;
+      try {
+        await this.unlinkActivity(this.currentActivity.id, relatedId);
+        await this.loadRelatedActivities(this.currentActivity.id);
+        await this.loadActivityRelations();
+        await this.loadActivities(this.pagination.current_page || 1);
+      } catch (e) {
+        console.error("unlinkAndRefresh error", e);
+        showToast && showToast(e.message || "Error al desenlazar", "error");
+      }
+    },
     getAvailableActivities() {
-      // Usar activityRelations para saber si una actividad está enlazada como A o B
-      const linkedIds = new Set();
+      // Excluir actividades que ya tienen enlaces entrantes (ya son target de otra)
+      // y excluir la misma actividad actual.
+      const excludedTargets = new Set();
       this.activityRelations.forEach((act) => {
-        if (
-          (act.related_activities && act.related_activities.length > 0) ||
-          (act.linked_by && act.linked_by.length > 0)
-        ) {
-          linkedIds.add(act.id);
-        }
-        if (Array.isArray(act.related_activities)) {
-          act.related_activities.forEach((rel) => linkedIds.add(rel.id));
-        }
-        if (Array.isArray(act.linked_by)) {
-          act.linked_by.forEach((rel) => linkedIds.add(rel.id));
+        // Si `act` tiene linked_by no vacío, significa que otra actividad ya
+        // enlaza a `act` (act es target) — excluir de la lista de targets.
+        if (Array.isArray(act.linked_by) && act.linked_by.length > 0) {
+          excludedTargets.add(act.id);
         }
       });
-      return this.activityRelations.filter(
-        (a) =>
-          a.event_id === this.currentActivity.event_id && !linkedIds.has(a.id)
-      );
+
+      return this.activityRelations.filter((a) => {
+        if (a.event_id !== this.currentActivity.event_id) return false;
+        if (!this.currentActivity || !this.currentActivity.id) return false;
+        if (a.id === this.currentActivity.id) return false; // no enlazar a sí mismo
+        if (excludedTargets.has(a.id)) return false; // ya es target de otro
+        return true;
+      });
     },
 
     // Cargar relaciones de actividades (A y B)

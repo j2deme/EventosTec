@@ -49,7 +49,6 @@ Las instrucciones siguientes están adaptadas para entornos Windows (PowerShell)
    ```
 
 3. Ejecutar el servidor de desarrollo (opciones):
-
    - Usando el helper `run.py` (recomendado en desarrollo local):
 
    ```powershell

@@ -1,6 +1,6 @@
 function registrationsPublic() {
   return {
-    token: null,
+    activityId: null,
     activityName: null,
     activityType: null,
     deadline: null,
@@ -10,10 +10,10 @@ function registrationsPublic() {
     activityLocation: null,
     activityModality: null,
     eventName: null,
-    eventId: null,
-    eventToken: null,
+    eventSlug: null,
     timeLeftText: "",
     regs: [],
+    loading: false,
     controlsEnabled: false,
     registerState: "open", // 'pending' | 'open' | 'closed'
     page: 1,
@@ -42,8 +42,8 @@ function registrationsPublic() {
         const init =
           window.__registrationsPublic_init && el
             ? window.__registrationsPublic_init(el)
-            : { token: "", name: "", type: "", deadline: "" };
-        this.token = init.token || null;
+            : { name: "", type: "", deadline: "" };
+        this.activityId = init.activityId || null;
         this.activityName = init.name || null;
         this.activityType = init.type || null;
         this.deadline = init.deadline || null;
@@ -52,8 +52,7 @@ function registrationsPublic() {
         this.activityLocation = init.location || null;
         this.activityModality = init.modality || null;
         this.eventName = init.eventName || null;
-        this.eventId = init.eventId || null;
-        this.eventToken = init.eventToken || null;
+        this.eventSlug = init.eventSlug || null;
 
         // compute human-friendly date range
         try {
@@ -74,6 +73,30 @@ function registrationsPublic() {
         } catch (e) {
           this.activityDateRange = null;
         }
+
+        // Immediately compute registerState based on start/deadline (before countdown polling)
+        // This ensures that if deadline has already passed on page load, the closed state is set.
+        try {
+          if (typeof dayjs !== "undefined") {
+            const now = dayjs();
+            const start = this.start ? dayjs(this.start) : null;
+            const deadline = this.deadline ? dayjs(this.deadline) : null;
+
+            if (start && now.isBefore(start)) {
+              this.registerState = "pending";
+              this.controlsEnabled = false;
+            } else if (deadline && now.isAfter(deadline)) {
+              this.registerState = "closed";
+              this.controlsEnabled = false;
+            } else {
+              this.registerState = "open";
+              this.controlsEnabled = true;
+            }
+          }
+        } catch (e) {
+          // fallback: leave as default "open"
+        }
+
         this.fetchRegs();
         this.initCountdown();
       } catch (e) {
@@ -153,37 +176,48 @@ function registrationsPublic() {
         const updateOnce = () => {
           const now = dayjs();
 
-          // If there's a start and we're before it, show time until start and disable controls
+          // If there's a start and we're before it, mark pending and disable controls
           if (start && now.isBefore(start)) {
             this.controlsEnabled = false;
+            this.registerState = "pending";
             const d = dayjs.duration(start.diff(now));
             this.timeLeftText = `Registro de asistencias inicia en ${pickSignificant(
               d,
-              2
+              2,
             )}`;
             return start.diff(now);
           }
 
           // Activity started (or no explicit start): enable controls unless already past deadline
           this.controlsEnabled = true;
+          this.registerState = "open";
 
           if (deadline) {
             const diffMs = deadline.diff(now);
             if (diffMs <= 0) {
+              // deadline passed -> closed
               this.controlsEnabled = false;
+              this.registerState = "closed";
               this.timeLeftText = "El registro de asistencias ha cerrado";
+              // Trigger a refresh so rows (and badges/icons) reflect final state
+              try {
+                this.fetchRegs();
+              } catch (e) {
+                // ignore
+              }
               return diffMs;
             }
             const d = dayjs.duration(diffMs);
             this.timeLeftText = `El registro de asistencias cierra en ${pickSignificant(
               d,
-              2
+              2,
             )}`;
             return diffMs;
           }
 
           // No deadline: just indicate opened
           this.timeLeftText = "Registro de asistencias abierto";
+          this.registerState = "open";
           return 60 * 1000; // arbitrary 1m tick
         };
 
@@ -222,8 +256,9 @@ function registrationsPublic() {
 
     async fetchRegs() {
       try {
+        this.loading = true;
         const qs = new URLSearchParams();
-        if (this.token) qs.set("token", this.token);
+        if (this.activityId) qs.set("activity_id", this.activityId);
         if (this.q) qs.set("q", this.q);
         qs.set("page", String(this.page));
         qs.set("per_page", String(this.per_page));
@@ -231,9 +266,13 @@ function registrationsPublic() {
         if (!resp.ok) {
           const json = await resp.json().catch(() => ({}));
           this.message = json.message || "Error";
+          this.loading = false;
           return;
         }
         const data = await resp.json();
+        // Use backend-provided registrations as-is. The backend is the source
+        // of truth for `attended` and related fields, so avoid client-side
+        // coercion to keep responsibility centralized.
         this.regs = data.registrations || [];
         // Ordenar por número de control ascendente si existe el campo
         try {
@@ -254,8 +293,10 @@ function registrationsPublic() {
           console.error("sort regs error", e);
         }
         this.total = data.total || 0;
+        this.loading = false;
       } catch (e) {
         console.error("fetchRegs error", e);
+        this.loading = false;
       }
     },
 
@@ -275,7 +316,7 @@ function registrationsPublic() {
     async confirm(r) {
       try {
         const payload = {
-          token: this.token,
+          activity_id: this.activityId,
           confirm: true,
           create_attendance: true,
         };
@@ -307,7 +348,7 @@ function registrationsPublic() {
     async reject(r) {
       try {
         const payload = {
-          token: this.token,
+          activity_id: this.activityId,
           confirm: false,
           create_attendance: false,
         };
@@ -355,7 +396,7 @@ function registrationsPublic() {
         const previousConfirmationDate = r.confirmation_date || null;
 
         const payload = {
-          token: this.token,
+          activity_id: this.activityId,
           confirm: checked,
           create_attendance: checked,
         };
@@ -379,7 +420,7 @@ function registrationsPublic() {
               checked
                 ? `Asistencia registrada${suffix}`
                 : `Asistencia removida${suffix}`,
-              "success"
+              "success",
             );
           } catch (e) {
             /* fallback */
@@ -399,7 +440,7 @@ function registrationsPublic() {
           try {
             showToast(
               json.message || "Error al actualizar asistencia",
-              "error"
+              "error",
             );
           } catch (e) {
             /* fallback */
@@ -430,14 +471,14 @@ function registrationsPublic() {
 
     async deleteAttendance(attendance_id) {
       try {
-        const payload = { token: this.token, confirm: false };
+        const payload = { activity_id: this.activityId, confirm: false };
         const resp = await fetch(
           `/api/public/attendances/${attendance_id}/toggle`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
-          }
+          },
         );
         const json = await resp.json().catch(() => ({}));
         if (resp.ok) {
@@ -657,7 +698,7 @@ function registrationsPublic() {
 
         // First try local search endpoint (exact match)
         const local = await fetch(
-          `/api/students/?search=${encodeURIComponent(control)}&per_page=1`
+          `/api/students/?search=${encodeURIComponent(control)}&per_page=1`,
         );
         if (local && local.ok) {
           const j = await local.json().catch(() => ({}));
@@ -666,7 +707,7 @@ function registrationsPublic() {
           const exact =
             (students.find &&
               students.find(
-                (s) => String(s.control_number) === String(control)
+                (s) => String(s.control_number) === String(control),
               )) ||
             null;
           if (exact) {
@@ -683,8 +724,8 @@ function registrationsPublic() {
         try {
           const ext = await fetch(
             `/api/students/validate?control_number=${encodeURIComponent(
-              control
-            )}`
+              control,
+            )}`,
           );
           if (ext && ext.ok) {
             const j = await ext.json().catch(() => ({}));
@@ -763,7 +804,7 @@ function registrationsPublic() {
           return;
         }
         const payload = {
-          token: this.token,
+          activity_id: this.activityId,
           control_number: this.walkin.control_number,
         };
         const resp = await fetch("/api/public/registrations/walkin", {
@@ -794,30 +835,14 @@ function registrationsPublic() {
 
     async downloadRegistrations() {
       try {
-        if (!this.token) {
+        if (!this.activityId) {
           try {
-            showToast("Token público ausente", "error");
+            showToast("ID de actividad ausente", "error");
           } catch (e) {}
           return;
         }
 
-        const payload = { token: this.token };
-        // If this is an event-level token (pe:...), server requires activity id
-        if (String(this.token).startsWith("pe:")) {
-          // Use initial activity id if provided in the page context, else try to derive
-          const el = document.getElementById("public-registrations-card");
-          const actId = el ? el.getAttribute("data-initial-activity-id") : null;
-          if (actId) payload.activity = actId;
-          else {
-            try {
-              showToast(
-                "Seleccione una actividad desde el panel de eventos para descargar",
-                "info"
-              );
-            } catch (e) {}
-            return;
-          }
-        }
+        const payload = { activity_id: this.activityId };
 
         const resp = await fetch("/api/public/registrations/export", {
           method: "POST",
@@ -843,7 +868,7 @@ function registrationsPublic() {
         const cd = resp.headers.get("Content-Disposition") || "";
         let filename = `${(this.activityName || "actividad").replace(
           /[^a-z0-9A-Z-_\.]/g,
-          "_"
+          "_",
         )}.xlsx`;
         const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
         if (m && m[1]) {

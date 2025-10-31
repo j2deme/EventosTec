@@ -15,7 +15,7 @@ describe("app.js helpers", () => {
     expect(window.formatOnlyDate(iso)).toMatch(/2023/);
     expect(window.formatDateTime(iso)).toMatch(/2023/);
     expect(window.formatDateTimeForInput(iso)).toMatch(
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
     );
   });
 

@@ -63,7 +63,7 @@ function studentEventActivitiesManager() {
 
       // Manejar la inicialización desde URL (por si se recarga la página)
       const urlParams = new URLSearchParams(
-        window.location.hash.split("?")[1] || ""
+        window.location.hash.split("?")[1] || "",
       );
       const eventId = urlParams.get("event_id");
 
@@ -153,7 +153,7 @@ function studentEventActivitiesManager() {
             return;
           }
           throw new Error(
-            `Error al cargar evento: ${response.status} ${response.statusText}`
+            `Error al cargar evento: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -210,7 +210,7 @@ function studentEventActivitiesManager() {
             return;
           }
           throw new Error(
-            `Error al cargar actividades: ${response.status} ${response.statusText}`
+            `Error al cargar actividades: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -218,7 +218,7 @@ function studentEventActivitiesManager() {
 
         // Defensive client-side filter: ensure forbidden activity types are removed
         const filtered = (data.activities || []).filter(
-          (a) => String(a.activity_type).toLowerCase() !== "magistral"
+          (a) => String(a.activity_type).toLowerCase() !== "magistral",
         );
 
         this.originalActivities = filtered.map((activity) => ({
@@ -269,7 +269,7 @@ function studentEventActivitiesManager() {
           `/api/registrations?student_id=${studentId}`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (response.ok) {
@@ -280,7 +280,7 @@ function studentEventActivitiesManager() {
           }
           // Solo necesitamos los IDs de las actividades registradas
           this.studentRegistrations = data.registrations.map(
-            (r) => r.activity_id
+            (r) => r.activity_id,
           );
           // Reagrupar la vista usando la función que mantiene las vistas
           // diarias expandidas para actividades multídia (incluye
@@ -336,9 +336,8 @@ function studentEventActivitiesManager() {
       try {
         // ✨ Verificar si es una actividad multídias usando los datos originales
         if (originalActivity && this.isMultiDayActivity(originalActivity)) {
-          const confirmed = await this.showMultiDayConfirmation(
-            originalActivity
-          );
+          const confirmed =
+            await this.showMultiDayConfirmation(originalActivity);
           if (!confirmed) {
             // Usuario canceló la confirmación
             return;
@@ -384,7 +383,7 @@ function studentEventActivitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al preregistrarse: ${response.status} ${response.statusText}`
+              `Error al preregistrarse: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -399,7 +398,7 @@ function studentEventActivitiesManager() {
           throw new Error(
             data && data.message
               ? data.message
-              : "Respuesta inválida del servidor"
+              : "Respuesta inválida del servidor",
           );
         }
 
@@ -412,7 +411,7 @@ function studentEventActivitiesManager() {
           // Custom event for same-tab listeners
           try {
             window.dispatchEvent(
-              new CustomEvent("registration-created", { detail: data })
+              new CustomEvent("registration-created", { detail: data }),
             );
           } catch (e) {
             // Fallback to simple Event if CustomEvent not supported
@@ -439,7 +438,7 @@ function studentEventActivitiesManager() {
         try {
           // Intentar encontrar el manager de preregistros y recargar
           const registrationsManagerElement = document.querySelector(
-            '[x-data*="studentRegistrationsManager"]'
+            '[x-data*="studentRegistrationsManager"]',
           );
           if (registrationsManagerElement && registrationsManagerElement.__x) {
             const registrationsManager =
@@ -448,14 +447,14 @@ function studentEventActivitiesManager() {
             if (typeof registrationsManager.loadRegistrations === "function") {
               // Recargar en la página actual o primera página
               await registrationsManager.loadRegistrations(
-                registrationsManager.pagination.current_page
+                registrationsManager.pagination.current_page,
               );
             }
           }
         } catch (refreshError) {
           console.warn(
             "No se pudo actualizar automáticamente la lista de preregistros:",
-            refreshError
+            refreshError,
           );
           // No es crítico, solo para la UX
         }
@@ -467,7 +466,7 @@ function studentEventActivitiesManager() {
 
           // Actualizar el array fuente que usa la vista (originalActivities)
           const origIndex = this.originalActivities.findIndex(
-            (a) => a.id === activity.id
+            (a) => a.id === activity.id,
           );
           if (origIndex !== -1) {
             const newCount =
@@ -480,7 +479,7 @@ function studentEventActivitiesManager() {
 
           // También actualizar el array visible (activities) por consistencia
           const activityIndex = this.activities.findIndex(
-            (a) => a.id === activity.id
+            (a) => a.id === activity.id,
           );
           if (activityIndex !== -1) {
             const updatedActivity = {
@@ -501,7 +500,7 @@ function studentEventActivitiesManager() {
         console.error("Error registering for activity:", error);
         showToast(
           error.message || "Error al preregistrarse a la actividad",
-          "error"
+          "error",
         );
         // Asegurar limpieza de inflight si hubo error antes del finally
         try {
@@ -544,11 +543,11 @@ function studentEventActivitiesManager() {
               day_in_series: this.getDayInSeries(
                 activity.start_datetime,
                 activity.end_datetime,
-                dateStr
+                dateStr,
               ),
               total_days: this.getTotalDays(
                 activity.start_datetime,
-                activity.end_datetime
+                activity.end_datetime,
               ),
               is_expanded_view: true,
             };
@@ -603,7 +602,7 @@ function studentEventActivitiesManager() {
       // ✨ Asegurar que studentRegistrations sea un array
       if (!Array.isArray(this.studentRegistrations)) {
         console.warn(
-          "studentRegistrations no es un array en isActivityRegistered"
+          "studentRegistrations no es un array en isActivityRegistered",
         );
         this.studentRegistrations = [];
         return false;
@@ -765,7 +764,7 @@ function studentEventActivitiesManager() {
     isMultiDayActivity(activity) {
       // Usar los datos originales para la verificación
       const originalActivity = this.originalActivities.find(
-        (a) => a.id === activity.id
+        (a) => a.id === activity.id,
       );
       const activityToCheck = originalActivity || activity; // Fallback al activity pasado si no se encuentra el original
 
@@ -781,12 +780,12 @@ function studentEventActivitiesManager() {
         const startDay = new Date(
           startDate.getFullYear(),
           startDate.getMonth(),
-          startDate.getDate()
+          startDate.getDate(),
         );
         const endDay = new Date(
           endDate.getFullYear(),
           endDate.getMonth(),
-          endDate.getDate()
+          endDate.getDate(),
         );
 
         const isMultiDay = startDay.getTime() !== endDay.getTime();
@@ -911,12 +910,12 @@ function studentEventActivitiesManager() {
       const startDay = new Date(
         startDate.getFullYear(),
         startDate.getMonth(),
-        startDate.getDate()
+        startDate.getDate(),
       );
       const endDay = new Date(
         endDate.getFullYear(),
         endDate.getMonth(),
-        endDate.getDate()
+        endDate.getDate(),
       );
       const currentDayDate = new Date(currentDay);
 
@@ -931,7 +930,7 @@ function studentEventActivitiesManager() {
     getDailyRangeForMultiDayActivity(
       activityStart,
       activityEnd,
-      targetDateStr
+      targetDateStr,
     ) {
       const activityStartDate = new Date(activityStart);
       const activityEndDate = new Date(activityEnd);
@@ -941,17 +940,17 @@ function studentEventActivitiesManager() {
       const targetDay = new Date(
         targetDate.getFullYear(),
         targetDate.getMonth(),
-        targetDate.getDate()
+        targetDate.getDate(),
       );
       const activityStartDay = new Date(
         activityStartDate.getFullYear(),
         activityStartDate.getMonth(),
-        activityStartDate.getDate()
+        activityStartDate.getDate(),
       );
       const activityEndDay = new Date(
         activityEndDate.getFullYear(),
         activityEndDate.getMonth(),
-        activityEndDate.getDate()
+        activityEndDate.getDate(),
       );
 
       // Extraer horas y minutos del rango original
@@ -1002,17 +1001,17 @@ function studentEventActivitiesManager() {
       const activityStartDay = new Date(
         activityStartDate.getFullYear(),
         activityStartDate.getMonth(),
-        activityStartDate.getDate()
+        activityStartDate.getDate(),
       );
       const activityEndDay = new Date(
         activityEndDate.getFullYear(),
         activityEndDate.getMonth(),
-        activityEndDate.getDate()
+        activityEndDate.getDate(),
       );
       const currentDay = new Date(
         currentDate.getFullYear(),
         currentDate.getMonth(),
-        currentDate.getDate()
+        currentDate.getDate(),
       );
 
       // Calcular el número de días desde el inicio
@@ -1030,12 +1029,12 @@ function studentEventActivitiesManager() {
       const activityStartDay = new Date(
         activityStartDate.getFullYear(),
         activityStartDate.getMonth(),
-        activityStartDate.getDate()
+        activityStartDate.getDate(),
       );
       const activityEndDay = new Date(
         activityEndDate.getFullYear(),
         activityEndDate.getMonth(),
-        activityEndDate.getDate()
+        activityEndDate.getDate(),
       );
 
       // Calcular la diferencia en días
@@ -1083,7 +1082,7 @@ function studentEventActivitiesManager() {
             const dailyRange = this.getDailyRangeForMultiDayActivity(
               activity.start_datetime,
               activity.end_datetime,
-              dateStr
+              dateStr,
             );
 
             // Crear una "vista" de la actividad para este día específico con bloques diarios
@@ -1097,11 +1096,11 @@ function studentEventActivitiesManager() {
               day_in_series: this.getDayInSeries(
                 activity.start_datetime,
                 activity.end_datetime,
-                dateStr
+                dateStr,
               ),
               total_days: this.getTotalDays(
                 activity.start_datetime,
-                activity.end_datetime
+                activity.end_datetime,
               ),
               is_expanded_multiday: true,
             };

@@ -79,7 +79,7 @@ function reportsManager() {
           for (const a of this.activities)
             if (a.department) deps.add(a.department);
           this.departments = Array.from(deps).sort((x, y) =>
-            x.localeCompare(y, undefined, { sensitivity: "base" })
+            x.localeCompare(y, undefined, { sensitivity: "base" }),
           );
         }
       } catch (e) {
@@ -95,7 +95,7 @@ function reportsManager() {
       this.activitiesFiltered = this.activities.filter(
         (a) =>
           String(a.event?.id || a.event_id || a.event?.id) ===
-          String(this.filters.event_id)
+          String(this.filters.event_id),
       );
     },
 
@@ -119,7 +119,7 @@ function reportsManager() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const res = await f(
-          `/api/reports/participation_matrix?${params.toString()}`
+          `/api/reports/participation_matrix?${params.toString()}`,
         );
         if (res && res.ok) {
           const d = await res.json();
@@ -232,7 +232,7 @@ function reportsManager() {
           window.showToast &&
             window.showToast(
               err.message || "Error generando reporte de llenado",
-              "error"
+              "error",
             );
         }
       } catch (e) {
@@ -256,7 +256,7 @@ function reportsManager() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const res = await f(
-          `/api/reports/event_registrations_txt?${params.toString()}`
+          `/api/reports/event_registrations_txt?${params.toString()}`,
         );
         if (!res) return;
         if (res.ok) {
@@ -278,7 +278,7 @@ function reportsManager() {
           window.showToast &&
             window.showToast(
               err.message || "Error descargando archivo",
-              "error"
+              "error",
             );
         }
       } catch (e) {

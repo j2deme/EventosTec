@@ -48,7 +48,7 @@ describe("attendancesAdmin helpers", () => {
     a.selectedStudent = null;
 
     global.fetch = jest.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+      Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
     );
     await a.submitAssign();
     // fetch should not be called because submitAssign returns early

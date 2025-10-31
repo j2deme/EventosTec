@@ -38,8 +38,13 @@
       </div>
 
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1">Departamento</label>
-        <select x-model="filters.department" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md">
+        <label class="block text-sm font-medium text-gray-700 mb-1"
+          >Departamento</label
+        >
+        <select
+          x-model="filters.department"
+          class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md"
+        >
           <option value="">Todos los departamentos</option>
           <template x-for="d in departments" :key="d">
             <option :value="d" x-text="d"></option>
@@ -57,52 +62,70 @@
       </div>
     </div>
   </div>
+</div>
 
-  <div class="bg-white rounded-lg shadow p-4">
-    <div x-show="loading" class="py-6">
-      <div class="overflow-x-auto">
-        <div class="min-w-full bg-white rounded">
-          <!-- header skeleton (hidden on small screens) -->
-          <div class="hidden md:flex items-center px-4 py-2 border-b border-gray-100">
-            <div class="w-1/3 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-            <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-            <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-            <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-            <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-          <!-- rows skeleton -->
-          <div class="space-y-3 p-4">
-            <template x-for="i in [1,2,3]" :key="i">
-              <div class="flex items-center space-x-4">
-                <div class="w-1/3 h-4 bg-gray-200 rounded animate-pulse" :style="{width: (30 + Math.floor(Math.random() * 60)) + '%'}"></div>
-                <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
-                <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
-                <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
-                <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-            </template>
-          </div>
+<div class="bg-white rounded-lg shadow p-4">
+  <div x-show="loading" class="py-6">
+    <div class="overflow-x-auto">
+      <div class="min-w-full bg-white rounded">
+        <!-- header skeleton (hidden on small screens) -->
+        <div
+          class="hidden md:flex items-center px-4 py-2 border-b border-gray-100"
+        >
+          <div class="w-1/3 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+          <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+          <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+          <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+          <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+        <!-- rows skeleton -->
+        <div class="space-y-3 p-4">
+          <template x-for="i in [1,2,3]" :key="i">
+            <div class="flex items-center space-x-4">
+              <div
+                class="w-1/3 h-4 bg-gray-200 rounded animate-pulse"
+                :style="{width: (30 + Math.floor(Math.random() * 60)) + '%'}"
+              ></div>
+              <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+              <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+            </div>
+          </template>
         </div>
       </div>
     </div>
+  </div>
 
-    <div x-show="!loading">
-      <template x-if="(matrix_semester && semesters && semesters.length) || (matrix && generations && generations.length)">
-        <div class="overflow-hidden">
-          <div class="w-full overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 table-fixed">
+  <div x-show="!loading">
+    <template
+      x-if="(matrix_semester && semesters && semesters.length) || (matrix && generations && generations.length)"
+    >
+      <div class="overflow-hidden">
+        <div class="w-full overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 table-fixed">
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-4 py-2 text-left">Carrera \ Semestre</th>
                 <!-- Preferir semesters/matrix_semester si están presentes -->
-                <template x-if="matrix_semester && semesters && semesters.length">
+                <template
+                  x-if="matrix_semester && semesters && semesters.length"
+                >
                   <template x-for="sem in semesters" :key="sem">
-                    <th class="px-4 py-2 text-center" x-text="formatSemester(sem)"></th>
+                    <th
+                      class="px-4 py-2 text-center"
+                      x-text="formatSemester(sem)"
+                    ></th>
                   </template>
                 </template>
-                <template x-if="!(matrix_semester && semesters && semesters.length)">
+                <template
+                  x-if="!(matrix_semester && semesters && semesters.length)"
+                >
                   <template x-for="gen in generations" :key="gen">
-                    <th class="px-4 py-2 text-center" x-text="gen || 'Sin generación'"></th>
+                    <th
+                      class="px-4 py-2 text-center"
+                      x-text="gen || 'Sin generación'"
+                    ></th>
                   </template>
                 </template>
                 <th class="px-4 py-2 text-center">Total por carrera</th>
@@ -113,18 +136,32 @@
                 <tr>
                   <td class="px-4 py-2 font-medium" x-text="career"></td>
                   <!-- Mostrar por semestre si existe matrix_semester, sino por generación -->
-                  <template x-if="matrix_semester && matrix_semester[String(career)]">
+                  <template
+                    x-if="matrix_semester && matrix_semester[String(career)]"
+                  >
                     <template x-for="sem in semesters" :key="sem">
-                      <td class="px-4 py-2 text-center" x-text="(matrix_semester[String(career)] && matrix_semester[String(career)][sem]) ? matrix_semester[String(career)][sem] : 0"></td>
+                      <td
+                        class="px-4 py-2 text-center"
+                        x-text="(matrix_semester[String(career)] && matrix_semester[String(career)][sem]) ? matrix_semester[String(career)][sem] : 0"
+                      ></td>
                     </template>
-                    <td class="px-4 py-2 text-center font-semibold" x-text="(rowSubtotals && rowSubtotals[String(career)]) || 0"></td>
+                    <td
+                      class="px-4 py-2 text-center font-semibold"
+                      x-text="(rowSubtotals && rowSubtotals[String(career)]) || 0"
+                    ></td>
                   </template>
                   <template x-if="!matrix_semester || !matrix_semester[career]">
                     <template x-for="gen in generations" :key="gen">
-                      <td class="px-4 py-2 text-center" x-text="(matrix[career] && matrix[career][gen]) ? matrix[career][gen] : 0"></td>
+                      <td
+                        class="px-4 py-2 text-center"
+                        x-text="(matrix[career] && matrix[career][gen]) ? matrix[career][gen] : 0"
+                      ></td>
                     </template>
                     <!-- Subtotal por carrera -->
-                    <td class="px-4 py-2 text-center font-semibold" x-text="generations.reduce((sum, g) => sum + ((matrix[career] && matrix[career][g]) ? matrix[career][g] : 0), 0)"></td>
+                    <td
+                      class="px-4 py-2 text-center font-semibold"
+                      x-text="generations.reduce((sum, g) => sum + ((matrix[career] && matrix[career][g]) ? matrix[career][g] : 0), 0)"
+                    ></td>
                   </template>
                 </tr>
               </template>
@@ -132,144 +169,195 @@
               <tr class="bg-gray-50">
                 <td class="px-4 py-2 font-medium">Total por Semestre</td>
                 <!-- Totales por semestre si existen -->
-                <template x-if="matrix_semester && semesters && semesters.length">
+                <template
+                  x-if="matrix_semester && semesters && semesters.length"
+                >
                   <template x-for="sem in semesters" :key="sem">
-                    <td class="px-4 py-2 text-center font-semibold" x-text="careers.reduce((s, c) => s + ((matrix_semester[c] && matrix_semester[c][sem]) ? matrix_semester[c][sem] : 0), 0)"></td>
+                    <td
+                      class="px-4 py-2 text-center font-semibold"
+                      x-text="careers.reduce((s, c) => s + ((matrix_semester[c] && matrix_semester[c][sem]) ? matrix_semester[c][sem] : 0), 0)"
+                    ></td>
                   </template>
-                  <td class="px-4 py-2 text-center font-bold" x-text="totalSumSemesters || 0"></td>
+                  <td
+                    class="px-4 py-2 text-center font-bold"
+                    x-text="totalSumSemesters || 0"
+                  ></td>
                 </template>
-                <template x-if="!(matrix_semester && semesters && semesters.length)">
+                <template
+                  x-if="!(matrix_semester && semesters && semesters.length)"
+                >
                   <template x-for="gen in generations" :key="gen">
-                    <td class="px-4 py-2 text-center font-semibold" x-text="careers.reduce((s, c) => s + ((matrix[c] && matrix[c][gen]) ? matrix[c][gen] : 0), 0)"></td>
+                    <td
+                      class="px-4 py-2 text-center font-semibold"
+                      x-text="careers.reduce((s, c) => s + ((matrix[c] && matrix[c][gen]) ? matrix[c][gen] : 0), 0)"
+                    ></td>
                   </template>
-                  <td class="px-4 py-2 text-center font-bold" x-text="careers.reduce((s, c) => s + generations.reduce((ss, g) => ss + ((matrix[c] && matrix[c][g]) ? matrix[c][g] : 0), 0), 0)"></td>
+                  <td
+                    class="px-4 py-2 text-center font-bold"
+                    x-text="careers.reduce((s, c) => s + generations.reduce((ss, g) => ss + ((matrix[c] && matrix[c][g]) ? matrix[c][g] : 0), 0), 0)"
+                  ></td>
                 </template>
               </tr>
             </tbody>
           </table>
-          </div>
         </div>
-        </div>
-      </template>
-
-      <div
-        x-show="(!matrix || generations.length === 0) && !loading"
-        class="p-6 text-center text-gray-500"
-      >
-        No hay datos para la selección actual.
       </div>
+    </template>
+
+    <div
+      x-show="(!matrix || generations.length === 0) && !loading"
+      class="p-6 text-center text-gray-500"
+    >
+      No hay datos para la selección actual.
     </div>
   </div>
-  <!-- New: Fill report (porcentaje de llenado) -->
-  <div class="bg-white rounded-lg shadow p-4 mb-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <h3 class="text-lg font-medium text-gray-900">% Llenado por Actividad</h3>
-        <p class="text-sm text-gray-500">Visualiza actividades llenas, vacías o sin cupo definido.</p>
-      </div>
-      <div class="flex items-center space-x-2">
-        <button
-          @click.prevent="generateFillReport()"
-          class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md"
-        >
-          Generar % llenado
-        </button>
-        <button
-          @click.prevent="downloadRegistrationsTxt()"
-          class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-800 rounded-md border"
-          title="Descargar lista única de inscritos (TXT)"
-        >
-          Descargar inscritos (.txt)
-        </button>
-      </div>
+</div>
+<!-- New: Fill report (porcentaje de llenado) -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <h3 class="text-lg font-medium text-gray-900">% Llenado por Actividad</h3>
+      <p class="text-sm text-gray-500">
+        Visualiza actividades llenas, vacías o sin cupo definido.
+      </p>
     </div>
+    <div class="flex items-center space-x-2">
+      <button
+        @click.prevent="generateFillReport()"
+        class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md"
+      >
+        Generar % llenado
+      </button>
+      <button
+        @click.prevent="downloadRegistrationsTxt()"
+        class="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-800 rounded-md border"
+        title="Descargar lista única de inscritos (TXT)"
+      >
+        Descargar inscritos (.txt)
+      </button>
+    </div>
+  </div>
 
-      <div class="mt-4">
-      <div x-show="fillLoading" class="py-4">
-        <div class="overflow-x-auto">
-          <div class="min-w-full bg-white rounded">
-            <!-- header skeleton -->
-            <div class="hidden md:flex items-center px-4 py-2 border-b border-gray-100">
-              <div class="w-1/4 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-              <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-              <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
-              <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-            <!-- rows skeleton -->
-            <div class="space-y-3 p-4">
-              <template x-for="i in [1,2,3]" :key="i">
-                <div class="flex items-center space-x-4">
-                  <div class="w-1/4 h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
-                  <div class="w-1/12 flex items-center">
-                    <div class="w-full bg-gray-100 rounded-full h-3 mr-2">
-                      <div class="h-3 bg-gray-300 rounded-full animate-pulse" :style="{width: (25 + Math.floor(Math.random() * 66)) + '%'}"></div>
-                    </div>
-                    <div class="w-10 h-4 bg-gray-200 rounded animate-pulse"></div>
+  <div class="mt-4">
+    <div x-show="fillLoading" class="py-4">
+      <div class="overflow-x-auto">
+        <div class="min-w-full bg-white rounded">
+          <!-- header skeleton -->
+          <div
+            class="hidden md:flex items-center px-4 py-2 border-b border-gray-100"
+          >
+            <div class="w-1/4 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+            <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+            <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
+            <div
+              class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"
+            ></div>
+            <div
+              class="w-1/12 h-4 bg-gray-200 rounded animate-pulse mr-4"
+            ></div>
+            <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+          <!-- rows skeleton -->
+          <div class="space-y-3 p-4">
+            <template x-for="i in [1,2,3]" :key="i">
+              <div class="flex items-center space-x-4">
+                <div class="w-1/4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/6 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/12 h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div class="w-1/12 flex items-center">
+                  <div class="w-full bg-gray-100 rounded-full h-3 mr-2">
+                    <div
+                      class="h-3 bg-gray-300 rounded-full animate-pulse"
+                      :style="{width: (25 + Math.floor(Math.random() * 66)) + '%'}"
+                    ></div>
                   </div>
+                  <div class="w-10 h-4 bg-gray-200 rounded animate-pulse"></div>
                 </div>
-              </template>
-            </div>
+              </div>
+            </template>
           </div>
         </div>
       </div>
+    </div>
 
-      <div x-show="!fillLoading && fillReport && fillReport.length">
-        <div class="w-full overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+    <div x-show="!fillLoading && fillReport && fillReport.length">
+      <div class="w-full overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left">Actividad</th>
+              <th class="px-4 py-2 text-left">Evento</th>
+              <th class="px-4 py-2 text-left">Modalidad</th>
+              <th class="px-4 py-2 text-center">Cupo</th>
+              <th class="px-4 py-2 text-center">Inscritos</th>
+              <th class="px-4 py-2 text-center">% Llenado</th>
+              <th class="px-4 py-2 text-center">Estado</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <template x-for="act in fillReport" :key="act.id">
               <tr>
-                <th class="px-4 py-2 text-left">Actividad</th>
-                <th class="px-4 py-2 text-left">Evento</th>
-                 <th class="px-4 py-2 text-left">Modalidad</th>
-                <th class="px-4 py-2 text-center">Cupo</th>
-                <th class="px-4 py-2 text-center">Inscritos</th>
-                <th class="px-4 py-2 text-center">% Llenado</th>
-                <th class="px-4 py-2 text-center">Estado</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              <template x-for="act in fillReport" :key="act.id">
-                <tr>
-                  <td class="px-4 py-2" x-text="act.name"></td>
-                  <td class="px-4 py-2" x-text="act.event_name || ''"></td>
-                   <td class="px-4 py-2" x-text="act.modality || ''"></td>
-                  <td class="px-4 py-2 text-center" x-text="act.capacity == null ? '∞' : act.capacity"></td>
-                  <td class="px-4 py-2 text-center" x-text="act.current_registrations"></td>
-                  <td class="px-4 py-2 w-48">
-                    <div x-show="act.capacity != null">
-                      <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                          <div :style="{width: Math.min(act.percent || 0, 100) + '%'}" :class="(
+                <td class="px-4 py-2" x-text="act.name"></td>
+                <td class="px-4 py-2" x-text="act.event_name || ''"></td>
+                <td class="px-4 py-2" x-text="act.modality || ''"></td>
+                <td
+                  class="px-4 py-2 text-center"
+                  x-text="act.capacity == null ? '∞' : act.capacity"
+                ></td>
+                <td
+                  class="px-4 py-2 text-center"
+                  x-text="act.current_registrations"
+                ></td>
+                <td class="px-4 py-2 w-48">
+                  <div x-show="act.capacity != null">
+                    <div
+                      class="w-full bg-gray-100 rounded-full h-3 overflow-hidden"
+                    >
+                      <div
+                        :style="{width: Math.min(act.percent || 0, 100) + '%'}"
+                        :class="(
                             act.status === 'full' ? 'h-3 bg-green-500' : (
                               act.status === 'empty' ? 'h-3 bg-red-500' : (
                                 act.status === 'available' ? 'h-3 bg-amber-500' : 'h-3 bg-blue-500'
                               )
                             )
-                          )"></div>
-                      </div>
-                      <div class="text-xs text-gray-600 mt-1" x-text="act.percent + '%'"></div>
+                          )"
+                      ></div>
                     </div>
-                    <div x-show="act.capacity == null" class="text-sm text-gray-500">Sin cupo</div>
-                  </td>
-                  <td class="px-4 py-2 text-center">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                      :class="act.status_badge_class || 'bg-gray-100 text-gray-800'"
-                      x-text="act.status_label || act.status">
-                    </span>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
+                    <div
+                      class="text-xs text-gray-600 mt-1"
+                      x-text="act.percent + '%'"
+                    ></div>
+                  </div>
+                  <div
+                    x-show="act.capacity == null"
+                    class="text-sm text-gray-500"
+                  >
+                    Sin cupo
+                  </div>
+                </td>
+                <td class="px-4 py-2 text-center">
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                    :class="act.status_badge_class || 'bg-gray-100 text-gray-800'"
+                    x-text="act.status_label || act.status"
+                  >
+                  </span>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
       </div>
+    </div>
 
-      <div x-show="!fillLoading && (!fillReport || fillReport.length === 0)" class="p-6 text-center text-gray-500">No hay datos para el reporte de llenado.</div>
+    <div
+      x-show="!fillLoading && (!fillReport || fillReport.length === 0)"
+      class="p-6 text-center text-gray-500"
+    >
+      No hay datos para el reporte de llenado.
     </div>
   </div>
 

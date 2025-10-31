@@ -100,7 +100,7 @@ describe("adminDashboard consolidated tests", () => {
 
     test("init sets default active tab and can loadEvents without token", async () => {
       global.fetch = jest.fn(() =>
-        Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+        Promise.resolve({ ok: true, json: () => Promise.resolve([]) }),
       );
       const comp = adminDashboard();
       await comp.loadEvents();
@@ -236,10 +236,10 @@ describe("adminDashboard consolidated tests", () => {
       global.localStorage.setItem("authToken", "tok");
       const now = new Date();
       const future = new Date(
-        now.getTime() + 3 * 24 * 60 * 60 * 1000
+        now.getTime() + 3 * 24 * 60 * 60 * 1000,
       ).toISOString();
       const past = new Date(
-        now.getTime() - 2 * 24 * 60 * 60 * 1000
+        now.getTime() - 2 * 24 * 60 * 60 * 1000,
       ).toISOString();
       global.fetch = jest.fn((url) => {
         if (url.startsWith("/api/events/"))

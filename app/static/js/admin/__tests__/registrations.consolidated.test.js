@@ -67,13 +67,13 @@ describe("registrationsManager (consolidated)", () => {
       const comp = registrationsManager();
       global.localStorage.setItem("authToken", "tok");
       global.fetch = jest.fn(() =>
-        Promise.resolve({ ok: false, status: 500, statusText: "err" })
+        Promise.resolve({ ok: false, status: 500, statusText: "err" }),
       );
       await comp.loadRegistrations();
       expect(comp.errorMessage).toMatch(/Error al cargar registros/);
       expect(global.showToast).toHaveBeenCalledWith(
         "Error al cargar registros",
-        "error"
+        "error",
       );
     });
   });
@@ -118,9 +118,9 @@ describe("registrationsManager (consolidated)", () => {
       // accept parameter order variations (page/per_page)
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringMatching(
-          /\/api\/registrations.*(?:per_page=10.*page=1|page=1.*per_page=10)/
+          /\/api\/registrations.*(?:per_page=10.*page=1|page=1.*per_page=10)/,
         ),
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(comp.registrations.length).toBe(1);
     });

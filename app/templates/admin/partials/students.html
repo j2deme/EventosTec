@@ -5,7 +5,10 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
       <!-- Búsqueda -->
       <div class="lg:col-span-2">
-        <label for="search" class="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          for="search"
+          class="block text-sm font-medium text-gray-700 mb-1"
+        >
           Buscar
         </label>
         <input
@@ -20,7 +23,10 @@
 
       <!-- Filtro por Evento -->
       <div>
-        <label for="event-filter" class="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          for="event-filter"
+          class="block text-sm font-medium text-gray-700 mb-1"
+        >
           Evento
         </label>
         <select
@@ -38,7 +44,10 @@
 
       <!-- Filtro por Actividad -->
       <div>
-        <label for="activity-filter" class="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          for="activity-filter"
+          class="block text-sm font-medium text-gray-700 mb-1"
+        >
           Actividad
         </label>
         <select
@@ -55,7 +64,10 @@
 
       <!-- Filtro por Carrera -->
       <div>
-        <label for="career-filter" class="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          for="career-filter"
+          class="block text-sm font-medium text-gray-700 mb-1"
+        >
           Carrera
         </label>
         <input
@@ -96,32 +108,48 @@
 
   <!-- Loading state -->
   <div x-show="loading" class="text-center py-12">
-    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+    <div
+      class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"
+    ></div>
     <p class="mt-4 text-gray-600">Cargando estudiantes...</p>
   </div>
 
   <!-- Error state -->
-  <div x-show="!loading && errorMessage" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+  <div
+    x-show="!loading && errorMessage"
+    class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6"
+  >
     <p class="text-red-800" x-text="errorMessage"></p>
   </div>
 
   <!-- Tabla de estudiantes -->
-  <div x-show="!loading && !errorMessage" class="bg-white rounded-lg shadow overflow-hidden">
+  <div
+    x-show="!loading && !errorMessage"
+    class="bg-white rounded-lg shadow overflow-hidden"
+  >
     <!-- Desktop view -->
     <div class="hidden md:block overflow-x-auto">
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th
+              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
               Estudiante
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th
+              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
               Carrera
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th
+              class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
               Email
             </th>
-            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th
+              class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+            >
               Acciones
             </th>
           </tr>
@@ -131,22 +159,38 @@
             <tr class="hover:bg-gray-50">
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
-                  <div class="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                  <div
+                    class="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center"
+                  >
                     <i class="ti ti-user text-indigo-600"></i>
                   </div>
                   <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900" x-text="student.full_name"></div>
-                    <div class="text-sm text-gray-500" x-text="student.control_number"></div>
+                    <div
+                      class="text-sm font-medium text-gray-900"
+                      x-text="student.full_name"
+                    ></div>
+                    <div
+                      class="text-sm text-gray-500"
+                      x-text="student.control_number"
+                    ></div>
                   </div>
                 </div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-900" x-text="student.career || 'Sin carrera'"></div>
+                <div
+                  class="text-sm text-gray-900"
+                  x-text="student.career || 'Sin carrera'"
+                ></div>
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm text-gray-500" x-text="student.email || 'Sin email'"></div>
+                <div
+                  class="text-sm text-gray-500"
+                  x-text="student.email || 'Sin email'"
+                ></div>
               </td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <td
+                class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+              >
                 <button
                   @click="viewStudentDetail(student)"
                   class="text-indigo-600 hover:text-indigo-900"
@@ -167,12 +211,20 @@
         <div class="p-4 border-b border-gray-200">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center">
-              <div class="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center">
+              <div
+                class="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center"
+              >
                 <i class="ti ti-user text-indigo-600"></i>
               </div>
               <div class="ml-3">
-                <div class="text-sm font-medium text-gray-900" x-text="student.full_name"></div>
-                <div class="text-xs text-gray-500" x-text="student.control_number"></div>
+                <div
+                  class="text-sm font-medium text-gray-900"
+                  x-text="student.full_name"
+                ></div>
+                <div
+                  class="text-xs text-gray-500"
+                  x-text="student.control_number"
+                ></div>
               </div>
             </div>
           </div>
@@ -207,7 +259,10 @@
   </div>
 
   <!-- Paginación -->
-  <div x-show="!loading && students.length > 0" class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-6 rounded-lg shadow">
+  <div
+    x-show="!loading && students.length > 0"
+    class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-6 rounded-lg shadow"
+  >
     <div class="flex-1 flex justify-between sm:hidden">
       <button
         @click="changePage(pagination.current_page - 1)"
@@ -272,7 +327,9 @@
     class="fixed inset-0 overflow-y-auto z-50"
     style="display: none"
   >
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div
+      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+    >
       <div
         x-show="showDetailModal"
         x-transition
@@ -296,11 +353,17 @@
               </h3>
               <div class="mt-2" x-show="currentStudent">
                 <p class="text-sm text-gray-600">
-                  <span class="font-medium" x-text="currentStudent?.full_name"></span>
+                  <span
+                    class="font-medium"
+                    x-text="currentStudent?.full_name"
+                  ></span>
                   <span class="text-gray-400 mx-2">•</span>
                   <span x-text="currentStudent?.control_number"></span>
                 </p>
-                <p class="text-sm text-gray-500" x-text="currentStudent?.career"></p>
+                <p
+                  class="text-sm text-gray-500"
+                  x-text="currentStudent?.career"
+                ></p>
               </div>
             </div>
             <button
@@ -313,24 +376,37 @@
 
           <!-- Loading -->
           <div x-show="loadingDetail" class="text-center py-12">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+            <div
+              class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"
+            ></div>
             <p class="mt-4 text-gray-600">Cargando historial...</p>
           </div>
 
           <!-- Eventos con horas -->
           <div x-show="!loadingDetail" class="mt-6">
-            <div x-show="studentEventsHours.length === 0" class="text-center py-8 text-gray-500">
+            <div
+              x-show="studentEventsHours.length === 0"
+              class="text-center py-8 text-gray-500"
+            >
               <i class="ti ti-calendar-off text-4xl mb-2"></i>
               <p>El estudiante no tiene horas confirmadas en ningún evento</p>
             </div>
 
             <div x-show="studentEventsHours.length > 0" class="space-y-4">
-              <template x-for="eventData in studentEventsHours" :key="eventData.event_id">
-                <div class="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors">
+              <template
+                x-for="eventData in studentEventsHours"
+                :key="eventData.event_id"
+              >
+                <div
+                  class="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors"
+                >
                   <div class="flex items-start justify-between">
                     <div class="flex-1">
                       <div class="flex items-center gap-2">
-                        <h4 class="text-base font-medium text-gray-900" x-text="eventData.event_name"></h4>
+                        <h4
+                          class="text-base font-medium text-gray-900"
+                          x-text="eventData.event_name"
+                        ></h4>
                         <span
                           x-show="eventData.has_complementary_credit"
                           class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
@@ -340,19 +416,29 @@
                         </span>
                       </div>
                       <p class="text-sm text-gray-500 mt-1">
-                        <span x-text="formatDate(eventData.event_start_date)"></span>
+                        <span
+                          x-text="formatDate(eventData.event_start_date)"
+                        ></span>
                         -
-                        <span x-text="formatDate(eventData.event_end_date)"></span>
+                        <span
+                          x-text="formatDate(eventData.event_end_date)"
+                        ></span>
                       </p>
                       <div class="mt-3 flex items-center gap-4 text-sm">
                         <div class="flex items-center text-gray-700">
                           <i class="ti ti-clock mr-1"></i>
-                          <span class="font-medium" x-text="eventData.total_hours.toFixed(1)"></span>
+                          <span
+                            class="font-medium"
+                            x-text="eventData.total_hours.toFixed(1)"
+                          ></span>
                           <span class="ml-1">horas confirmadas</span>
                         </div>
                         <div class="flex items-center text-gray-700">
                           <i class="ti ti-book mr-1"></i>
-                          <span class="font-medium" x-text="eventData.activities_count"></span>
+                          <span
+                            class="font-medium"
+                            x-text="eventData.activities_count"
+                          ></span>
                           <span class="ml-1">actividades</span>
                         </div>
                       </div>
@@ -381,7 +467,9 @@
     class="fixed inset-0 overflow-y-auto z-50"
     style="display: none"
   >
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div
+      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+    >
       <div
         x-show="showEventDetailModal"
         x-transition
@@ -404,11 +492,17 @@
                 Cronología de Actividades
               </h3>
               <div class="mt-2" x-show="currentEventDetail">
-                <p class="text-sm text-gray-900 font-medium" x-text="currentEventDetail?.event_name"></p>
+                <p
+                  class="text-sm text-gray-900 font-medium"
+                  x-text="currentEventDetail?.event_name"
+                ></p>
                 <div class="flex items-center gap-3 mt-1">
                   <span class="text-sm text-gray-600">
                     <i class="ti ti-clock mr-1"></i>
-                    <span class="font-medium" x-text="currentEventDetail?.total_confirmed_hours?.toFixed(1)"></span>
+                    <span
+                      class="font-medium"
+                      x-text="currentEventDetail?.total_confirmed_hours?.toFixed(1)"
+                    ></span>
                     horas confirmadas
                   </span>
                   <span
@@ -431,7 +525,9 @@
 
           <!-- Loading -->
           <div x-show="loadingEventDetail" class="text-center py-12">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"></div>
+            <div
+              class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-600"
+            ></div>
             <p class="mt-4 text-gray-600">Cargando actividades...</p>
           </div>
 
@@ -439,7 +535,10 @@
           <div x-show="!loadingEventDetail" class="mt-6">
             <div class="flow-root">
               <ul class="-mb-8">
-                <template x-for="(activity, index) in eventActivities" :key="activity.registration_id">
+                <template
+                  x-for="(activity, index) in eventActivities"
+                  :key="activity.registration_id"
+                >
                   <li>
                     <div class="relative pb-8">
                       <span
@@ -463,17 +562,26 @@
                             ></i>
                           </span>
                         </div>
-                        <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                        <div
+                          class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4"
+                        >
                           <div>
-                            <p class="text-sm font-medium text-gray-900" x-text="activity.activity_name"></p>
+                            <p
+                              class="text-sm font-medium text-gray-900"
+                              x-text="activity.activity_name"
+                            ></p>
                             <p class="text-xs text-gray-500 mt-0.5">
                               <span x-text="activity.activity_type"></span>
                               <span class="mx-1">•</span>
-                              <span x-text="activity.duration_hours + ' horas'"></span>
+                              <span
+                                x-text="activity.duration_hours + ' horas'"
+                              ></span>
                             </p>
                             <p class="text-xs text-gray-500 mt-1">
                               <i class="ti ti-calendar mr-1"></i>
-                              <span x-text="formatDateTime(activity.start_datetime)"></span>
+                              <span
+                                x-text="formatDateTime(activity.start_datetime)"
+                              ></span>
                             </p>
                             <p class="text-xs text-gray-500">
                               <i class="ti ti-map-pin mr-1"></i>
@@ -507,7 +615,9 @@
     class="fixed inset-0 overflow-y-auto z-50"
     style="display: none"
   >
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div
+      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+    >
       <div
         x-show="showExportModal"
         x-transition
@@ -531,7 +641,8 @@
                 Exportar Estudiantes con Crédito Complementario
               </h3>
               <p class="mt-2 text-sm text-gray-600">
-                Filtra y exporta estudiantes que han acumulado 10+ horas confirmadas en un evento específico.
+                Filtra y exporta estudiantes que han acumulado 10+ horas
+                confirmadas en un evento específico.
               </p>
             </div>
             <button
@@ -597,15 +708,22 @@
           </div>
 
           <!-- Error -->
-          <div x-show="exportError" class="mt-4 bg-red-50 border border-red-200 rounded-lg p-3">
+          <div
+            x-show="exportError"
+            class="mt-4 bg-red-50 border border-red-200 rounded-lg p-3"
+          >
             <p class="text-sm text-red-800" x-text="exportError"></p>
           </div>
 
           <!-- Resultados -->
-          <div x-show="exportData.length > 0" class="mt-6 border-t border-gray-200 pt-4">
+          <div
+            x-show="exportData.length > 0"
+            class="mt-6 border-t border-gray-200 pt-4"
+          >
             <div class="mb-4 flex items-center justify-between">
               <h4 class="text-sm font-medium text-gray-900">
-                Estudiantes encontrados: <span class="text-indigo-600" x-text="exportData.length"></span>
+                Estudiantes encontrados:
+                <span class="text-indigo-600" x-text="exportData.length"></span>
               </h4>
               <button
                 @click="exportToExcel()"
@@ -617,44 +735,80 @@
             </div>
 
             <!-- Tabla de vista previa -->
-            <div class="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+            <div
+              class="max-h-96 overflow-y-auto border border-gray-200 rounded-lg"
+            >
               <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50 sticky top-0">
                   <tr>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+                    >
                       No.
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+                    >
                       No. Control
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+                    >
                       Nombre
                     </th>
-                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    <th
+                      class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase"
+                    >
                       Carrera
                     </th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    <th
+                      class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
+                    >
                       Horas
                     </th>
-                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    <th
+                      class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
+                    >
                       Actividades
                     </th>
                   </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                  <template x-for="(student, index) in exportData" :key="student.id">
+                  <template
+                    x-for="(student, index) in exportData"
+                    :key="student.id"
+                  >
                     <tr class="hover:bg-gray-50">
-                      <td class="px-4 py-3 text-sm text-gray-900" x-text="index + 1"></td>
-                      <td class="px-4 py-3 text-sm font-medium text-gray-900" x-text="student.control_number"></td>
-                      <td class="px-4 py-3 text-sm text-gray-900" x-text="student.full_name"></td>
-                      <td class="px-4 py-3 text-sm text-gray-600" x-text="student.career"></td>
+                      <td
+                        class="px-4 py-3 text-sm text-gray-900"
+                        x-text="index + 1"
+                      ></td>
+                      <td
+                        class="px-4 py-3 text-sm font-medium text-gray-900"
+                        x-text="student.control_number"
+                      ></td>
+                      <td
+                        class="px-4 py-3 text-sm text-gray-900"
+                        x-text="student.full_name"
+                      ></td>
+                      <td
+                        class="px-4 py-3 text-sm text-gray-600"
+                        x-text="student.career"
+                      ></td>
                       <td class="px-4 py-3 text-sm text-center">
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <span
+                          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                        >
                           <i class="ti ti-clock mr-1"></i>
-                          <span x-text="student.total_hours.toFixed(1) + ' hrs'"></span>
+                          <span
+                            x-text="student.total_hours.toFixed(1) + ' hrs'"
+                          ></span>
                         </span>
                       </td>
-                      <td class="px-4 py-3 text-sm text-center text-gray-900" x-text="student.activities_count"></td>
+                      <td
+                        class="px-4 py-3 text-sm text-center text-gray-900"
+                        x-text="student.activities_count"
+                      ></td>
                     </tr>
                   </template>
                 </tbody>
@@ -663,9 +817,15 @@
           </div>
 
           <!-- Estado vacío -->
-          <div x-show="!loadingExport && exportData.length === 0 && exportFilters.event_id" class="mt-6 text-center py-8 text-gray-500">
+          <div
+            x-show="!loadingExport && exportData.length === 0 && exportFilters.event_id"
+            class="mt-6 text-center py-8 text-gray-500"
+          >
             <i class="ti ti-users-off text-4xl mb-2"></i>
-            <p>No se encontraron estudiantes con 10+ horas para los filtros seleccionados</p>
+            <p>
+              No se encontraron estudiantes con 10+ horas para los filtros
+              seleccionados
+            </p>
           </div>
         </div>
       </div>

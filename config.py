@@ -6,22 +6,21 @@ load_dotenv()
 
 
 class Config:
-    SECRET_KEY = os.environ.get(
-        'SECRET_KEY') or 'dev-secret-key-change-in-production'
+    SECRET_KEY = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
 
     # Build the SQLALCHEMY_DATABASE_URI in a robust way:
     # - Prefer DATABASE_URL if provided (full URI)
     # - Otherwise compose from DB_USER, DB_PASSWORD, DB_HOST, DB_PORT and DB_NAME
     # URL-encode user and password to avoid issues with special characters
-    _database_url = os.environ.get('DATABASE_URL')
+    _database_url = os.environ.get("DATABASE_URL")
     if _database_url:
         SQLALCHEMY_DATABASE_URI = _database_url
     else:
-        DB_USER = os.environ.get('DB_USER', 'root')
-        DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
-        DB_HOST = os.environ.get('DB_HOST', 'localhost')
-        DB_PORT = os.environ.get('DB_PORT', '')
-        DB_NAME = os.environ.get('DB_NAME', 'eventos_tec')
+        DB_USER = os.environ.get("DB_USER", "root")
+        DB_PASSWORD = os.environ.get("DB_PASSWORD", "")
+        DB_HOST = os.environ.get("DB_HOST", "localhost")
+        DB_PORT = os.environ.get("DB_PORT", "")
+        DB_NAME = os.environ.get("DB_NAME", "eventos_tec")
 
         host = f"{DB_HOST}:{DB_PORT}" if DB_PORT else DB_HOST
         user_q = quote_plus(DB_USER)
@@ -29,32 +28,34 @@ class Config:
         SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{user_q}:{pw_q}@{host}/{DB_NAME}"
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    JWT_SECRET_KEY = os.environ.get(
-        'JWT_SECRET_KEY') or 'jwt-secret-string-change-in-production'
+    JWT_SECRET_KEY = (
+        os.environ.get("JWT_SECRET_KEY") or "jwt-secret-string-change-in-production"
+    )
     JWT_ACCESS_TOKEN_EXPIRES = 3600  # 1 hora
     # Asegurar que busca el token en los headers
-    JWT_TOKEN_LOCATION = ['headers']
-    JWT_HEADER_NAME = 'Authorization'
-    JWT_HEADER_TYPE = 'Bearer'
+    JWT_TOKEN_LOCATION = ["headers"]
+    JWT_HEADER_NAME = "Authorization"
+    JWT_HEADER_TYPE = "Bearer"
     # Optional compact token support (requires sqids). Enable in production via env var.
-    ENABLE_SQIDS = os.environ.get('ENABLE_SQIDS', '0') in ('1', 'true', 'yes')
+    ENABLE_SQIDS = os.environ.get("ENABLE_SQIDS", "0") in ("1", "true", "yes")
     # Number of bytes to truncate HMAC signature for compact tokens (default 8)
-    TOKEN_SIG_TRUNC = int(os.environ.get('TOKEN_SIG_TRUNC', '8'))
+    TOKEN_SIG_TRUNC = int(os.environ.get("TOKEN_SIG_TRUNC", "8"))
     # Public confirmation window in days for chiefs' token (default 30 days)
-    PUBLIC_CONFIRM_WINDOW_DAYS = int(
-        os.environ.get('PUBLIC_CONFIRM_WINDOW_DAYS', '30'))
+    PUBLIC_CONFIRM_WINDOW_DAYS = int(os.environ.get("PUBLIC_CONFIRM_WINDOW_DAYS", "30"))
     # Public pause/resume window configuration (overridable via .env)
     # Seconds after activity start when the public pause view becomes available.
     # Set to 0 to allow immediately.
     PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS = int(
-        os.environ.get('PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS', '0'))
+        os.environ.get("PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS", "0")
+    )
     # Minutes after activity end that the public pause view remains available.
     PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES = int(
-        os.environ.get('PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES', '5'))
+        os.environ.get("PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", "5")
+    )
     # Application timezone for interpreting naive datetimes from database
     # This should match the timezone where the app is deployed and users are located
     # Default: America/Mexico_City (UTC-6 in winter, UTC-5 in DST)
-    APP_TIMEZONE = os.environ.get('APP_TIMEZONE', 'America/Mexico_City')
+    APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "America/Mexico_City")
 
 
 class DevelopmentConfig(Config):
@@ -65,7 +66,7 @@ class TestingConfig(Config):
     TESTING = True
     DEBUG = True
     # Usar base de datos sqlite en disco para tests para evitar problemas de conexiones
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///test_eventostec.db'
+    SQLALCHEMY_DATABASE_URI = "sqlite:///test_eventostec.db"
     WTF_CSRF_ENABLED = False  # Deshabilitar CSRF para tests
 
 
@@ -74,8 +75,8 @@ class ProductionConfig(Config):
 
 
 config = {
-    'development': DevelopmentConfig,
-    'testing': TestingConfig,      # Agregado
-    'production': ProductionConfig,
-    'default': DevelopmentConfig
+    "development": DevelopmentConfig,
+    "testing": TestingConfig,  # Agregado
+    "production": ProductionConfig,
+    "default": DevelopmentConfig,
 }

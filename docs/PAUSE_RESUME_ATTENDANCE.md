@@ -11,10 +11,12 @@ Esta funcionalidad permite pausar y reanudar asistencias para actividades de tip
 ### 1. Backend (API)
 
 #### Admin Endpoints (requieren autenticación JWT + rol Admin)
+
 - `POST /api/attendances/pause` - Pausa una asistencia
 - `POST /api/attendances/resume` - Reanuda una asistencia pausada
 
 #### Public Endpoints (usan token público de actividad)
+
 - `GET /public/pause-attendance/<token>` - Vista pública mobile-first para control de asistencia
 - `GET /api/public/attendances/search` - Busca asistencias por nombre o número de control
 - `POST /api/public/attendances/<attendance_id>/pause` - Pausa una asistencia (público)
@@ -25,6 +27,7 @@ Esta funcionalidad permite pausar y reanudar asistencias para actividades de tip
 ### 2. Frontend
 
 #### Vista de Administrador
+
 - Botones de pausa/reactivación en la lista de asistencias (`/admin/attendances`)
 - Los botones solo aparecen para actividades de tipo "Magistral"
 - Se muestra el botón de pausa cuando la asistencia está activa (check-in sin check-out)
@@ -32,6 +35,7 @@ Esta funcionalidad permite pausar y reanudar asistencias para actividades de tip
 - Usa iconos de Tabler Icons (web font)
 
 #### Vista Pública
+
 - Vista mobile-first accesible mediante token público
 - Buscador de estudiantes por nombre o número de control
 - Botones grandes optimizados para dispositivos móviles
@@ -63,7 +67,7 @@ Esta funcionalidad permite pausar y reanudar asistencias para actividades de tip
 
 - **Solo para actividades Magistral**: La funcionalidad solo está disponible para conferencias magistrales
 - **Restricción temporal**: Vista pública disponible solo durante el período de la actividad (30s después inicio - 1min después fin)
-- **Validaciones de estado**: 
+- **Validaciones de estado**:
   - Solo se puede pausar si hay check-in registrado
   - No se puede pausar si ya hay check-out
   - Solo se puede reanudar si la asistencia está pausada

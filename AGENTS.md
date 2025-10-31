@@ -61,14 +61,12 @@ Cómo crear cambios seguros (checklist de cambios)
 Plantillas y snippets útiles
 
 - PR description minimal:
-
   - Qué cambia: (breve resumen)
   - Archivos modificados: (lista)
   - Tests añadidos: (si aplica)
   - Cómo probar localmente: pasos concretos (ejecutar server, endpoints, UI flows)
 
 - Ejemplo de test unitario backend (pytest) para `synth`:
-
   - Crear un test que cargue un `Registration` serializado y verifique que `GET /api/registrations/<id>?synth=1` retorna `synthesized` con keys esperadas.
 
 Tareas comunes y cómo abordarlas

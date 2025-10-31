@@ -422,7 +422,7 @@ function adminDashboard() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(
-          "/api/activities?sort=created_at:desc&per_page=10"
+          "/api/activities?sort=created_at:desc&per_page=10",
         );
         if (response && response.ok) {
           const data = await response.json();

@@ -64,7 +64,7 @@ function studentEventsManager() {
             return;
           }
           throw new Error(
-            `Error al cargar eventos: ${response.status} ${response.statusText}`
+            `Error al cargar eventos: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -85,7 +85,7 @@ function studentEventsManager() {
             (event) =>
               event.name.toLowerCase().includes(searchTerm) ||
               (event.description &&
-                event.description.toLowerCase().includes(searchTerm))
+                event.description.toLowerCase().includes(searchTerm)),
           );
         }
 
@@ -115,7 +115,7 @@ function studentEventsManager() {
         const totalPages = Math.ceil(filteredEvents.length / perPage);
         const currentPageEvents = filteredEvents.slice(
           (page - 1) * perPage,
-          page * perPage
+          page * perPage,
         );
 
         // Mapear eventos y formatear fechas
@@ -167,7 +167,7 @@ function studentEventsManager() {
           `/api/activities?event_id=${event.id}&per_page=1000&for_student=true`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -176,14 +176,14 @@ function studentEventsManager() {
             return;
           }
           throw new Error(
-            `Error al cargar actividades: ${response.status} ${response.statusText}`
+            `Error al cargar actividades: ${response.status} ${response.statusText}`,
           );
         }
 
         const data = await response.json();
         // Defensive filter: ensure forbidden activity types are removed
         const activities = (data.activities || []).filter(
-          (a) => String(a.activity_type).toLowerCase() !== "magistral"
+          (a) => String(a.activity_type).toLowerCase() !== "magistral",
         );
 
         const summary = {};
@@ -245,12 +245,12 @@ function studentEventsManager() {
                 eventId: event.id,
                 eventName: event.name,
               },
-            })
+            }),
           );
         } else {
           // Alternativa: buscar el dashboard de forma más directa
           const dashboardElement = document.querySelector(
-            '[x-data*="studentDashboard"]'
+            '[x-data*="studentDashboard"]',
           );
           if (dashboardElement) {
             // Intentar acceder al manager Alpine directamente
@@ -285,7 +285,7 @@ function studentEventsManager() {
                 eventId: event.id,
                 eventName: event.name,
               },
-            })
+            }),
           );
         }
       } catch (error) {

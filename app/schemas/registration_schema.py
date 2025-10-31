@@ -12,9 +12,12 @@ class RegistrationSchema(ma.SQLAlchemyAutoSchema):
     # Validaciones
     student_id = fields.Int(required=True)
     activity_id = fields.Int(required=True)
-    status = fields.Str(load_default='Registrado', validate=validate.OneOf([
-        'Registrado', 'Confirmado', 'Asistió', 'Ausente', 'Cancelado'
-    ]))
+    status = fields.Str(
+        load_default="Registrado",
+        validate=validate.OneOf(
+            ["Registrado", "Confirmado", "Asistió", "Ausente", "Cancelado"]
+        ),
+    )
     attended = fields.Bool(load_default=False)
 
     # Campos de solo lectura
@@ -24,9 +27,10 @@ class RegistrationSchema(ma.SQLAlchemyAutoSchema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
-    activity = fields.Nested('ActivitySchema', dump_only=True)
-    student = fields.Nested('StudentSchema', dump_only=True,
-                            exclude=('registrations', 'attendances'))
+    activity = fields.Nested("ActivitySchema", dump_only=True)
+    student = fields.Nested(
+        "StudentSchema", dump_only=True, exclude=("registrations", "attendances")
+    )
 
 
 registration_schema = RegistrationSchema()

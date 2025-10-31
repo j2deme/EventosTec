@@ -1,4 +1,4 @@
-from marshmallow import Schema, fields, validate
+from marshmallow import fields, validate
 from app import ma
 from app.models.event import Event
 
@@ -22,11 +22,15 @@ class EventSchema(ma.SQLAlchemyAutoSchema):
     updated_at = fields.DateTime(dump_only=True)
 
     # Campo calculado (solo para salida)
-    activities_count = fields.Method('get_activities_count', dump_only=True)
+    activities_count = fields.Method("get_activities_count", dump_only=True)
 
     def get_activities_count(self, obj):
         # Calcula el número de actividades relacionadas usando la relación del modelo Event
-        return len(obj.activities) if hasattr(obj, 'activities') and obj.activities is not None else 0
+        return (
+            len(obj.activities)
+            if hasattr(obj, "activities") and obj.activities is not None
+            else 0
+        )
 
 
 # Instancias para usar en los endpoints

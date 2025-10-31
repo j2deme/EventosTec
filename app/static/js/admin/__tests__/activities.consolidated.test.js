@@ -149,13 +149,13 @@ describe("activitiesManager (consolidated)", () => {
       const comp = activitiesManager();
       global.localStorage.setItem("authToken", "tok");
       global.fetch = jest.fn(() =>
-        Promise.resolve({ ok: false, status: 500, statusText: "Server Error" })
+        Promise.resolve({ ok: false, status: 500, statusText: "Server Error" }),
       );
       await comp.loadActivities();
       expect(comp.errorMessage).toMatch(/Error al cargar actividades/);
       expect(global.showToast).toHaveBeenCalledWith(
         "Error al cargar actividades",
-        "error"
+        "error",
       );
     });
 
@@ -239,7 +239,7 @@ describe("activitiesManager (consolidated)", () => {
       await comp.loadEvents();
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/events/",
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(comp.events.length).toBeGreaterThan(0);
     });
@@ -301,10 +301,10 @@ describe("activitiesManager (consolidated)", () => {
       await comp.createActivity();
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/activities/",
-        expect.objectContaining({ method: "POST" })
+        expect.objectContaining({ method: "POST" }),
       );
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "activity-created" })
+        expect.objectContaining({ type: "activity-created" }),
       );
       spy.mockRestore();
     });
@@ -341,10 +341,10 @@ describe("activitiesManager (consolidated)", () => {
       await comp.updateActivity();
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/activities/55",
-        expect.objectContaining({ method: "PUT" })
+        expect.objectContaining({ method: "PUT" }),
       );
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "activity-updated" })
+        expect.objectContaining({ type: "activity-updated" }),
       );
       spy.mockRestore();
     });
@@ -358,10 +358,10 @@ describe("activitiesManager (consolidated)", () => {
       await comp.deleteActivity();
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/activities/99",
-        expect.objectContaining({ method: "DELETE" })
+        expect.objectContaining({ method: "DELETE" }),
       );
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "activity-deleted" })
+        expect.objectContaining({ type: "activity-deleted" }),
       );
       spy.mockRestore();
     });

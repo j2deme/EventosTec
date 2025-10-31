@@ -146,7 +146,7 @@ function checkAuth() {
     if (response.status === 401) {
       showToast(
         "🔴 Tu sesión ha expirado. Serás redirigido al login.",
-        "error"
+        "error",
       );
       setTimeout(() => checkAuthAndRedirect(), 1500);
     }
@@ -428,10 +428,10 @@ function sessionStatusManager() {
       if (!this._warningShown) {
         showToast(
           `⚠️ Tu sesión expirará en ${Math.ceil(
-            this.timeRemaining / 60
+            this.timeRemaining / 60,
           )} minutos`,
           "warning",
-          5000
+          5000,
         );
         this._warningShown = true;
       }
@@ -440,7 +440,7 @@ function sessionStatusManager() {
     handleExpired() {
       showToast(
         "🔴 Tu sesión ha expirado. Serás redirigido al login.",
-        "error"
+        "error",
       );
       setTimeout(() => checkAuthAndRedirect(), 2000);
     },
@@ -462,11 +462,11 @@ function sessionStatusManager() {
       switch (this.status) {
         case "active":
           return `🟢 Sesión activa (${Math.ceil(
-            this.timeRemaining / 60
+            this.timeRemaining / 60,
           )} min restantes)`;
         case "warning":
           return `⚠️ Sesión expirando en ${Math.ceil(
-            this.timeRemaining / 60
+            this.timeRemaining / 60,
           )} minutos`;
         case "expired":
           return "🔴 Sesión expirada";

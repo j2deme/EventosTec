@@ -69,7 +69,7 @@ function eventsManager() {
         const response = await f(`/api/events?${params.toString()}`);
         if (!response || !response.ok) {
           throw new Error(
-            `Error al cargar eventos: ${response && response.status}`
+            `Error al cargar eventos: ${response && response.status}`,
           );
         }
 
@@ -134,7 +134,7 @@ function eventsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear evento: ${response.status} ${response.statusText}`
+              `Error al crear evento: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -150,7 +150,7 @@ function eventsManager() {
               action: "create",
               eventId: newEvent.id,
             },
-          })
+          }),
         );
 
         showToast("Evento creado exitosamente", "success");
@@ -194,7 +194,7 @@ function eventsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar evento: ${response.status} ${response.statusText}`
+              `Error al actualizar evento: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -210,7 +210,7 @@ function eventsManager() {
               action: "update",
               eventId: updatedEvent.id,
             },
-          })
+          }),
         );
 
         showToast("Evento actualizado exitosamente", "success");
@@ -246,7 +246,7 @@ function eventsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar evento: ${response.status} ${response.statusText}`
+              `Error al eliminar evento: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -261,7 +261,7 @@ function eventsManager() {
               action: "delete",
               eventId: eventId,
             },
-          })
+          }),
         );
 
         showToast("Evento eliminado exitosamente", "success");
@@ -353,35 +353,12 @@ function eventsManager() {
         activities_by_type: event.activities_by_type || undefined,
       };
       this.showEventDetails = true;
-      // ensure we have the public token/url loaded, but prefer showing a slug URL immediately
-      try {
-        // build a slug-only path for the event and expose an absolute URL for copying/opening
-        const makeSlug = (s) =>
-          String(s || "")
-            .toString()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "")
-            .slice(0, 50);
-        const slug = makeSlug(
-          this.eventDetails.name || this.eventDetails.id || "evento"
-        );
-        const slugPath = `/public/event-registrations/${encodeURIComponent(
-          slug
-        )}`;
-        // prefer existing event.public_url if present, otherwise use the slug URL
-        if (!this.eventDetails.public_url) {
-          try {
-            this.eventDetails.public_url =
-              (window.location && window.location.origin
-                ? window.location.origin
-                : "") + slugPath;
-          } catch (e) {
-            this.eventDetails.public_url = slugPath;
-          }
-        }
-      } catch (e) {}
-      // still load the server-generated token in background (don't overwrite public_url)
+      // Do NOT fabricate slug-based URLs client-side. Prefer server-provided
+      // `public_url` when available. We will always try to load the server
+      // generated token/url in background; the UI should use `public_url` if
+      // present, otherwise `public_token_url` once the background call completes.
+      // This prevents divergence between frontend-generated slugs and the
+      // canonical server slugification.
       this.loadEventPublicToken(event.id);
     },
 
@@ -405,36 +382,20 @@ function eventsManager() {
         } catch (e) {
           // ignore localStorage errors
         }
-
-        const resp = await f(`/api/events/${eventId}/public-token`, {
-          headers,
-        });
-        if (!resp) {
-          console.debug("loadEventPublicToken: no response");
-          return;
-        }
-        if (!resp.ok) {
-          // log response body for debugging in prod (without throwing)
-          try {
-            const err = await resp.json().catch(() => null);
-            console.debug("loadEventPublicToken: non-ok", resp.status, err);
-          } catch (e) {
-            console.debug("loadEventPublicToken: non-ok", resp.status);
-          }
-          return;
-        }
-        const data = await resp.json();
-        // data is expected to contain { token, url }
-        this.eventDetails.public_token = data.token || null;
-        // keep server-generated token url separate so we don't overwrite the slug-based public_url
-        this.eventDetails.public_token_url = data.url || null;
+        // Public tokens removed: do not call `/api/events/:id/public-token`.
+        // Prefer server-provided `public_url` when present. Clear any token
+        // fields to avoid stale values.
+        this.eventDetails.public_token = null;
+        this.eventDetails.public_token_url = null;
       } catch (e) {
         console.error("loadEventPublicToken", e);
       }
     },
 
     copyEventPublicUrl() {
-      const url = this.eventDetails && this.eventDetails.public_url;
+      const url =
+        this.eventDetails &&
+        (this.eventDetails.public_url || this.eventDetails.public_token_url);
       if (!url) return;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard
@@ -458,7 +419,7 @@ function eventsManager() {
     },
 
     openEventPublicPanel() {
-      // Open the slug-based public URL by default (preferred). If not present, fall back to token URL.
+      // Open the slug-based public URL by default (preferred). If not present, fall back to server token URL.
       const url =
         this.eventDetails &&
         (this.eventDetails.public_url || this.eventDetails.public_token_url);

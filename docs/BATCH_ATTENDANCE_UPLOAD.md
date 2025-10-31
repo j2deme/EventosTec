@@ -7,6 +7,7 @@ Funcionalidad para registrar asistencias en lote a partir de archivos TXT o XLSX
 ## Características
 
 ### Workflow de Selección
+
 1. **Evento**: Seleccionar el evento al cual pertenece la actividad
 2. **Departamento**: Filtrar actividades por departamento
 3. **Actividad**: Seleccionar la actividad específica para la cual se registrarán asistencias
@@ -14,8 +15,10 @@ Funcionalidad para registrar asistencias en lote a partir de archivos TXT o XLSX
 ### Formatos de Archivo Soportados
 
 #### Archivo TXT
+
 - Un número de control por línea
 - Ejemplo:
+
 ```
 L12345678
 L23456789
@@ -23,12 +26,13 @@ L34567890
 ```
 
 #### Archivo XLSX/XLS
+
 - Números de control en la primera columna
 - Puede incluir o no encabezados (se procesan todas las filas)
 - Ejemplo:
 
 | Columna A |
-|-----------|
+| --------- |
 | L12345678 |
 | L23456789 |
 | L34567890 |
@@ -36,6 +40,7 @@ L34567890
 ### Modo Dry-Run
 
 El modo "Dry run" permite validar el archivo sin realizar cambios en la base de datos:
+
 - ✅ Valida que los números de control existan
 - ✅ Identifica duplicados
 - ✅ Muestra qué registros se crearían
@@ -44,6 +49,7 @@ El modo "Dry run" permite validar el archivo sin realizar cambios en la base de 
 ### Ejecución Real
 
 Desmarcando "Dry run" se ejecuta la importación:
+
 - ✅ Crea registros de asistencia
 - ✅ Establece estatus "Asistió"
 - ✅ Establece porcentaje de asistencia al 100%
@@ -74,18 +80,23 @@ Desmarcando "Dry run" se ejecuta la importación:
 Después de procesar el archivo, se muestra un reporte con:
 
 ### Resumen
+
 - **Creadas**: Número de asistencias creadas exitosamente
 - **Omitidas**: Número de asistencias que ya existían (duplicados)
 - **No encontradas**: Números de control que no se encontraron ni en BD ni en API externa
 
 ### Detalles
+
 Tabla con información de cada número de control procesado:
+
 - Número de control
 - Nombre del estudiante
 - Acción realizada (Creada/Omitida)
 
 ### Errores
+
 Lista de errores encontrados durante el procesamiento:
+
 - Números de control no encontrados
 - Errores de lectura del archivo
 - Otros errores del sistema
@@ -97,11 +108,13 @@ Lista de errores encontrados durante el procesamiento:
 **Autenticación**: Requiere JWT token con rol de administrador
 
 **Parámetros (form-data)**:
+
 - `file` (archivo): Archivo TXT o XLSX con números de control
 - `activity_id` (número): ID de la actividad
 - `dry_run` (string): "1" para dry-run, "0" para ejecución real (default: "1")
 
 **Respuesta exitosa (200/201)**:
+
 ```json
 {
   "message": "Batch procesado",
@@ -128,6 +141,7 @@ Lista de errores encontrados durante el procesamiento:
 ```
 
 **Códigos de estado**:
+
 - `200`: Dry-run exitoso
 - `201`: Ejecución real exitosa
 - `400`: Error en parámetros o archivo
@@ -138,10 +152,12 @@ Lista de errores encontrados durante el procesamiento:
 ## Interfaz de Usuario
 
 ### Acceso
+
 1. Ir a "Gestión de Asistencias" en el panel de administrador
 2. Hacer clic en el botón "Subida batch" (icono de upload azul)
 
 ### Pasos para usar
+
 1. Seleccionar Evento
 2. Seleccionar Departamento
 3. Seleccionar Actividad
@@ -151,17 +167,20 @@ Lista de errores encontrados durante el procesamiento:
 7. Revisar el reporte de resultados
 
 ### Barra de Progreso
+
 Durante la subida se muestra una barra de progreso que indica el avance del proceso.
 
 ## Restricciones y Validaciones
 
 ### Restricciones Implementadas
+
 - ✅ No se permiten asistencias duplicadas
 - ✅ Solo se acepta un formato de archivo a la vez
 - ✅ Se requiere seleccionar evento, departamento y actividad
 - ✅ Los números de control deben ser válidos
 
 ### Validaciones
+
 - Archivo no vacío
 - Activity ID válido
 - Números de control con formato correcto
@@ -170,16 +189,19 @@ Durante la subida se muestra una barra de progreso que indica el avance del proc
 ## Casos de Uso
 
 ### Caso 1: Registro masivo después de un evento
+
 Un administrador tiene una lista de asistentes proporcionada por el ponente y desea registrarlos rápidamente.
 
 **Solución**: Crear un archivo TXT con los números de control y subirlo en modo real.
 
 ### Caso 2: Validación previa de lista
+
 Un administrador desea verificar cuántos estudiantes de una lista ya están registrados.
 
 **Solución**: Subir el archivo en modo dry-run y revisar el reporte de omitidos.
 
 ### Caso 3: Importación desde Excel
+
 Un departamento proporciona una lista en Excel con asistentes.
 
 **Solución**: Asegurar que los números de control estén en la primera columna y subir el archivo XLSX.
@@ -187,6 +209,7 @@ Un departamento proporciona una lista en Excel con asistentes.
 ## Tests Automatizados
 
 Se incluyen tests para:
+
 - ✅ Subida con archivo TXT
 - ✅ Subida con archivo XLSX
 - ✅ Modo dry-run
@@ -200,12 +223,15 @@ Ver: `app/tests/api/test_attendances_batch.py`
 ## Configuración Requerida
 
 ### Dependencias Python
+
 - `pandas>=2.2.3`
 - `openpyxl>=3.1.2`
 - `requests` (para API externa)
 
 ### API Externa
+
 La API externa de estudiantes debe estar disponible en:
+
 ```
 http://apps.tecvalles.mx:8091/api/estudiantes?search={control_number}
 ```
@@ -213,24 +239,29 @@ http://apps.tecvalles.mx:8091/api/estudiantes?search={control_number}
 ## Troubleshooting
 
 ### Problema: "El archivo no contiene números de control"
+
 **Causa**: El archivo está vacío o no tiene datos en la primera columna (XLSX)
 **Solución**: Verificar que el archivo tenga datos y que estén en la primera columna
 
 ### Problema: "No encontrado en BD ni API externa"
+
 **Causa**: El número de control no existe en ninguno de los sistemas
 **Solución**: Verificar que el número de control sea correcto
 
 ### Problema: "Error de conexión con sistema externo"
+
 **Causa**: La API externa no está disponible
 **Solución**: Verificar conectividad con la API externa o esperar a que el servicio esté disponible
 
 ### Problema: Asistencias omitidas (todos)
+
 **Causa**: Todos los estudiantes ya tienen asistencia registrada
 **Solución**: Verificar en la lista de asistencias si ya están registrados
 
 ## Mantenimiento
 
 ### Actualizaciones futuras sugeridas
+
 - [ ] Soporte para múltiples columnas en XLSX (campos adicionales)
 - [ ] Importación de check-in/check-out times desde archivo
 - [ ] Exportación de template XLSX vacío

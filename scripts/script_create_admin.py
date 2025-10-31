@@ -6,17 +6,17 @@ app = create_app()
 
 with app.app_context():
     # Verificar si ya existe
-    existing_admin = User.query.filter_by(username='admin').first()
+    existing_admin = User.query.filter_by(username="admin").first()
     if existing_admin:
         print("Usuario admin ya existe")
     else:
         # Crear usuario administrador
         admin = User(
-            username='admin',
-            email='admin@tecvalles.mx',
-            role='Admin'  # Asegúrate de que coincida con tu enum
+            username="admin",
+            email="admin@tecvalles.mx",
+            role="Admin",  # Asegúrate de que coincida con tu enum
         )
-        admin.set_password('admin123')  # Contraseña de prueba
+        admin.set_password("admin123")  # Contraseña de prueba
         db.session.add(admin)
         db.session.commit()
         print("Usuario admin creado exitosamente")

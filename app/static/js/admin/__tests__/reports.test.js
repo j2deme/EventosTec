@@ -5,13 +5,13 @@ describe("reportsManager", () => {
 
   beforeEach(() => {
     jest.resetModules();
-    
+
     // Mock global.fetch antes de requerir el módulo
     mockFetch = jest.fn();
     global.fetch = mockFetch;
     global.safeFetch = mockFetch;
     global.showToast = jest.fn();
-    
+
     // Requerir el módulo después de mockear
     reportsManager = require("../reports.js");
   });
@@ -81,7 +81,7 @@ describe("reportsManager", () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error loading events",
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(mgr.events).toEqual([]);
     });
@@ -150,7 +150,7 @@ describe("reportsManager", () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error loading activities",
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(mgr.activities).toEqual([]);
     });
@@ -261,9 +261,9 @@ describe("reportsManager", () => {
                     matrix: {},
                   }),
                 }),
-              10
+              10,
             );
-          })
+          }),
       );
 
       const mgr = reportsManager();
@@ -288,11 +288,11 @@ describe("reportsManager", () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error generating matrix",
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(global.showToast).toHaveBeenCalledWith(
         "Error generando matriz",
-        "error"
+        "error",
       );
       expect(mgr.loading).toBe(false);
     });
@@ -353,14 +353,14 @@ describe("reportsManager", () => {
       expect(mgr.fillLoading).toBe(false);
       expect(mgr.fillReport).toHaveLength(3);
       // Find activities by id to avoid order issues
-      const act1 = mgr.fillReport.find(a => a.id === 1);
-      const act2 = mgr.fillReport.find(a => a.id === 2);
-      const act3 = mgr.fillReport.find(a => a.id === 3);
-      
+      const act1 = mgr.fillReport.find((a) => a.id === 1);
+      const act2 = mgr.fillReport.find((a) => a.id === 2);
+      const act3 = mgr.fillReport.find((a) => a.id === 3);
+
       expect(act1).toBeDefined();
       expect(act2).toBeDefined();
       expect(act3).toBeDefined();
-      
+
       expect(act1.percent).toBe(76); // 75.5 rounded
       expect(act1.status_label).toBe("Disponible");
       expect(act2.status_label).toBe("Lleno");
@@ -381,7 +381,7 @@ describe("reportsManager", () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error generating fill report",
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(mgr.fillLoading).toBe(false);
       expect(mgr.fillReport).toEqual([]);

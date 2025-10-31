@@ -8,7 +8,7 @@
     x-data="staffWalkin()"
     x-init="init()"
     id="staff-walkin-card"
-    data-activity-token="{{ activity_token or '' }}"
+    data-activity-id="{{ activity_id or '' }}"
     data-activity-name="{{ activity_name or '' }}"
     data-activity-start="{{ activity_start_iso or '' }}"
   >
@@ -18,17 +18,19 @@
       >
         <i class="ti ti-calendar-event text-indigo-600 text-xl"></i>
       </div>
-      <h1 class="text-2xl font-bold text-gray-800">Eventos Tec Valles</h1>
-      <p class="text-gray-600 text-sm mt-1">
-        Control de Asistencias y Registros
-      </p>
-      <div
-        class="mt-2 text-sm text-gray-600 font-bold"
+      <h1
+        class="text-2xl font-bold text-gray-900 mb-1"
         x-text="activityName || 'Actividad'"
-      ></div>
-      <div class="text-xs text-gray-500">Registro rápido por personal</div>
+      ></h1>
+      <div
+        class="inline-flex items-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold"
+      >
+        Registro rápido (Staff)
+      </div>
+      <p class="text-xs text-gray-500 mt-2">Registro rápido por personal</p>
     </div>
 
+    {% if activity_allowed %}
     <div class="mb-3" x-show="staffWindowOpen">
       <label for="ctrl-input" class="sr-only">Número de control</label>
       <div class="flex">
@@ -60,6 +62,17 @@
         <div class="text-xs text-gray-500 mt-1">
           Solo el personal administrativo puede gestionar asistencias ahora.
         </div>
+        {% else %}
+        <div
+          class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+          role="alert"
+        >
+          <strong class="font-bold">Error:</strong>
+          <span class="block sm:inline"
+            >{{ error_message or 'Actividad no válida o no disponible.' }}</span
+          >
+        </div>
+        {% endif %}
       </div>
     </div>
 
@@ -149,7 +162,7 @@
   function staffWalkin() {
     return {
       controlNumber: "",
-      activityToken: "",
+      activityId: "",
       activityName: "",
       activityStartIso: null,
       staffWindowOpen: true,
@@ -164,7 +177,7 @@
       init() {
         const card = document.getElementById("staff-walkin-card");
         if (card) {
-          this.activityToken = card.dataset.activityToken || "";
+          this.activityId = card.dataset.activityId || "";
           this.activityName = card.dataset.activityName || "";
           this.activityStartIso =
             card.getAttribute("data-activity-start") || null;
@@ -176,7 +189,7 @@
               this.$refs &&
               this.$refs.ctrl &&
               this.$refs.ctrl.focus &&
-              this.$refs.ctrl.focus()
+              this.$refs.ctrl.focus(),
           );
       },
 
@@ -200,7 +213,7 @@
           // First: try local students search (same approach used in registrations_public.js)
           try {
             const local = await fetch(
-              `/api/students/?search=${encodeURIComponent(num)}&per_page=1`
+              `/api/students/?search=${encodeURIComponent(num)}&per_page=1`,
             );
             if (local && local.ok) {
               const j = await local.json().catch(() => ({}));
@@ -208,7 +221,7 @@
               const exact =
                 (students.find &&
                   students.find(
-                    (s) => String(s.control_number) === String(num)
+                    (s) => String(s.control_number) === String(num),
                   )) ||
                 null;
               if (exact) {
@@ -228,7 +241,7 @@
           // Not found locally -> try external proxy used by the public registrations UI
           try {
             const ext = await fetch(
-              `/api/students/validate?control_number=${encodeURIComponent(num)}`
+              `/api/students/validate?control_number=${encodeURIComponent(num)}`,
             );
             if (ext && ext.ok) {
               const j = await ext.json().catch(() => ({}));
@@ -280,11 +293,11 @@
         // Check registrations/attendances for this activity to decide UI action.
         try {
           const qs = new URLSearchParams();
-          if (this.activityToken) qs.set("token", this.activityToken);
+          if (this.activityId) qs.set("activity_id", this.activityId);
           qs.set("q", num);
           qs.set("per_page", "1");
           const resp = await fetch(
-            `/api/public/registrations?${qs.toString()}`
+            `/api/public/registrations?${qs.toString()}`,
           );
           if (resp && resp.ok) {
             const j = await resp.json().catch(() => ({}));
@@ -380,12 +393,12 @@
               !confirm(
                 "Confirmar asistencia para " +
                   (this.student.full_name || this.controlNumber) +
-                  "?"
+                  "?",
               )
             )
               return;
             const payload = {
-              token: this.activityToken,
+              activity_id: this.activityId,
               control_number: this.controlNumber,
             };
             const res = await fetch("/api/public/registrations/walkin", {
@@ -418,12 +431,12 @@
               !confirm(
                 "Confirmar asistencia para " +
                   (this.student.full_name || this.controlNumber) +
-                  "?"
+                  "?",
               )
             )
               return;
             const payload = {
-              token: this.activityToken,
+              activity_id: this.activityId,
               confirm: true,
               create_attendance: true,
             };
@@ -433,7 +446,7 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
-              }
+              },
             );
             const body = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -460,12 +473,12 @@
               !confirm(
                 "¿Desea marcar como AUSENTE a " +
                   (this.student.full_name || this.controlNumber) +
-                  "? Esta acción se registrará como Ausente."
+                  "? Esta acción se registrará como Ausente.",
               )
             )
               return;
             const payload = {
-              token: this.activityToken,
+              activity_id: this.activityId,
               confirm: false,
               create_attendance: false,
               mark_absent: true,
@@ -476,7 +489,7 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
-              }
+              },
             );
             const body = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -503,18 +516,18 @@
               !confirm(
                 "¿Desea eliminar la asistencia registrada para " +
                   (this.student.full_name || this.controlNumber) +
-                  "?"
+                  "?",
               )
             )
               return;
-            const payload = { token: this.activityToken, confirm: false };
+            const payload = { activity_id: this.activityId, confirm: false };
             const res = await fetch(
               `/api/public/attendances/${this.actionTargetId}/toggle`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
-              }
+              },
             );
             const body = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -548,14 +561,14 @@
           !confirm(
             "Confirmar asistencia para " +
               (this.student.full_name || this.controlNumber) +
-              "?"
+              "?",
           )
         )
           return;
         this.message = "";
         try {
           const payload = {
-            token: this.activityToken,
+            activity_id: this.activityId,
             control_number: this.controlNumber,
           };
           const res = await fetch("/api/public/registrations/walkin", {
@@ -582,7 +595,7 @@
                   this.$refs &&
                   this.$refs.ctrl &&
                   this.$refs.ctrl.focus &&
-                  this.$refs.ctrl.focus()
+                  this.$refs.ctrl.focus(),
               );
           } else {
             this.message = body.message || "Error al registrar";
@@ -611,7 +624,7 @@
               this.$refs &&
               this.$refs.ctrl &&
               this.$refs.ctrl.focus &&
-              this.$refs.ctrl.focus()
+              this.$refs.ctrl.focus(),
           );
       },
     };

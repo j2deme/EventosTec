@@ -100,7 +100,7 @@ function studentOverviewManager() {
           `/api/registrations?student_id=${studentId}`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (registrationsResponse.ok) {
@@ -110,10 +110,10 @@ function studentOverviewManager() {
           // Calcular estadísticas
           const totalRegistrations = registrations.length;
           const confirmedRegistrations = registrations.filter(
-            (r) => r.status === "Confirmado" || r.status === "Asistió"
+            (r) => r.status === "Confirmado" || r.status === "Asistió",
           ).length;
           const attendedActivities = registrations.filter(
-            (r) => r.status === "Asistió"
+            (r) => r.status === "Asistió",
           ).length;
 
           // Actualizar stats
@@ -168,7 +168,7 @@ function studentOverviewManager() {
           `/api/events?status=active&sort=start_date:asc`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (response.ok) {
@@ -207,7 +207,7 @@ function studentOverviewManager() {
           `/api/registrations?student_id=${studentId}&sort=registration_date:desc&per_page=5`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (response.ok) {
@@ -285,7 +285,7 @@ function studentOverviewManager() {
           window.dispatchEvent(
             new CustomEvent("navigate-to-tab", {
               detail: { tab: "registrations" },
-            })
+            }),
           );
         }
       } catch (error) {

@@ -29,7 +29,7 @@ function eventRegistrationsPublic() {
 
     init(el) {
       try {
-        this.token = el.getAttribute("data-event-token") || "";
+        this.token = "";
         // normalize eventId: accept only integer-like values, else null
         const rawEventId = el.getAttribute("data-event-id") || "";
         this.eventId = /^\d+$/.test(String(rawEventId || "").trim())
@@ -38,20 +38,24 @@ function eventRegistrationsPublic() {
         // read eventSlug (if provided) as fallback
         this.eventSlug = el.getAttribute("data-event-slug") || null;
         this.eventName = el.getAttribute("data-event-name") || "";
-        const initialActivityToken =
-          el.getAttribute("data-initial-activity-token") || "";
-        // If the server injected an initial activity token, immediately open it
-        if (initialActivityToken) {
-          // Redirect to the public registrations page for the activity
+        const initialActivityId =
+          el.getAttribute("data-initial-activity-id") || "";
+        // If the server injected an initial activity id/slug, immediately open it
+        if (initialActivityId) {
           window.location.href = `/public/registrations/${encodeURIComponent(
-            initialActivityToken
+            initialActivityId,
           )}`;
           return;
         }
       } catch (e) {
         // ignore
       }
-      this.fetchActivities();
+      // Only fetch activities if we have a meaningful eventId. Avoid
+      // performing an unfiltered request that returns activities from other
+      // events (this caused the duplicated-list confusion).
+      if (this.eventId && String(this.eventId).toLowerCase() !== "null") {
+        this.fetchActivities();
+      }
       // Fetch departments for this event to populate the filter
       try {
         if (this.eventId && String(this.eventId).toLowerCase() !== "null") {
@@ -79,6 +83,14 @@ function eventRegistrationsPublic() {
       try {
         // mark loading state so template can show spinner overlay
         this.loadingActivities = true;
+        // Defensive: do not perform an unfiltered activities request from the
+        // public event page. If the caller invoked this without an eventId we
+        // must avoid returning unrelated activities. The component expects an
+        // eventId to be provided by the server-rendered template.
+        if (!this.eventId || String(this.eventId).toLowerCase() === "null") {
+          this.loadingActivities = false;
+          return;
+        }
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
 
@@ -121,7 +133,7 @@ function eventRegistrationsPublic() {
           activity_deadline_iso: a.activity_deadline_iso || null,
           // backend may provide either current_registrations or current_capacity
           current_registrations: Number(
-            a.current_registrations || a.current_capacity || 0
+            a.current_registrations || a.current_capacity || 0,
           ),
           // UI flags
           _loading_copy: false,
@@ -142,7 +154,7 @@ function eventRegistrationsPublic() {
                 } else {
                   // No mostrar horas, y quitar espacio antes de la abreviatura
                   act.dateDisplay = `${s.format("D")} - ${e.format(
-                    "D"
+                    "D",
                   )}/${s.format("MMM/YY")}`;
                 }
               } else if (act.start_datetime) {
@@ -215,7 +227,7 @@ function eventRegistrationsPublic() {
         // Ensure alphabetical order client-side as fallback
         try {
           this.activities.sort((x, y) =>
-            String(x.name || "").localeCompare(String(y.name || ""))
+            String(x.name || "").localeCompare(String(y.name || "")),
           );
         } catch (e) {
           // ignore
@@ -257,40 +269,29 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        // prefer explicit public event token; fall back to numeric eventId when available
-        // prefer explicit public event token; fall back to numeric eventId or slug
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
-        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
-          // fallback: build slug-only URL from activity name so server can resolve
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(this.selectedActivity.name || "");
-          if (slug) {
-            window.location.href = `/public/registrations/${encodeURIComponent(
-              slug
-            )}`;
-            return;
-          }
+          // Without an eventRef (token/id/slug) we must not generate slugs client-side.
+          // The server is authoritative for slugs; instruct the user/admin to use the server-provided event link.
           console.error(
-            "Missing event token/id for generating public activity token"
+            "Missing event token/id for generating public activity token",
           );
-          alert("No se pudo generar el link público: token de evento ausente");
+          alert(
+            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento.",
+          );
           return;
         }
         const resp = await f(
-          `/api/public/event/${encodeURIComponent(eventRef)}/activity-token`,
+          `/api/public/event/${encodeURIComponent(eventRef)}/activity-slug`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ activity_id: this.selectedActivity.id }),
-          }
+          },
         );
         if (!resp) {
           alert("Error de red al generar el link");
@@ -303,8 +304,11 @@ function eventRegistrationsPublic() {
           return;
         }
         const j = await resp.json();
-        if (j && j.public_token) {
-          window.location.href = `/public/registrations/${j.public_token}`;
+        if (j && j.activity_slug) {
+          // Redirect using activity slug only (no query params)
+          window.location.href = `/public/registrations/${encodeURIComponent(
+            j.activity_slug,
+          )}`;
         } else {
           alert("Respuesta inválida del servidor");
         }
@@ -320,40 +324,29 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
-        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
-          // fallback to slug-only URL using activity name so server can generate token on page load
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(a.name || "");
-          if (slug) {
-            window.location.href = `/public/registrations/${encodeURIComponent(
-              slug
-            )}`;
-            a._loading_manage = false;
-            return;
-          }
+          // Do not construct slugs in the client. Server must provide event slug or token.
           console.error(
-            "Missing event token/id for generating public activity token"
+            "Missing event token/id for generating public activity token",
           );
-          alert("No se pudo generar el link público: token de evento ausente");
+          alert(
+            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento.",
+          );
           a._loading_manage = false;
           return;
         }
         const resp = await f(
-          `/api/public/event/${encodeURIComponent(eventRef)}/activity-token`,
+          `/api/public/event/${encodeURIComponent(eventRef)}/activity-slug`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ activity_id: a.id }),
-          }
+          },
         );
         if (!resp) {
           alert("Error de red al generar el link");
@@ -368,12 +361,15 @@ function eventRegistrationsPublic() {
           return;
         }
         const j = await resp.json();
-        if (j && j.public_token) {
-          // telemetry: log which activity requested a public token
+        if (j && j.activity_slug) {
+          // telemetry: log which activity requested a slug
           try {
-            console.debug("public-token-generated", { activity: a.id });
+            console.debug("activity-slug-generated", { activity: a.id });
           } catch (e) {}
-          window.location.href = `/public/registrations/${j.public_token}`;
+          // Redirect using activity slug only (no query params)
+          window.location.href = `/public/registrations/${encodeURIComponent(
+            j.activity_slug,
+          )}`;
         } else {
           alert("Respuesta inválida del servidor");
           a._loading_manage = false;
@@ -391,68 +387,36 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
-        if (!eventRef && this.eventSlug) eventRef = this.eventSlug;
         if (!eventRef) {
-          // fallback: copy slug-only URL built from activity name
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(a.name || "");
-          if (slug) {
-            const url = `${
-              location.origin
-            }/public/registrations/${encodeURIComponent(slug)}`;
-            try {
-              await navigator.clipboard.writeText(url);
-              if (typeof showToast === "function")
-                showToast("Enlace copiado al portapapeles");
-              else alert("Enlace copiado al portapapeles: " + url);
-            } catch (e) {
-              const ta = document.createElement("textarea");
-              ta.value = url;
-              document.body.appendChild(ta);
-              ta.select();
-              try {
-                document.execCommand("copy");
-                if (typeof showToast === "function")
-                  showToast("Enlace copiado al portapapeles");
-                else alert("Enlace copiado al portapapeles: " + url);
-              } catch (err) {
-                alert("No se pudo copiar el enlace. Aquí está: " + url);
-              }
-              ta.remove();
-            }
-            a._loading_copy = false;
-            return;
-          }
+          // Do not generate slugs client-side. Inform user to use server-provided link.
           console.error(
-            "Missing event token/id for generating public activity token"
+            "Missing event token/id for generating public activity token",
           );
           if (typeof showToast === "function")
             showToast(
-              "No se pudo generar el link público: token de evento ausente",
-              "error"
+              "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor.",
+              "error",
             );
           else
             alert(
-              "No se pudo generar el link público: token de evento ausente"
+              "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor.",
             );
           a._loading_copy = false;
           return;
         }
+        // Request activity slug from server and build public registrations URL
         const resp = await f(
-          `/api/public/event/${encodeURIComponent(eventRef)}/activity-token`,
+          `/api/public/event/${encodeURIComponent(eventRef)}/activity-slug`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ activity_id: a.id }),
-          }
+          },
         );
         if (!resp) {
           if (typeof showToast === "function")
@@ -471,10 +435,10 @@ function eventRegistrationsPublic() {
           return;
         }
         const j = await resp.json();
-        if (j && j.public_token) {
+        if (j && j.activity_slug) {
           const url = `${
             location.origin
-          }/public/registrations/${encodeURIComponent(j.public_token)}`;
+          }/public/registrations/${encodeURIComponent(j.activity_slug)}`;
           // telemetry / debug
           try {
             console.debug("copy-link", { activity: a.id });
@@ -545,7 +509,9 @@ function eventRegistrationsPublic() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        // Prefer server-provided event slug first, then event token, then numeric eventId
         let eventRef =
+          this.eventSlug ||
           this.token ||
           (Number.isInteger(this.eventId) ? String(this.eventId) : null);
         const payload = {};
@@ -554,25 +520,18 @@ function eventRegistrationsPublic() {
           // If token looks like an event-level token (starts with 'pe:'), include activity id
           if (String(eventRef).startsWith("pe:")) payload.activity = a.id;
         } else {
-          // fallback: send activity slug so server can resolve without exposing id
-          const slugify = (t) =>
-            String(t || "")
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, "-")
-              .replace(/^-+|-+$/g, "")
-              .slice(0, 80);
-          const slug = slugify(a.name || "");
-          if (!slug) {
-            if (typeof showToast === "function")
-              showToast(
-                "No se pudo generar el archivo: actividad inválida",
-                "error"
-              );
-            else alert("No se pudo generar el archivo: actividad inválida");
-            a._loading_download = false;
-            return;
-          }
-          payload.slug = slug;
+          // If no eventRef, we must not fabricate slugs client-side. Abort and require server-provided event reference.
+          if (typeof showToast === "function")
+            showToast(
+              "No se pudo generar el archivo: token de evento ausente. Use el enlace proporcionado por el servidor.",
+              "error",
+            );
+          else
+            alert(
+              "No se pudo generar el archivo: token de evento ausente. Use el enlace proporcionado por el servidor.",
+            );
+          a._loading_download = false;
+          return;
         }
         // If token looks like an event-level token (starts with 'pe:'), include activity id
         const t = payload.token || "";
@@ -580,10 +539,11 @@ function eventRegistrationsPublic() {
           payload.activity = a.id;
         }
 
+        // call export endpoint passing activity_id directly
         const resp = await f("/api/public/registrations/export", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ activity_id: a.id }),
         });
 
         if (!resp) {
@@ -608,7 +568,7 @@ function eventRegistrationsPublic() {
         const cd = resp.headers.get("Content-Disposition") || "";
         let filename = `${(a.name || "actividad").replace(
           /[^a-z0-9A-Z-_\.]/g,
-          "_"
+          "_",
         )}.xlsx`;
         const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
         if (m && m[1]) {

@@ -57,6 +57,11 @@ function attendancesAdmin() {
     // Registration view modal
     showRegistrationModal: false,
     registrationModalData: null,
+    // Edit attendance modal state
+    showEditAttendanceModal: false,
+    // initialize as object to avoid Alpine binding errors when template renders
+    editAttendanceData: {},
+    editSubmitting: false,
     // Sync modal state
     showSyncModal: false,
     syncDryRun: true,
@@ -100,14 +105,14 @@ function attendancesAdmin() {
     filteredActivities() {
       const byEvent = this.filters.event_id
         ? this.activities.filter(
-            (a) => String(a.event_id) === String(this.filters.event_id)
+            (a) => String(a.event_id) === String(this.filters.event_id),
           )
         : this.activities.slice();
 
       if (this.filters.activity_type) {
         // activities coming from API use `activity_type` key
         return byEvent.filter(
-          (a) => (a.activity_type || a.type) === this.filters.activity_type
+          (a) => (a.activity_type || a.type) === this.filters.activity_type,
         );
       }
       return byEvent;
@@ -117,7 +122,7 @@ function attendancesAdmin() {
     batchFilteredActivities() {
       const byEvent = this.batchEventId
         ? this.activities.filter(
-            (a) => String(a.event_id) === String(this.batchEventId)
+            (a) => String(a.event_id) === String(this.batchEventId),
           )
         : this.activities.slice();
       return byEvent;
@@ -129,7 +134,7 @@ function attendancesAdmin() {
 
       if (this.filters.activity_id) {
         rows = rows.filter(
-          (r) => String(r.activity_id) === String(this.filters.activity_id)
+          (r) => String(r.activity_id) === String(this.filters.activity_id),
         );
       }
 
@@ -146,7 +151,7 @@ function attendancesAdmin() {
 
       if (this.filters.activity_type) {
         rows = rows.filter(
-          (r) => r.activity_type === this.filters.activity_type
+          (r) => r.activity_type === this.filters.activity_type,
         );
       }
 
@@ -211,10 +216,10 @@ function attendancesAdmin() {
           (a.status === "present"
             ? "Asistió"
             : a.status === "registered"
-            ? "Parcial"
-            : a.status === "error"
-            ? "Ausente"
-            : "");
+              ? "Parcial"
+              : a.status === "error"
+                ? "Ausente"
+                : "");
 
         // date_display: usar created_at si existe, formatear simple YYYY-MM-DD HH:mm
         const created = a.created_at || a.createdAt || a.date || null;
@@ -258,14 +263,14 @@ function attendancesAdmin() {
 
       // Walk-ins: sin registration_id
       this.statsWalkins = (this.attendances || []).filter(
-        (att) => !att.registration_id
+        (att) => !att.registration_id,
       ).length;
 
       // Converted: con registration_id y status present
       this.statsConverted = (this.attendances || []).filter(
         (att) =>
           att.registration_id &&
-          (att.status === "present" || att.status === "registered")
+          (att.status === "present" || att.status === "registered"),
       ).length;
 
       // Errors: marcar como aquellas con status 'error' o attendance_percentage < 50
@@ -273,7 +278,7 @@ function attendancesAdmin() {
         (att) =>
           att.status === "error" ||
           (typeof att.attendance_percentage === "number" &&
-            att.attendance_percentage < 50)
+            att.attendance_percentage < 50),
       ).length;
     },
 
@@ -284,8 +289,8 @@ function attendancesAdmin() {
       // derive activityTypes from activities (API uses `activity_type`)
       this.activityTypes = Array.from(
         new Set(
-          this.activities.map((a) => a.activity_type || a.type).filter(Boolean)
-        )
+          this.activities.map((a) => a.activity_type || a.type).filter(Boolean),
+        ),
       );
       // initial refresh of attendances
       await this.refresh();
@@ -303,7 +308,7 @@ function attendancesAdmin() {
           (this.attendances || [])
             .filter((r) => r.__selected_for_sync)
             .map((r) => r.id || r.student_id)
-            .filter(Boolean)
+            .filter(Boolean),
         );
 
         // load attendances with current filters (server-side support optional)
@@ -368,7 +373,7 @@ function attendancesAdmin() {
         hours = hours % 12;
         hours = hours ? hours : 12;
         return `${pad(d.getDate())}/${pad(
-          d.getMonth() + 1
+          d.getMonth() + 1,
         )}/${d.getFullYear()} ${hours}:${minutes} ${ampm}`;
       } catch (e) {
         return String(dateStr);
@@ -413,7 +418,7 @@ function attendancesAdmin() {
         window.showToast &&
           window.showToast(
             "Selecciona un evento antes de elegir la actividad",
-            "error"
+            "error",
           );
         return;
       }
@@ -462,7 +467,7 @@ function attendancesAdmin() {
         return;
       }
       const activityExists = (this.activities || []).some(
-        (a) => String(a.id) === String(this.syncSourceActivityId)
+        (a) => String(a.id) === String(this.syncSourceActivityId),
       );
       if (!activityExists) {
         window.showToast &&
@@ -507,7 +512,7 @@ function attendancesAdmin() {
           await this.refresh();
           // limpiar selección
           (this.attendances || []).forEach(
-            (r) => (r.__selected_for_sync = false)
+            (r) => (r.__selected_for_sync = false),
           );
           this.selectAllForSync = false;
           // cerrar modal
@@ -556,7 +561,7 @@ function attendancesAdmin() {
         const allEvents = body.data || body.events || [];
         this.events = (allEvents || []).filter(
           (e) =>
-            e.is_active === true || e.is_active === "true" || e.active === true
+            e.is_active === true || e.is_active === "true" || e.active === true,
         );
       } catch (e) {
         this.events = [];
@@ -621,17 +626,17 @@ function attendancesAdmin() {
           if (res.status === 201) {
             window.showToast(
               body.message || "Asistencia creada correctamente.",
-              "success"
+              "success",
             );
           } else if (res.status === 200) {
             window.showToast(
               body.message || "Asistencia actualizada correctamente.",
-              "success"
+              "success",
             );
           } else {
             window.showToast(
               body.message || "Operaci\u00f3n completada.",
-              "info"
+              "info",
             );
           }
 
@@ -655,14 +660,14 @@ function attendancesAdmin() {
         } else {
           window.showToast(
             body.message || "Error al asignar asistencia.",
-            "error"
+            "error",
           );
         }
       } catch (err) {
         console.error(err);
         window.showToast(
           "Error de conexi\u00f3n al asignar asistencia.",
-          "error"
+          "error",
         );
       }
     },
@@ -808,7 +813,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               "No hay información de registro disponible",
-              "warning"
+              "warning",
             );
           this.registrationModalData = null;
           this.showRegistrationModal = true; // still show modal so user sees fallback
@@ -862,6 +867,139 @@ function attendancesAdmin() {
       this.openRegistrationModal(row);
     },
 
+    // Open editor for an attendance row.
+    // Opens a dedicated edit modal (showEditAttendanceModal) prefilled with
+    // attendance data. If the row has an associated registration the modal
+    // still opens and shows a link to view the registration.
+    openEditor(row) {
+      try {
+        if (!row) return;
+
+        // Build a normalized edit object with safe defaults
+        const edit = {
+          id: row.id || null,
+          attendance_id: row.id || null,
+          student_id: row.student_id || (row.student && row.student.id) || null,
+          student_name:
+            row.student_name || (row.student && row.student.full_name) || "",
+          student_identifier:
+            row.student_identifier ||
+            (row.student && row.student.control_number) ||
+            "",
+          activity_id: row.activity_id || null,
+          activity_name:
+            row.activity_name || (row.activity && row.activity.name) || "",
+          event_name:
+            row.event_name ||
+            (row.activity && row.activity.event && row.activity.event.name) ||
+            "",
+          registration_id: row.registration_id || null,
+          check_in_time: row.check_in_time || row.check_in_time_input || null,
+          check_out_time:
+            row.check_out_time || row.check_out_time_input || null,
+          mark_present: !!(
+            row.status === "present" ||
+            row.status === "Asistió" ||
+            row.mark_present
+          ),
+          notes: row.notes || "",
+        };
+
+        this.editAttendanceData = edit;
+        this.showEditAttendanceModal = true;
+      } catch (e) {
+        console.error("openEditor error", e);
+      }
+    },
+
+    closeEditModal() {
+      this.showEditAttendanceModal = false;
+      // keep as an empty object so bindings don't throw when modal hidden/shown
+      this.editAttendanceData = {};
+      this.editSubmitting = false;
+    },
+
+    async submitEdit() {
+      // Basic validation: need an attendance id and the underlying student/activity
+      if (!this.editAttendanceData || !this.editAttendanceData.id) {
+        window.showToast && window.showToast("Registro no válido", "error");
+        return;
+      }
+
+      if (
+        !this.editAttendanceData.student_id ||
+        !this.editAttendanceData.activity_id
+      ) {
+        window.showToast &&
+          window.showToast(
+            "Faltan student_id o activity_id necesarios para guardar",
+            "error",
+          );
+        return;
+      }
+
+      this.editSubmitting = true;
+      try {
+        // Build payload expected by /api/attendances/register
+        const payload = {
+          student_id: this.editAttendanceData.student_id,
+          activity_id: this.editAttendanceData.activity_id,
+        };
+
+        if (this.editAttendanceData.check_in_time)
+          payload.check_in_time = this.editAttendanceData.check_in_time;
+        if (this.editAttendanceData.check_out_time)
+          payload.check_out_time = this.editAttendanceData.check_out_time;
+        if (typeof this.editAttendanceData.mark_present !== "undefined")
+          payload.mark_present = !!this.editAttendanceData.mark_present;
+        if (this.editAttendanceData.notes)
+          payload.notes = this.editAttendanceData.notes;
+
+        // The backend does not expose PATCH for attendances; use the register
+        // endpoint which accepts student_id + activity_id and will create or
+        // update the existing attendance as appropriate.
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f("/api/attendances/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const body = res && res.json ? await res.json().catch(() => ({})) : {};
+        if (res && res.ok) {
+          const msg =
+            body.message ||
+            (res.status === 201
+              ? "Asistencia creada"
+              : "Asistencia actualizada");
+          window.showToast && window.showToast(msg, "success");
+          await this.refresh();
+          this.closeEditModal();
+          this.dispatchAttendanceChanged({
+            attendance_id: this.editAttendanceData.id,
+            activity_id: this.editAttendanceData.activity_id,
+            student_id: this.editAttendanceData.student_id,
+          });
+        } else {
+          window.showToast &&
+            window.showToast(
+              body.message || "Error al actualizar asistencia",
+              "error",
+            );
+        }
+      } catch (e) {
+        console.error("submitEdit error", e);
+        window.showToast &&
+          window.showToast(
+            "Error de conexión al actualizar asistencia",
+            "error",
+          );
+      } finally {
+        this.editSubmitting = false;
+      }
+    },
+
     closeRegistrationModal() {
       this.showRegistrationModal = false;
       this.registrationModalData = null;
@@ -890,7 +1028,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               body.message || "Error al eliminar asistencia",
-              "error"
+              "error",
             );
         }
       } catch (err) {
@@ -900,7 +1038,12 @@ function attendancesAdmin() {
     },
 
     async pauseAttendance(row) {
-      if (!confirm("¿Pausar esta asistencia? Esto detiene el conteo de tiempo presente.")) return;
+      if (
+        !confirm(
+          "¿Pausar esta asistencia? Esto detiene el conteo de tiempo presente.",
+        )
+      )
+        return;
 
       try {
         const res = await this.sf(`/api/attendances/pause`, {
@@ -926,7 +1069,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               body.message || "Error al pausar asistencia",
-              "error"
+              "error",
             );
         }
       } catch (err) {
@@ -936,7 +1079,12 @@ function attendancesAdmin() {
     },
 
     async resumeAttendance(row) {
-      if (!confirm("¿Reanudar esta asistencia? Esto continúa el conteo de tiempo presente.")) return;
+      if (
+        !confirm(
+          "¿Reanudar esta asistencia? Esto continúa el conteo de tiempo presente.",
+        )
+      )
+        return;
 
       try {
         const res = await this.sf(`/api/attendances/resume`, {
@@ -962,7 +1110,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               body.message || "Error al reanudar asistencia",
-              "error"
+              "error",
             );
         }
       } catch (err) {
@@ -1003,10 +1151,10 @@ function attendancesAdmin() {
     batchUploadFilteredDepartments() {
       if (!this.batchUploadEventId) return [];
       const eventActivities = this.activities.filter(
-        (a) => String(a.event_id) === String(this.batchUploadEventId)
+        (a) => String(a.event_id) === String(this.batchUploadEventId),
       );
       const depts = new Set(
-        eventActivities.map((a) => a.department).filter(Boolean)
+        eventActivities.map((a) => a.department).filter(Boolean),
       );
       return Array.from(depts).sort();
     },
@@ -1016,7 +1164,7 @@ function attendancesAdmin() {
       return this.activities.filter(
         (a) =>
           String(a.event_id) === String(this.batchUploadEventId) &&
-          a.department === this.batchUploadDepartment
+          a.department === this.batchUploadDepartment,
       );
     },
 
@@ -1059,7 +1207,9 @@ function attendancesAdmin() {
 
           xhr.upload.onprogress = (ev) => {
             if (ev.lengthComputable) {
-              this.batchUploadProgress = Math.round((ev.loaded / ev.total) * 100);
+              this.batchUploadProgress = Math.round(
+                (ev.loaded / ev.total) * 100,
+              );
             }
           };
 

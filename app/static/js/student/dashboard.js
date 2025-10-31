@@ -74,7 +74,7 @@ function studentDashboard() {
       console.debug &&
         console.debug(
           "[studentDashboard] handleLocationChange -> tabFromUrl:",
-          tabFromUrl
+          tabFromUrl,
         );
 
       if (tabFromUrl && this.isValidTab(tabFromUrl)) {
@@ -122,6 +122,7 @@ function studentDashboard() {
         "events",
         "event_activities",
         "registrations",
+        "history",
         "profile",
       ];
       const isValid = validTabs.includes(tabId);
@@ -138,7 +139,7 @@ function studentDashboard() {
         console.debug &&
           console.debug(
             "[studentDashboard] setInitialTab -> tabFromUrl:",
-            tabFromUrl
+            tabFromUrl,
           );
 
         if (tabFromUrl && this.isValidTab(tabFromUrl)) {
@@ -213,13 +214,13 @@ function studentDashboard() {
           case "events":
             // Refrescar eventos cuando se cambia a la pestaña de eventos
             const eventsElement = document.querySelector(
-              '[x-data*="studentEventsManager"]'
+              '[x-data*="studentEventsManager"]',
             );
             if (eventsElement && eventsElement.__x) {
               const eventsManager = eventsElement.__x.getUnobservedData();
               if (typeof eventsManager.loadEvents === "function") {
                 await eventsManager.loadEvents(
-                  eventsManager.pagination.current_page || 1
+                  eventsManager.pagination.current_page || 1,
                 );
               }
             }
@@ -228,7 +229,7 @@ function studentDashboard() {
           case "event_activities":
             // Refrescar actividades del evento actual cuando se cambia a la pestaña de actividades
             const activitiesElement = document.querySelector(
-              '[x-data*="studentEventActivitiesManager"]'
+              '[x-data*="studentEventActivitiesManager"]',
             );
             if (activitiesElement && activitiesElement.__x) {
               const activitiesManager =
@@ -242,13 +243,31 @@ function studentDashboard() {
             }
             break;
 
+          case "history":
+            // Forzar la carga del histórico cuando el usuario cambia a la pestaña
+            // (cubre el caso en que el manager no haya podido cargar en init)
+            const historyElement = document.querySelector(
+              '[x-data*="studentHistoryManager"]',
+            );
+            if (historyElement && historyElement.__x) {
+              const historyManager = historyElement.__x.getUnobservedData();
+              if (typeof historyManager.loadHistory === "function") {
+                try {
+                  await historyManager.loadHistory();
+                } catch (err) {
+                  console.error("Error forcing history load:", err);
+                }
+              }
+            }
+            break;
+
           default:
           // Para otras pestañas, no hacer nada especial
         }
       } catch (error) {
         console.error(
           `❌ Error refrescando contenido para pestaña ${currentTab}:`,
-          error
+          error,
         );
       }
     },
@@ -297,7 +316,7 @@ function studentDashboard() {
             return;
           }
           throw new Error(
-            `Error al cargar perfil: ${response.status} ${response.statusText}`
+            `Error al cargar perfil: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -339,7 +358,7 @@ function studentDashboard() {
           `/api/activities?event_id=${event.id}&for_student=true`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -348,7 +367,7 @@ function studentDashboard() {
             return;
           }
           throw new Error(
-            `Error al cargar actividades: ${response.status} ${response.statusText}`
+            `Error al cargar actividades: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -356,7 +375,7 @@ function studentDashboard() {
 
         // Defensive client-side filter: ensure forbidden activity types are removed
         const filtered = (data.activities || []).filter(
-          (a) => String(a.activity_type).toLowerCase() !== "magistral"
+          (a) => String(a.activity_type).toLowerCase() !== "magistral",
         );
 
         // Mapear actividades y formatear fechas
@@ -465,12 +484,12 @@ function studentDashboard() {
       const startDay = new Date(
         startDate.getFullYear(),
         startDate.getMonth(),
-        startDate.getDate()
+        startDate.getDate(),
       );
       const endDay = new Date(
         endDate.getFullYear(),
         endDate.getMonth(),
-        endDate.getDate()
+        endDate.getDate(),
       );
       return startDay.getTime() !== endDay.getTime();
     },
@@ -497,12 +516,12 @@ function studentDashboard() {
       const startDay = new Date(
         startDate.getFullYear(),
         startDate.getMonth(),
-        startDate.getDate()
+        startDate.getDate(),
       );
       const endDay = new Date(
         endDate.getFullYear(),
         endDate.getMonth(),
-        endDate.getDate()
+        endDate.getDate(),
       );
       const currentDay = new Date(currentDateStr);
 
@@ -518,12 +537,12 @@ function studentDashboard() {
       const startDay = new Date(
         startDate.getFullYear(),
         startDate.getMonth(),
-        startDate.getDate()
+        startDate.getDate(),
       );
       const endDay = new Date(
         endDate.getFullYear(),
         endDate.getMonth(),
-        endDate.getDate()
+        endDate.getDate(),
       );
 
       // Calcular la diferencia en días
@@ -600,7 +619,7 @@ function studentDashboard() {
       try {
         // Intentar encontrar el componente de preregistros y refrescarlo
         const registrationsElement = document.querySelector(
-          '[x-data*="studentRegistrationsManager"]'
+          '[x-data*="studentRegistrationsManager"]',
         );
         if (registrationsElement && registrationsElement.__x) {
           const registrationsManager =
@@ -608,7 +627,7 @@ function studentDashboard() {
           if (typeof registrationsManager.loadRegistrations === "function") {
             // Refrescar en la página actual o primera página
             await registrationsManager.loadRegistrations(
-              registrationsManager.pagination.current_page || 1
+              registrationsManager.pagination.current_page || 1,
             );
             return true;
           }
