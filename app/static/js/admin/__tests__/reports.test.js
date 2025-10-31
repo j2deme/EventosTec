@@ -541,7 +541,10 @@ describe("reportsManager", () => {
 
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ students: mockStudents, event: { id: 1, name: "Test Event" } }),
+          json: async () => ({
+            students: mockStudents,
+            event: { id: 1, name: "Test Event" },
+          }),
         });
 
         const mgr = reportsManager();
@@ -552,7 +555,7 @@ describe("reportsManager", () => {
         expect(mgr.hoursStudents).toEqual(mockStudents);
         expect(mgr.hoursLoading).toBe(false);
         expect(mockFetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/reports/hours_compliance")
+          expect.stringContaining("/api/reports/hours_compliance"),
         );
       });
 
@@ -564,7 +567,7 @@ describe("reportsManager", () => {
 
         expect(global.showToast).toHaveBeenCalledWith(
           expect.stringContaining("Selecciona un evento"),
-          "error"
+          "error",
         );
         expect(mockFetch).not.toHaveBeenCalled();
       });
@@ -603,7 +606,7 @@ describe("reportsManager", () => {
 
         expect(global.showToast).toHaveBeenCalledWith(
           expect.stringContaining("No se encontraron estudiantes"),
-          "info"
+          "info",
         );
       });
 
@@ -620,20 +623,25 @@ describe("reportsManager", () => {
 
         expect(global.showToast).toHaveBeenCalledWith(
           expect.stringContaining("Error del servidor"),
-          "error"
+          "error",
         );
       });
     });
 
     describe("downloadHoursExcel", () => {
       test("should download Excel file", async () => {
-        const mockBlob = new Blob(["test data"], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        
+        const mockBlob = new Blob(["test data"], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+
         mockFetch.mockResolvedValueOnce({
           ok: true,
           blob: async () => mockBlob,
           headers: {
-            get: (name) => name === "Content-Disposition" ? 'attachment; filename="test-event_20241026.xlsx"' : null,
+            get: (name) =>
+              name === "Content-Disposition"
+                ? 'attachment; filename="test-event_20241026.xlsx"'
+                : null,
           },
         });
 
@@ -642,7 +650,7 @@ describe("reportsManager", () => {
         const mockAppendChild = jest.spyOn(document.body, "appendChild");
         const mockRemove = jest.fn();
         const mockClick = jest.fn();
-        
+
         mockCreateElement.mockReturnValue({
           href: "",
           download: "",
@@ -660,7 +668,7 @@ describe("reportsManager", () => {
         await mgr.downloadHoursExcel();
 
         expect(mockFetch).toHaveBeenCalledWith(
-          expect.stringContaining("/api/reports/hours_compliance_excel")
+          expect.stringContaining("/api/reports/hours_compliance_excel"),
         );
         expect(mockClick).toHaveBeenCalled();
         expect(mockRemove).toHaveBeenCalled();
@@ -674,7 +682,7 @@ describe("reportsManager", () => {
 
         expect(global.showToast).toHaveBeenCalledWith(
           expect.stringContaining("Selecciona un evento"),
-          "error"
+          "error",
         );
         expect(mockFetch).not.toHaveBeenCalled();
       });
@@ -704,7 +712,11 @@ describe("reportsManager", () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
           json: async () => ({
-            student: { id: 1, control_number: "18001234", full_name: "Ana García" },
+            student: {
+              id: 1,
+              control_number: "18001234",
+              full_name: "Ana García",
+            },
             participations: mockParticipations,
           }),
         });
@@ -757,7 +769,7 @@ describe("reportsManager", () => {
 
         expect(global.showToast).toHaveBeenCalledWith(
           expect.stringContaining("Error obteniendo participaciones"),
-          "error"
+          "error",
         );
       });
     });
@@ -766,7 +778,7 @@ describe("reportsManager", () => {
       test("should format ISO datetime to locale string", () => {
         const mgr = reportsManager();
         const result = mgr.formatDateTime("2024-10-01T09:00:00");
-        
+
         // Check that it returns a formatted string (exact format depends on locale)
         expect(result).toBeTruthy();
         expect(result).not.toBe("2024-10-01T09:00:00");
@@ -781,7 +793,7 @@ describe("reportsManager", () => {
       test("should handle invalid dates gracefully", () => {
         const mgr = reportsManager();
         const result = mgr.formatDateTime("invalid-date");
-        
+
         // Should return the original string or empty, depending on implementation
         expect(typeof result).toBe("string");
       });
