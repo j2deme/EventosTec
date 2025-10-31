@@ -8,7 +8,7 @@
     x-data="pauseAttendancePublic()"
     x-init="init()"
     id="pause-attendance-card"
-    data-activity-token="{{ activity_token or '' }}"
+    data-activity-id="{{ activity_id or '' }}"
     data-activity-name="{{ activity_name or '' }}"
   >
     <!-- Header -->
@@ -17,24 +17,28 @@
         class="text-2xl font-bold text-gray-900 mb-2"
         x-text="activityName || 'Actividad'"
       ></h1>
-      <p class="text-sm text-gray-600">
+      <div
+        class="inline-flex items-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold"
+      >
+        Control de asistencia (Magistral)
+      </div>
+      <p class="text-sm text-gray-600 mt-2">
         Control de asistencia para conferencia magistral
       </p>
     </div>
 
-    <!-- Token invalid warning -->
-    {% if token_invalid %}
+    <!-- Activity invalid / not allowed warning -->
+    {% if activity_invalid or not activity_allowed %}
     <div
       class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
       role="alert"
     >
       <strong class="font-bold">Error:</strong>
       <span class="block sm:inline"
-        >{{ error_message or 'Token inválido o expirado.' }}</span
+        >{{ error_message or 'Actividad no válida o no disponible.' }}</span
       >
     </div>
-    {% endif %}
-
+    {% endif %} {% if activity_allowed %}
     <!-- Search box -->
     <div class="mb-6">
       <label
@@ -52,7 +56,7 @@
         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
       />
     </div>
-
+    {% endif %} {% if activity_allowed %}
     <!-- Loading spinner -->
     <div x-show="loading" class="flex justify-center py-8">
       <i
@@ -60,7 +64,7 @@
         style="font-size: 2rem"
       ></i>
     </div>
-
+    {% endif %} {% if activity_allowed %}
     <!-- Results list -->
     <div x-show="!loading && results.length > 0" class="space-y-3">
       <template x-for="att in results" :key="att.id">
@@ -126,7 +130,7 @@
         </div>
       </template>
     </div>
-
+    {% endif %} {% if activity_allowed %}
     <!-- No results message -->
     <div
       x-show="!loading && searchQuery && results.length === 0"
@@ -134,7 +138,7 @@
     >
       No se encontraron resultados
     </div>
-
+    {% endif %} {% if activity_allowed %}
     <!-- Initial state message -->
     <div
       x-show="!loading && !searchQuery"
@@ -142,13 +146,14 @@
     >
       Ingresa un número de control o nombre para buscar
     </div>
+    {% endif %}
   </div>
 </div>
 
 <script>
   function pauseAttendancePublic() {
     return {
-      activityToken: "",
+      activityId: "",
       activityName: "",
       searchQuery: "",
       results: [],
@@ -157,7 +162,7 @@
       init() {
         const card = document.getElementById("pause-attendance-card");
         if (card) {
-          this.activityToken = card.dataset.activityToken || "";
+          this.activityId = card.dataset.activityId || "";
           this.activityName = card.dataset.activityName || "";
         }
       },
@@ -172,7 +177,7 @@
         this.loading = true;
         try {
           const params = new URLSearchParams();
-          params.set("token", this.activityToken);
+          params.set("activity_id", this.activityId);
           params.set("search", query);
 
           const res = await fetch(
@@ -210,7 +215,7 @@
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              token: this.activityToken,
+              activity_id: this.activityId,
             }),
           });
 
@@ -243,7 +248,7 @@
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              token: this.activityToken,
+              activity_id: this.activityId,
             }),
           });
 

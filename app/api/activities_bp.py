@@ -595,20 +595,19 @@ def get_activity_token(activity_id):
 
     Este endpoint está protegido (admin) y sirve para generar enlaces/QRs operativos.
     """
-    try:
-        activity = db.session.get(Activity, activity_id)
-        if not activity:
-            return jsonify({"message": "Actividad no encontrada"}), 404
-
-        # Importar la util util de tokens
-        from app.utils.token_utils import generate_activity_token
-
-        token = generate_activity_token(activity.id)
-        url = request.host_url.rstrip("/") + "/self-register/" + token
-
-        return jsonify({"token": token, "url": url}), 200
-    except Exception as e:
-        return jsonify({"message": "Error generando token", "error": str(e)}), 500
+    # Token generation for public self-register was deprecated.
+    # Keep the endpoint to provide a clear error rather than raising an unexpected exception.
+    activity = db.session.get(Activity, activity_id)
+    if not activity:
+        return jsonify({"message": "Actividad no encontrada"}), 404
+    return (
+        jsonify(
+            {
+                "message": "Generación de tokens deshabilitada: use slugs públicos o IDs para enlaces.",
+            }
+        ),
+        410,
+    )
 
 
 @activities_bp.route("/<int:activity_id>/public-token", methods=["GET"])
@@ -616,21 +615,17 @@ def get_activity_token(activity_id):
 @require_admin
 def get_public_activity_token(activity_id):
     """Devuelve un token público (para jefes) distinto del token de autorregistro."""
-    try:
-        activity = db.session.get(Activity, activity_id)
-        if not activity:
-            return jsonify({"message": "Actividad no encontrada"}), 404
-
-        from app.utils.token_utils import generate_public_token
-
-        token = generate_public_token(activity.id)
-        url = request.host_url.rstrip("/") + "/public/registrations/" + token
-
-        return jsonify({"token": token, "url": url}), 200
-    except Exception as e:
-        return jsonify(
-            {"message": "Error generando public token", "error": str(e)}
-        ), 500
+    activity = db.session.get(Activity, activity_id)
+    if not activity:
+        return jsonify({"message": "Actividad no encontrada"}), 404
+    return (
+        jsonify(
+            {
+                "message": "Generación de tokens públicos deshabilitada: use slugs públicos o IDs para enlaces de jefes.",
+            }
+        ),
+        410,
+    )
 
 
 @activities_bp.route("/<int:activity_id>/related", methods=["POST"])

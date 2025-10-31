@@ -8,7 +8,7 @@ from app.models.attendance import Attendance
 from app.schemas import attendance_schema
 from datetime import datetime, timedelta, timezone
 from app.utils.datetime_utils import localize_naive_datetime, safe_iso
-from app.utils.token_utils import verify_activity_token, generate_activity_token
+# token utilities deprecated for public flows; do not import generative helpers
 
 self_register_bp = Blueprint("self_register", __name__, url_prefix="")
 
@@ -17,39 +17,39 @@ self_register_bp = Blueprint("self_register", __name__, url_prefix="")
 
 
 @self_register_bp.route("/self-register", methods=["GET"])
-@self_register_bp.route("/self-register/<token_param>", methods=["GET"])
-def self_register_form(token_param=None):
-    # Prefer a signed token in the path to avoid exposing raw IDs in the URL
-    token = token_param or request.args.get("t") or request.args.get("token")
+@self_register_bp.route("/public/self-register/<path:activity_ref>", methods=["GET"])
+def self_register_form(activity_ref=None):
+    """Self-registration form view. Resolve activity by:
+    1. Slug first (preferred, from DB public_slug)
+    2. Numeric ID (fallback, from path param or query param)
+    """
     activity = None
     activity_name = None
     activity_exists = False
-    token_provided = bool(
-        token_param is not None or request.args.get("t") or request.args.get("token")
-    )
-    token_invalid = False
+    bool(activity_ref is not None)
+    activity_ref_invalid = False
 
-    if token:
-        aid, err = verify_activity_token(token)
-        if err:
-            token_invalid = True
-            token = None
-        else:
+    # Try to resolve activity from path param (activity_ref can be slug or token)
+    if activity_ref:
+        # First, try as slug (prefer DB lookup)
+        try:
+            activity = Activity.query.filter_by(public_slug=activity_ref).first()
+        except Exception:
+            activity = None
+
+        # If still not found, try as numeric ID (fallback)
+        if not activity:
             try:
-                if aid is not None:
-                    activity = db.session.get(Activity, int(aid))
-                    if activity:
-                        activity_name = activity.name
-                        activity_exists = True
-                else:
-                    token_invalid = True
-                    token = None
+                if str(activity_ref).isdigit():
+                    activity = db.session.get(Activity, int(activity_ref))
             except Exception:
-                token_invalid = True
-                token = None
+                activity = None
 
-    # Legacy: accept raw activity id but do not expose it; generate token for the template
-    if not token:
+        if not activity:
+            activity_ref_invalid = True
+
+    # Legacy: accept raw activity id from query param
+    if not activity:
         aid = request.args.get("activity")
         if aid:
             try:
@@ -57,9 +57,12 @@ def self_register_form(token_param=None):
                 if activity:
                     activity_name = activity.name
                     activity_exists = True
-                    token = generate_activity_token(activity.id)
             except Exception:
                 pass
+
+    if activity:
+        activity_name = activity.name
+        activity_exists = True
 
     activity_start_iso = None
     activity_duration_hours = None
@@ -71,7 +74,11 @@ def self_register_form(token_param=None):
             try:
                 app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
                 s_local = localize_naive_datetime(activity.start_datetime, app_tz)
-                activity_start_iso = safe_iso(s_local)
+                activity_start_iso = (
+                    safe_iso(s_local)
+                    if s_local is not None
+                    else safe_iso(activity.start_datetime)
+                )
             except Exception:
                 activity_start_iso = None
 
@@ -102,13 +109,36 @@ def self_register_form(token_param=None):
         except Exception:
             activity_type = None
 
+    # Prepare template context: prefer public_slug for activity_id if available
+    activity_id_out = None
+    if activity:
+        activity_id_out = getattr(activity, "public_slug", None) or str(activity.id)
+
+    # Determine whether activity is allowed for self-register (time window)
+    activity_allowed = True
+    error_message = None
+    try:
+        now = datetime.now(timezone.utc)
+        cutoff = None
+        if activity is not None and getattr(activity, "start_datetime", None):
+            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+            s_local = localize_naive_datetime(activity.start_datetime, app_tz)
+            if s_local is not None:
+                cutoff = s_local + timedelta(minutes=20)
+        if cutoff and now > cutoff:
+            activity_allowed = False
+            error_message = "La ventana de registro in situ ha terminado"
+    except Exception:
+        pass
+
     return render_template(
         "public/self_register.html",
-        activity_token=token,
+        activity_id=activity_id_out,
         activity_name=activity_name,
         activity_exists=activity_exists,
-        token_provided=token_provided,
-        token_invalid=token_invalid,
+        activity_allowed=activity_allowed,
+        activity_invalid=activity_ref_invalid,
+        error_message=error_message,
         activity_start_iso=activity_start_iso,
         activity_duration_hours=activity_duration_hours,
         activity_deadline_iso=activity_deadline_iso,
@@ -122,23 +152,22 @@ def self_register_api():
         payload = request.get_json() or {}
         control_number = (payload.get("control_number") or "").strip()
         password = payload.get("password")
-        activity_token = payload.get("activity_token")
-        activity_id = payload.get("activity_id")
+        activity_ref = payload.get("activity_id")
 
-        # Prefer token; if present decode to activity_id using stateless helper
-        if activity_token:
-            aid, err = verify_activity_token(activity_token)
-            if err:
-                return jsonify({"message": "Token de actividad inválido"}), 400
-            activity_id = int(aid) if aid is not None else None
-
-        if not control_number or not password or not activity_id:
+        if not control_number or not password or not activity_ref:
             return jsonify(
                 {"message": "control_number, password y activity_id son requeridos"}
             ), 400
 
-        # Validate activity and time window: allow until start + 20 minutes
-        activity = db.session.get(Activity, activity_id)
+        # Resolve activity_ref (slug preferred, else numeric id)
+        activity = (
+            Activity.query.filter_by(public_slug=activity_ref).first()
+            if activity_ref
+            else None
+        )
+        if not activity and str(activity_ref).isdigit():
+            activity = db.session.get(Activity, int(activity_ref))
+
         if not activity:
             return jsonify({"message": "Actividad no encontrada"}), 404
 
@@ -194,14 +223,18 @@ def self_register_api():
             student = Student()
             student.control_number = control_number
             student.full_name = (
-                student_info.get("full_name") or student_info.get("full_name") or ""
+                student_info.get("full_name") or student_info.get("name") or ""
             )
             student.email = student_info.get("email") or ""
             db.session.add(student)
             db.session.commit()
         else:
             # update small fields
-            student.full_name = student_info.get("full_name") or student.full_name
+            student.full_name = (
+                student_info.get("full_name")
+                or student_info.get("name")
+                or student.full_name
+            )
             student.email = student_info.get("email") or student.email
             db.session.add(student)
             db.session.commit()

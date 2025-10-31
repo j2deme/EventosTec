@@ -29,7 +29,7 @@ function eventRegistrationsPublic() {
 
     init(el) {
       try {
-        this.token = el.getAttribute("data-event-token") || "";
+        this.token = "";
         // normalize eventId: accept only integer-like values, else null
         const rawEventId = el.getAttribute("data-event-id") || "";
         this.eventId = /^\d+$/.test(String(rawEventId || "").trim())
@@ -38,13 +38,12 @@ function eventRegistrationsPublic() {
         // read eventSlug (if provided) as fallback
         this.eventSlug = el.getAttribute("data-event-slug") || null;
         this.eventName = el.getAttribute("data-event-name") || "";
-        const initialActivityToken =
-          el.getAttribute("data-initial-activity-token") || "";
-        // If the server injected an initial activity token, immediately open it
-        if (initialActivityToken) {
-          // Redirect to the public registrations page for the activity
+        const initialActivityId =
+          el.getAttribute("data-initial-activity-id") || "";
+        // If the server injected an initial activity id/slug, immediately open it
+        if (initialActivityId) {
           window.location.href = `/public/registrations/${encodeURIComponent(
-            initialActivityToken,
+            initialActivityId,
           )}`;
           return;
         }
@@ -410,8 +409,9 @@ function eventRegistrationsPublic() {
           a._loading_copy = false;
           return;
         }
+        // Request activity slug from server and build public registrations URL
         const resp = await f(
-          `/api/public/event/${encodeURIComponent(eventRef)}/activity-token`,
+          `/api/public/event/${encodeURIComponent(eventRef)}/activity-slug`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -435,10 +435,10 @@ function eventRegistrationsPublic() {
           return;
         }
         const j = await resp.json();
-        if (j && j.public_token) {
+        if (j && j.activity_slug) {
           const url = `${
             location.origin
-          }/public/registrations/${encodeURIComponent(j.public_token)}`;
+          }/public/registrations/${encodeURIComponent(j.activity_slug)}`;
           // telemetry / debug
           try {
             console.debug("copy-link", { activity: a.id });
@@ -539,10 +539,11 @@ function eventRegistrationsPublic() {
           payload.activity = a.id;
         }
 
+        // call export endpoint passing activity_id directly
         const resp = await f("/api/public/registrations/export", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ activity_id: a.id }),
         });
 
         if (!resp) {

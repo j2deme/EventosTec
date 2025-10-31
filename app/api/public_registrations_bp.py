@@ -6,7 +6,6 @@ from app.models.attendance import Attendance
 from app.models.student import Student
 from datetime import datetime, timedelta, timezone
 import requests
-from app.utils.token_utils import verify_public_token, verify_public_event_token
 from app.utils.slug_utils import slugify as canonical_slugify
 from app.utils.datetime_utils import localize_naive_datetime, safe_iso
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +15,34 @@ import traceback
 import pandas as pd
 
 public_registrations_bp = Blueprint("public_registrations", __name__, url_prefix="")
+
+
+def resolve_activity_by_id(activity_id):
+    """
+    Resuelve una actividad a partir de activity_id.
+    Estrategia: intenta primero como slug (si no es numérico), luego como ID numérico.
+    Retorna la Activity encontrada o None.
+    """
+    if not activity_id:
+        return None
+
+    activity = None
+    activity_id_str = str(activity_id).strip()
+
+    # Intentar por slug primero (preferido), luego fallback a ID numérico
+    try:
+        activity = Activity.query.filter_by(public_slug=activity_id_str).first()
+    except Exception:
+        activity = None
+
+    # Si no se encontró por slug y el valor parece numérico, intentar por ID
+    if not activity and activity_id_str.isdigit():
+        try:
+            activity = db.session.get(Activity, int(activity_id_str))
+        except Exception:
+            activity = None
+
+    return activity
 
 
 # use centralized safe_iso from app.utils.datetime_utils
@@ -52,7 +79,12 @@ def public_registrations_view(activity_ref):
 
     if not activity:
         return render_template(
-            "public/registrations_public.html", token_provided=True, token_invalid=True
+            "public/registrations_public.html",
+            activity_id="",
+            activity_name="",
+            activity_invalid=True,
+            activity_allowed=False,
+            error_message="Actividad no encontrada",
         )
 
     # Prepare context
@@ -133,7 +165,7 @@ def public_registrations_view(activity_ref):
 
     return render_template(
         "public/registrations_public.html",
-        activity_id=activity.id,
+        activity_id=activity.public_slug if activity.public_slug else activity.id,
         activity_name=activity_name,
         activity_type=activity_type,
         activity_deadline_iso=activity_deadline_iso,
@@ -150,7 +182,7 @@ def public_registrations_view(activity_ref):
 
 @public_registrations_bp.route("/api/public/registrations", methods=["GET"])
 def api_list_registrations():
-    # Extract activity_id from query param
+    # Extract activity_id from query param (slug or numeric)
     activity_id = request.args.get("activity_id")
     page = int(request.args.get("page") or 1)
     per_page = int(request.args.get("per_page") or 20)
@@ -158,7 +190,9 @@ def api_list_registrations():
     if not activity_id:
         return jsonify({"message": "activity_id es requerido"}), 400
 
-    activity = db.session.get(Activity, int(activity_id))
+    # Resolve activity using slug-first strategy
+    activity = resolve_activity_by_id(activity_id)
+
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
@@ -327,26 +361,28 @@ def api_list_registrations():
     "/api/public/registrations/lookup-student", methods=["GET"]
 )
 def api_public_lookup_student():
-    """Lookup a student by control_number for a given activity token.
+    """Lookup a student by control_number for a given activity.
 
-    Query params: token=<public token>, control_number=<string>
+    Query params: activity_id=<int|slug>, control_number=<string>
     Behavior:
-      - Verify public token -> activity
+      - Verify activity (by slug or ID)
       - Try to find Student locally by control_number
       - If found: return { found: True, student: {...}, created: False }
       - Else: query external validation API; if found, create local Student and return { found: True, student: {...}, created: True }
       - Else: return { found: False }
     """
-    token = request.args.get("token")
+    activity_id = request.args.get("activity_id")
     control_number = (request.args.get("control_number") or "").strip()
-    if not token or not control_number:
+
+    if not control_number:
         return jsonify({"found": False}), 400
 
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({"found": False}), 403
+    if not activity_id:
+        return jsonify({"found": False}), 400
 
-    activity = db.session.get(Activity, int(aid))
+    # Resolve activity using slug-first strategy
+    activity = resolve_activity_by_id(activity_id)
+
     if not activity:
         return jsonify({"found": False}), 404
 
@@ -580,28 +616,24 @@ def api_confirm_registration(reg_id):
 @public_registrations_bp.route("/api/public/registrations/walkin", methods=["POST"])
 def api_walkin():
     payload = request.get_json(silent=True) or {}
-    token = payload.get("token")
+    # Accept activity_id (slug or numeric)
+    activity_id = payload.get("activity_id")
     control_number = (payload.get("control_number") or "").strip()
     payload.get("full_name")
     payload.get("email")
     # optional external student payload (from frontend's external lookup)
     payload.get("external_student")
 
-    # For walk-in, only token and control_number are required. The frontend
-    # should perform local/external lookup and supply full_name when creating
-    # a student is desired. The backend must NOT create Student records
-    # automatically when the student is not present locally.
-    if not token or not control_number:
-        return jsonify({"message": "token y control_number son requeridos"}), 400
+    # Require activity_id and control_number
+    if not control_number:
+        return jsonify({"message": "control_number es requerido"}), 400
 
-    if not token:
-        return jsonify({"message": "Token inválido"}), 400
+    if not activity_id:
+        return jsonify({"message": "activity_id es requerido"}), 400
 
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({"message": "Token inválido"}), 400
+    # Resolve activity using slug-first strategy
+    activity = resolve_activity_by_id(activity_id)
 
-    activity = db.session.get(Activity, int(aid))
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
@@ -768,18 +800,16 @@ def api_walkin():
 )
 def api_toggle_attendance(attendance_id):
     payload = request.get_json(silent=True) or {}
-    token = payload.get("token")
+    activity_id = payload.get("activity_id")
     # confirm: True means ensure attendance exists; False means remove it
     confirm = bool(payload.get("confirm", True))
 
-    if not token:
-        return jsonify({"message": "Token inválido"}), 400
+    if not activity_id:
+        return jsonify({"message": "activity_id es requerido"}), 400
 
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({"message": "Token inválido"}), 400
+    # Resolve activity using slug-first strategy
+    activity = resolve_activity_by_id(activity_id)
 
-    activity = db.session.get(Activity, int(aid))
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
@@ -808,62 +838,76 @@ def api_toggle_attendance(attendance_id):
     ), 200
 
 
-@public_registrations_bp.route("/public/pause-attendance/<token>", methods=["GET"])
-def public_pause_attendance_view(token):
-    """Public view for pausing/resuming attendances for Magistral activities."""
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return render_template(
-            "public/pause_attendance.html", token_provided=True, token_invalid=True
-        )
+@public_registrations_bp.route(
+    "/public/pause-attendance/<path:activity_ref>", methods=["GET"]
+)
+def public_pause_attendance_view(activity_ref):
+    """Public view for pausing/resuming attendances for Magistral activities.
 
-    activity = db.session.get(Activity, int(aid))
+    Accepts:
+      - activity.public_slug (preferred)
+      - public token (fallback)
+      - numeric activity.id (fallback)
+    """
+    # Resolve activity by slug (preferred) or numeric id (fallback)
+    activity = resolve_activity_by_id(activity_ref)
+
+    # If activity not found, render template indicating invalid reference
     if not activity:
         return render_template(
-            "public/pause_attendance.html", token_provided=True, token_invalid=True
+            "public/pause_attendance.html",
+            activity_id="",
+            activity_name="",
+            activity_invalid=True,
+            activity_allowed=False,
+            error_message="Actividad no encontrada",
         )
 
     # Only allow for Magistral activities
     if getattr(activity, "activity_type", None) != "Magistral":
         return render_template(
             "public/pause_attendance.html",
-            token_provided=True,
-            token_invalid=True,
+            activity_id="",
+            activity_name=activity.name,
+            activity_invalid=False,
+            activity_allowed=False,
             error_message="Solo disponible para conferencias magistrales",
         )
 
-    # Check time window: for public pause/resume we allow from NOW until 5 minutes after end
+    # Check time window: for public pause/resume we allow from NOW until configured minutes after end
     now = datetime.now(timezone.utc)
-
-    # Get app timezone configuration
     app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
 
-    # Localize naive datetimes from database to app timezone, then convert to UTC
     end_dt = activity.end_datetime
     if end_dt is None:
         return render_template(
-            "public/pause_attendance.html", token_provided=True, token_invalid=True
+            "public/pause_attendance.html",
+            activity_id="",
+            activity_name=activity.name,
+            activity_invalid=False,
+            activity_allowed=False,
+            error_message="Actividad sin fecha de finalización",
         )
 
-    # Use localize_naive_datetime to properly handle naive datetimes
     end_dt = localize_naive_datetime(end_dt, app_timezone)
-    # localize_naive_datetime may return None on failure; guard against it
     if end_dt is None:
         return render_template(
-            "public/pause_attendance.html", token_provided=True, token_invalid=True
+            "public/pause_attendance.html",
+            activity_id="",
+            activity_name=activity.name,
+            activity_invalid=False,
+            activity_allowed=False,
+            error_message="Actividad inválida",
         )
 
-    # Public window: derive from configuration (overridable via .env/config)
     from_seconds = int(current_app.config.get("PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS", 0))
     until_minutes = int(
         current_app.config.get("PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", 5)
     )
 
-    # available_from = start_dt + from_seconds (if start_dt exists and from_seconds>0), else now
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
         start_dt = localize_naive_datetime(start_dt, app_timezone)
-        # If localization failed, fall back to now as the available_from
         if start_dt is None:
             available_from = now
         else:
@@ -871,97 +915,110 @@ def public_pause_attendance_view(token):
     else:
         available_from = now
 
-    # end_dt is already localized and guarded above
     available_until = end_dt + timedelta(minutes=until_minutes)
 
     if now < available_from:
         return render_template(
             "public/pause_attendance.html",
-            token_provided=True,
-            token_invalid=True,
+            activity_id="",
+            activity_name=activity.name,
+            activity_invalid=False,
+            activity_allowed=False,
             error_message=f"Esta vista estará disponible a partir de {safe_iso(available_from)}",
         )
 
     if now > available_until:
         return render_template(
             "public/pause_attendance.html",
-            token_provided=True,
-            token_invalid=True,
+            activity_id="",
+            activity_name=activity.name,
+            activity_invalid=False,
+            activity_allowed=False,
             error_message="La ventana pública de control ha expirado.",
         )
 
+    # Ok — activity allowed: pass activity_id (prefer slug) and name to template
+    activity_id = activity.public_slug if activity.public_slug else activity.id
     return render_template(
         "public/pause_attendance.html",
-        activity_token=token,
+        activity_id=activity_id,
         activity_name=activity.name,
-        token_provided=True,
-        token_invalid=False,
+        activity_invalid=False,
+        activity_allowed=True,
     )
 
 
 @public_registrations_bp.route("/public/pause-attendance", methods=["GET"])
 def public_pause_attendance_query():
-    # Backwards-compatible alternative: accept token as query param to avoid path encoding issues
-    token = request.args.get("token") or ""
-    return public_pause_attendance_view(token)
+    # Accept activity_ref (slug or ID) as query param
+    activity_ref = request.args.get("activity_ref") or request.args.get("slug") or ""
+    return public_pause_attendance_view(activity_ref)
 
 
-@public_registrations_bp.route("/public/staff-walkin/<token>", methods=["GET"])
-def public_staff_walkin_view(token):
-    """Mobile-first public view for staff to register walk-ins quickly via activity public token."""
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return render_template(
-            "public/staff_walkin.html",
-            activity_token="",
-            activity_name="",
-            token_provided=True,
-            token_invalid=True,
-        )
+@public_registrations_bp.route(
+    "/public/staff-walkin/<path:activity_ref>", methods=["GET"]
+)
+def public_staff_walkin_view(activity_ref):
+    """Mobile-first public view for staff to register walk-ins quickly via activity slug or ID."""
+    activity = resolve_activity_by_id(activity_ref)
 
-    activity = db.session.get(Activity, int(aid))
     if not activity:
         return render_template(
             "public/staff_walkin.html",
-            activity_token="",
+            activity_id="",
             activity_name="",
-            token_provided=True,
-            token_invalid=True,
+            activity_invalid=True,
+            activity_allowed=False,
+            error_message="Actividad no encontrada",
         )
 
-    # Only allow for Magistral activities (same restriction as other public controls)
     if getattr(activity, "activity_type", None) != "Magistral":
         return render_template(
             "public/staff_walkin.html",
-            activity_token="",
+            activity_id="",
             activity_name=activity.name if activity else "",
-            token_provided=True,
-            token_invalid=True,
+            activity_invalid=False,
+            activity_allowed=False,
+            error_message="Solo disponible para conferencias magistrales",
         )
 
     # include start datetime ISO so frontend can compute staff registration window
     activity_start_iso = None
     try:
         if getattr(activity, "start_datetime", None) is not None:
-            activity_start_iso = safe_iso(activity.start_datetime)
+            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+            sdt = localize_naive_datetime(activity.start_datetime, app_tz)
+            if sdt is not None:
+                activity_start_iso = safe_iso(sdt)
+            else:
+                activity_start_iso = safe_iso(activity.start_datetime)
     except Exception:
         activity_start_iso = None
 
+    activity_id = activity.public_slug if activity.public_slug else activity.id
     return render_template(
         "public/staff_walkin.html",
-        activity_token=token,
+        activity_id=activity_id,
         activity_name=activity.name,
         activity_start_iso=activity_start_iso,
-        token_provided=True,
-        token_invalid=False,
+        activity_invalid=False,
+        activity_allowed=True,
     )
 
 
 @public_registrations_bp.route("/public/staff-walkin", methods=["GET"])
 def public_staff_walkin_query():
-    # Backwards-compatible alternative: accept token as query param to avoid path encoding issues
-    token = request.args.get("token") or ""
-    return public_staff_walkin_view(token)
+    # Accept activity_ref (slug or ID) as query param
+    activity_ref = request.args.get("activity_ref") or request.args.get("slug") or ""
+    if activity_ref:
+        return public_staff_walkin_view(activity_ref)
+    return render_template(
+        "public/staff_walkin.html",
+        activity_id="",
+        activity_name="",
+        activity_invalid=True,
+        activity_allowed=False,
+    )
 
 
 @public_registrations_bp.route("/public/event/<path:event_ref>", methods=["GET"])
@@ -1032,18 +1089,16 @@ def public_event_registrations_view(event_ref):
 
 @public_registrations_bp.route("/api/public/attendances/search", methods=["GET"])
 def api_public_search_attendances():
-    """Search attendances for a specific activity using public token."""
-    token = request.args.get("token")
+    """Search attendances for a specific activity using activity_id (slug or numeric)."""
+    activity_id = request.args.get("activity_id")
     search = request.args.get("search", "").strip()
 
-    if not token:
-        return jsonify({"message": "Token requerido"}), 400
+    if not activity_id:
+        return jsonify({"message": "activity_id es requerido"}), 400
 
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({"message": "Token inválido"}), 400
+    # Resolve activity using slug-first strategy
+    activity = resolve_activity_by_id(activity_id)
 
-    activity = db.session.get(Activity, int(aid))
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
@@ -1066,7 +1121,7 @@ def api_public_search_attendances():
     # Use localize_naive_datetime to properly handle naive datetimes
     end_dt = localize_naive_datetime(end_dt, app_timezone)
     if end_dt is None:
-        return jsonify({"message": "Token inválido o actividad no encontrada."}), 400
+        return jsonify({"message": "Actividad inválida o no encontrada."}), 400
 
     from_seconds = int(current_app.config.get("PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS", 0))
     until_minutes = int(
@@ -1135,18 +1190,25 @@ def api_public_search_attendances():
     "/api/public/attendances/<int:attendance_id>/pause", methods=["POST"]
 )
 def api_public_pause_attendance(attendance_id):
-    """Pause an attendance via public token."""
+    """Pause an attendance via activity_id (slug or numeric) or token."""
     payload = request.get_json(silent=True) or {}
-    token = payload.get("token")
+    activity_id = payload.get("activity_id")
+    payload.get("token")
 
-    if not token:
-        return jsonify({"message": "Token requerido"}), 400
+    # Try to resolve activity from activity_id (slug or numeric) first, then token
+    activity = None
+    if activity_id:
+        try:
+            if str(activity_id).isdigit():
+                activity = db.session.get(Activity, int(activity_id))
+            else:
+                activity = Activity.query.filter_by(
+                    public_slug=str(activity_id)
+                ).first()
+        except Exception:
+            activity = None
 
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({"message": "Token inválido"}), 400
-
-    activity = db.session.get(Activity, int(aid))
+    # No token fallback: resolve only via activity_id (slug or numeric)
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
@@ -1164,7 +1226,7 @@ def api_public_pause_attendance(attendance_id):
 
     end_dt = activity.end_datetime
     if end_dt is None:
-        return jsonify({"message": "Token inválido o actividad no encontrada."}), 400
+        return jsonify({"message": "Actividad inválida o no encontrada."}), 400
 
     # Use localize_naive_datetime to properly handle naive datetimes
     end_dt = localize_naive_datetime(end_dt, app_timezone)
@@ -1229,18 +1291,25 @@ def api_public_pause_attendance(attendance_id):
     "/api/public/attendances/<int:attendance_id>/resume", methods=["POST"]
 )
 def api_public_resume_attendance(attendance_id):
-    """Resume a paused attendance via public token."""
+    """Resume a paused attendance via activity_id (slug or numeric) or token."""
     payload = request.get_json(silent=True) or {}
-    token = payload.get("token")
+    activity_id = payload.get("activity_id")
+    payload.get("token")
 
-    if not token:
-        return jsonify({"message": "Token requerido"}), 400
+    # Try to resolve activity from activity_id (slug or numeric) first, then token
+    activity = None
+    if activity_id:
+        try:
+            if str(activity_id).isdigit():
+                activity = db.session.get(Activity, int(activity_id))
+            else:
+                activity = Activity.query.filter_by(
+                    public_slug=str(activity_id)
+                ).first()
+        except Exception:
+            activity = None
 
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({"message": "Token inválido"}), 400
-
-    activity = db.session.get(Activity, int(aid))
+    # No token fallback: resolve only via activity_id (slug or numeric)
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
@@ -1317,83 +1386,37 @@ def api_public_resume_attendance(attendance_id):
 
 @public_registrations_bp.route("/api/public/registrations/export", methods=["POST"])
 def api_export_registrations_xlsx():
-    """Exportar preregistros de una actividad a XLSX usando un token público.
+    """Exportar preregistros de una actividad a XLSX usando activity_id (slug/numeric) o token.
 
-    Body JSON expected: { token: <public token p:... or pe:...>, activity: <activity_id if token is pe:...> }
-    The endpoint does not expose internal activity ids in URLs — the client provides the token only.
+    Body JSON expected: { activity_id: <slug or numeric id>, token: <optional fallback token> }
+    The endpoint will prioritize activity_id (resolving slug first, then numeric), falling back to token.
     The resulting XLSX will have Spanish headers: 'Número de control', 'Nombre completo', 'Correo', 'Carrera'.
     """
     payload = request.get_json(silent=True) or {}
-    token = payload.get("token")
-    activity_ref = payload.get("activity")
+    activity_id = payload.get("activity_id")
+    activity_ref = payload.get("activity")  # Fallback alias for activity_id
+    payload.get("token")
 
-    activity_slug = payload.get("activity_slug") or payload.get("slug")
+    # Consolidate activity_id from multiple possible fields
+    if not activity_id and activity_ref:
+        activity_id = activity_ref
 
-    # If no token provided, allow resolving activity by slug when supplied
-    if not token and not activity_slug:
-        return jsonify({"message": "Token inválido"}), 400
-
-    # Try activity-level public token first (if token provided)
+    # Try to resolve activity from activity_id (slug or numeric) first
     activity = None
-    if token:
-        aid, aerr = verify_public_token(str(token))
-        if aerr is None and aid is not None:
-            try:
-                activity = db.session.get(Activity, int(aid))
-            except Exception:
-                activity = None
-
-    # If not activity token, maybe it's an event-level token and client provided activity id
-    if not activity and token:
-        eid, eerr = verify_public_event_token(str(token))
-        if eerr is None and eid is not None:
-            # activity_ref must be provided and belong to the event
-            if not activity_ref:
-                return jsonify(
-                    {"message": "Falta el ID de la actividad para token de evento"}
-                ), 400
-            try:
-                a = db.session.get(Activity, int(activity_ref))
-                if not a or a.event_id != int(eid):
-                    return jsonify(
-                        {"message": "Actividad no encontrada para este token de evento"}
-                    ), 404
-                activity = a
-            except Exception:
-                return jsonify({"message": "Actividad inválida"}), 400
-
-    # If still no activity but client provided an activity_slug, resolve by slug
-    if not activity and activity_slug:
-        target = str(activity_slug or "")
+    if activity_id:
         try:
-            # Prefer direct DB lookup by public_slug
-            a = Activity.query.filter_by(public_slug=target).first()
-            if a:
-                activity = a
+            if str(activity_id).isdigit():
+                activity = db.session.get(Activity, int(activity_id))
             else:
-
-                def slugify(text, maxlen=80):
-                    if not text:
-                        return ""
-                    t = text.lower()
-                    t = re.sub(r"[^a-z0-9]+", "-", t)
-                    t = t.strip("-")
-                    if len(t) > maxlen:
-                        t = t[:maxlen].rstrip("-")
-                    return t or ""
-
-                for a in Activity.query.all():
-                    try:
-                        if slugify(getattr(a, "name", "") or "") == target:
-                            activity = a
-                            break
-                    except Exception:
-                        continue
+                activity = Activity.query.filter_by(
+                    public_slug=str(activity_id)
+                ).first()
         except Exception:
             activity = None
 
+    # No token fallback: activity must be resolved via activity_id (slug or numeric)
     if not activity:
-        return jsonify({"message": "Token inválido o actividad no encontrada"}), 400
+        return jsonify({"message": "Actividad no encontrada"}), 400
 
     # Collect registrations
     regs = list(getattr(activity, "registrations", []) or [])

@@ -382,29 +382,11 @@ function eventsManager() {
         } catch (e) {
           // ignore localStorage errors
         }
-
-        const resp = await f(`/api/events/${eventId}/public-token`, {
-          headers,
-        });
-        if (!resp) {
-          console.debug("loadEventPublicToken: no response");
-          return;
-        }
-        if (!resp.ok) {
-          // log response body for debugging in prod (without throwing)
-          try {
-            const err = await resp.json().catch(() => null);
-            console.debug("loadEventPublicToken: non-ok", resp.status, err);
-          } catch (e) {
-            console.debug("loadEventPublicToken: non-ok", resp.status);
-          }
-          return;
-        }
-        const data = await resp.json();
-        // data is expected to contain { token, url }
-        this.eventDetails.public_token = data.token || null;
-        // keep server-generated token url separate so we don't overwrite the slug-based public_url
-        this.eventDetails.public_token_url = data.url || null;
+        // Public tokens removed: do not call `/api/events/:id/public-token`.
+        // Prefer server-provided `public_url` when present. Clear any token
+        // fields to avoid stale values.
+        this.eventDetails.public_token = null;
+        this.eventDetails.public_token_url = null;
       } catch (e) {
         console.error("loadEventPublicToken", e);
       }

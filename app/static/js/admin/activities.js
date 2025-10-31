@@ -43,6 +43,10 @@ function activitiesManager() {
     // Public (chief) token state
     tokenUrlPublic: "",
     tokenPublic: "",
+    // Pause-attendance URL (for Magistral activities)
+    tokenUrlPause: "",
+    // Staff-walkin URL (for Magistral activities)
+    tokenUrlStaffWalkin: "",
     tokenLoading: false,
     tokenError: "",
     // Batch import modal
@@ -950,7 +954,38 @@ function activitiesManager() {
       this.tokenError = "";
       this.tokenUrlPublic = "";
       this.tokenPublic = "";
+      this.tokenUrlPause = "";
+      this.tokenUrlStaffWalkin = "";
       try {
+        // Use slug-based URLs instead of tokens
+        const activitySlug = this.activityToView.public_slug || "";
+        const origin = window.location.origin || "";
+
+        if (!activitySlug) {
+          this.tokenError = "La actividad no tiene un slug público asignado.";
+          this.tokenLoading = false;
+          return;
+        }
+
+        // Self-register URL (slug-based)
+        this.tokenUrl =
+          origin + "/public/self-register/" + encodeURIComponent(activitySlug);
+
+        // Public registration URL (slug-based) - for managing registrations
+        this.tokenUrlPublic =
+          origin + "/public/registrations/" + encodeURIComponent(activitySlug);
+
+        // Pause-attendance URL (slug-based) - for Magistral activities only
+        this.tokenUrlPause =
+          origin +
+          "/public/pause-attendance/" +
+          encodeURIComponent(activitySlug);
+
+        // Staff-walkin URL (slug-based) - for Magistral activities only
+        this.tokenUrlStaffWalkin =
+          origin + "/public/staff-walkin/" + encodeURIComponent(activitySlug);
+
+        // Optionally also generate token-based URLs as fallback (for backwards compatibility)
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const headers = {};
@@ -963,43 +998,12 @@ function activitiesManager() {
         } catch (e) {
           // ignore localStorage errors
         }
-        const res = await f(`/api/activities/${this.activityToView.id}/token`, {
-          headers,
-        });
-        if (!res.ok) {
-          let msg = "Error obteniendo token";
-          try {
-            const j = await res.json();
-            msg = j.message || msg;
-          } catch (e) {
-            msg = await res.text();
-          }
-          this.tokenError = msg;
-          return;
-        }
-        const data = await res.json();
-        this.token = data.token || "";
-        this.tokenUrl =
-          data.url ||
-          window.location.origin + "/self-register/" + (data.token || "");
-        // Also fetch public (chief) token in parallel
-        try {
-          const res2 = await f(
-            `/api/activities/${this.activityToView.id}/public-token`,
-            { headers },
-          );
-          if (res2 && res2.ok) {
-            const d2 = await res2.json();
-            this.tokenPublic = d2.token || "";
-            this.tokenUrlPublic =
-              d2.url ||
-              window.location.origin +
-                "/public/registrations/" +
-                (d2.token || "");
-          }
-        } catch (e) {
-          // ignore public token fetch errors
-        }
+
+        // Tokens have been removed from public flows. We intentionally do not
+        // call `/api/activities/:id/token` or `/api/activities/:id/public-token`.
+        // Slug-based URLs (above) are the canonical public entrypoints.
+        this.token = "";
+        this.tokenPublic = "";
       } catch (e) {
         this.tokenError = e && e.message ? e.message : String(e);
       } finally {

@@ -1,7 +1,6 @@
 function selfRegister() {
   return {
     activityId: null,
-    activityToken: null,
     activityName: null,
     controlNumber: "",
     password: "",
@@ -17,29 +16,28 @@ function selfRegister() {
         // Read initial values from the container via helper provided inline
         const el = document.getElementById("self-register-card");
         let init = {
-          token: "",
+          id: "",
           name: "",
           exists: false,
-          provided: false,
+          allowed: true,
           invalid: false,
         };
         if (window.__selfRegister_init && el) {
           init = window.__selfRegister_init(el) || init;
         }
-        this.activityToken = init.token || null;
+        this.activityId = init.id || null;
         this.activityName = init.name || null;
         this.activityExists = !!init.exists;
-        this.activityTokenProvided = !!init.provided;
-        this.activityTokenInvalid = !!init.invalid;
+        this.activityAllowed = !!init.allowed;
+        this.activityInvalid = !!init.invalid;
 
         if (!this.activityExists) {
-          if (this.activityTokenProvided && this.activityTokenInvalid) {
-            this.messageClass = "bg-yellow-100 text-yellow-800";
-            this.message = "Token inválido o expirado. Contacta al personal.";
-          } else {
-            this.messageClass = "bg-red-100 text-red-800";
-            this.message = "Actividad no encontrada o token inválido.";
-          }
+          this.messageClass = "bg-red-100 text-red-800";
+          this.message = "Actividad no encontrada. Contacta al personal.";
+        } else if (!this.activityAllowed) {
+          this.messageClass = "bg-yellow-100 text-yellow-800";
+          this.message =
+            "El registro para esta actividad ha finalizado o no está disponible.";
         }
 
         // expired flag used to hide the form when time ends
@@ -88,7 +86,7 @@ function selfRegister() {
         const payload = {
           control_number: (this.controlNumber || "").toString().trim(),
           password: this.password,
-          activity_token: this.activityToken,
+          activity_id: this.activityId,
         };
         const resp = await fetch("/api/registrations/self", {
           method: "POST",
