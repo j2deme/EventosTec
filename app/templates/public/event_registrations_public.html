@@ -14,8 +14,18 @@ endblock %} {% block content %}
       </div>
     </div>
 
+    {% if event_invalid %}
+    <div class="bg-white p-4 rounded shadow">
+      <h2 class="text-xl font-bold mb-2">Evento no encontrado</h2>
+      <div class="text-sm text-gray-600">
+        No se encontró el evento solicitado. Verifica que el enlace público sea
+        correcto o contacta al administrador.
+      </div>
+    </div>
+    {% else %}
     <div class="bg-white p-4 rounded shadow">
       <h2 class="text-xl font-bold mb-2">{{ event_name or 'Evento' }}</h2>
+      <!-- server-resolved event_id and event_slug are available via data-attributes on the container -->
       <div
         x-data="window.eventRegistrationsPublic ? eventRegistrationsPublic() : {}"
         x-init="(window.eventRegistrationsPublic ? init($el) : null)"
@@ -293,7 +303,7 @@ endblock %} {% block content %}
         </div>
       </div>
     </div>
-    {% endblock %} {% block scripts %}
+    {% endif %} {% endblock %} {% block scripts %}
     <script src="{{ url_for('static', filename='js/public/event_registrations_public.js') }}"></script>
     {% endblock %}
   </div>

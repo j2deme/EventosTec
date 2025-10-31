@@ -51,7 +51,12 @@ function eventRegistrationsPublic() {
       } catch (e) {
         // ignore
       }
-      this.fetchActivities();
+      // Only fetch activities if we have a meaningful eventId. Avoid
+      // performing an unfiltered request that returns activities from other
+      // events (this caused the duplicated-list confusion).
+      if (this.eventId && String(this.eventId).toLowerCase() !== "null") {
+        this.fetchActivities();
+      }
       // Fetch departments for this event to populate the filter
       try {
         if (this.eventId && String(this.eventId).toLowerCase() !== "null") {
@@ -79,6 +84,14 @@ function eventRegistrationsPublic() {
       try {
         // mark loading state so template can show spinner overlay
         this.loadingActivities = true;
+        // Defensive: do not perform an unfiltered activities request from the
+        // public event page. If the caller invoked this without an eventId we
+        // must avoid returning unrelated activities. The component expects an
+        // eventId to be provided by the server-rendered template.
+        if (!this.eventId || String(this.eventId).toLowerCase() === "null") {
+          this.loadingActivities = false;
+          return;
+        }
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
 
@@ -274,7 +287,7 @@ function eventRegistrationsPublic() {
           return;
         }
         const resp = await f(
-          `/api/public/event/${encodeURIComponent(eventRef)}/activity-token`,
+          `/api/public/event/${encodeURIComponent(eventRef)}/activity-slug`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -292,8 +305,11 @@ function eventRegistrationsPublic() {
           return;
         }
         const j = await resp.json();
-        if (j && j.public_token) {
-          window.location.href = `/public/registrations/${j.public_token}`;
+        if (j && j.activity_slug) {
+          // Redirect using activity slug only (no query params)
+          window.location.href = `/public/registrations/${encodeURIComponent(
+            j.activity_slug
+          )}`;
         } else {
           alert("Respuesta inválida del servidor");
         }
@@ -326,7 +342,7 @@ function eventRegistrationsPublic() {
           return;
         }
         const resp = await f(
-          `/api/public/event/${encodeURIComponent(eventRef)}/activity-token`,
+          `/api/public/event/${encodeURIComponent(eventRef)}/activity-slug`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -346,12 +362,15 @@ function eventRegistrationsPublic() {
           return;
         }
         const j = await resp.json();
-        if (j && j.public_token) {
-          // telemetry: log which activity requested a public token
+        if (j && j.activity_slug) {
+          // telemetry: log which activity requested a slug
           try {
-            console.debug("public-token-generated", { activity: a.id });
+            console.debug("activity-slug-generated", { activity: a.id });
           } catch (e) {}
-          window.location.href = `/public/registrations/${j.public_token}`;
+          // Redirect using activity slug only (no query params)
+          window.location.href = `/public/registrations/${encodeURIComponent(
+            j.activity_slug
+          )}`;
         } else {
           alert("Respuesta inválida del servidor");
           a._loading_manage = false;

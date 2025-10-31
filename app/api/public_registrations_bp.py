@@ -22,96 +22,32 @@ public_registrations_bp = Blueprint(
 # use centralized safe_iso from app.utils.datetime_utils
 
 
-@public_registrations_bp.route('/public/registrations/<token>', methods=['GET'])
-def public_registrations_view(token):
-    # First try: token is a public activity token (p:...)
-    aid, err = verify_public_token(token)
+@public_registrations_bp.route('/public/registrations/<path:activity_ref>', methods=['GET'])
+def public_registrations_view(activity_ref):
+    """Resolve an activity by slug (public_slug from DB, preferred) or numeric ID.
 
+    Accepted formats for activity_ref:
+      - activity.public_slug (from DB, preferred)
+      - numeric activity.id (fallback)
+
+    Returns: registrations_public.html with activity details and registrations.
+    """
     activity = None
-    activity_token_to_use = None
 
-    if err is None and aid is not None:
-        # Token directly references an activity
+    # Slug-first + ID fallback strategy
+    # 1. Try to find activity by public_slug (prefer DB lookup)
+    try:
+        activity = Activity.query.filter_by(public_slug=activity_ref).first()
+    except Exception:
+        activity = None
+
+    # 2. Try numeric id as fallback
+    if not activity:
         try:
-            activity = db.session.get(Activity, int(aid))
-            activity_token_to_use = token
+            if str(activity_ref).isdigit():
+                activity = db.session.get(Activity, int(activity_ref))
         except Exception:
             activity = None
-
-    if not activity:
-        # Maybe the token is an event-level public token (pe:...). In that
-        # case we expect a query param 'activity' with the activity id to open.
-        eid, eerr = verify_public_event_token(token)
-        if eerr is None and eid is not None:
-            # get activity id from query string
-            initial_activity = request.args.get('activity')
-            if initial_activity:
-                try:
-                    a = db.session.get(Activity, int(initial_activity))
-                    if a and a.event_id == int(eid):
-                        activity = a
-                        # generate a public activity token (p:...) for client/API use
-                        activity_token_to_use = generate_public_token(
-                            activity.id)
-                except Exception:
-                    activity = None
-
-    # If still no activity and the path didn't look like a token, try slug-based resolution
-    if not activity and ':' not in (token or ''):
-        # Try parse leading numeric id (e.g. '123-activity-slug') or slug-only
-        m = re.match(r'^(\d+)(?:-.*)?$', token or '')
-        if m:
-            try:
-                aid2 = int(m.group(1))
-                a = db.session.get(Activity, aid2)
-                if a:
-                    activity = a
-                    try:
-                        activity_token_to_use = generate_public_token(
-                            activity.id)
-                    except Exception:
-                        activity_token_to_use = None
-            except Exception:
-                activity = None
-        else:
-            # First try DB lookup by public_slug column (normalize incoming ref)
-            target = canonical_slugify(token or '')
-            try:
-                a = Activity.query.filter_by(public_slug=target).first()
-                if a:
-                    activity = a
-                    try:
-                        activity_token_to_use = generate_public_token(
-                            activity.id)
-                    except Exception:
-                        activity_token_to_use = None
-            except Exception:
-                activity = None
-
-            if not activity:
-                # fallback: try matching by slugifying activity.name using the
-                # canonical server slugifier. Also allow a "compact" comparison
-                # where hyphens are removed to tolerate cases where an accented
-                # character in the incoming ref was replaced by a dash.
-                try:
-                    target = canonical_slugify(token or '')
-                    target_compact = target.replace('-', '')
-                    for a in Activity.query.all():
-                        try:
-                            name_slug = canonical_slugify(
-                                getattr(a, 'name', '') or '')
-                            if name_slug == target or name_slug.replace('-', '') == target_compact:
-                                activity = a
-                                try:
-                                    activity_token_to_use = generate_public_token(
-                                        activity.id)
-                                except Exception:
-                                    activity_token_to_use = None
-                                break
-                        except Exception:
-                            continue
-                except Exception:
-                    activity = None
 
     if not activity:
         return render_template('public/registrations_public.html', token_provided=True, token_invalid=True)
@@ -126,7 +62,9 @@ def public_registrations_view(token):
     activity_modality = getattr(activity, 'modality', None)
     event_name = None
     event_id = getattr(activity, 'event_id', None)
-    event_token_for_back = None
+    event_slug = None
+    activity_slug = None
+
     try:
         # confirmation window: localize activity.end_datetime then add configured days (default 30)
         window_days = int(current_app.config.get(
@@ -169,193 +107,28 @@ def public_registrations_view(token):
     except Exception:
         event_name = None
 
-    # Prefer to expose an event-level slug generated server-side when possible
-    event_slug = None
-    try:
-        if event_name:
-            # Use canonical slugify so frontend can trust the server-provided slug
-            event_slug = canonical_slugify(event_name)
-    except Exception:
-        event_slug = None
-
-    # optional activity id from query string (used when redirected from event-level view)
-    initial_activity = request.args.get('activity')
-    # if request used an event-level token, expose it so the template can link back to the event list
-    # The event token may be provided either as the path token (when the page was opened with a pe: token)
-    # or as a query parameter 'event_token' (e.g. redirected from event listing).
-    try:
-        # first, if the path token itself is an event token, prefer that
-        eid, eerr = verify_public_event_token(token)
-        if eerr is None and eid is not None:
-            event_token_for_back = token
-        else:
-            # otherwise, check query param `event_token`
-            q_event_token = request.args.get('event_token')
-            if q_event_token:
-                q_eid, q_eerr = verify_public_event_token(q_event_token)
-                if q_eerr is None and q_eid is not None:
-                    event_token_for_back = q_event_token
-    except Exception:
-        event_token_for_back = None
-
-    # If still no event token but we have an event_id from the activity, generate a public event token
-    from app.utils.token_utils import generate_public_event_token
-    try:
-        if not event_token_for_back and event_id:
-            event_token_for_back = generate_public_event_token(int(event_id))
-    except Exception:
-        # leave as None
-        pass
-
-    return render_template(
-        'public/registrations_public.html',
-        activity_token=activity_token_to_use,
-        activity_name=activity_name,
-        activity_type=activity_type,
-        activity_deadline_iso=activity_deadline_iso,
-        activity_start_iso=activity_start_iso,
-        activity_end_iso=activity_end_iso,
-        activity_location=activity_location,
-        activity_modality=activity_modality,
-        event_name=event_name,
-        event_id=event_id,
-        event_token=event_token_for_back,
-        event_slug=event_slug,
-        initial_activity_id=initial_activity,
-    )
-
-
-@public_registrations_bp.route('/public/event-registrations/<path:ref>', methods=['GET'])
-def public_event_registrations_view(ref):
-    """Accept a slug-friendly public URL.
-
-    Supported forms:
-      - token-like (contains ':') -> delegate to existing token view
-      - "<id>-<slug>" -> lookup Activity by id and render the same template
-      - "<slug>" -> try to match slugified activity.name and render if unique
-
-    This keeps the visible URL free of token characters and generates
-    a short-lived internal public token for client/API use.
-    """
-    # If the ref looks like a token (contains ':'), reuse the original handler
-    if ':' in (ref or ''):
-        return public_registrations_view(ref)
-
-    activity = None
-    activity_token_to_use = None
-
-    # Prefer DB lookup by public_slug first (normalize incoming ref), then try
-    # a leading numeric id, and finally a fallback scanning by slugified name.
-    target = canonical_slugify(ref or '')
-    try:
-        a = Activity.query.filter_by(public_slug=target).first()
-        if a:
-            activity = a
-            activity_token_to_use = generate_public_token(activity.id)
-    except Exception:
-        activity = None
-
-    # If not found by slug, try parse a leading numeric id (e.g. '123-my-event-slug')
-    if not activity:
-        m = re.match(r'^(\d+)(?:-.*)?$', ref or '')
-        if m:
-            try:
-                aid = int(m.group(1))
-                a = db.session.get(Activity, aid)
-                if a:
-                    activity = a
-                    activity_token_to_use = generate_public_token(activity.id)
-            except Exception:
-                activity = None
-
-    # Final fallback: compare canonical slugified activity.name (also allow compact form)
-    if not activity:
+    # Get event slug from database (Activity -> Event -> public_slug)
+    if event_id:
         try:
-            target = canonical_slugify(ref or '')
-            target_compact = target.replace('-', '')
-            for a in Activity.query.all():
-                try:
-                    name_slug = canonical_slugify(getattr(a, 'name', '') or '')
-                    if name_slug == target or name_slug.replace('-', '') == target_compact:
-                        activity = a
-                        try:
-                            activity_token_to_use = generate_public_token(
-                                activity.id)
-                        except Exception:
-                            activity_token_to_use = None
-                        break
-                except Exception:
-                    continue
+            from app.models.event import Event
+            evt = db.session.get(Event, int(event_id))
+            if evt and evt.public_slug:
+                event_slug = evt.public_slug
+            elif evt and evt.name:
+                event_slug = canonical_slugify(evt.name)
         except Exception:
-            activity = None
+            event_slug = None
 
-    if not activity:
-        return render_template('public/registrations_public.html', token_provided=True, token_invalid=True)
-
-    # Build the same rendering context used by public_registrations_view
-    activity_name = activity.name
-    activity_type = getattr(activity, 'activity_type', None)
-    activity_deadline_iso = None
-    activity_start_iso = None
-    activity_end_iso = None
-    activity_location = getattr(activity, 'location', None)
-    activity_modality = getattr(activity, 'modality', None)
-    event_name = None
-    event_id = getattr(activity, 'event_id', None)
-    event_token_for_back = None
-
+    # Get activity slug from database
     try:
-        window_days = int(current_app.config.get(
-            'PUBLIC_CONFIRM_WINDOW_DAYS', 30))
-        if getattr(activity, 'end_datetime', None) is not None:
-            app_timezone = current_app.config.get(
-                'APP_TIMEZONE', 'America/Mexico_City')
-            end_dt = localize_naive_datetime(
-                activity.end_datetime, app_timezone)
-            if end_dt is not None:
-                deadline_dt = end_dt + timedelta(days=window_days)
-                activity_deadline_iso = safe_iso(deadline_dt)
+        activity_slug = activity.public_slug if activity.public_slug else canonical_slugify(
+            activity.name or '')
     except Exception:
-        activity_deadline_iso = None
-
-    try:
-        app_timezone = current_app.config.get(
-            'APP_TIMEZONE', 'America/Mexico_City')
-        if getattr(activity, 'start_datetime', None) is not None:
-            sdt = localize_naive_datetime(
-                activity.start_datetime, app_timezone)
-            if sdt is not None:
-                activity_start_iso = safe_iso(sdt)
-            else:
-                activity_start_iso = safe_iso(activity.start_datetime)
-        if getattr(activity, 'end_datetime', None) is not None:
-            edt = localize_naive_datetime(activity.end_datetime, app_timezone)
-            if edt is not None:
-                activity_end_iso = safe_iso(edt)
-            else:
-                activity_end_iso = safe_iso(activity.end_datetime)
-    except Exception:
-        activity_start_iso = None
-        activity_end_iso = None
-
-    try:
-        event_name = getattr(activity, 'event').name if getattr(
-            activity, 'event', None) else None
-    except Exception:
-        event_name = None
-
-    # Generate a back-link event token when possible, keep it best-effort
-    try:
-        if event_id:
-            from app.utils.token_utils import generate_public_event_token
-
-            event_token_for_back = generate_public_event_token(int(event_id))
-    except Exception:
-        event_token_for_back = None
+        activity_slug = None
 
     return render_template(
         'public/registrations_public.html',
-        activity_token=activity_token_to_use,
+        activity_id=activity.id,
         activity_name=activity_name,
         activity_type=activity_type,
         activity_deadline_iso=activity_deadline_iso,
@@ -365,31 +138,22 @@ def public_event_registrations_view(ref):
         activity_modality=activity_modality,
         event_name=event_name,
         event_id=event_id,
-        event_token=event_token_for_back,
-        initial_activity_id=None,
+        event_slug=event_slug,
+        activity_slug=activity_slug,
     )
 
 
 @public_registrations_bp.route('/api/public/registrations', methods=['GET'])
 def api_list_registrations():
-    # Extract token safely: prefer JSON body when present, else query param
-    token = None
-    if request.is_json:
-        j = request.get_json(silent=True) or {}
-        token = j.get('token')
-    if not token:
-        token = request.args.get('token')
+    # Extract activity_id from query param
+    activity_id = request.args.get('activity_id')
     page = int(request.args.get('page') or 1)
     per_page = int(request.args.get('per_page') or 20)
 
-    if not token:
-        return jsonify({'message': 'Token inválido'}), 400
+    if not activity_id:
+        return jsonify({'message': 'activity_id es requerido'}), 400
 
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({'message': 'Token inválido'}), 400
-
-    activity = db.session.get(Activity, int(aid))
+    activity = db.session.get(Activity, int(activity_id))
     if not activity:
         return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -644,24 +408,20 @@ def api_public_lookup_student():
 @public_registrations_bp.route('/api/public/registrations/<int:reg_id>/confirm', methods=['POST'])
 def api_confirm_registration(reg_id):
     payload = request.get_json() or {}
-    token = payload.get('token')
+    activity_id = payload.get('activity_id')
     confirm = bool(payload.get('confirm', True))
     create_attendance = bool(payload.get('create_attendance', True))
     mark_absent = bool(payload.get('mark_absent', False))
 
-    if not token:
-        return jsonify({'message': 'Token inválido'}), 400
-
-    aid, err = verify_public_token(str(token))
-    if err or aid is None:
-        return jsonify({'message': 'Token inválido'}), 400
+    if not activity_id:
+        return jsonify({'message': 'activity_id es requerido'}), 400
 
     reg = db.session.get(Registration, reg_id)
-    if not reg or reg.activity_id != int(aid):
+    if not reg or reg.activity_id != int(activity_id):
         return jsonify({'message': 'Registro no encontrado para esta actividad'}), 404
 
     # enforce confirmation window
-    activity = db.session.get(Activity, int(aid))
+    activity = db.session.get(Activity, int(activity_id))
     if not activity:
         return jsonify({'message': 'Actividad no encontrada'}), 404
 
@@ -743,6 +503,13 @@ def api_confirm_registration(reg_id):
             'status': reg.status,
             'confirmation_date': safe_iso(conf)
         }
+    # Ensure attended is explicitly a boolean in API responses
+    try:
+        if isinstance(reg_dict, dict) and 'attended' in reg_dict:
+            reg_dict['attended'] = bool(reg_dict.get('attended'))
+    except Exception:
+        # defensive: if coercion fails, leave as-is
+        pass
     return jsonify({
         'message': 'Confirmación registrada',
         'registration_id': reg.id,
@@ -905,6 +672,13 @@ def api_walkin():
         # include registration only if it existed
         'registration': (reg.to_dict() if reg and hasattr(reg, 'to_dict') else (reg and {'id': reg.id, 'student_id': student.id} or None)),
     }
+    # Normalize registration.attended to boolean when present
+    try:
+        r = resp.get('registration')
+        if isinstance(r, dict) and 'attended' in r:
+            r['attended'] = bool(r.get('attended'))
+    except Exception:
+        pass
     return jsonify(resp), 201
 
 
@@ -1057,76 +831,65 @@ def public_staff_walkin_query():
     return public_staff_walkin_view(token)
 
 
-@public_registrations_bp.route('/public/event-registrations/<path:event_slug>', methods=['GET'])
-def public_event_registrations_by_slug(event_slug):
-    """Resolve an event by slug (slugified event.name) and render the public
-    registrations page for chiefs. Optionally accept query param `activity` which
-    can be a short activity token (sqids-based or serialized) to open the activity
-    directly; if found, we generate a public activity token for client use and
-    inject it in the template as `data-initial-activity-token`.
-    """
-    # simple slugify helper matching the one used elsewhere
-    def slugify(text):
-        if not text:
-            return ''
-        t = str(text).lower()
-        t = re.sub(r'[^a-z0-9]+', '-', t)
-        t = t.strip('-')
-        return t
+@public_registrations_bp.route('/public/event/<path:event_ref>', methods=['GET'])
+def public_event_registrations_view(event_ref):
+    """Resolve an event by slug (public_slug from DB, preferred) or numeric ID 
+    and render the public event view page with list of activities.
 
-    # Find event by slug (note: this scans names; if many events exist, consider adding a slug column)
-    target = (event_slug or '').strip()
+    Accepted formats for event_ref:
+      - event.public_slug (from DB, preferred)
+      - numeric event.id (fallback)
+
+    Returns: event_registrations_public.html with:
+      - event_slug (from DB public_slug or fallback slugified name)
+      - event_id
+      - event_name
+    """
     found_event = None
+
+    # Slug-first + ID fallback strategy
+    # 1. Try to find event by public_slug (prefer DB lookup)
     try:
         from app.models.event import Event
-
-        # naive scan: slugify each event name and compare
-        events = Event.query.all()
+        found_event = Event.query.filter_by(public_slug=event_ref).first()
     except Exception:
-        events = []
+        found_event = None
 
-    for e in events:
+    # 2. Try numeric id as fallback
+    if not found_event:
         try:
-            if slugify(getattr(e, 'name', '') or '') == target:
-                found_event = e
-                break
+            if str(event_ref).isdigit():
+                found_event = db.session.get(Event, int(event_ref))
         except Exception:
-            continue
+            found_event = None
 
     if not found_event:
-        # render the same template but indicate invalid token/view
-        return render_template('public/event_registrations_public.html', event_token='', event_name=target, event_id=None, event_token_provided=False, event_token_invalid=True)
+        # Invalid event reference: render error state
+        return render_template(
+            'public/event_registrations_public.html',
+            event_name=event_ref or 'Evento no encontrado',
+            event_id=None,
+            event_slug='',
+            event_invalid=True
+        )
 
-    # Optionally resolve activity short token from query param
-    activity_param = request.args.get('activity')
-    initial_activity_token = None
-    if activity_param:
-        # Try to verify activity token using existing helper
-        from app.utils.token_utils import verify_activity_token, generate_public_token
-
-        aid, err = verify_activity_token(str(activity_param))
-        if err is None and aid is not None:
-            # generate a public activity token for the client (p:...)
-            try:
-                initial_activity_token = generate_public_token(int(aid))
-            except Exception:
-                initial_activity_token = None
-
-    # Generate event-level public token for backlink/authorization for chiefs
-    from app.utils.token_utils import generate_public_event_token
-    event_token_for_back = None
+    # Log resolution for debugging: which event_ref resolved to which event id/slug
     try:
-        event_token_for_back = generate_public_event_token(int(found_event.id))
+        current_app.logger.debug(
+            f"public_event_registrations_view: event_ref={event_ref} -> id={found_event.id} slug={getattr(found_event, 'public_slug', None)}"
+        )
     except Exception:
-        event_token_for_back = None
+        pass
+
+    # Prefer public_slug from DB; fallback to slugified name for display
+    event_slug = found_event.public_slug if found_event.public_slug else canonical_slugify(
+        found_event.name or '')
 
     return render_template(
         'public/event_registrations_public.html',
-        event_token=event_token_for_back,
         event_name=found_event.name,
         event_id=found_event.id,
-        event_slug=target,
-        initial_activity_token=initial_activity_token,
+        event_slug=event_slug,
     )
 
 
