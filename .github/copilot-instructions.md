@@ -55,7 +55,7 @@ window.localStorage.setItem("authToken", "TOKEN123");
 await window.fetch("/api/x", { method: "GET" });
 
 expect(
-  calls[0].init?.headers?.Authorization || calls[0].init?.Authorization
+  calls[0].init?.headers?.Authorization || calls[0].init?.Authorization,
 ).toBe("Bearer TOKEN123");
 
 // limpieza: resetear módulos y eliminar el mock si hace falta
@@ -108,13 +108,11 @@ require("../app");
 ## Cambios en modelos/schemas y endpoints
 
 - Cada vez que se implemente un cambio en los modelos y/o schemas del backend, se deben revisar los endpoints asociados y actualizarlos para reflejar esos cambios, sin romper las funciones ya implementadas cuando sea posible. Específicamente:
-
   - Revisar todos los endpoints que lean o escriban las entidades afectadas y ajustar la serialización/deserialización (Marshmallow schemas) según el nuevo contrato.
   - Priorizar compatibilidad hacia atrás. Si el cambio es breaking, documentarlo claramente y considerar versionar el endpoint (por ejemplo `/api/v2/...`) antes de remover el comportamiento anterior.
   - Actualizar la validación de entrada y los manejadores de errores para los nuevos campos o formatos.
 
 - Si cambia o se actualiza un endpoint, hay que actualizar los tests relacionados y validar la suite completa:
-
   - Ajustar los tests unitarios y de integración que dependen del endpoint. Si los tests frontend consumen ese endpoint, actualizarlos también (Jest/jsdom + mocks de `fetch`).
   - Añadir tests nuevos cuando se introduzcan nuevas responsabilidades, transformaciones de payload o reglas de negocio.
   - Ejecutar `python -m pytest -q` para validar los tests backend y `npx jest --coverage --colors` para los tests frontend. Corregir regresiones antes de mergear.
