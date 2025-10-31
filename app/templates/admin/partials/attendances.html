@@ -461,7 +461,7 @@
                         hours = hours % 12;
                         hours = hours ? hours : 12;
                         return `${pad(d.getDate())}/${pad(
-                          d.getMonth() + 1
+                          d.getMonth() + 1,
                         )}/${d.getFullYear()} ${hours}:${minutes} ${ampm}`;
                       }
                     </script>

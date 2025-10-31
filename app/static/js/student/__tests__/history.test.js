@@ -9,7 +9,9 @@ global.localStorage = {
     if (key === "authToken") {
       // Return a valid JWT-like token with sub claim
       const payload = { sub: 123, exp: Math.floor(Date.now() / 1000) + 3600 };
-      const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64");
+      const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
+        "base64",
+      );
       return `header.${encodedPayload}.signature`;
     }
     return null;
@@ -30,7 +32,7 @@ describe("studentHistoryManager", () => {
   beforeEach(() => {
     window.showToast = jest.fn();
     window.getAuthHeaders = jest.fn(() => ({
-      "Authorization": "Bearer test-token",
+      Authorization: "Bearer test-token",
       "Content-Type": "application/json",
     }));
 

@@ -7,9 +7,11 @@ This feature adds the ability to filter and export students who have earned comp
 ## User Interface
 
 ### Export Button
+
 A new green "Exportar Créditos" button has been added to the students section header, next to the existing filter buttons.
 
 ### Export Modal
+
 When clicked, a modal opens with:
 
 1. **Filter Section**
@@ -40,13 +42,16 @@ When clicked, a modal opens with:
 ### New Endpoints
 
 #### GET `/api/students/complementary-credits`
+
 **Purpose**: Returns students with 10+ confirmed hours for a specific event
 
 **Query Parameters**:
+
 - `event_id` (required): ID of the event
 - `career` (optional): Filter by career name (partial match)
 
 **Response**:
+
 ```json
 {
   "event": {
@@ -72,6 +77,7 @@ When clicked, a modal opens with:
 ```
 
 #### GET `/api/students/complementary-credits/export`
+
 **Purpose**: Exports the filtered students to an Excel file
 
 **Query Parameters**: Same as above
@@ -79,6 +85,7 @@ When clicked, a modal opens with:
 **Response**: Excel file (.xlsx) download
 
 **Excel Format**:
+
 - Title row with event name
 - Generation timestamp
 - Optional career filter indication

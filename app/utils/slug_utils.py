@@ -1,25 +1,25 @@
 import re
 import unicodedata
 
-_dashes_re = re.compile(r'[-]+')
+_dashes_re = re.compile(r"[-]+")
 
 
 def slugify(text: str, maxlen: int = 200) -> str:
     if not text:
-        return ''
+        return ""
     # Normalize unicode, remove accents
-    text = unicodedata.normalize('NFKD', text)
-    text = text.encode('ascii', 'ignore').decode('ascii')
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
     text = text.lower()
     # Remove invalid chars, keep alnum and spaces and hyphens
-    text = re.sub(r'[^a-z0-9\s-]', '', text)
+    text = re.sub(r"[^a-z0-9\s-]", "", text)
     # Replace spaces with dashes
-    text = re.sub(r'\s+', '-', text).strip('-')
-    text = _dashes_re.sub('-', text)
-    return text[:maxlen].strip('-')
+    text = re.sub(r"\s+", "-", text).strip("-")
+    text = _dashes_re.sub("-", text)
+    return text[:maxlen].strip("-")
 
 
-def generate_unique_slug(session, model, value, column='public_slug', maxlen=200):
+def generate_unique_slug(session, model, value, column="public_slug", maxlen=200):
     """
     Genera un slug único consultando una vez la BD por slugs con el mismo prefijo
     y calculando localmente el sufijo numérico siguiente disponible.
@@ -42,7 +42,7 @@ def generate_unique_slug(session, model, value, column='public_slug', maxlen=200
         if s == base:
             used.add(0)
         elif s.startswith(base + "-"):
-            suf = s[len(base) + 1:]
+            suf = s[len(base) + 1 :]
             if suf.isdigit():
                 used.add(int(suf))
 

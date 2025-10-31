@@ -97,7 +97,7 @@ function studentsAdmin() {
 
         const data = await response.json();
         this.students = data.students || [];
-        
+
         this.pagination = {
           current_page: data.current_page || 1,
           last_page: data.pages || 1,
@@ -106,7 +106,6 @@ function studentsAdmin() {
           to: Math.min(data.current_page * 10, data.total || 0),
           pages: Array.from({ length: data.pages || 1 }, (_, i) => i + 1),
         };
-
       } catch (error) {
         console.error("Error loading students:", error);
         this.errorMessage = "Error al cargar estudiantes";
@@ -153,16 +152,16 @@ function studentsAdmin() {
     updateActivitiesFilter() {
       if (this.filters.event_id) {
         this.activities = this.allActivities.filter(
-          (a) => a.event_id === parseInt(this.filters.event_id)
+          (a) => a.event_id === parseInt(this.filters.event_id),
         );
       } else {
         this.activities = this.allActivities;
       }
-      
+
       // Reset activity filter if not in filtered list
       if (this.filters.activity_id) {
         const exists = this.activities.find(
-          (a) => a.id === parseInt(this.filters.activity_id)
+          (a) => a.id === parseInt(this.filters.activity_id),
         );
         if (!exists) {
           this.filters.activity_id = null;
@@ -207,7 +206,7 @@ function studentsAdmin() {
           `/api/students/${student.id}/hours-by-event`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -218,7 +217,8 @@ function studentsAdmin() {
         this.studentEventsHours = data.events_hours || [];
       } catch (error) {
         console.error("Error loading student details:", error);
-        window.showToast && window.showToast("Error al cargar detalles", "error");
+        window.showToast &&
+          window.showToast("Error al cargar detalles", "error");
       } finally {
         this.loadingDetail = false;
       }
@@ -245,7 +245,7 @@ function studentsAdmin() {
           `/api/students/${this.currentStudent.id}/event/${eventData.event_id}/details`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -254,11 +254,14 @@ function studentsAdmin() {
 
         const data = await response.json();
         this.eventActivities = data.activities || [];
-        this.currentEventDetail.total_confirmed_hours = data.total_confirmed_hours;
-        this.currentEventDetail.has_complementary_credit = data.has_complementary_credit;
+        this.currentEventDetail.total_confirmed_hours =
+          data.total_confirmed_hours;
+        this.currentEventDetail.has_complementary_credit =
+          data.has_complementary_credit;
       } catch (error) {
         console.error("Error loading event details:", error);
-        window.showToast && window.showToast("Error al cargar actividades", "error");
+        window.showToast &&
+          window.showToast("Error al cargar actividades", "error");
       } finally {
         this.loadingEventDetail = false;
       }
@@ -348,7 +351,7 @@ function studentsAdmin() {
           `/api/students/complementary-credits?${params}`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -373,7 +376,8 @@ function studentsAdmin() {
     // Exportar a Excel
     async exportToExcel() {
       if (!this.exportFilters.event_id) {
-        window.showToast && window.showToast("Debe seleccionar un evento", "error");
+        window.showToast &&
+          window.showToast("Debe seleccionar un evento", "error");
         return;
       }
 
@@ -389,7 +393,7 @@ function studentsAdmin() {
         // Abrir en nueva pestaña para descargar
         window.open(
           `/api/students/complementary-credits/export?${params}`,
-          "_blank"
+          "_blank",
         );
 
         window.showToast && window.showToast("Exportación iniciada", "success");

@@ -56,7 +56,7 @@ function studentProfileManager() {
             // Guardar en localStorage para acceso rápido
             localStorage.setItem(
               "studentProfile",
-              JSON.stringify(this.studentData)
+              JSON.stringify(this.studentData),
             );
           } else {
             this.errorMessage = "No se encontraron datos del estudiante";

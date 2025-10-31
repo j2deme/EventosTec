@@ -1,11 +1,11 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Get the latest version from: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.1
+    rev: v0.14.3
     hooks:
       # Run the linter and auto-fix what's possible
       - id: ruff
-        args: [--fix]
+        args: [check, --fix, --unsafe-fixes, --ignore, E902]
       # Run the formatter (replaces Black and isort)
       - id: ruff-format
 

@@ -105,14 +105,14 @@ function attendancesAdmin() {
     filteredActivities() {
       const byEvent = this.filters.event_id
         ? this.activities.filter(
-            (a) => String(a.event_id) === String(this.filters.event_id)
+            (a) => String(a.event_id) === String(this.filters.event_id),
           )
         : this.activities.slice();
 
       if (this.filters.activity_type) {
         // activities coming from API use `activity_type` key
         return byEvent.filter(
-          (a) => (a.activity_type || a.type) === this.filters.activity_type
+          (a) => (a.activity_type || a.type) === this.filters.activity_type,
         );
       }
       return byEvent;
@@ -122,7 +122,7 @@ function attendancesAdmin() {
     batchFilteredActivities() {
       const byEvent = this.batchEventId
         ? this.activities.filter(
-            (a) => String(a.event_id) === String(this.batchEventId)
+            (a) => String(a.event_id) === String(this.batchEventId),
           )
         : this.activities.slice();
       return byEvent;
@@ -134,7 +134,7 @@ function attendancesAdmin() {
 
       if (this.filters.activity_id) {
         rows = rows.filter(
-          (r) => String(r.activity_id) === String(this.filters.activity_id)
+          (r) => String(r.activity_id) === String(this.filters.activity_id),
         );
       }
 
@@ -151,7 +151,7 @@ function attendancesAdmin() {
 
       if (this.filters.activity_type) {
         rows = rows.filter(
-          (r) => r.activity_type === this.filters.activity_type
+          (r) => r.activity_type === this.filters.activity_type,
         );
       }
 
@@ -216,10 +216,10 @@ function attendancesAdmin() {
           (a.status === "present"
             ? "Asistió"
             : a.status === "registered"
-            ? "Parcial"
-            : a.status === "error"
-            ? "Ausente"
-            : "");
+              ? "Parcial"
+              : a.status === "error"
+                ? "Ausente"
+                : "");
 
         // date_display: usar created_at si existe, formatear simple YYYY-MM-DD HH:mm
         const created = a.created_at || a.createdAt || a.date || null;
@@ -263,14 +263,14 @@ function attendancesAdmin() {
 
       // Walk-ins: sin registration_id
       this.statsWalkins = (this.attendances || []).filter(
-        (att) => !att.registration_id
+        (att) => !att.registration_id,
       ).length;
 
       // Converted: con registration_id y status present
       this.statsConverted = (this.attendances || []).filter(
         (att) =>
           att.registration_id &&
-          (att.status === "present" || att.status === "registered")
+          (att.status === "present" || att.status === "registered"),
       ).length;
 
       // Errors: marcar como aquellas con status 'error' o attendance_percentage < 50
@@ -278,7 +278,7 @@ function attendancesAdmin() {
         (att) =>
           att.status === "error" ||
           (typeof att.attendance_percentage === "number" &&
-            att.attendance_percentage < 50)
+            att.attendance_percentage < 50),
       ).length;
     },
 
@@ -289,8 +289,8 @@ function attendancesAdmin() {
       // derive activityTypes from activities (API uses `activity_type`)
       this.activityTypes = Array.from(
         new Set(
-          this.activities.map((a) => a.activity_type || a.type).filter(Boolean)
-        )
+          this.activities.map((a) => a.activity_type || a.type).filter(Boolean),
+        ),
       );
       // initial refresh of attendances
       await this.refresh();
@@ -308,7 +308,7 @@ function attendancesAdmin() {
           (this.attendances || [])
             .filter((r) => r.__selected_for_sync)
             .map((r) => r.id || r.student_id)
-            .filter(Boolean)
+            .filter(Boolean),
         );
 
         // load attendances with current filters (server-side support optional)
@@ -373,7 +373,7 @@ function attendancesAdmin() {
         hours = hours % 12;
         hours = hours ? hours : 12;
         return `${pad(d.getDate())}/${pad(
-          d.getMonth() + 1
+          d.getMonth() + 1,
         )}/${d.getFullYear()} ${hours}:${minutes} ${ampm}`;
       } catch (e) {
         return String(dateStr);
@@ -418,7 +418,7 @@ function attendancesAdmin() {
         window.showToast &&
           window.showToast(
             "Selecciona un evento antes de elegir la actividad",
-            "error"
+            "error",
           );
         return;
       }
@@ -467,7 +467,7 @@ function attendancesAdmin() {
         return;
       }
       const activityExists = (this.activities || []).some(
-        (a) => String(a.id) === String(this.syncSourceActivityId)
+        (a) => String(a.id) === String(this.syncSourceActivityId),
       );
       if (!activityExists) {
         window.showToast &&
@@ -512,7 +512,7 @@ function attendancesAdmin() {
           await this.refresh();
           // limpiar selección
           (this.attendances || []).forEach(
-            (r) => (r.__selected_for_sync = false)
+            (r) => (r.__selected_for_sync = false),
           );
           this.selectAllForSync = false;
           // cerrar modal
@@ -561,7 +561,7 @@ function attendancesAdmin() {
         const allEvents = body.data || body.events || [];
         this.events = (allEvents || []).filter(
           (e) =>
-            e.is_active === true || e.is_active === "true" || e.active === true
+            e.is_active === true || e.is_active === "true" || e.active === true,
         );
       } catch (e) {
         this.events = [];
@@ -626,17 +626,17 @@ function attendancesAdmin() {
           if (res.status === 201) {
             window.showToast(
               body.message || "Asistencia creada correctamente.",
-              "success"
+              "success",
             );
           } else if (res.status === 200) {
             window.showToast(
               body.message || "Asistencia actualizada correctamente.",
-              "success"
+              "success",
             );
           } else {
             window.showToast(
               body.message || "Operaci\u00f3n completada.",
-              "info"
+              "info",
             );
           }
 
@@ -660,14 +660,14 @@ function attendancesAdmin() {
         } else {
           window.showToast(
             body.message || "Error al asignar asistencia.",
-            "error"
+            "error",
           );
         }
       } catch (err) {
         console.error(err);
         window.showToast(
           "Error de conexi\u00f3n al asignar asistencia.",
-          "error"
+          "error",
         );
       }
     },
@@ -813,7 +813,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               "No hay información de registro disponible",
-              "warning"
+              "warning",
             );
           this.registrationModalData = null;
           this.showRegistrationModal = true; // still show modal so user sees fallback
@@ -933,7 +933,7 @@ function attendancesAdmin() {
         window.showToast &&
           window.showToast(
             "Faltan student_id o activity_id necesarios para guardar",
-            "error"
+            "error",
           );
         return;
       }
@@ -985,7 +985,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               body.message || "Error al actualizar asistencia",
-              "error"
+              "error",
             );
         }
       } catch (e) {
@@ -993,7 +993,7 @@ function attendancesAdmin() {
         window.showToast &&
           window.showToast(
             "Error de conexión al actualizar asistencia",
-            "error"
+            "error",
           );
       } finally {
         this.editSubmitting = false;
@@ -1028,7 +1028,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               body.message || "Error al eliminar asistencia",
-              "error"
+              "error",
             );
         }
       } catch (err) {
@@ -1040,7 +1040,7 @@ function attendancesAdmin() {
     async pauseAttendance(row) {
       if (
         !confirm(
-          "¿Pausar esta asistencia? Esto detiene el conteo de tiempo presente."
+          "¿Pausar esta asistencia? Esto detiene el conteo de tiempo presente.",
         )
       )
         return;
@@ -1069,7 +1069,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               body.message || "Error al pausar asistencia",
-              "error"
+              "error",
             );
         }
       } catch (err) {
@@ -1081,7 +1081,7 @@ function attendancesAdmin() {
     async resumeAttendance(row) {
       if (
         !confirm(
-          "¿Reanudar esta asistencia? Esto continúa el conteo de tiempo presente."
+          "¿Reanudar esta asistencia? Esto continúa el conteo de tiempo presente.",
         )
       )
         return;
@@ -1110,7 +1110,7 @@ function attendancesAdmin() {
           window.showToast &&
             window.showToast(
               body.message || "Error al reanudar asistencia",
-              "error"
+              "error",
             );
         }
       } catch (err) {
@@ -1151,10 +1151,10 @@ function attendancesAdmin() {
     batchUploadFilteredDepartments() {
       if (!this.batchUploadEventId) return [];
       const eventActivities = this.activities.filter(
-        (a) => String(a.event_id) === String(this.batchUploadEventId)
+        (a) => String(a.event_id) === String(this.batchUploadEventId),
       );
       const depts = new Set(
-        eventActivities.map((a) => a.department).filter(Boolean)
+        eventActivities.map((a) => a.department).filter(Boolean),
       );
       return Array.from(depts).sort();
     },
@@ -1164,7 +1164,7 @@ function attendancesAdmin() {
       return this.activities.filter(
         (a) =>
           String(a.event_id) === String(this.batchUploadEventId) &&
-          a.department === this.batchUploadDepartment
+          a.department === this.batchUploadDepartment,
       );
     },
 
@@ -1208,7 +1208,7 @@ function attendancesAdmin() {
           xhr.upload.onprogress = (ev) => {
             if (ev.lengthComputable) {
               this.batchUploadProgress = Math.round(
-                (ev.loaded / ev.total) * 100
+                (ev.loaded / ev.total) * 100,
               );
             }
           };

@@ -152,7 +152,7 @@ function activitiesManager() {
         const response = await f(url);
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar actividades: ${response && response.status}`
+            `Error al cargar actividades: ${response && response.status}`,
           );
 
         const data = await response.json();
@@ -161,7 +161,7 @@ function activitiesManager() {
           const act = {
             ...activity,
             start_datetime: this.formatDateTimeForInput(
-              activity.start_datetime
+              activity.start_datetime,
             ),
             end_datetime: this.formatDateTimeForInput(activity.end_datetime),
           };
@@ -204,14 +204,14 @@ function activitiesManager() {
               const sameDay = s.isSame(e, "day");
               if (sameDay) {
                 act.datesString = `${s.format("DD/MM/YY")} ${s.format(
-                  "h:mm A"
+                  "h:mm A",
                 )} - ${e.format("h:mm A")}`;
               } else {
                 // Mostrar rango de días y mes abreviado en español (MMM)
                 act.datesString = `${s.format("D")} - ${e.format(
-                  "D"
+                  "D",
                 )} / ${s.format("MMM/YY")} ${s.format("h:mm A")} - ${e.format(
-                  "h:mm A"
+                  "h:mm A",
                 )}`;
               }
             } else if (hasDayjs && s && s.isValid()) {
@@ -244,16 +244,16 @@ function activitiesManager() {
                   sd.getDate() === ed.getDate();
                 if (sameDay) {
                   act.datesString = `${day(sd)}/${month(sd)}/${year2(
-                    sd
+                    sd,
                   )} ${time12(sd)} - ${time12(ed)}`;
                 } else {
                   act.datesString = `${day(sd)} - ${day(ed)} / ${month(
-                    sd
+                    sd,
                   )}/${year2(sd)} ${time12(sd)} - ${time12(ed)}`;
                 }
               } else if (sd && !isNaN(sd)) {
                 act.datesString = `${day(sd)}/${month(sd)}/${year2(
-                  sd
+                  sd,
                 )} ${time12(sd)}`;
               } else {
                 act.datesString = "Sin fecha";
@@ -302,7 +302,7 @@ function activitiesManager() {
         const response = await f("/api/events/");
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar eventos: ${response && response.status}`
+            `Error al cargar eventos: ${response && response.status}`,
           );
         const data = await response.json();
         this.events = Array.isArray(data) ? data : data.events || [];
@@ -338,7 +338,7 @@ function activitiesManager() {
 
       if (this.currentActivity.event_id) {
         const selectedEvent = this.events.find(
-          (e) => String(e.id) === String(this.currentActivity.event_id)
+          (e) => String(e.id) === String(this.currentActivity.event_id),
         );
 
         if (selectedEvent) {
@@ -391,7 +391,7 @@ function activitiesManager() {
           target_audience: {
             general: !!this.currentActivity.target_audience_general,
             careers: Array.isArray(
-              this.currentActivity.target_audience_careersList
+              this.currentActivity.target_audience_careersList,
             )
               ? this.currentActivity.target_audience_careersList
               : [],
@@ -417,7 +417,7 @@ function activitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear actividad: ${response.status} ${response.statusText}`
+              `Error al crear actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -433,7 +433,7 @@ function activitiesManager() {
               action: "created",
               eventId: newActivity.id,
             },
-          })
+          }),
         );
 
         showToast("Actividad creada exitosamente", "success");
@@ -460,7 +460,7 @@ function activitiesManager() {
         // Validación: event_id es obligatorio
         if (!this.currentActivity || !this.currentActivity.event_id) {
           throw new Error(
-            "Seleccione un evento antes de actualizar la actividad"
+            "Seleccione un evento antes de actualizar la actividad",
           );
         }
 
@@ -486,7 +486,7 @@ function activitiesManager() {
           target_audience: {
             general: !!this.currentActivity.target_audience_general,
             careers: Array.isArray(
-              this.currentActivity.target_audience_careersList
+              this.currentActivity.target_audience_careersList,
             )
               ? this.currentActivity.target_audience_careersList
               : [],
@@ -519,7 +519,7 @@ function activitiesManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar actividad: ${response.status} ${response.statusText}`
+              `Error al actualizar actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -535,7 +535,7 @@ function activitiesManager() {
               action: "updated",
               eventId: updatedActivity.id,
             },
-          })
+          }),
         );
 
         showToast("Actividad actualizada exitosamente", "success");
@@ -563,14 +563,14 @@ function activitiesManager() {
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const response = await f(
           `/api/activities/${this.activityToDelete.id}`,
-          { method: "DELETE" }
+          { method: "DELETE" },
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar actividad: ${response.status} ${response.statusText}`
+              `Error al eliminar actividad: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -587,7 +587,7 @@ function activitiesManager() {
               action: "deleted",
               eventId: deletedId,
             },
-          })
+          }),
         );
 
         showToast("Actividad eliminada exitosamente", "success");
@@ -774,15 +774,15 @@ function activitiesManager() {
       mapped.speakersList = Array.isArray(activity.speakers)
         ? activity.speakers
         : activity.speakers
-        ? Array.isArray(activity.speakers)
-          ? activity.speakers
-          : []
-        : [];
+          ? Array.isArray(activity.speakers)
+            ? activity.speakers
+            : []
+          : [];
 
       if (activity.target_audience) {
         mapped.target_audience_general = !!activity.target_audience.general;
         mapped.target_audience_careersList = Array.isArray(
-          activity.target_audience.careers
+          activity.target_audience.careers,
         )
           ? activity.target_audience.careers
           : [];
@@ -875,7 +875,7 @@ function activitiesManager() {
         const response = await f(`/api/activities/${this.currentActivity.id}`);
         if (!response || !response.ok)
           throw new Error(
-            `Error al recargar actividad: ${response && response.status}`
+            `Error al recargar actividad: ${response && response.status}`,
           );
         const data = await response.json();
         const act = data.activity || data;
@@ -884,7 +884,7 @@ function activitiesManager() {
         if (act.target_audience) {
           mapped.target_audience_general = !!act.target_audience.general;
           mapped.target_audience_careersList = Array.isArray(
-            act.target_audience.careers
+            act.target_audience.careers,
           )
             ? act.target_audience.careers
             : [];
@@ -986,7 +986,7 @@ function activitiesManager() {
         try {
           const res2 = await f(
             `/api/activities/${this.activityToView.id}/public-token`,
-            { headers }
+            { headers },
           );
           if (res2 && res2.ok) {
             const d2 = await res2.json();
@@ -1012,7 +1012,7 @@ function activitiesManager() {
 
       // Obtener el evento seleccionado
       const selectedEvent = this.events.find(
-        (e) => String(e.id) === String(activityData.event_id)
+        (e) => String(e.id) === String(activityData.event_id),
       );
       if (!selectedEvent) {
         this.dateValidationError = "Por favor seleccione un evento válido";
@@ -1028,14 +1028,14 @@ function activitiesManager() {
       // Validar que las fechas de la actividad estén dentro del rango del evento
       if (activityStart < eventStart) {
         this.dateValidationError = `La fecha de inicio de la actividad no puede ser anterior a la fecha de inicio del evento (${this.formatDateTime(
-          eventStart
+          eventStart,
         )})`;
         return this.dateValidationError;
       }
 
       if (activityEnd > eventEnd) {
         this.dateValidationError = `La fecha de fin de la actividad no puede ser posterior a la fecha de fin del evento (${this.formatDateTime(
-          eventEnd
+          eventEnd,
         )})`;
         return this.dateValidationError;
       }
@@ -1098,7 +1098,7 @@ function activitiesManager() {
     // Obtener información de relaciones (outgoing/incoming) para una actividad
     relationInfoFor(activityId) {
       const entry = (this.activityRelations || []).find(
-        (a) => String(a.id) === String(activityId)
+        (a) => String(a.id) === String(activityId),
       );
       if (!entry) return { outgoing: [], incoming: [] };
       return {
@@ -1115,12 +1115,13 @@ function activitiesManager() {
       const parts = [];
       if (info.outgoing && info.outgoing.length) {
         parts.push(
-          "Enlaza a: " + info.outgoing.map((r) => r.name || r.id).join(", ")
+          "Enlaza a: " + info.outgoing.map((r) => r.name || r.id).join(", "),
         );
       }
       if (info.incoming && info.incoming.length) {
         parts.push(
-          "Enlazada por: " + info.incoming.map((r) => r.name || r.id).join(", ")
+          "Enlazada por: " +
+            info.incoming.map((r) => r.name || r.id).join(", "),
         );
       }
       return parts.join(" | ");
@@ -1146,7 +1147,7 @@ function activitiesManager() {
         typeof window.safeFetch === "function" ? window.safeFetch : fetch;
       const response = await f(
         `/api/activities/${activityId}/related/${relatedId}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
       if (!response || !response.ok)
         throw new Error("Error al desenlazar actividades");

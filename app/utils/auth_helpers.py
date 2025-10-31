@@ -14,12 +14,12 @@ def get_current_user():
         # Buscar en User (administradores)
         user = db.session.get(User, user_id)
         if user:
-            return user, 'admin'
+            return user, "admin"
 
         # Buscar en Student (estudiantes)
         student = db.session.get(Student, user_id)
         if student:
-            return student, 'student'
+            return student, "student"
 
         return None, None
     except (ValueError, TypeError):
@@ -35,10 +35,12 @@ def require_admin(func):
         user, user_type = get_current_user()
 
         if not user:
-            return jsonify({'message': 'Usuario no encontrado'}), 404
+            return jsonify({"message": "Usuario no encontrado"}), 404
 
-        if user_type != 'admin':
-            return jsonify({'message': 'Acceso denegado. Se requiere rol de administrador.'}), 403
+        if user_type != "admin":
+            return jsonify(
+                {"message": "Acceso denegado. Se requiere rol de administrador."}
+            ), 403
 
         return func(*args, **kwargs)
 
@@ -54,10 +56,12 @@ def require_student(func):
         user, user_type = get_current_user()
 
         if not user:
-            return jsonify({'message': 'Usuario no encontrado'}), 404
+            return jsonify({"message": "Usuario no encontrado"}), 404
 
-        if user_type != 'student':
-            return jsonify({'message': 'Acceso denegado. Se requiere rol de estudiante.'}), 403
+        if user_type != "student":
+            return jsonify(
+                {"message": "Acceso denegado. Se requiere rol de estudiante."}
+            ), 403
 
         return func(*args, **kwargs)
 
@@ -69,6 +73,6 @@ def get_user_or_403():
     user, user_type = get_current_user()
 
     if not user:
-        return None, None, (jsonify({'message': 'Usuario no encontrado'}), 404)
+        return None, None, (jsonify({"message": "Usuario no encontrado"}), 404)
 
     return user, user_type, None

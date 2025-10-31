@@ -11,13 +11,12 @@ from sqlalchemy import cast, String
 from sqlalchemy import or_
 from sqlalchemy.orm import aliased
 
-registrations_bp = Blueprint(
-    'registrations', __name__, url_prefix='/api/registrations')
+registrations_bp = Blueprint("registrations", __name__, url_prefix="/api/registrations")
 
 # Crear preregistro
 
 
-@registrations_bp.route('/', methods=['POST'])
+@registrations_bp.route("/", methods=["POST"])
 @jwt_required()
 def create_registration():
     try:
@@ -26,8 +25,8 @@ def create_registration():
             return error
 
         payload = request.get_json() or {}
-        student_id = payload.get('student_id')
-        activity_id = payload.get('activity_id')
+        student_id = payload.get("student_id")
+        activity_id = payload.get("activity_id")
 
         # Validar acceso
         jwt_id = None
@@ -36,28 +35,32 @@ def create_registration():
         except Exception:
             jwt_id = None
 
-        if user_type == 'student':
+        if user_type == "student":
             # Si el body no contiene student_id, usar la identidad del JWT
             if not student_id:
                 student_id = jwt_id
 
             # Estudiante solo puede preregistrarse a sí mismo
             if jwt_id is None or student_id is None or int(student_id) != jwt_id:
-                return jsonify({'message': 'Acceso denegado. No puedes preregistrar a otros estudiantes.'}), 403
-        elif user_type == 'admin':
+                return jsonify(
+                    {
+                        "message": "Acceso denegado. No puedes preregistrar a otros estudiantes."
+                    }
+                ), 403
+        elif user_type == "admin":
             # Admin puede preregistrar a cualquier estudiante
             pass
         else:
-            return jsonify({'message': 'Tipo de usuario no válido'}), 400
+            return jsonify({"message": "Tipo de usuario no válido"}), 400
 
         # Validar que el estudiante y actividad existan
         student = db.session.get(Student, student_id)
         if not student:
-            return jsonify({'message': 'Estudiante no encontrado'}), 404
+            return jsonify({"message": "Estudiante no encontrado"}), 404
 
         activity = db.session.get(Activity, activity_id)
         if not activity:
-            return jsonify({'message': 'Actividad no encontrada'}), 404
+            return jsonify({"message": "Actividad no encontrada"}), 404
 
         # Verificar si ya existe un preregistro
         existing_registration = Registration.query.filter_by(
@@ -66,84 +69,96 @@ def create_registration():
 
         if existing_registration:
             # ✨ Si existe y está cancelado, permitir re-registro
-            if existing_registration.status == 'Cancelado':
+            if existing_registration.status == "Cancelado":
                 # Verificar conflictos de horario
                 from app.services.registration_service import has_schedule_conflict
+
                 conflict_exists, conflict_message = has_schedule_conflict(
-                    student_id, activity_id)
+                    student_id, activity_id
+                )
                 if conflict_exists:
                     # 409 Conflict
-                    return jsonify({'message': conflict_message}), 409
+                    return jsonify({"message": conflict_message}), 409
 
                 # Verificar cupo
                 from app.services.registration_service import is_registration_allowed
+
                 if not is_registration_allowed(activity_id):
-                    return jsonify({'message': 'Cupo lleno para esta actividad.'}), 400
+                    return jsonify({"message": "Cupo lleno para esta actividad."}), 400
 
                 # ✨ Re-registrar: actualizar estado y datos
-                existing_registration.status = 'Registrado'
+                existing_registration.status = "Registrado"
                 existing_registration.registration_date = db.func.now()
                 existing_registration.confirmation_date = None
                 existing_registration.attended = False
 
                 db.session.commit()
 
-                return jsonify({
-                    'message': 'Reactivación del registro realizado exitosamente',
-                    'registration': registration_schema.dump(existing_registration)
-                }), 200
+                return jsonify(
+                    {
+                        "message": "Reactivación del registro realizado exitosamente",
+                        "registration": registration_schema.dump(existing_registration),
+                    }
+                ), 200
             else:
                 # Si ya está registrado y no cancelado, no permitir nuevo preregistro
-                return jsonify({
-                    'message': 'Ya existe un preregistro para esta actividad',
-                    'registration': registration_schema.dump(existing_registration)
-                }), 200
+                return jsonify(
+                    {
+                        "message": "Ya existe un preregistro para esta actividad",
+                        "registration": registration_schema.dump(existing_registration),
+                    }
+                ), 200
 
         # Verificar conflictos de horario
         from app.services.registration_service import has_schedule_conflict
+
         conflict_exists, conflict_message = has_schedule_conflict(
-            student_id, activity_id)
+            student_id, activity_id
+        )
         if conflict_exists:
-            return jsonify({'message': conflict_message}), 409  # 409 Conflict
+            return jsonify({"message": conflict_message}), 409  # 409 Conflict
 
         # Verificar cupo
         from app.services.registration_service import is_registration_allowed
+
         if not is_registration_allowed(activity_id):
-            return jsonify({'message': 'Cupo lleno para esta actividad.'}), 400
+            return jsonify({"message": "Cupo lleno para esta actividad."}), 400
 
         # Intentar crear preregistro.
         from app.services.registration_service import create_registration_simple
 
         ok, result = create_registration_simple(student_id, activity_id)
         if not ok:
-            return jsonify({'message': result}), 400
+            return jsonify({"message": result}), 400
 
         registration = result
-        return jsonify({
-            'message': 'Preregistro creado exitosamente',
-            'registration': registration_schema.dump(registration)
-        }), 201
+        return jsonify(
+            {
+                "message": "Preregistro creado exitosamente",
+                "registration": registration_schema.dump(registration),
+            }
+        ), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Error al crear preregistro', 'error': str(e)}), 400
+        return jsonify({"message": "Error al crear preregistro", "error": str(e)}), 400
+
 
 # Listar preregistros
 
 
-@registrations_bp.route('/', methods=['GET'])
+@registrations_bp.route("/", methods=["GET"])
 @jwt_required()
 def get_registrations():
     try:
-        from sqlalchemy import func
         # Parámetros de filtrado
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
-        student_id = request.args.get('student_id', type=int)
-        activity_id = request.args.get('activity_id', type=int)
-        status = request.args.get('status')
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 10, type=int)
+        student_id = request.args.get("student_id", type=int)
+        activity_id = request.args.get("activity_id", type=int)
+        status = request.args.get("status")
         # Nuevo: filtrar por evento padre (actividad.event_id)
-        event_id = request.args.get('event_id', type=int)
+        event_id = request.args.get("event_id", type=int)
 
         # Avoid using joinedload on backref-created attributes because static
         # analyzers may not see those attributes and raise type errors.
@@ -153,7 +168,7 @@ def get_registrations():
 
         # Soporte para búsqueda de texto: buscar por nombre de estudiante,
         # número de control o nombre de actividad (si se proporcionó `search`).
-        search = request.args.get('search')
+        search = request.args.get("search")
         if search:
             try:
                 term = f"%{search}%"
@@ -169,16 +184,19 @@ def get_registrations():
                     # recognize (Registration does not declare the backref
                     # attribute statically even though Activity.registrations
                     # creates it at runtime).
-                    query = query.outerjoin(
-                        StudentAlias, StudentAlias.id == Registration.student_id
-                    ).outerjoin(
-                        ActivityAlias, ActivityAlias.id == Registration.activity_id
-                    ).filter(
-                        or_(
-                            StudentAlias.full_name.ilike(term),
-                            cast(StudentAlias.control_number,
-                                 String).ilike(term),
-                            ActivityAlias.name.ilike(term),
+                    query = (
+                        query.outerjoin(
+                            StudentAlias, StudentAlias.id == Registration.student_id
+                        )
+                        .outerjoin(
+                            ActivityAlias, ActivityAlias.id == Registration.activity_id
+                        )
+                        .filter(
+                            or_(
+                                StudentAlias.full_name.ilike(term),
+                                cast(StudentAlias.control_number, String).ilike(term),
+                                ActivityAlias.name.ilike(term),
+                            )
                         )
                     )
                 except Exception:
@@ -202,15 +220,19 @@ def get_registrations():
             # conflict with other parts of the query (search joins). This
             # produces: WHERE registration.activity_id IN (SELECT id FROM activities WHERE event_id = ?)
             try:
-                subq = db.session.query(Activity.id).filter(
-                    Activity.event_id == event_id).subquery()
+                subq = (
+                    db.session.query(Activity.id)
+                    .filter(Activity.event_id == event_id)
+                    .subquery()
+                )
                 query = query.filter(Registration.activity_id.in_(subq))
             except Exception:
                 # If the subquery approach fails for any DB-specific reason,
                 # log and continue without the event filter to avoid breaking
                 # the listing endpoint.
                 current_app.logger.exception(
-                    'Failed to apply event_id subquery filter on registrations')
+                    "Failed to apply event_id subquery filter on registrations"
+                )
                 pass
 
         if status:
@@ -219,28 +241,30 @@ def get_registrations():
         # Ordenar por fecha de registro
         query = query.order_by(Registration.registration_date.desc())
 
-        registrations = query.paginate(
-            page=page, per_page=per_page, error_out=False
-        )
+        registrations = query.paginate(page=page, per_page=per_page, error_out=False)
 
         # Asegurar que la relación activity está presente en cada registro
         for registration in registrations.items:
             if not registration.activity:
                 registration.activity = db.session.get(
-                    Activity, registration.activity_id)
+                    Activity, registration.activity_id
+                )
 
         # Calcular conteos de preregistros por actividad para las actividades en esta página
-        activity_ids = [
-            r.activity_id for r in registrations.items if r.activity_id]
+        activity_ids = [r.activity_id for r in registrations.items if r.activity_id]
         counts = {}
         if activity_ids:
-            rows = db.session.query(
-                Registration.activity_id,
-                db.func.count(Registration.id)
-            ).filter(
-                Registration.activity_id.in_(activity_ids),
-                ~Registration.status.in_(['Ausente', 'Cancelado'])
-            ).group_by(Registration.activity_id).all()
+            rows = (
+                db.session.query(
+                    Registration.activity_id, db.func.count(Registration.id)
+                )
+                .filter(
+                    Registration.activity_id.in_(activity_ids),
+                    ~Registration.status.in_(["Ausente", "Cancelado"]),
+                )
+                .group_by(Registration.activity_id)
+                .all()
+            )
             counts = {r[0]: int(r[1]) for r in rows}
 
         dumped_regs = registrations_schema.dump(registrations.items)
@@ -251,48 +275,50 @@ def get_registrations():
             if not isinstance(reg, dict):
                 continue
 
-            act = reg.get('activity') or {}
+            act = reg.get("activity") or {}
             aid = None
             if isinstance(act, dict):
-                aid = act.get('id')
+                aid = act.get("id")
 
             if not aid:
-                aid = reg.get('activity_id')
+                aid = reg.get("activity_id")
 
             val = counts.get(aid, 0) if aid is not None else 0
 
             if isinstance(act, dict):
-                act['current_capacity'] = val
-                act['current_registrations'] = val
-                reg['activity'] = act
+                act["current_capacity"] = val
+                act["current_registrations"] = val
+                reg["activity"] = act
 
         # Incluir tanto `current_page` (compatibilidad actual) como `page`
         # (clave que el frontend espera) para evitar roturas.
-        return jsonify({
-            'registrations': dumped_regs,
-            'total': registrations.total,
-            'pages': registrations.pages,
-            'current_page': page,
-            'page': registrations.page
-        }), 200
+        return jsonify(
+            {
+                "registrations": dumped_regs,
+                "total": registrations.total,
+                "pages": registrations.pages,
+                "current_page": page,
+                "page": registrations.page,
+            }
+        ), 200
 
     except Exception:
         # Log the full exception on the server, but do NOT expose internal
         # database errors or stack traces to the client.
-        current_app.logger.exception(
-            'Unexpected error while fetching registrations')
-        return jsonify({'message': 'Error al obtener preregistros'}), 500
+        current_app.logger.exception("Unexpected error while fetching registrations")
+        return jsonify({"message": "Error al obtener preregistros"}), 500
+
 
 # Obtener preregistro por ID
 
 
-@registrations_bp.route('/<int:registration_id>', methods=['GET'])
+@registrations_bp.route("/<int:registration_id>", methods=["GET"])
 @jwt_required()
 def get_registration(registration_id):
     try:
         registration = db.session.get(Registration, registration_id)
         if not registration:
-            return jsonify({'message': 'Preregistro no encontrado'}), 404
+            return jsonify({"message": "Preregistro no encontrado"}), 404
 
         # Control de acceso: admin puede ver cualquiera; student solo el suyo
         user, user_type, err = get_user_or_403()
@@ -300,22 +326,21 @@ def get_registration(registration_id):
             return err
 
         # Determine whether the caller requested a synthesized flat view
-        synth_flag = request.args.get(
-            'synth') or request.args.get('synthesized')
+        synth_flag = request.args.get("synth") or request.args.get("synthesized")
 
-        if user_type == 'admin':
-            payload = {'registration': registration_schema.dump(registration)}
-        elif user_type == 'student' and user is not None:
+        if user_type == "admin":
+            payload = {"registration": registration_schema.dump(registration)}
+        elif user_type == "student" and user is not None:
             if registration.student_id != user.id:
-                return jsonify({'message': 'Acceso denegado'}), 403
-            payload = {'registration': registration_schema.dump(registration)}
+                return jsonify({"message": "Acceso denegado"}), 403
+            payload = {"registration": registration_schema.dump(registration)}
         else:
-            return jsonify({'message': 'Acceso denegado'}), 403
+            return jsonify({"message": "Acceso denegado"}), 403
 
         # If synth param is present (truthy), include a synthesized flat shape
         if synth_flag:
             try:
-                reg = payload.get('registration')
+                reg = payload.get("registration")
 
                 # reg may sometimes be a list, None, or an already-serialized dict-like object
                 # Normalize into reg_dict (a plain dict) so static analyzers know .get is safe.
@@ -335,26 +360,30 @@ def get_registration(registration_id):
                         return maybe[0] if isinstance(maybe[0], dict) else {}
                     return {}
 
-                student = as_dict(reg_dict.get('student'))
-                activity = as_dict(reg_dict.get('activity'))
-                event = as_dict(activity.get('event')) if activity else {}
+                student = as_dict(reg_dict.get("student"))
+                activity = as_dict(reg_dict.get("activity"))
+                event = as_dict(activity.get("event")) if activity else {}
 
                 # Build synthesized convenience object with safe lookups
                 synth = {
-                    'registration_id': reg_dict.get('id'),
-                    'status': reg_dict.get('status'),
-                    'registration_date': reg_dict.get('registration_date') or reg_dict.get('created_at'),
-                    'student_id': reg_dict.get('student_id'),
-                    'activity_id': reg_dict.get('activity_id'),
+                    "registration_id": reg_dict.get("id"),
+                    "status": reg_dict.get("status"),
+                    "registration_date": reg_dict.get("registration_date")
+                    or reg_dict.get("created_at"),
+                    "student_id": reg_dict.get("student_id"),
+                    "activity_id": reg_dict.get("activity_id"),
                     # student fields (may be nested)
-                    'student_name': student.get('full_name') or reg_dict.get('student_name'),
-                    'student_identifier': student.get('control_number') or reg_dict.get('student_identifier'),
-                    'email': student.get('email') or reg_dict.get('email'),
+                    "student_name": student.get("full_name")
+                    or reg_dict.get("student_name"),
+                    "student_identifier": student.get("control_number")
+                    or reg_dict.get("student_identifier"),
+                    "email": student.get("email") or reg_dict.get("email"),
                     # activity/event fields
-                    'activity_name': activity.get('name') or reg_dict.get('activity_name'),
-                    'event_name': event.get('name') or reg_dict.get('event_name'),
+                    "activity_name": activity.get("name")
+                    or reg_dict.get("activity_name"),
+                    "event_name": event.get("name") or reg_dict.get("event_name"),
                 }
-                payload['synthesized'] = synth
+                payload["synthesized"] = synth
             except Exception:
                 # If anything goes wrong during synthesis, skip silently to avoid breaking clients
                 pass
@@ -362,31 +391,31 @@ def get_registration(registration_id):
         return jsonify(payload), 200
 
     except Exception:
-        current_app.logger.exception(
-            'Unexpected error while fetching registration')
-        return jsonify({'message': 'Error al obtener preregistro'}), 500
+        current_app.logger.exception("Unexpected error while fetching registration")
+        return jsonify({"message": "Error al obtener preregistro"}), 500
+
 
 # Actualizar preregistro (confirmar asistencia)
 
 
-@registrations_bp.route('/<int:registration_id>', methods=['PUT'])
+@registrations_bp.route("/<int:registration_id>", methods=["PUT"])
 @jwt_required()
 def update_registration(registration_id):
     try:
         registration = db.session.get(Registration, registration_id)
         if not registration:
-            return jsonify({'message': 'Preregistro no encontrado'}), 404
+            return jsonify({"message": "Preregistro no encontrado"}), 404
 
         payload = request.get_json() or {}
-        new_status = payload.get('status')
-        attended = payload.get('attended')
+        new_status = payload.get("status")
+        attended = payload.get("attended")
 
         valid_transitions = {
-            'Registrado': ['Confirmado', 'Cancelado', 'Asistió', 'Ausente'],
-            'Confirmado': ['Registrado', 'Asistió', 'Ausente', 'Cancelado'],
-            'Asistió': ['Confirmado'],
-            'Ausente': ['Registrado', 'Confirmado'],
-            'Cancelado': ['Registrado']
+            "Registrado": ["Confirmado", "Cancelado", "Asistió", "Ausente"],
+            "Confirmado": ["Registrado", "Asistió", "Ausente", "Cancelado"],
+            "Asistió": ["Confirmado"],
+            "Ausente": ["Registrado", "Confirmado"],
+            "Cancelado": ["Registrado"],
         }
 
         current_status = registration.status
@@ -397,20 +426,25 @@ def update_registration(registration_id):
         # Validate status transition
         if new_status and new_status != current_status:
             if new_status not in valid_transitions.get(current_status, []):
-                return jsonify({'message': f'Transición de estado no permitida: {current_status} -> {new_status}'}), 400
+                return jsonify(
+                    {
+                        "message": f"Transición de estado no permitida: {current_status} -> {new_status}"
+                    }
+                ), 400
 
             # Handle status-driven sync with Attendance
             prev_status = registration.status
             registration.status = new_status
 
-            if prev_status != 'Asistió' and new_status == 'Asistió':
+            if prev_status != "Asistió" and new_status == "Asistió":
                 # create or update attendance
                 attendance = Attendance.query.filter_by(
-                    student_id=registration.student_id, activity_id=registration.activity_id
+                    student_id=registration.student_id,
+                    activity_id=registration.activity_id,
                 ).first()
                 if attendance:
                     attendance.attendance_percentage = 100.0
-                    attendance.status = 'Asistió'
+                    attendance.status = "Asistió"
                     if not attendance.check_in_time:
                         attendance.check_in_time = db.func.now()
                     if not attendance.check_out_time:
@@ -421,15 +455,16 @@ def update_registration(registration_id):
                     attendance.student_id = registration.student_id
                     attendance.activity_id = registration.activity_id
                     attendance.attendance_percentage = 100.0
-                    attendance.status = 'Asistió'
+                    attendance.status = "Asistió"
                     attendance.check_in_time = db.func.now()
                     attendance.check_out_time = db.func.now()
                     db.session.add(attendance)
 
-            elif prev_status == 'Asistió' and new_status != 'Asistió':
+            elif prev_status == "Asistió" and new_status != "Asistió":
                 # delete attendance if exists
                 attendance = Attendance.query.filter_by(
-                    student_id=registration.student_id, activity_id=registration.activity_id
+                    student_id=registration.student_id,
+                    activity_id=registration.activity_id,
                 ).first()
                 if attendance:
                     try:
@@ -438,7 +473,7 @@ def update_registration(registration_id):
                         attendance = None
                     except Exception:
                         # fallback: convert to Ausente
-                        attendance.status = 'Ausente'
+                        attendance.status = "Ausente"
                         attendance.attendance_percentage = 0.0
                         db.session.add(attendance)
 
@@ -446,15 +481,16 @@ def update_registration(registration_id):
         if attended is not None:
             registration.attended = bool(attended)
             if registration.attended:
-                registration.status = 'Asistió'
+                registration.status = "Asistió"
                 registration.confirmation_date = db.func.now()
 
                 attendance = Attendance.query.filter_by(
-                    student_id=registration.student_id, activity_id=registration.activity_id
+                    student_id=registration.student_id,
+                    activity_id=registration.activity_id,
                 ).first()
                 if attendance:
                     attendance.attendance_percentage = 100.0
-                    attendance.status = 'Asistió'
+                    attendance.status = "Asistió"
                     if not attendance.check_in_time:
                         attendance.check_in_time = db.func.now()
                     if not attendance.check_out_time:
@@ -465,7 +501,7 @@ def update_registration(registration_id):
                     attendance.student_id = registration.student_id
                     attendance.activity_id = registration.activity_id
                     attendance.attendance_percentage = 100.0
-                    attendance.status = 'Asistió'
+                    attendance.status = "Asistió"
                     attendance.check_in_time = db.func.now()
                     attendance.check_out_time = db.func.now()
                     db.session.add(attendance)
@@ -476,25 +512,26 @@ def update_registration(registration_id):
 
         # Build response payload
         resp = {
-            'message': 'Preregistro actualizado exitosamente',
-            'registration': registration_schema.dump(registration)
+            "message": "Preregistro actualizado exitosamente",
+            "registration": registration_schema.dump(registration),
         }
 
         # Include attendance info or deletion flag
         try:
             from app.schemas import attendance_schema as _att_schema
+
             if attendance is not None:
                 try:
-                    resp['attendance'] = _att_schema.dump(attendance)
+                    resp["attendance"] = _att_schema.dump(attendance)
                 except Exception:
-                    resp['attendance'] = {
-                        'id': getattr(attendance, 'id', None),
-                        'student_id': getattr(attendance, 'student_id', None),
-                        'activity_id': getattr(attendance, 'activity_id', None),
-                        'status': getattr(attendance, 'status', None),
+                    resp["attendance"] = {
+                        "id": getattr(attendance, "id", None),
+                        "student_id": getattr(attendance, "student_id", None),
+                        "activity_id": getattr(attendance, "activity_id", None),
+                        "status": getattr(attendance, "status", None),
                     }
             if attendance_deleted:
-                resp['attendance_deleted'] = True
+                resp["attendance_deleted"] = True
         except Exception:
             pass
 
@@ -502,37 +539,46 @@ def update_registration(registration_id):
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Error al actualizar preregistro', 'error': str(e)}), 400
+        return jsonify(
+            {"message": "Error al actualizar preregistro", "error": str(e)}
+        ), 400
+
 
 # Cancelar preregistro
 
 
-@registrations_bp.route('/<int:registration_id>', methods=['DELETE'])
+@registrations_bp.route("/<int:registration_id>", methods=["DELETE"])
 @jwt_required()
 def delete_registration(registration_id):
     try:
         registration = db.session.get(Registration, registration_id)
         if not registration:
-            return jsonify({'message': 'Preregistro no encontrado'}), 404
+            return jsonify({"message": "Preregistro no encontrado"}), 404
 
         # Control de acceso: admin puede eliminar cualquiera; student solo su propio preregistro
         user, user_type, err = get_user_or_403()
         if err:
             return err
 
-        if user_type == 'student' and user is not None:
+        if user_type == "student" and user is not None:
             if registration.student_id != user.id:
-                return jsonify({'message': 'Acceso denegado'}), 403
+                return jsonify({"message": "Acceso denegado"}), 403
 
         # Solo permitir cancelación si no ha asistido
         if registration.attended:
-            return jsonify({'message': 'No se puede cancelar un preregistro con asistencia confirmada'}), 400
+            return jsonify(
+                {
+                    "message": "No se puede cancelar un preregistro con asistencia confirmada"
+                }
+            ), 400
 
-        registration.status = 'Cancelado'
+        registration.status = "Cancelado"
         db.session.commit()
 
-        return jsonify({'message': 'Preregistro cancelado exitosamente'}), 200
+        return jsonify({"message": "Preregistro cancelado exitosamente"}), 200
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'message': 'Error al cancelar preregistro', 'error': str(e)}), 400
+        return jsonify(
+            {"message": "Error al cancelar preregistro", "error": str(e)}
+        ), 400

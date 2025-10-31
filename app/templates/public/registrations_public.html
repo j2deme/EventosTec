@@ -1,21 +1,31 @@
 {% extends 'base.html' %} {% block title %}Confirmar preregistros{% endblock %}
-{% block content %}
+{% block content %} {% if token_invalid or not activity_id %}
 <div
   class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
 >
-  {% if token_invalid or not activity_id %}
-  <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-4xl min-h-[40vh] md:min-h-[40vh]">
+  <div
+    class="bg-white p-6 rounded-xl shadow-lg w-full max-w-4xl min-h-[40vh] md:min-h-[40vh]"
+  >
     <h2 class="text-xl font-bold mb-2">Actividad no encontrada</h2>
     <div class="text-sm text-gray-600 mb-4">
-      La actividad referenciada no existe o el enlace público es incorrecto. Verifica el enlace o contacta al administrador.
+      La actividad referenciada no existe o el enlace público es incorrecto.
+      Verifica el enlace o contacta al administrador.
     </div>
     <div class="text-sm text-gray-700">
       {% if event_slug %}
-      <a href="/public/event/{{ event_slug }}" class="text-indigo-600 hover:underline">Volver al evento</a>
+      <a
+        href="/public/event/{{ event_slug }}"
+        class="text-indigo-600 hover:underline"
+        >Volver al evento</a
+      >
       {% endif %}
     </div>
   </div>
-  {% else %}
+</div>
+{% else %}
+<div
+  class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
+>
   <div
     class="bg-white p-6 rounded-xl shadow-lg w-full max-w-4xl min-h-[60vh] md:min-h-[70vh]"
     x-data="registrationsPublic()"
@@ -202,7 +212,9 @@
       <div class="overflow-x-auto">
         <table class="w-full table-auto md:table-fixed">
           <thead>
-            <tr class="text-left text-xs md:text-sm text-gray-600 border-b border-gray-300">
+            <tr
+              class="text-left text-xs md:text-sm text-gray-600 border-b border-gray-300"
+            >
               <th class="p-3 w-10 text-center">Tipo</th>
               <th class="p-3 w-12 text-center">#</th>
               <th class="p-3 w-28 md:w-32">Número</th>
@@ -360,10 +372,19 @@
       <div class="mt-4 flex items-center justify-between">
         <div class="text-sm text-gray-600">
           <template x-if="total > per_page">
-            <span>Página <strong x-text="page"></strong> de <strong x-text="Math.ceil(total / per_page) || 1"></strong>, mostrando <strong x-text="Math.min(regs.length, per_page)"></strong> de <strong x-text="total"></strong> registros.</span>
+            <span
+              >Página <strong x-text="page"></strong> de
+              <strong x-text="Math.ceil(total / per_page) || 1"></strong>,
+              mostrando
+              <strong x-text="Math.min(regs.length, per_page)"></strong> de
+              <strong x-text="total"></strong> registros.</span
+            >
           </template>
           <template x-if="total > 0 && total <= per_page">
-            <span><strong x-text="total"></strong> <span x-text="total === 1 ? 'registro' : 'registros'"></span></span>
+            <span
+              ><strong x-text="total"></strong>
+              <span x-text="total === 1 ? 'registro' : 'registros'"></span
+            ></span>
           </template>
           <template x-if="total === 0">
             <span>Sin resultados</span>
@@ -400,211 +421,209 @@
       x-cloak
       class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50"
     >
-        <div class="bg-white p-4 rounded w-full max-w-md">
-          <h3 class="text-lg font-bold mb-3">Registrar Walk-in</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm mb-1">Número de control</label>
-              <div class="flex items-stretch">
-                <input
-                  x-model="walkin.control_number"
-                  @keydown.enter.prevent="lookupWalkin()"
-                  class="flex-1 border rounded-l px-3 py-2 h-10"
-                  placeholder="Número de control"
-                />
-                <button
-                  @click="lookupWalkin()"
-                  class="bg-gray-200 text-gray-800 px-4 rounded-r h-10 hover:bg-gray-300 flex items-center justify-center"
-                  :disabled="walkinLookupState === 'searching'"
-                  title="Buscar"
-                >
-                  <i
-                    class="ti ti-search"
-                    aria-hidden="true"
-                    x-show="walkinLookupState !== 'searching'"
-                  ></i>
-                  <svg
-                    x-show="walkinLookupState === 'searching'"
-                    class="animate-spin w-4 h-4 text-gray-700"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    aria-hidden="true"
-                  >
-                    <circle
-                      class="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    ></circle>
-                    <path
-                      class="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                    ></path>
-                  </svg>
-                  <span class="sr-only">Buscar</span>
-                </button>
-              </div>
-            </div>
-
-            <div x-show="walkinLookupState !== 'idle'">
-              <label class="block text-sm mb-1">Nombre completo</label>
-              <div
-                class="w-full border rounded px-3 py-2 bg-gray-50 flex items-center justify-between"
-              >
-                <span class="text-gray-800" x-text="walkin.full_name || '—'"
-                  >—</span
-                >
-                <div class="ml-2 flex-shrink-0">
-                  <i
-                    x-show="walkinFoundSource === 'local'"
-                    class="ti ti-user-check text-green-600"
-                    title="Encontrado localmente"
-                  ></i>
-                  <i
-                    x-show="walkinFoundSource === 'external'"
-                    class="ti ti-cloud-check text-blue-600"
-                    title="Encontrado externamente"
-                  ></i>
-                </div>
-              </div>
-            </div>
-
-            <div x-show="walkinLookupState === 'found'">
-              <label class="block text-sm mb-1">Carrera</label>
-              <div class="w-full border rounded px-3 py-2 bg-gray-50">
-                <span x-text="walkin.career || '-'">-</span>
-              </div>
-            </div>
-
-            <div class="flex justify-end items-center space-x-2">
+      <div class="bg-white p-4 rounded w-full max-w-md">
+        <h3 class="text-lg font-bold mb-3">Registrar Walk-in</h3>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm mb-1">Número de control</label>
+            <div class="flex items-stretch">
+              <input
+                x-model="walkin.control_number"
+                @keydown.enter.prevent="lookupWalkin()"
+                class="flex-1 border rounded-l px-3 py-2 h-10"
+                placeholder="Número de control"
+              />
               <button
-                @click="doWalkin()"
-                :disabled="walkinLookupState !== 'found'"
-                class="bg-indigo-600 text-white px-3 py-2 rounded disabled:opacity-50"
+                @click="lookupWalkin()"
+                class="bg-gray-200 text-gray-800 px-4 rounded-r h-10 hover:bg-gray-300 flex items-center justify-center"
+                :disabled="walkinLookupState === 'searching'"
+                title="Buscar"
               >
-                Registrar
-              </button>
-              <button @click="closeWalkin()" class="px-3 py-2 border rounded">
-                Cancelar
+                <i
+                  class="ti ti-search"
+                  aria-hidden="true"
+                  x-show="walkinLookupState !== 'searching'"
+                ></i>
+                <svg
+                  x-show="walkinLookupState === 'searching'"
+                  class="animate-spin w-4 h-4 text-gray-700"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                  ></path>
+                </svg>
+                <span class="sr-only">Buscar</span>
               </button>
             </div>
+          </div>
 
+          <div x-show="walkinLookupState !== 'idle'">
+            <label class="block text-sm mb-1">Nombre completo</label>
             <div
-              x-show="walkinLookupState === 'not_found'"
-              class="text-sm text-gray-500"
+              class="w-full border rounded px-3 py-2 bg-gray-50 flex items-center justify-between"
             >
-              Estudiante no encontrado. Verifique el número de control o
-              contacte al administrador.
+              <span class="text-gray-800" x-text="walkin.full_name || '—'"
+                >—</span
+              >
+              <div class="ml-2 flex-shrink-0">
+                <i
+                  x-show="walkinFoundSource === 'local'"
+                  class="ti ti-user-check text-green-600"
+                  title="Encontrado localmente"
+                ></i>
+                <i
+                  x-show="walkinFoundSource === 'external'"
+                  class="ti ti-cloud-check text-blue-600"
+                  title="Encontrado externamente"
+                ></i>
+              </div>
             </div>
-            <div
-              x-show="walkinLookupState === 'error'"
-              class="text-sm text-red-500"
+          </div>
+
+          <div x-show="walkinLookupState === 'found'">
+            <label class="block text-sm mb-1">Carrera</label>
+            <div class="w-full border rounded px-3 py-2 bg-gray-50">
+              <span x-text="walkin.career || '-'">-</span>
+            </div>
+          </div>
+
+          <div class="flex justify-end items-center space-x-2">
+            <button
+              @click="doWalkin()"
+              :disabled="walkinLookupState !== 'found'"
+              class="bg-indigo-600 text-white px-3 py-2 rounded disabled:opacity-50"
             >
-              Error consultando servicio externo. Intente de nuevo.
-            </div>
+              Registrar
+            </button>
+            <button @click="closeWalkin()" class="px-3 py-2 border rounded">
+              Cancelar
+            </button>
+          </div>
+
+          <div
+            x-show="walkinLookupState === 'not_found'"
+            class="text-sm text-gray-500"
+          >
+            Estudiante no encontrado. Verifique el número de control o contacte
+            al administrador.
+          </div>
+          <div
+            x-show="walkinLookupState === 'error'"
+            class="text-sm text-red-500"
+          >
+            Error consultando servicio externo. Intente de nuevo.
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Confirm delete modal (solo uno, con estilo mejorado) -->
+    <!-- Confirm delete modal (solo uno, con estilo mejorado) -->
+    <div
+      x-show="showConfirmDelete"
+      x-cloak
+      class="fixed inset-0 flex items-center justify-center z-50"
+    >
       <div
-        x-show="showConfirmDelete"
-        x-cloak
-        class="fixed inset-0 flex items-center justify-center z-50"
+        class="absolute inset-0 bg-gradient-to-br from-black/40 to-black/60 backdrop-blur-sm"
+      ></div>
+      <div
+        class="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
       >
         <div
-          class="absolute inset-0 bg-gradient-to-br from-black/40 to-black/60 backdrop-blur-sm"
-        ></div>
-        <div
-          class="relative bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden"
+          class="flex items-center space-x-3 px-4 py-3 bg-red-600 text-white"
         >
-          <div
-            class="flex items-center space-x-3 px-4 py-3 bg-red-600 text-white"
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-6 w-6"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 9v4m0 4h.01M4.293 19.707A1 1 0 004 20h16a1 1 0 00.707-1.707L13.414 8.586a2 2 0 00-2.828 0L4.293 19.707z"
-              />
-            </svg>
-            <div class="text-lg font-semibold">Eliminar asistencia</div>
-          </div>
-          <div class="p-4">
-            <div class="mb-4 text-sm text-gray-700">
-              ¿Desea eliminar la asistencia de
-              <strong
-                x-text="deleteCandidate ? deleteCandidate.student_name : ''"
-              ></strong
-              >?
-              <div class="text-xs text-gray-500 mt-2">
-                Se podrá deshacer durante
-                <span x-text="Math.ceil(undoDuration/1000)"></span> segundos.
-              </div>
-            </div>
-            <div class="flex justify-end space-x-2">
-              <button
-                @click="cancelDeleteModal()"
-                class="px-3 py-2 border rounded"
-              >
-                Cancelar
-              </button>
-              <button
-                @click="confirmDeleteInModal()"
-                class="flex items-center bg-red-600 text-white px-3 py-2 rounded"
-              >
-                <i class="ti ti-trash h-4 w-4 mr-2" aria-hidden="true"></i>
-                Eliminar
-              </button>
-            </div>
-          </div>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 9v4m0 4h.01M4.293 19.707A1 1 0 004 20h16a1 1 0 00.707-1.707L13.414 8.586a2 2 0 00-2.828 0L4.293 19.707z"
+            />
+          </svg>
+          <div class="text-lg font-semibold">Eliminar asistencia</div>
         </div>
-      </div>
-
-      <!-- Undo toast -->
-      <div x-show="undoVisible" x-cloak class="fixed bottom-6 right-6 z-50">
-        <div
-          class="bg-amber-600 text-white px-4 py-3 rounded shadow-lg flex items-center space-x-3"
-          role="status"
-          aria-live="polite"
-        >
-          <div class="flex items-center space-x-3">
-            <i class="ti ti-clock text-amber-100"></i>
-            <div>
-              <div class="text-sm font-medium">Asistencia eliminada</div>
-              <div class="text-xs text-amber-100">
-                Se eliminará en
-                <span x-text="Math.ceil(undoRemaining/1000)"></span>s
-              </div>
+        <div class="p-4">
+          <div class="mb-4 text-sm text-gray-700">
+            ¿Desea eliminar la asistencia de
+            <strong
+              x-text="deleteCandidate ? deleteCandidate.student_name : ''"
+            ></strong
+            >?
+            <div class="text-xs text-gray-500 mt-2">
+              Se podrá deshacer durante
+              <span x-text="Math.ceil(undoDuration/1000)"></span> segundos.
             </div>
           </div>
-          <div class="ml-4">
+          <div class="flex justify-end space-x-2">
             <button
-              @click="undoDelete()"
-              class="bg-white text-amber-700 px-3 py-1 rounded inline-flex items-center"
+              @click="cancelDeleteModal()"
+              class="px-3 py-2 border rounded"
             >
-              <i class="ti ti-arrow-back-up text-amber-700 mr-2"></i>
-              Deshacer
+              Cancelar
+            </button>
+            <button
+              @click="confirmDeleteInModal()"
+              class="flex items-center bg-red-600 text-white px-3 py-2 rounded"
+            >
+              <i class="ti ti-trash h-4 w-4 mr-2" aria-hidden="true"></i>
+              Eliminar
             </button>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- Undo toast -->
+    <div x-show="undoVisible" x-cloak class="fixed bottom-6 right-6 z-50">
+      <div
+        class="bg-amber-600 text-white px-4 py-3 rounded shadow-lg flex items-center space-x-3"
+        role="status"
+        aria-live="polite"
+      >
+        <div class="flex items-center space-x-3">
+          <i class="ti ti-clock text-amber-100"></i>
+          <div>
+            <div class="text-sm font-medium">Asistencia eliminada</div>
+            <div class="text-xs text-amber-100">
+              Se eliminará en
+              <span x-text="Math.ceil(undoRemaining/1000)"></span>s
+            </div>
+          </div>
+        </div>
+        <div class="ml-4">
+          <button
+            @click="undoDelete()"
+            class="bg-white text-amber-700 px-3 py-1 rounded inline-flex items-center"
+          >
+            <i class="ti ti-arrow-back-up text-amber-700 mr-2"></i>
+            Deshacer
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
-  {% endif %}
 </div>
-{% endblock %} {% block scripts %}
+{% endif %} {% endblock %} {% block scripts %}
 <script>
   window.__registrationsPublic_init = (el) => {
     try {

@@ -1,7 +1,8 @@
-{% extends 'base.html' %}
-{% block title %}Control de Asistencia{% endblock %}
+{% extends 'base.html' %} {% block title %}Control de Asistencia{% endblock %}
 {% block content %}
-<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+<div
+  class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
+>
   <div
     class="bg-white p-6 rounded-xl shadow-lg w-full max-w-lg"
     x-data="pauseAttendancePublic()"
@@ -12,21 +13,34 @@
   >
     <!-- Header -->
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 mb-2" x-text="activityName || 'Actividad'"></h1>
-      <p class="text-sm text-gray-600">Control de asistencia para conferencia magistral</p>
+      <h1
+        class="text-2xl font-bold text-gray-900 mb-2"
+        x-text="activityName || 'Actividad'"
+      ></h1>
+      <p class="text-sm text-gray-600">
+        Control de asistencia para conferencia magistral
+      </p>
     </div>
 
     <!-- Token invalid warning -->
     {% if token_invalid %}
-    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+    <div
+      class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+      role="alert"
+    >
       <strong class="font-bold">Error:</strong>
-      <span class="block sm:inline">{{ error_message or 'Token inválido o expirado.' }}</span>
+      <span class="block sm:inline"
+        >{{ error_message or 'Token inválido o expirado.' }}</span
+      >
     </div>
     {% endif %}
 
     <!-- Search box -->
     <div class="mb-6">
-      <label for="search-input" class="block text-sm font-medium text-gray-700 mb-2">
+      <label
+        for="search-input"
+        class="block text-sm font-medium text-gray-700 mb-2"
+      >
         Buscar estudiante
       </label>
       <input
@@ -41,30 +55,47 @@
 
     <!-- Loading spinner -->
     <div x-show="loading" class="flex justify-center py-8">
-      <i class="ti ti-loader-2 animate-spin text-indigo-600" style="font-size: 2rem;"></i>
+      <i
+        class="ti ti-loader-2 animate-spin text-indigo-600"
+        style="font-size: 2rem"
+      ></i>
     </div>
 
     <!-- Results list -->
     <div x-show="!loading && results.length > 0" class="space-y-3">
       <template x-for="att in results" :key="att.id">
-        <div class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition">
+        <div
+          class="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition"
+        >
           <div class="flex items-start justify-between">
             <div class="flex-1">
-              <div class="font-semibold text-gray-900" x-text="att.student_name"></div>
-              <div class="text-sm text-gray-600" x-text="att.student_identifier"></div>
+              <div
+                class="font-semibold text-gray-900"
+                x-text="att.student_name"
+              ></div>
+              <div
+                class="text-sm text-gray-600"
+                x-text="att.student_identifier"
+              ></div>
               <div class="mt-2 flex items-center space-x-2">
                 <template x-if="att.is_paused">
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                  <span
+                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800"
+                  >
                     <i class="ti ti-player-pause mr-1"></i> Pausada
                   </span>
                 </template>
                 <template x-if="!att.is_paused && att.check_in_time">
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <span
+                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                  >
                     <i class="ti ti-player-play mr-1"></i> Activa
                   </span>
                 </template>
                 <template x-if="att.check_out_time">
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  <span
+                    class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
+                  >
                     <i class="ti ti-check mr-1"></i> Finalizada
                   </span>
                 </template>
@@ -97,134 +128,151 @@
     </div>
 
     <!-- No results message -->
-    <div x-show="!loading && searchQuery && results.length === 0" class="text-center py-8 text-gray-500">
+    <div
+      x-show="!loading && searchQuery && results.length === 0"
+      class="text-center py-8 text-gray-500"
+    >
       No se encontraron resultados
     </div>
 
     <!-- Initial state message -->
-    <div x-show="!loading && !searchQuery" class="text-center py-8 text-gray-400">
+    <div
+      x-show="!loading && !searchQuery"
+      class="text-center py-8 text-gray-400"
+    >
       Ingresa un número de control o nombre para buscar
     </div>
   </div>
 </div>
 
 <script>
-function pauseAttendancePublic() {
-  return {
-    activityToken: '',
-    activityName: '',
-    searchQuery: '',
-    results: [],
-    loading: false,
+  function pauseAttendancePublic() {
+    return {
+      activityToken: "",
+      activityName: "",
+      searchQuery: "",
+      results: [],
+      loading: false,
 
-    init() {
-      const card = document.getElementById('pause-attendance-card');
-      if (card) {
-        this.activityToken = card.dataset.activityToken || '';
-        this.activityName = card.dataset.activityName || '';
-      }
-    },
+      init() {
+        const card = document.getElementById("pause-attendance-card");
+        if (card) {
+          this.activityToken = card.dataset.activityToken || "";
+          this.activityName = card.dataset.activityName || "";
+        }
+      },
 
-    async doSearch() {
-      const query = String(this.searchQuery || '').trim();
-      if (!query) {
-        this.results = [];
-        return;
-      }
-
-      this.loading = true;
-      try {
-        const params = new URLSearchParams();
-        params.set('token', this.activityToken);
-        params.set('search', query);
-
-        const res = await fetch(`/api/public/attendances/search?${params.toString()}`, {
-          method: 'GET',
-        });
-
-        const body = await res.json().catch(() => ({}));
-        if (res.ok) {
-          this.results = body.attendances || body.data || [];
-        } else {
-          window.showToast && window.showToast(body.message || 'Error al buscar', 'error');
+      async doSearch() {
+        const query = String(this.searchQuery || "").trim();
+        if (!query) {
           this.results = [];
+          return;
         }
-      } catch (err) {
-        console.error(err);
-        window.showToast && window.showToast('Error de conexión', 'error');
-        this.results = [];
-      } finally {
-        this.loading = false;
-      }
-    },
 
-    async pauseAttendance(att) {
-      if (!confirm('¿Pausar esta asistencia?')) return;
+        this.loading = true;
+        try {
+          const params = new URLSearchParams();
+          params.set("token", this.activityToken);
+          params.set("search", query);
 
-      this.loading = true;
-      try {
-        const res = await fetch(`/api/public/attendances/${att.id}/pause`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            token: this.activityToken,
-          }),
-        });
+          const res = await fetch(
+            `/api/public/attendances/search?${params.toString()}`,
+            {
+              method: "GET",
+            },
+          );
 
-        const body = await res.json().catch(() => ({}));
-        if (res.ok) {
-          window.showToast && window.showToast(body.message || 'Asistencia pausada', 'success');
-          // Refresh search results
-          await this.doSearch();
-        } else {
-          window.showToast && window.showToast(body.message || 'Error al pausar', 'error');
+          const body = await res.json().catch(() => ({}));
+          if (res.ok) {
+            this.results = body.attendances || body.data || [];
+          } else {
+            window.showToast &&
+              window.showToast(body.message || "Error al buscar", "error");
+            this.results = [];
+          }
+        } catch (err) {
+          console.error(err);
+          window.showToast && window.showToast("Error de conexión", "error");
+          this.results = [];
+        } finally {
+          this.loading = false;
         }
-      } catch (err) {
-        console.error(err);
-        window.showToast && window.showToast('Error de conexión', 'error');
-      } finally {
-        this.loading = false;
-      }
-    },
+      },
 
-    async resumeAttendance(att) {
-      if (!confirm('¿Reanudar esta asistencia?')) return;
+      async pauseAttendance(att) {
+        if (!confirm("¿Pausar esta asistencia?")) return;
 
-      this.loading = true;
-      try {
-        const res = await fetch(`/api/public/attendances/${att.id}/resume`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            token: this.activityToken,
-          }),
-        });
+        this.loading = true;
+        try {
+          const res = await fetch(`/api/public/attendances/${att.id}/pause`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              token: this.activityToken,
+            }),
+          });
 
-        const body = await res.json().catch(() => ({}));
-        if (res.ok) {
-          window.showToast && window.showToast(body.message || 'Asistencia reanudada', 'success');
-          // Refresh search results
-          await this.doSearch();
-        } else {
-          window.showToast && window.showToast(body.message || 'Error al reanudar', 'error');
+          const body = await res.json().catch(() => ({}));
+          if (res.ok) {
+            window.showToast &&
+              window.showToast(body.message || "Asistencia pausada", "success");
+            // Refresh search results
+            await this.doSearch();
+          } else {
+            window.showToast &&
+              window.showToast(body.message || "Error al pausar", "error");
+          }
+        } catch (err) {
+          console.error(err);
+          window.showToast && window.showToast("Error de conexión", "error");
+        } finally {
+          this.loading = false;
         }
-      } catch (err) {
-        console.error(err);
-        window.showToast && window.showToast('Error de conexión', 'error');
-      } finally {
-        this.loading = false;
-      }
-    },
-  };
-}
+      },
 
-// Export for Alpine
-if (typeof window !== 'undefined') {
-  window.pauseAttendancePublic = pauseAttendancePublic;
-}
+      async resumeAttendance(att) {
+        if (!confirm("¿Reanudar esta asistencia?")) return;
+
+        this.loading = true;
+        try {
+          const res = await fetch(`/api/public/attendances/${att.id}/resume`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              token: this.activityToken,
+            }),
+          });
+
+          const body = await res.json().catch(() => ({}));
+          if (res.ok) {
+            window.showToast &&
+              window.showToast(
+                body.message || "Asistencia reanudada",
+                "success",
+              );
+            // Refresh search results
+            await this.doSearch();
+          } else {
+            window.showToast &&
+              window.showToast(body.message || "Error al reanudar", "error");
+          }
+        } catch (err) {
+          console.error(err);
+          window.showToast && window.showToast("Error de conexión", "error");
+        } finally {
+          this.loading = false;
+        }
+      },
+    };
+  }
+
+  // Export for Alpine
+  if (typeof window !== "undefined") {
+    window.pauseAttendancePublic = pauseAttendancePublic;
+  }
 </script>
 {% endblock %}

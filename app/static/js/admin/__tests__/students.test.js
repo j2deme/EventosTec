@@ -16,12 +16,12 @@ describe("studentsAdmin", () => {
       setItem: jest.fn(),
       removeItem: jest.fn(),
     };
-    
+
     if (typeof window === "undefined") global.window = {};
     window.localStorage = global.localStorage;
     window.showToast = jest.fn();
     window.getAuthHeaders = jest.fn(() => ({
-      "Authorization": "Bearer test-token",
+      Authorization: "Bearer test-token",
       "Content-Type": "application/json",
     }));
 
@@ -64,7 +64,7 @@ describe("studentsAdmin", () => {
       expect.stringContaining("/api/students"),
       expect.objectContaining({
         headers: expect.any(Object),
-      })
+      }),
     );
     expect(mgr.students).toHaveLength(2);
     expect(mgr.students[0].full_name).toBe("John Doe");
@@ -201,9 +201,6 @@ describe("studentsAdmin", () => {
     await mgr.loadStudents(1);
 
     expect(mgr.errorMessage).toBeTruthy();
-    expect(window.showToast).toHaveBeenCalledWith(
-      expect.any(String),
-      "error"
-    );
+    expect(window.showToast).toHaveBeenCalledWith(expect.any(String), "error");
   });
 });

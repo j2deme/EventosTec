@@ -183,7 +183,7 @@ function registrationsPublic() {
             const d = dayjs.duration(start.diff(now));
             this.timeLeftText = `Registro de asistencias inicia en ${pickSignificant(
               d,
-              2
+              2,
             )}`;
             return start.diff(now);
           }
@@ -210,7 +210,7 @@ function registrationsPublic() {
             const d = dayjs.duration(diffMs);
             this.timeLeftText = `El registro de asistencias cierra en ${pickSignificant(
               d,
-              2
+              2,
             )}`;
             return diffMs;
           }
@@ -420,7 +420,7 @@ function registrationsPublic() {
               checked
                 ? `Asistencia registrada${suffix}`
                 : `Asistencia removida${suffix}`,
-              "success"
+              "success",
             );
           } catch (e) {
             /* fallback */
@@ -440,7 +440,7 @@ function registrationsPublic() {
           try {
             showToast(
               json.message || "Error al actualizar asistencia",
-              "error"
+              "error",
             );
           } catch (e) {
             /* fallback */
@@ -478,7 +478,7 @@ function registrationsPublic() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
-          }
+          },
         );
         const json = await resp.json().catch(() => ({}));
         if (resp.ok) {
@@ -698,7 +698,7 @@ function registrationsPublic() {
 
         // First try local search endpoint (exact match)
         const local = await fetch(
-          `/api/students/?search=${encodeURIComponent(control)}&per_page=1`
+          `/api/students/?search=${encodeURIComponent(control)}&per_page=1`,
         );
         if (local && local.ok) {
           const j = await local.json().catch(() => ({}));
@@ -707,7 +707,7 @@ function registrationsPublic() {
           const exact =
             (students.find &&
               students.find(
-                (s) => String(s.control_number) === String(control)
+                (s) => String(s.control_number) === String(control),
               )) ||
             null;
           if (exact) {
@@ -724,8 +724,8 @@ function registrationsPublic() {
         try {
           const ext = await fetch(
             `/api/students/validate?control_number=${encodeURIComponent(
-              control
-            )}`
+              control,
+            )}`,
           );
           if (ext && ext.ok) {
             const j = await ext.json().catch(() => ({}));
@@ -868,7 +868,7 @@ function registrationsPublic() {
         const cd = resp.headers.get("Content-Disposition") || "";
         let filename = `${(this.activityName || "actividad").replace(
           /[^a-z0-9A-Z-_\.]/g,
-          "_"
+          "_",
         )}.xlsx`;
         const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
         if (m && m[1]) {

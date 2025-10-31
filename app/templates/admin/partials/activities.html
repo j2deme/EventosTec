@@ -9,147 +9,286 @@
       <p class="mt-1 text-sm text-gray-600">
         Administra las actividades del sistema
       </p>
-    <!-- Modal: Ver actividad (detalles + enlace de registro) -->
-    <div
-      x-show="showViewModal"
-      x-cloak
-      class="fixed inset-0 z-50 overflow-y-auto"
-      aria-labelledby="view-modal-title"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      <!-- Modal: Ver actividad (detalles + enlace de registro) -->
+      <div
+        x-show="showViewModal"
+        x-cloak
+        class="fixed inset-0 z-50 overflow-y-auto"
+        aria-labelledby="view-modal-title"
+        role="dialog"
+        aria-modal="true"
+      >
         <div
-          x-show="showViewModal"
-          x-transition:enter="ease-out duration-300"
-          x-transition:enter-start="opacity-0"
-          x-transition:enter-end="opacity-100"
-          x-transition:leave="ease-in duration-200"
-          x-transition:leave-start="opacity-100"
-          x-transition:leave-end="opacity-0"
-          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-          @click="showViewModal = false"
-        ></div>
-
-        <div
-          x-show="showViewModal"
-          x-transition:enter="ease-out duration-300"
-          x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-          x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-          x-transition:leave="ease-in duration-200"
-          x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-          x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-          class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full"
+          class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
         >
-          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div class="sm:flex sm:items-start">
-              <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10">
-                <i class="ti ti-book-open text-indigo-600"></i>
-              </div>
-              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                <h3 class="text-lg leading-6 font-medium text-gray-900" id="view-modal-title">
-                  <span x-text="activityToView ? activityToView.name : 'Actividad'">Actividad</span>
-                </h3>
-                <div class="mt-2 text-sm text-gray-600">
-                  <p><strong>Evento:</strong> <span x-text="(activityToView && activityToView.event && activityToView.event.name) || '-'">-</span></p>
-                  <p class="mt-1"><strong>Departamento:</strong> <span x-text="activityToView?.department || '-'">-</span></p>
-                  <p class="mt-1"><strong>Tipo:</strong> <span x-text="activityToView?.activity_type || '-'">-</span></p>
-                  <p class="mt-1"><strong>Fechas:</strong> <span x-text="activityToView?.datesString || '-'">-</span></p>
-                  <p class="mt-1"><strong>Cupo:</strong> <span x-text="activityToView?.max_capacity ? ((activityToView.current_registrations||0) + '/' + activityToView.max_capacity) : 'A demanda'">-</span></p>
-                  <div class="mt-3 text-sm text-gray-700">
-                    <div class="font-medium">Descripción</div>
-                    <div class="mt-1 text-sm text-gray-600" x-text="activityToView?.description || '-'">-</div>
-                  </div>
+          <div
+            x-show="showViewModal"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0"
+            x-transition:enter-end="opacity-100"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+            @click="showViewModal = false"
+          ></div>
 
-                  <!-- Relaciones de actividad (resumen compacto) -->
-                  <div class="mt-4">
-                    <h4 class="text-sm font-medium text-gray-900">Relaciones</h4>
-                    <div class="mt-2 text-sm text-gray-700">
-                      <!-- Mostrar primero quien enlaza (incoming), luego a quién enlaza (outgoing) -->
-                      <template x-if="relationInfoFor(activityToView?.id) && ( (relationInfoFor(activityToView?.id).incoming.length) || (relationInfoFor(activityToView?.id).outgoing.length) )">
-                        <div class="space-y-2">
-                          <template x-if="relationInfoFor(activityToView?.id).incoming.length">
-                            <div>
-                              <div class="text-xs text-gray-600">Enlazada por:</div>
-                              <ul class="mt-1 ml-3 list-none text-gray-800 space-y-1">
-                                <template x-for="r in relationInfoFor(activityToView?.id).incoming" :key="r.id">
-                                  <li class="flex items-center gap-2">
-                                    <i class="ti ti-arrow-down-right text-blue-600" aria-hidden="true"></i>
-                                    <span class="text-gray-800" x-text="r.name"></span>
-                                  </li>
-                                </template>
-                              </ul>
-                            </div>
-                          </template>
+          <div
+            x-show="showViewModal"
+            x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full"
+          >
+            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+              <div class="sm:flex sm:items-start">
+                <div
+                  class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 sm:mx-0 sm:h-10 sm:w-10"
+                >
+                  <i class="ti ti-book-open text-indigo-600"></i>
+                </div>
+                <div
+                  class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full"
+                >
+                  <h3
+                    class="text-lg leading-6 font-medium text-gray-900"
+                    id="view-modal-title"
+                  >
+                    <span
+                      x-text="activityToView ? activityToView.name : 'Actividad'"
+                      >Actividad</span
+                    >
+                  </h3>
+                  <div class="mt-2 text-sm text-gray-600">
+                    <p>
+                      <strong>Evento:</strong>
+                      <span
+                        x-text="(activityToView && activityToView.event && activityToView.event.name) || '-'"
+                        >-</span
+                      >
+                    </p>
+                    <p class="mt-1">
+                      <strong>Departamento:</strong>
+                      <span x-text="activityToView?.department || '-'">-</span>
+                    </p>
+                    <p class="mt-1">
+                      <strong>Tipo:</strong>
+                      <span x-text="activityToView?.activity_type || '-'"
+                        >-</span
+                      >
+                    </p>
+                    <p class="mt-1">
+                      <strong>Fechas:</strong>
+                      <span x-text="activityToView?.datesString || '-'">-</span>
+                    </p>
+                    <p class="mt-1">
+                      <strong>Cupo:</strong>
+                      <span
+                        x-text="activityToView?.max_capacity ? ((activityToView.current_registrations||0) + '/' + activityToView.max_capacity) : 'A demanda'"
+                        >-</span
+                      >
+                    </p>
+                    <div class="mt-3 text-sm text-gray-700">
+                      <div class="font-medium">Descripción</div>
+                      <div
+                        class="mt-1 text-sm text-gray-600"
+                        x-text="activityToView?.description || '-'"
+                      >
+                        -
+                      </div>
+                    </div>
 
-                          <template x-if="relationInfoFor(activityToView?.id).outgoing.length">
-                            <div>
-                              <div class="text-xs text-gray-600">Enlaza a:</div>
-                              <ul class="mt-1 ml-3 list-none text-gray-800 space-y-1">
-                                <template x-for="r in relationInfoFor(activityToView?.id).outgoing" :key="r.id">
-                                  <li class="flex items-center gap-2">
-                                    <i class="ti ti-arrow-up-right text-green-600" aria-hidden="true"></i>
-                                    <span class="text-gray-800" x-text="r.name"></span>
-                                  </li>
-                                </template>
-                              </ul>
-                            </div>
-                          </template>
+                    <!-- Relaciones de actividad (resumen compacto) -->
+                    <div class="mt-4">
+                      <h4 class="text-sm font-medium text-gray-900">
+                        Relaciones
+                      </h4>
+                      <div class="mt-2 text-sm text-gray-700">
+                        <!-- Mostrar primero quien enlaza (incoming), luego a quién enlaza (outgoing) -->
+                        <template
+                          x-if="relationInfoFor(activityToView?.id) && ( (relationInfoFor(activityToView?.id).incoming.length) || (relationInfoFor(activityToView?.id).outgoing.length) )"
+                        >
+                          <div class="space-y-2">
+                            <template
+                              x-if="relationInfoFor(activityToView?.id).incoming.length"
+                            >
+                              <div>
+                                <div class="text-xs text-gray-600">
+                                  Enlazada por:
+                                </div>
+                                <ul
+                                  class="mt-1 ml-3 list-none text-gray-800 space-y-1"
+                                >
+                                  <template
+                                    x-for="r in relationInfoFor(activityToView?.id).incoming"
+                                    :key="r.id"
+                                  >
+                                    <li class="flex items-center gap-2">
+                                      <i
+                                        class="ti ti-arrow-down-right text-blue-600"
+                                        aria-hidden="true"
+                                      ></i>
+                                      <span
+                                        class="text-gray-800"
+                                        x-text="r.name"
+                                      ></span>
+                                    </li>
+                                  </template>
+                                </ul>
+                              </div>
+                            </template>
+
+                            <template
+                              x-if="relationInfoFor(activityToView?.id).outgoing.length"
+                            >
+                              <div>
+                                <div class="text-xs text-gray-600">
+                                  Enlaza a:
+                                </div>
+                                <ul
+                                  class="mt-1 ml-3 list-none text-gray-800 space-y-1"
+                                >
+                                  <template
+                                    x-for="r in relationInfoFor(activityToView?.id).outgoing"
+                                    :key="r.id"
+                                  >
+                                    <li class="flex items-center gap-2">
+                                      <i
+                                        class="ti ti-arrow-up-right text-green-600"
+                                        aria-hidden="true"
+                                      ></i>
+                                      <span
+                                        class="text-gray-800"
+                                        x-text="r.name"
+                                      ></span>
+                                    </li>
+                                  </template>
+                                </ul>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <template
+                          x-if="relationInfoFor(activityToView?.id) && !( (relationInfoFor(activityToView?.id).incoming.length) || (relationInfoFor(activityToView?.id).outgoing.length) )"
+                        >
+                          <div class="text-sm text-gray-500">
+                            Esta actividad no tiene relaciones con otras
+                            actividades.
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+
+                    <!-- Enlace de registro (preferir SLUG: /public/registrations/<slug>) -->
+                    <div class="mt-4">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Enlace de registro (token seguro para kiosco /
+                        QR)</label
+                      >
+                      <div class="mt-2">
+                        <p class="text-sm text-gray-500" x-show="!tokenError">
+                          Este enlace público usa la vista por SLUG. Copia o
+                          abre el enlace para acceder a la vista pública.
+                        </p>
+                        <p
+                          class="mt-1 text-xs text-red-600"
+                          x-show="tokenError"
+                          x-text="tokenError"
+                        ></p>
+                        <div class="mt-2">
+                          <label class="block text-xs text-gray-500"
+                            >URL (path)</label
+                          >
+                          <input
+                            type="text"
+                            readonly
+                            class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50"
+                            :value="(activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : '')) ) || ''"
+                            @click="$el.select()"
+                          />
                         </div>
-                      </template>
-                      <template x-if="relationInfoFor(activityToView?.id) && !( (relationInfoFor(activityToView?.id).incoming.length) || (relationInfoFor(activityToView?.id).outgoing.length) )">
-                        <div class="text-sm text-gray-500">Esta actividad no tiene relaciones con otras actividades.</div>
-                      </template>
-                    </div>
-                  </div>
-
-                  <!-- Enlace de registro (preferir SLUG: /public/registrations/<slug>) -->
-                  <div class="mt-4">
-                    <label class="block text-sm font-medium text-gray-700">Enlace de registro (token seguro para kiosco / QR)</label>
-                    <div class="mt-2">
-                      <p class="text-sm text-gray-500" x-show="!tokenError">Este enlace público usa la vista por SLUG. Copia o abre el enlace para acceder a la vista pública.</p>
-                      <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
-                      <div class="mt-2">
-                        <label class="block text-xs text-gray-500">URL (path)</label>
-                        <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
                       </div>
                     </div>
-                  </div>
 
-                  <!-- Enlace público: Control de asistencia (vista de pausa/reanudar) -->
-                  <div class="mt-4">
-                    <label class="block text-sm font-medium text-gray-700">Control de asistencia (vista pública)</label>
-                    <div class="mt-2">
-                      <p class="text-sm text-gray-500" x-show="!tokenError">Enlace público para pausar/reanudar asistencias (disponible sólo para actividades tipo "Magistral" durante la ventana de control).</p>
-                      <p class="mt-1 text-xs text-red-600" x-show="tokenError" x-text="tokenError"></p>
+                    <!-- Enlace público: Control de asistencia (vista de pausa/reanudar) -->
+                    <div class="mt-4">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Control de asistencia (vista pública)</label
+                      >
                       <div class="mt-2">
-                        <label class="block text-xs text-gray-500">URL (path)</label>
-                        <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_pause_url || (activityToView.public_slug ? (window.location.origin + '/public/pause-attendance/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
+                        <p class="text-sm text-gray-500" x-show="!tokenError">
+                          Enlace público para pausar/reanudar asistencias
+                          (disponible sólo para actividades tipo "Magistral"
+                          durante la ventana de control).
+                        </p>
+                        <p
+                          class="mt-1 text-xs text-red-600"
+                          x-show="tokenError"
+                          x-text="tokenError"
+                        ></p>
+                        <div class="mt-2">
+                          <label class="block text-xs text-gray-500"
+                            >URL (path)</label
+                          >
+                          <input
+                            type="text"
+                            readonly
+                            class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50"
+                            :value="(activityToView && (activityToView.public_pause_url || (activityToView.public_slug ? (window.location.origin + '/public/pause-attendance/' + activityToView.public_slug) : '')) ) || ''"
+                            @click="$el.select()"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <!-- Enlace staff: Registro rápido (vista mobile) -->
-                  <div class="mt-3">
-                    <label class="block text-sm font-medium text-gray-700">Vista staff (registro rápido)</label>
-                    <div class="mt-2">
+                    <!-- Enlace staff: Registro rápido (vista mobile) -->
+                    <div class="mt-3">
+                      <label class="block text-sm font-medium text-gray-700"
+                        >Vista staff (registro rápido)</label
+                      >
                       <div class="mt-2">
-                        <label class="block text-xs text-gray-500">URL (path)</label>
-                        <input type="text" readonly class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50" :value="(activityToView && (activityToView.public_staff_walkin_url || (activityToView.public_slug ? (window.location.origin + '/public/staff-walkin/' + activityToView.public_slug) : '')) ) || ''" @click="$el.select()" />
+                        <div class="mt-2">
+                          <label class="block text-xs text-gray-500"
+                            >URL (path)</label
+                          >
+                          <input
+                            type="text"
+                            readonly
+                            class="mt-1 block w-full border-gray-200 rounded-md p-2 text-sm bg-gray-50"
+                            :value="(activityToView && (activityToView.public_staff_walkin_url || (activityToView.public_slug ? (window.location.origin + '/public/staff-walkin/' + activityToView.public_slug) : '')) ) || ''"
+                            @click="$el.select()"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-            <button type="button" @click="showViewModal=false" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:ml-3 sm:w-auto sm:text-sm">Cerrar</button>
-            <button type="button" @click="(function(){ const slugUrl = (activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : ''))); if(!slugUrl) return; window.open(slugUrl, '_blank'); })()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Abrir enlace</button>
+            <div
+              class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"
+            >
+              <button
+                type="button"
+                @click="showViewModal=false"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:ml-3 sm:w-auto sm:text-sm"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                @click="(function(){ const slugUrl = (activityToView && (activityToView.public_url || (activityToView.public_slug ? (window.location.origin + '/public/registrations/' + activityToView.public_slug) : ''))); if(!slugUrl) return; window.open(slugUrl, '_blank'); })()"
+                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+              >
+                Abrir enlace
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
     </div>
     <div class="flex gap-2">
       <button
@@ -310,175 +449,258 @@
         <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
           <div class="sm:flex sm:items-start">
             <!-- Resultado (dry-run report) -->
-              <!-- Contenedor con control de vistas: 'file' | 'report' -->
-              <div class="mt-4" x-data="{ batchView: 'file', reportFilter: 'errors' }" x-effect="if(batchReport) reportFilter='errors'">
-                <div
-                  class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10"
+            <!-- Contenedor con control de vistas: 'file' | 'report' -->
+            <div
+              class="mt-4"
+              x-data="{ batchView: 'file', reportFilter: 'errors' }"
+              x-effect="if(batchReport) reportFilter='errors'"
+            >
+              <div
+                class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-green-100 sm:mx-0 sm:h-10 sm:w-10"
+              >
+                <i class="ti ti-upload text-green-600"></i>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3
+                  class="text-lg leading-6 font-medium text-gray-900"
+                  id="batch-modal-title"
                 >
-                  <i class="ti ti-upload text-green-600"></i>
-                </div>
-                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                  <h3
-                    class="text-lg leading-6 font-medium text-gray-900"
-                    id="batch-modal-title"
-                  >
-                    Importar actividades desde XLSX
-                  </h3>
-                  <div class="mt-2 text-sm text-gray-500">
-                    Selecciona un archivo .xlsx con las actividades. Puedes marcar
-                    "Dry run" para validar sin guardar.
-                  </div>
-                </div>
-                <!-- Pestañas para alternar vista -->
-                <div class="flex items-center gap-2 mb-3 mt-2">
-                  <button
-                    type="button"
-                    @click.prevent="batchView = 'file'"
-                    :class="{ 'bg-gray-100': batchView === 'file' }"
-                    class="px-3 py-1 rounded text-sm"
-                  >
-                    Carga
-                  </button>
-                  <template x-if="batchReport">
-                    <button
-                      type="button"
-                      @click.prevent="batchView = 'report'"
-                      :class="{ 'bg-gray-100': batchView === 'report' }"
-                      class="px-3 py-1 rounded text-sm"
-                    >
-                      Resultado
-                    </button>
-                  </template>
-                </div>
-
-                <!-- Vista Archivo (formulario existente) -->
-                <div x-show="batchView === 'file'">
-                  <div class="mt-4 space-y-3">
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700">Evento</label>
-                      <select x-model="batchEventId" class="mt-1 block w-full border-gray-300 rounded-md p-2">
-                        <option value="">Seleccionar evento</option>
-                        <template x-for="ev in events" :key="ev.id">
-                          <option :value="ev.id" x-text="ev.name"></option>
-                        </template>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label class="block text-sm font-medium text-gray-700">Archivo (.xlsx)</label>
-                      <input type="file" accept=".xlsx,.xls" @change="onBatchFileChange($event)" class="mt-1" />
-                    </div>
-
-                    <div class="flex items-center gap-3">
-                      <label class="inline-flex items-center">
-                        <input type="checkbox" x-model="batchDryRun" />
-                        <span class="ml-2 text-sm text-gray-700">Dry run (validar sin guardar)</span>
-                      </label>
-                    </div>
-
-                    <!-- Inline validation error -->
-                    <div x-show="batchError" x-text="batchError" class="text-sm text-red-600 mt-2" style="display: none"></div>
-
-                    <!-- Tooltip when Procesar is disabled -->
-                    <div class="mt-2 text-xs text-gray-500" x-show="!batchEventId || !batchFile">
-                      <span title="Selecciona un evento y un archivo .xlsx para habilitar Procesar">Necesitas seleccionar un evento y un archivo para procesar</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Vista Resultado (se muestra solo si hay batchReport) -->
-                <div x-show="batchView === 'report'" x-cloak>
-                  <template x-if="batchReport">
-                    <div class="border-t pt-3">
-                      <h4 class="font-medium">Resultado</h4>
-                      <div class="mt-2 text-sm text-gray-700">
-                        <template x-if="batchReport.summary">
-                          <div class="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <div class="text-xs text-gray-500">Filas</div>
-                              <div class="font-semibold" x-text="batchReport.summary.total_rows"></div>
-                            </div>
-                            <div>
-                              <div class="text-xs text-green-600">Válidas</div>
-                              <div class="font-semibold text-green-700" x-text="batchReport.summary.valid"></div>
-                            </div>
-                            <div>
-                              <div class="text-xs text-red-600">Inválidas</div>
-                              <div class="font-semibold text-red-700" x-text="batchReport.summary.invalid"></div>
-                            </div>
-                          </div>
-                        </template>
-
-                        <div class="mt-3">
-                          <template x-if="batchReport.rows && batchReport.rows.length">
-                            <div class="max-h-64 overflow-auto border rounded-md bg-white mt-2 p-2 text-sm">
-                              <!-- Filter controls: por defecto mostrar sólo errores -->
-                              <div class="flex items-center justify-between mb-2">
-                                <div class="flex gap-2">
-                                  <button
-                                    type="button"
-                                    @click.prevent="reportFilter = 'errors'"
-                                    :class="{ 'bg-gray-100': reportFilter === 'errors' }"
-                                    class="px-2 py-1 rounded text-sm"
-                                  >
-                                    Errores (<span x-text="batchReport.summary.invalid"></span>)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    @click.prevent="reportFilter = 'all'"
-                                    :class="{ 'bg-gray-100': reportFilter === 'all' }"
-                                    class="px-2 py-1 rounded text-sm"
-                                  >
-                                    Todos (<span x-text="batchReport.summary.total_rows"></span>)
-                                  </button>
-                                </div>
-                                <div class="text-xs text-gray-500">
-                                  <span x-text="reportFilter==='errors' ? (batchReport.summary.invalid + ' mostrados') : (batchReport.rows.length + ' mostrados')"></span>
-                                </div>
-                              </div>
-
-                              <table class="min-w-full text-sm">
-                                <thead>
-                                  <tr class="text-left text-gray-600 text-xs">
-                                    <th class="pr-2">Fila</th>
-                                    <th class="pr-2">Estado</th>
-                                    <th class="pr-2">Nombre</th>
-                                    <th class="pr-2">Depto</th>
-                                    <th class="pr-2">Inicio</th>
-                                    <th class="pr-2">Fin</th>
-                                    <th class="pr-2">Mensaje</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  <template x-for="r in (reportFilter==='errors' ? (batchReport.rows.filter(rr => rr.status === 'error')) : batchReport.rows)" :key="r.row">
-                                    <tr class="border-t">
-                                      <td class="pr-2 text-gray-700" x-text="r.row"></td>
-                                      <td class="pr-2">
-                                        <span class="sr-only" x-text="r.status"></span>
-                                        <template x-if="r.status === 'ok'">
-                                          <i class="ti ti-check text-green-700" aria-hidden="true" title="Válido"></i>
-                                        </template>
-                                        <template x-if="r.status === 'error'">
-                                          <i class="ti ti-x text-red-600" aria-hidden="true" title="Error"></i>
-                                        </template>
-                                      </td>
-                                      <td class="pr-2 text-gray-700" x-text="r.data && r.data.name ? r.data.name : '-' "></td>
-                                      <td class="pr-2 text-gray-700" x-text="r.data && r.data.department ? r.data.department : '-' "></td>
-                                      <td class="pr-2 text-gray-700" x-text="r.data && r.data.start_datetime ? r.data.start_datetime : '-' "></td>
-                                      <td class="pr-2 text-gray-700" x-text="r.data && r.data.end_datetime ? r.data.end_datetime : '-' "></td>
-                                      <td class="pr-2 text-red-600 break-words max-w-xs" x-text="r.message || '-' "></td>
-                                    </tr>
-                                  </template>
-                                </tbody>
-                              </table>
-                            </div>
-                          </template>
-                        </div>
-                      </div>
-                    </div>
-                  </template>
+                  Importar actividades desde XLSX
+                </h3>
+                <div class="mt-2 text-sm text-gray-500">
+                  Selecciona un archivo .xlsx con las actividades. Puedes marcar
+                  "Dry run" para validar sin guardar.
                 </div>
               </div>
+              <!-- Pestañas para alternar vista -->
+              <div class="flex items-center gap-2 mb-3 mt-2">
+                <button
+                  type="button"
+                  @click.prevent="batchView = 'file'"
+                  :class="{ 'bg-gray-100': batchView === 'file' }"
+                  class="px-3 py-1 rounded text-sm"
+                >
+                  Carga
+                </button>
+                <template x-if="batchReport">
+                  <button
+                    type="button"
+                    @click.prevent="batchView = 'report'"
+                    :class="{ 'bg-gray-100': batchView === 'report' }"
+                    class="px-3 py-1 rounded text-sm"
+                  >
+                    Resultado
+                  </button>
+                </template>
+              </div>
+
+              <!-- Vista Archivo (formulario existente) -->
+              <div x-show="batchView === 'file'">
+                <div class="mt-4 space-y-3">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700"
+                      >Evento</label
+                    >
+                    <select
+                      x-model="batchEventId"
+                      class="mt-1 block w-full border-gray-300 rounded-md p-2"
+                    >
+                      <option value="">Seleccionar evento</option>
+                      <template x-for="ev in events" :key="ev.id">
+                        <option :value="ev.id" x-text="ev.name"></option>
+                      </template>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700"
+                      >Archivo (.xlsx)</label
+                    >
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      @change="onBatchFileChange($event)"
+                      class="mt-1"
+                    />
+                  </div>
+
+                  <div class="flex items-center gap-3">
+                    <label class="inline-flex items-center">
+                      <input type="checkbox" x-model="batchDryRun" />
+                      <span class="ml-2 text-sm text-gray-700"
+                        >Dry run (validar sin guardar)</span
+                      >
+                    </label>
+                  </div>
+
+                  <!-- Inline validation error -->
+                  <div
+                    x-show="batchError"
+                    x-text="batchError"
+                    class="text-sm text-red-600 mt-2"
+                    style="display: none"
+                  ></div>
+
+                  <!-- Tooltip when Procesar is disabled -->
+                  <div
+                    class="mt-2 text-xs text-gray-500"
+                    x-show="!batchEventId || !batchFile"
+                  >
+                    <span
+                      title="Selecciona un evento y un archivo .xlsx para habilitar Procesar"
+                      >Necesitas seleccionar un evento y un archivo para
+                      procesar</span
+                    >
+                  </div>
+                </div>
+              </div>
+
+              <!-- Vista Resultado (se muestra solo si hay batchReport) -->
+              <div x-show="batchView === 'report'" x-cloak>
+                <template x-if="batchReport">
+                  <div class="border-t pt-3">
+                    <h4 class="font-medium">Resultado</h4>
+                    <div class="mt-2 text-sm text-gray-700">
+                      <template x-if="batchReport.summary">
+                        <div class="grid grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <div class="text-xs text-gray-500">Filas</div>
+                            <div
+                              class="font-semibold"
+                              x-text="batchReport.summary.total_rows"
+                            ></div>
+                          </div>
+                          <div>
+                            <div class="text-xs text-green-600">Válidas</div>
+                            <div
+                              class="font-semibold text-green-700"
+                              x-text="batchReport.summary.valid"
+                            ></div>
+                          </div>
+                          <div>
+                            <div class="text-xs text-red-600">Inválidas</div>
+                            <div
+                              class="font-semibold text-red-700"
+                              x-text="batchReport.summary.invalid"
+                            ></div>
+                          </div>
+                        </div>
+                      </template>
+
+                      <div class="mt-3">
+                        <template
+                          x-if="batchReport.rows && batchReport.rows.length"
+                        >
+                          <div
+                            class="max-h-64 overflow-auto border rounded-md bg-white mt-2 p-2 text-sm"
+                          >
+                            <!-- Filter controls: por defecto mostrar sólo errores -->
+                            <div class="flex items-center justify-between mb-2">
+                              <div class="flex gap-2">
+                                <button
+                                  type="button"
+                                  @click.prevent="reportFilter = 'errors'"
+                                  :class="{ 'bg-gray-100': reportFilter === 'errors' }"
+                                  class="px-2 py-1 rounded text-sm"
+                                >
+                                  Errores (<span
+                                    x-text="batchReport.summary.invalid"
+                                  ></span
+                                  >)
+                                </button>
+                                <button
+                                  type="button"
+                                  @click.prevent="reportFilter = 'all'"
+                                  :class="{ 'bg-gray-100': reportFilter === 'all' }"
+                                  class="px-2 py-1 rounded text-sm"
+                                >
+                                  Todos (<span
+                                    x-text="batchReport.summary.total_rows"
+                                  ></span
+                                  >)
+                                </button>
+                              </div>
+                              <div class="text-xs text-gray-500">
+                                <span
+                                  x-text="reportFilter==='errors' ? (batchReport.summary.invalid + ' mostrados') : (batchReport.rows.length + ' mostrados')"
+                                ></span>
+                              </div>
+                            </div>
+
+                            <table class="min-w-full text-sm">
+                              <thead>
+                                <tr class="text-left text-gray-600 text-xs">
+                                  <th class="pr-2">Fila</th>
+                                  <th class="pr-2">Estado</th>
+                                  <th class="pr-2">Nombre</th>
+                                  <th class="pr-2">Depto</th>
+                                  <th class="pr-2">Inicio</th>
+                                  <th class="pr-2">Fin</th>
+                                  <th class="pr-2">Mensaje</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <template
+                                  x-for="r in (reportFilter==='errors' ? (batchReport.rows.filter(rr => rr.status === 'error')) : batchReport.rows)"
+                                  :key="r.row"
+                                >
+                                  <tr class="border-t">
+                                    <td
+                                      class="pr-2 text-gray-700"
+                                      x-text="r.row"
+                                    ></td>
+                                    <td class="pr-2">
+                                      <span
+                                        class="sr-only"
+                                        x-text="r.status"
+                                      ></span>
+                                      <template x-if="r.status === 'ok'">
+                                        <i
+                                          class="ti ti-check text-green-700"
+                                          aria-hidden="true"
+                                          title="Válido"
+                                        ></i>
+                                      </template>
+                                      <template x-if="r.status === 'error'">
+                                        <i
+                                          class="ti ti-x text-red-600"
+                                          aria-hidden="true"
+                                          title="Error"
+                                        ></i>
+                                      </template>
+                                    </td>
+                                    <td
+                                      class="pr-2 text-gray-700"
+                                      x-text="r.data && r.data.name ? r.data.name : '-' "
+                                    ></td>
+                                    <td
+                                      class="pr-2 text-gray-700"
+                                      x-text="r.data && r.data.department ? r.data.department : '-' "
+                                    ></td>
+                                    <td
+                                      class="pr-2 text-gray-700"
+                                      x-text="r.data && r.data.start_datetime ? r.data.start_datetime : '-' "
+                                    ></td>
+                                    <td
+                                      class="pr-2 text-gray-700"
+                                      x-text="r.data && r.data.end_datetime ? r.data.end_datetime : '-' "
+                                    ></td>
+                                    <td
+                                      class="pr-2 text-red-600 break-words max-w-xs"
+                                      x-text="r.message || '-' "
+                                    ></td>
+                                  </tr>
+                                </template>
+                              </tbody>
+                            </table>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -559,592 +781,643 @@
     </div>
   </div>
 
-    <!-- Tabla de actividades -->
-    <div class="bg-white shadow overflow-hidden rounded-lg">
-      <!-- Loading spinner -->
-      <div x-show="loading" class="flex justify-center items-center py-12">
-        <div
-          class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"
-        ></div>
-      </div>
+  <!-- Tabla de actividades -->
+  <div class="bg-white shadow overflow-hidden rounded-lg">
+    <!-- Loading spinner -->
+    <div x-show="loading" class="flex justify-center items-center py-12">
+      <div
+        class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"
+      ></div>
+    </div>
 
-      <!-- Tabla (cuando no está cargando) -->
-      <div x-show="!loading">
-        <div class="overflow-x-auto">
-          <table
-            id="activities-table"
-            class="min-w-full divide-y divide-gray-200 table-fixed"
-          >
-            <thead class="bg-gray-50">
-              <tr>
-                <th
-                  scope="col"
-                  style="width: 5%"
-                  class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  #
-                </th>
-                <th
-                  scope="col"
-                  style="width: 31%"
-                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Nombre
-                </th>
-                <th
-                  scope="col"
-                  style="width: 24%"
-                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Evento / Fechas
-                </th>
-                <th
-                  scope="col"
-                  style="width: 14%"
-                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Tipo
-                </th>
-                <th
-                  scope="col"
-                  style="width: 12%"
-                  class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Cupo
-                </th>
-                <th
-                  scope="col"
-                  style="width: 14%"
-                  class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-                >
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              <template x-for="(activity, idx) in activities" :key="activity.id">
-                <tr class="hover:bg-gray-50">
-                  <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span x-text="(pagination.from || 0) + idx"></span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div
-                      class="text-sm font-medium text-gray-900 truncate max-w-xs"
-                      x-text="activity.name"
-                    ></div>
-                    <div
-                      class="text-sm text-gray-500 mt-1 truncate max-w-xs"
-                      x-show="activity.speakersString"
-                      x-text="activity.speakersString"
-                    ></div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <div
-                      class="text-sm text-gray-900 truncate max-w-xs"
-                      x-text="(activity.event && activity.event.name) || 'Evento desconocido'"
-                    ></div>
-                    <div
-                      class="text-sm text-gray-900 mt-1"
-                      x-text="activity.datesString"
-                    ></div>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap">
-                    <span
-                      x-bind:class="{
+    <!-- Tabla (cuando no está cargando) -->
+    <div x-show="!loading">
+      <div class="overflow-x-auto">
+        <table
+          id="activities-table"
+          class="min-w-full divide-y divide-gray-200 table-fixed"
+        >
+          <thead class="bg-gray-50">
+            <tr>
+              <th
+                scope="col"
+                style="width: 5%"
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                #
+              </th>
+              <th
+                scope="col"
+                style="width: 31%"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Nombre
+              </th>
+              <th
+                scope="col"
+                style="width: 24%"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Evento / Fechas
+              </th>
+              <th
+                scope="col"
+                style="width: 14%"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Tipo
+              </th>
+              <th
+                scope="col"
+                style="width: 12%"
+                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Cupo
+              </th>
+              <th
+                scope="col"
+                style="width: 14%"
+                class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                Acciones
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <template x-for="(activity, idx) in activities" :key="activity.id">
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span x-text="(pagination.from || 0) + idx"></span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div
+                    class="text-sm font-medium text-gray-900 truncate max-w-xs"
+                    x-text="activity.name"
+                  ></div>
+                  <div
+                    class="text-sm text-gray-500 mt-1 truncate max-w-xs"
+                    x-show="activity.speakersString"
+                    x-text="activity.speakersString"
+                  ></div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <div
+                    class="text-sm text-gray-900 truncate max-w-xs"
+                    x-text="(activity.event && activity.event.name) || 'Evento desconocido'"
+                  ></div>
+                  <div
+                    class="text-sm text-gray-900 mt-1"
+                    x-text="activity.datesString"
+                  ></div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span
+                    x-bind:class="{
                       'bg-indigo-100 text-indigo-800': activity.activity_type === 'Magistral',
                       'bg-green-100 text-green-800': activity.activity_type === 'Conferencia',
                       'bg-yellow-100 text-yellow-800': activity.activity_type === 'Taller',
                       'bg-orange-100 text-orange-800': activity.activity_type === 'Curso',
                       'bg-gray-100 text-gray-800': activity.activity_type === 'Otro'
                     }"
-                      class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                    >
-                      <span x-text="activity.activity_type"></span>
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <span
-                      x-text="activity.max_capacity ? ((activity.current_registrations || 0) + '/' + activity.max_capacity) : 'A demanda'"
-                    ></span>
-                  </td>
-                  <td
-                    class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+                    class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                   >
-                    <div class="flex justify-end space-x-2">
-                        <!-- Relation indicator: single icon summarizing state -->
-                        <div class="flex items-center mr-2">
-                          <!-- Incoming only -->
-                          <template x-if="relationInfoFor(activity.id).incoming.length && !relationInfoFor(activity.id).outgoing.length">
-                            <span class="text-blue-600" :title="relationTooltip(activity.id)" aria-label="Enlazada por otras">
-                              <i class="ti ti-arrow-down-right" aria-hidden="true"></i>
-                            </span>
-                          </template>
-
-                          <!-- Outgoing only -->
-                          <template x-if="relationInfoFor(activity.id).outgoing.length && !relationInfoFor(activity.id).incoming.length">
-                            <span class="text-green-600" :title="relationTooltip(activity.id)" aria-label="Apunta a otra actividad">
-                              <i class="ti ti-arrow-up-right" aria-hidden="true"></i>
-                            </span>
-                          </template>
-
-                          <!-- Both incoming and outgoing (chain middle) -->
-                          <template x-if="relationInfoFor(activity.id).incoming.length && relationInfoFor(activity.id).outgoing.length">
-                            <span class="text-amber-600" :title="relationTooltip(activity.id)" aria-label="Enlaza y es enlazada">
-                              <i class="ti ti-arrows-cross" aria-hidden="true"></i>
-                            </span>
-                          </template>
-                        </div>
-
-                        <button
-                          @click="viewActivity(activity)"
-                          class="text-indigo-600 hover:text-indigo-900"
-                          title="Ver detalles"
+                    <span x-text="activity.activity_type"></span>
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span
+                    x-text="activity.max_capacity ? ((activity.current_registrations || 0) + '/' + activity.max_capacity) : 'A demanda'"
+                  ></span>
+                </td>
+                <td
+                  class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium"
+                >
+                  <div class="flex justify-end space-x-2">
+                    <!-- Relation indicator: single icon summarizing state -->
+                    <div class="flex items-center mr-2">
+                      <!-- Incoming only -->
+                      <template
+                        x-if="relationInfoFor(activity.id).incoming.length && !relationInfoFor(activity.id).outgoing.length"
+                      >
+                        <span
+                          class="text-blue-600"
+                          :title="relationTooltip(activity.id)"
+                          aria-label="Enlazada por otras"
                         >
-                          <i class="ti ti-eye"></i>
-                        </button>
-                      <button
-                        @click="openEditModal(activity)"
-                        class="text-indigo-600 hover:text-indigo-900"
-                        title="Editar"
-                      >
-                        <i class="ti ti-edit"></i>
-                      </button>
-                      <button
-                        @click="confirmDelete(activity)"
-                        class="text-red-600 hover:text-red-900"
-                        title="Eliminar"
-                      >
-                        <i class="ti ti-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </template>
-            </tbody>
-          </table>
-        </div>
+                          <i
+                            class="ti ti-arrow-down-right"
+                            aria-hidden="true"
+                          ></i>
+                        </span>
+                      </template>
 
-        <!-- Mensaje cuando no hay actividades -->
-        <div
-          x-show="activities.length === 0 && !loading"
-          class="text-center py-12"
-        >
-          <i class="ti ti-book-off text-4xl text-gray-300 mx-auto"></i>
-          <h3 class="mt-2 text-sm font-medium text-gray-900">
-            No hay actividades
-          </h3>
-          <p class="mt-1 text-sm text-gray-500">
-            Empieza creando una nueva actividad.
-          </p>
-          <div class="mt-6">
-            <button
-              @click="openCreateModal()"
-              class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <i class="ti ti-plus mr-2"></i>
-              Crear primera actividad
-            </button>
-          </div>
+                      <!-- Outgoing only -->
+                      <template
+                        x-if="relationInfoFor(activity.id).outgoing.length && !relationInfoFor(activity.id).incoming.length"
+                      >
+                        <span
+                          class="text-green-600"
+                          :title="relationTooltip(activity.id)"
+                          aria-label="Apunta a otra actividad"
+                        >
+                          <i
+                            class="ti ti-arrow-up-right"
+                            aria-hidden="true"
+                          ></i>
+                        </span>
+                      </template>
+
+                      <!-- Both incoming and outgoing (chain middle) -->
+                      <template
+                        x-if="relationInfoFor(activity.id).incoming.length && relationInfoFor(activity.id).outgoing.length"
+                      >
+                        <span
+                          class="text-amber-600"
+                          :title="relationTooltip(activity.id)"
+                          aria-label="Enlaza y es enlazada"
+                        >
+                          <i class="ti ti-arrows-cross" aria-hidden="true"></i>
+                        </span>
+                      </template>
+                    </div>
+
+                    <button
+                      @click="viewActivity(activity)"
+                      class="text-indigo-600 hover:text-indigo-900"
+                      title="Ver detalles"
+                    >
+                      <i class="ti ti-eye"></i>
+                    </button>
+                    <button
+                      @click="openEditModal(activity)"
+                      class="text-indigo-600 hover:text-indigo-900"
+                      title="Editar"
+                    >
+                      <i class="ti ti-edit"></i>
+                    </button>
+                    <button
+                      @click="confirmDelete(activity)"
+                      class="text-red-600 hover:text-red-900"
+                      title="Eliminar"
+                    >
+                      <i class="ti ti-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mensaje cuando no hay actividades -->
+      <div
+        x-show="activities.length === 0 && !loading"
+        class="text-center py-12"
+      >
+        <i class="ti ti-book-off text-4xl text-gray-300 mx-auto"></i>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">
+          No hay actividades
+        </h3>
+        <p class="mt-1 text-sm text-gray-500">
+          Empieza creando una nueva actividad.
+        </p>
+        <div class="mt-6">
+          <button
+            @click="openCreateModal()"
+            class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            <i class="ti ti-plus mr-2"></i>
+            Crear primera actividad
+          </button>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- Paginación -->
-    <div class="mt-6 flex items-center justify-between">
-      <div class="text-sm text-gray-700">
-        Mostrando <span x-text="pagination.from"></span> a
-        <span x-text="pagination.to"></span> de
-        <span x-text="pagination.total"></span> resultados
-      </div>
-      <div class="flex space-x-2">
+  <!-- Paginación -->
+  <div class="mt-6 flex items-center justify-between">
+    <div class="text-sm text-gray-700">
+      Mostrando <span x-text="pagination.from"></span> a
+      <span x-text="pagination.to"></span> de
+      <span x-text="pagination.total"></span> resultados
+    </div>
+    <div class="flex space-x-2">
+      <button
+        @click="changePage(pagination.current_page - 1)"
+        :disabled="pagination.current_page === 1"
+        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Anterior
+      </button>
+      <template x-for="page in pagination.pages" :key="page">
         <button
-          @click="changePage(pagination.current_page - 1)"
-          :disabled="pagination.current_page === 1"
-          class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Anterior
-        </button>
-        <template x-for="page in pagination.pages" :key="page">
-          <button
-            @click="changePage(page)"
-            :class="{
+          @click="changePage(page)"
+          :class="{
             'bg-indigo-600 text-white': page === pagination.current_page,
             'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
           }"
-            class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md"
-          >
-            <span x-text="page"></span>
-          </button>
-        </template>
-        <button
-          @click="changePage(pagination.current_page + 1)"
-          :disabled="pagination.current_page === pagination.last_page"
-          class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md"
         >
-          Siguiente
+          <span x-text="page"></span>
         </button>
-      </div>
+      </template>
+      <button
+        @click="changePage(pagination.current_page + 1)"
+        :disabled="pagination.current_page === pagination.last_page"
+        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        Siguiente
+      </button>
+    </div>
+  </div>
+
+  <!-- Subvista lateral/inline para Crear/Editar Actividad (reemplaza modal) -->
+  <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Lista principal ocupa dos columnas en pantallas grandes -->
+    <div class="lg:col-span-2">
+      <!-- (This column intentionally left as-is to preserve layout) -->
     </div>
 
-    <!-- Subvista lateral/inline para Crear/Editar Actividad (reemplaza modal) -->
-    <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Lista principal ocupa dos columnas en pantallas grandes -->
-      <div class="lg:col-span-2">
-        <!-- (This column intentionally left as-is to preserve layout) -->
+    <!-- Backdrop (solo en pantallas grandes) -->
+    <div
+      x-show="showPanel"
+      x-cloak
+      @click="showPanel = false"
+      class="hidden lg:block fixed inset-0 bg-black bg-opacity-30 z-40"
+    ></div>
+
+    <!-- Panel lateral para crear/editar actividad -->
+    <aside
+      x-show="showPanel"
+      x-cloak
+      @keydown.escape.window="showPanel = false"
+      class="w-full bg-white rounded-lg shadow p-4 lg:w-1/3 lg:fixed lg:inset-y-0 lg:right-0 lg:z-50 lg:overflow-auto lg:rounded-l-none"
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h3
+          class="text-lg font-medium text-gray-900"
+          x-text="editingActivity ? 'Editar Actividad' : 'Crear Nueva Actividad'"
+        ></h3>
+        <button
+          type="button"
+          @click="showPanel = false"
+          class="text-gray-400 hover:text-gray-600"
+        >
+          <span class="sr-only">Cerrar panel</span>
+          <i class="ti ti-x"></i>
+        </button>
       </div>
 
-      <!-- Backdrop (solo en pantallas grandes) -->
-      <div
-        x-show="showPanel"
-        x-cloak
-        @click="showPanel = false"
-        class="hidden lg:block fixed inset-0 bg-black bg-opacity-30 z-40"
-      ></div>
-
-      <!-- Panel lateral para crear/editar actividad -->
-      <aside
-        x-show="showPanel"
-        x-cloak
-        @keydown.escape.window="showPanel = false"
-        class="w-full bg-white rounded-lg shadow p-4 lg:w-1/3 lg:fixed lg:inset-y-0 lg:right-0 lg:z-50 lg:overflow-auto lg:rounded-l-none"
+      <!-- Formulario (mismo id y bindings que el modal original) -->
+      <form
+        id="activity-form"
+        @submit.prevent="saveActivity()"
+        class="space-y-4"
       >
-        <div class="flex items-center justify-between mb-4">
-          <h3
-            class="text-lg font-medium text-gray-900"
-            x-text="editingActivity ? 'Editar Actividad' : 'Crear Nueva Actividad'"
-          ></h3>
-          <button
-            type="button"
-            @click="showPanel = false"
-            class="text-gray-400 hover:text-gray-600"
+        <!-- Evento (siempre habilitado) -->
+        <div>
+          <label for="event_id" class="block text-sm font-medium text-gray-700"
+            >Evento <span class="text-red-500">*</span></label
           >
-            <span class="sr-only">Cerrar panel</span>
-            <i class="ti ti-x"></i>
-          </button>
+          <select
+            id="event_id"
+            x-model="currentActivity.event_id"
+            @change="updateDateLimits(); validateActivityDates(currentActivity)"
+            required
+            class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
+          >
+            <option value="">Seleccionar evento</option>
+            <template x-for="event in events" :key="event.id">
+              <option :value="event.id" x-text="event.name"></option>
+            </template>
+          </select>
         </div>
 
-        <!-- Formulario (mismo id y bindings que el modal original) -->
-        <form
-          id="activity-form"
-          @submit.prevent="saveActivity()"
+        <!-- Bloquear campos hasta seleccionar un evento válido -->
+        <fieldset
+          :disabled="!(currentActivity && currentActivity.event_id)"
           class="space-y-4"
         >
-          <!-- Evento (siempre habilitado) -->
+          <!-- Departamento -->
           <div>
             <label
-              for="event_id"
+              for="department"
               class="block text-sm font-medium text-gray-700"
-              >Evento <span class="text-red-500">*</span></label
+              >Departamento <span class="text-red-500">*</span></label
             >
-            <select
-              id="event_id"
-              x-model="currentActivity.event_id"
-              @change="updateDateLimits(); validateActivityDates(currentActivity)"
+            <input
+              type="text"
+              id="department"
+              x-model="currentActivity.department"
               required
-              class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
-            >
-              <option value="">Seleccionar evento</option>
-              <template x-for="event in events" :key="event.id">
-                <option :value="event.id" x-text="event.name"></option>
-              </template>
-            </select>
+              class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+            />
           </div>
 
-          <!-- Bloquear campos hasta seleccionar un evento válido -->
-          <fieldset
-            :disabled="!(currentActivity && currentActivity.event_id)"
-            class="space-y-4"
-          >
-            <!-- Departamento -->
-            <div>
-              <label
-                for="department"
-                class="block text-sm font-medium text-gray-700"
-                >Departamento <span class="text-red-500">*</span></label
-              >
+          <!-- Nombre -->
+          <div>
+            <label for="name" class="block text-sm font-medium text-gray-700"
+              >Nombre <span class="text-red-500">*</span></label
+            >
+            <input
+              type="text"
+              id="name"
+              x-model="currentActivity.name"
+              @input.debounce.300ms="onNameChange()"
+              required
+              class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+            />
+          </div>
+
+          <!-- Slug público editable -->
+          <div>
+            <label
+              for="public_slug"
+              class="block text-sm font-medium text-gray-700"
+              >Slug público (URL)</label
+            >
+            <div class="mt-1 flex gap-2">
               <input
                 type="text"
-                id="department"
-                x-model="currentActivity.department"
-                required
-                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+                id="public_slug"
+                x-model="currentActivity.public_slug"
+                placeholder="ej. mi-actividad-innovadora"
+                class="flex-1 block w-full border-gray-300 rounded-md p-2"
               />
-            </div>
-
-            <!-- Nombre -->
-            <div>
-              <label for="name" class="block text-sm font-medium text-gray-700"
-                >Nombre <span class="text-red-500">*</span></label
+              <button
+                type="button"
+                @click.prevent="generateSlugFromName()"
+                class="px-3 py-1 bg-gray-100 rounded border"
               >
-              <input
-                type="text"
-                id="name"
-                x-model="currentActivity.name"
-                @input.debounce.300ms="onNameChange()"
-                required
-                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-              />
+                Generar
+              </button>
             </div>
-
-            <!-- Slug público editable -->
-            <div>
-              <label for="public_slug" class="block text-sm font-medium text-gray-700">Slug público (URL)</label>
-              <div class="mt-1 flex gap-2">
-                <input
-                  type="text"
-                  id="public_slug"
-                  x-model="currentActivity.public_slug"
-                  placeholder="ej. mi-actividad-innovadora"
-                  class="flex-1 block w-full border-gray-300 rounded-md p-2"
-                />
-                <button type="button" @click.prevent="generateSlugFromName()" class="px-3 py-1 bg-gray-100 rounded border">Generar</button>
-              </div>
-              <p class="text-xs text-gray-500 mt-1">Si dejas este campo vacío, el sistema generará automáticamente un slug desde el nombre cuando guardes.</p>
-              <!-- Prompt cuando el nombre cambia y el slug parece manual -->
-              <div x-show="slugChangePrompt" class="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded text-sm flex items-center justify-between">
-                <div>El nombre cambió. ¿Deseas generar y aplicar un nuevo slug basado en el nombre o conservar el slug manual?</div>
-                <div class="flex gap-2">
-                  <button type="button" @click.prevent="applyGeneratedSlugChoice(true)" class="px-2 py-1 bg-indigo-600 text-white rounded">Generar y aplicar</button>
-                  <button type="button" @click.prevent="applyGeneratedSlugChoice(false)" class="px-2 py-1 border rounded">Conservar</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Área de conocimiento (compact) -->
-            <div>
-              <label
-                for="knowledge_area"
-                class="block text-sm font-medium text-gray-700"
-                >Área de conocimiento</label
-              >
-              <input
-                type="text"
-                id="knowledge_area"
-                x-model="currentActivity.knowledge_area"
-                placeholder="Ej. Ciencias Sociales"
-                class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
-              />
-            </div>
-
-            <!-- Objetivo -->
-            <div>
-              <label
-                for="description"
-                class="block text-sm font-medium text-gray-700"
-                >Objetivo</label
-              >
-              <textarea
-                id="description"
-                x-model="currentActivity.description"
-                rows="3"
-                class="mt-1 block w-full border-gray-300 rounded-md p-2"
-              ></textarea>
-            </div>
-
-            <!-- Fechas: usar fila completa (apiladas) -->
-            <div class="grid grid-cols-1 gap-2">
+            <p class="text-xs text-gray-500 mt-1">
+              Si dejas este campo vacío, el sistema generará automáticamente un
+              slug desde el nombre cuando guardes.
+            </p>
+            <!-- Prompt cuando el nombre cambia y el slug parece manual -->
+            <div
+              x-show="slugChangePrompt"
+              class="mt-2 p-2 bg-yellow-50 border border-yellow-100 rounded text-sm flex items-center justify-between"
+            >
               <div>
-                <label
-                  for="start_datetime"
-                  class="block text-sm font-medium text-gray-700"
-                  >Inicio</label
-                >
-                <input
-                  id="start_datetime"
-                  type="datetime-local"
-                  x-model="currentActivity.start_datetime"
-                  class="mt-1 block w-full border-gray-300 rounded-md p-2"
-                />
+                El nombre cambió. ¿Deseas generar y aplicar un nuevo slug basado
+                en el nombre o conservar el slug manual?
               </div>
-              <div>
-                <label
-                  for="end_datetime"
-                  class="block text-sm font-medium text-gray-700"
-                  >Fin</label
-                >
-                <input
-                  id="end_datetime"
-                  type="datetime-local"
-                  x-model="currentActivity.end_datetime"
-                  class="mt-1 block w-full border-gray-300 rounded-md p-2"
-                />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-2">
-              <div>
-                <label
-                  for="duration_hours"
-                  class="block text-sm font-medium text-gray-700"
-                  >Duración (horas)</label
-                >
-                <input
-                  id="duration_hours"
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  x-model="currentActivity.duration_hours"
-                  class="mt-1 block w-full border-gray-300 rounded-md p-2"
-                />
-              </div>
-              <div>
-                <label
-                  for="max_capacity"
-                  class="block text-sm font-medium text-gray-700"
-                  >Cupo máximo</label
-                >
-                <input
-                  id="max_capacity"
-                  type="number"
-                  min="0"
-                  x-model="currentActivity.max_capacity"
-                  class="mt-1 block w-full border-gray-300 rounded-md p-2"
-                />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-2">
-              <div>
-                <label
-                  for="activity_type"
-                  class="block text-sm font-medium text-gray-700"
-                  >Tipo de actividad</label
-                >
-                <select
-                  id="activity_type"
-                  x-model="currentActivity.activity_type"
-                  class="mt-1 block w-full border-gray-300 rounded-md p-2"
-                >
-                  <option value="">Seleccionar tipo</option>
-                  <option value="Magistral">Magistral</option>
-                  <option value="Conferencia">Conferencia</option>
-                  <option value="Taller">Taller</option>
-                  <option value="Curso">Curso</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
-              <div>
-                <label
-                  for="modality"
-                  class="block text-sm font-medium text-gray-700"
-                  >Modalidad</label
-                >
-                <select
-                  id="modality"
-                  x-model="currentActivity.modality"
-                  class="mt-1 block w-full border-gray-300 rounded-md p-2"
-                >
-                  <option value="">Seleccionar modalidad</option>
-                  <option value="Presencial">Presencial</option>
-                  <option value="Virtual">Virtual</option>
-                  <option value="Híbrido">Híbrido</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label
-                for="location"
-                class="block text-sm font-medium text-gray-700"
-                >Ubicación</label
-              >
-              <input
-                id="location"
-                type="text"
-                x-model="currentActivity.location"
-                class="mt-1 block w-full border-gray-300 rounded-md p-2"
-              />
-            </div>
-
-            <div>
-              <label
-                for="requirements"
-                class="block text-sm font-medium text-gray-700"
-                >Requisitos</label
-              >
-              <textarea
-                id="requirements"
-                x-model="currentActivity.requirements"
-                rows="2"
-                class="mt-1 block w-full border-gray-300 rounded-md p-2"
-              ></textarea>
-            </div>
-
-            <!-- Ponentes (compact list with add button) -->
-            <div x-data="{open:false}">
-              <label class="block text-sm font-medium text-gray-700"
-                >Ponentes</label
-              >
-              <template
-                x-if="(currentActivity.speakersList || []).length === 0"
-              >
-                <p class="text-sm text-gray-500 mt-1">
-                  No hay ponentes agregados.
-                </p>
-              </template>
-              <ul class="space-y-2 mt-2">
-                <template
-                  x-for="(s, i) in (currentActivity.speakersList || [])"
-                  :key="i"
-                >
-                  <li class="bg-gray-50 p-2 rounded flex items-start gap-2">
-                    <div class="flex-1">
-                      <div
-                        class="text-sm font-medium text-gray-900"
-                        x-text="s.name || 'Sin nombre'"
-                      ></div>
-                      <div
-                        class="text-sm text-gray-500"
-                        x-text="(s.degree ? s.degree + ' - ' : '') + (s.organization || '')"
-                      ></div>
-                    </div>
-                    <div class="flex-shrink-0">
-                      <button
-                        type="button"
-                        @click="currentActivity.speakersList.splice(i,1)"
-                        class="text-red-500 hover:text-red-700"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </li>
-                </template>
-              </ul>
-
-              <div class="mt-3 border-t pt-3">
+              <div class="flex gap-2">
                 <button
                   type="button"
-                  @click="open = !open"
-                  class="inline-flex items-center px-3 py-1 border rounded bg-white hover:bg-gray-50"
+                  @click.prevent="applyGeneratedSlugChoice(true)"
+                  class="px-2 py-1 bg-indigo-600 text-white rounded"
                 >
-                  <i class="ti ti-plus mr-2"></i> Agregar ponente
+                  Generar y aplicar
                 </button>
+                <button
+                  type="button"
+                  @click.prevent="applyGeneratedSlugChoice(false)"
+                  class="px-2 py-1 border rounded"
+                >
+                  Conservar
+                </button>
+              </div>
+            </div>
+          </div>
 
-                <div x-show="open" x-cloak class="mt-3 space-y-2">
-                  <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      x-ref="sp_degree"
-                      placeholder="Grado (opcional)"
-                      class="p-2 border rounded"
-                    />
-                    <input
-                      type="text"
-                      x-ref="sp_name"
-                      placeholder="Nombre"
-                      class="p-2 border rounded"
-                    />
-                    <input
-                      type="text"
-                      x-ref="sp_org"
-                      placeholder="Organización (opcional)"
-                      class="p-2 border rounded"
-                    />
+          <!-- Área de conocimiento (compact) -->
+          <div>
+            <label
+              for="knowledge_area"
+              class="block text-sm font-medium text-gray-700"
+              >Área de conocimiento</label
+            >
+            <input
+              type="text"
+              id="knowledge_area"
+              x-model="currentActivity.knowledge_area"
+              placeholder="Ej. Ciencias Sociales"
+              class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-500 rounded-md border-1 p-2"
+            />
+          </div>
+
+          <!-- Objetivo -->
+          <div>
+            <label
+              for="description"
+              class="block text-sm font-medium text-gray-700"
+              >Objetivo</label
+            >
+            <textarea
+              id="description"
+              x-model="currentActivity.description"
+              rows="3"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            ></textarea>
+          </div>
+
+          <!-- Fechas: usar fila completa (apiladas) -->
+          <div class="grid grid-cols-1 gap-2">
+            <div>
+              <label
+                for="start_datetime"
+                class="block text-sm font-medium text-gray-700"
+                >Inicio</label
+              >
+              <input
+                id="start_datetime"
+                type="datetime-local"
+                x-model="currentActivity.start_datetime"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+            <div>
+              <label
+                for="end_datetime"
+                class="block text-sm font-medium text-gray-700"
+                >Fin</label
+              >
+              <input
+                id="end_datetime"
+                type="datetime-local"
+                x-model="currentActivity.end_datetime"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2">
+            <div>
+              <label
+                for="duration_hours"
+                class="block text-sm font-medium text-gray-700"
+                >Duración (horas)</label
+              >
+              <input
+                id="duration_hours"
+                type="number"
+                step="0.5"
+                min="0"
+                x-model="currentActivity.duration_hours"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+            <div>
+              <label
+                for="max_capacity"
+                class="block text-sm font-medium text-gray-700"
+                >Cupo máximo</label
+              >
+              <input
+                id="max_capacity"
+                type="number"
+                min="0"
+                x-model="currentActivity.max_capacity"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2">
+            <div>
+              <label
+                for="activity_type"
+                class="block text-sm font-medium text-gray-700"
+                >Tipo de actividad</label
+              >
+              <select
+                id="activity_type"
+                x-model="currentActivity.activity_type"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              >
+                <option value="">Seleccionar tipo</option>
+                <option value="Magistral">Magistral</option>
+                <option value="Conferencia">Conferencia</option>
+                <option value="Taller">Taller</option>
+                <option value="Curso">Curso</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+            <div>
+              <label
+                for="modality"
+                class="block text-sm font-medium text-gray-700"
+                >Modalidad</label
+              >
+              <select
+                id="modality"
+                x-model="currentActivity.modality"
+                class="mt-1 block w-full border-gray-300 rounded-md p-2"
+              >
+                <option value="">Seleccionar modalidad</option>
+                <option value="Presencial">Presencial</option>
+                <option value="Virtual">Virtual</option>
+                <option value="Híbrido">Híbrido</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label
+              for="location"
+              class="block text-sm font-medium text-gray-700"
+              >Ubicación</label
+            >
+            <input
+              id="location"
+              type="text"
+              x-model="currentActivity.location"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            />
+          </div>
+
+          <div>
+            <label
+              for="requirements"
+              class="block text-sm font-medium text-gray-700"
+              >Requisitos</label
+            >
+            <textarea
+              id="requirements"
+              x-model="currentActivity.requirements"
+              rows="2"
+              class="mt-1 block w-full border-gray-300 rounded-md p-2"
+            ></textarea>
+          </div>
+
+          <!-- Ponentes (compact list with add button) -->
+          <div x-data="{open:false}">
+            <label class="block text-sm font-medium text-gray-700"
+              >Ponentes</label
+            >
+            <template x-if="(currentActivity.speakersList || []).length === 0">
+              <p class="text-sm text-gray-500 mt-1">
+                No hay ponentes agregados.
+              </p>
+            </template>
+            <ul class="space-y-2 mt-2">
+              <template
+                x-for="(s, i) in (currentActivity.speakersList || [])"
+                :key="i"
+              >
+                <li class="bg-gray-50 p-2 rounded flex items-start gap-2">
+                  <div class="flex-1">
+                    <div
+                      class="text-sm font-medium text-gray-900"
+                      x-text="s.name || 'Sin nombre'"
+                    ></div>
+                    <div
+                      class="text-sm text-gray-500"
+                      x-text="(s.degree ? s.degree + ' - ' : '') + (s.organization || '')"
+                    ></div>
                   </div>
-                  <div class="flex gap-2">
+                  <div class="flex-shrink-0">
                     <button
                       type="button"
-                      @click="
+                      @click="currentActivity.speakersList.splice(i,1)"
+                      class="text-red-500 hover:text-red-700"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </li>
+              </template>
+            </ul>
+
+            <div class="mt-3 border-t pt-3">
+              <button
+                type="button"
+                @click="open = !open"
+                class="inline-flex items-center px-3 py-1 border rounded bg-white hover:bg-gray-50"
+              >
+                <i class="ti ti-plus mr-2"></i> Agregar ponente
+              </button>
+
+              <div x-show="open" x-cloak class="mt-3 space-y-2">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <input
+                    type="text"
+                    x-ref="sp_degree"
+                    placeholder="Grado (opcional)"
+                    class="p-2 border rounded"
+                  />
+                  <input
+                    type="text"
+                    x-ref="sp_name"
+                    placeholder="Nombre"
+                    class="p-2 border rounded"
+                  />
+                  <input
+                    type="text"
+                    x-ref="sp_org"
+                    placeholder="Organización (opcional)"
+                    class="p-2 border rounded"
+                  />
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    type="button"
+                    @click="
                   const name = $refs.sp_name.value && $refs.sp_name.value.trim();
                   const degree = $refs.sp_degree.value && $refs.sp_degree.value.trim();
                   if(!name && !degree) return; 
@@ -1153,167 +1426,333 @@
                   $refs.sp_name.value=''; $refs.sp_degree.value=''; $refs.sp_org.value='';
                   open = false;
                 "
-                      class="px-3 py-1 bg-indigo-600 text-white rounded"
-                    >
-                      Agregar
-                    </button>
-                    <button
-                      type="button"
-                      @click="open=false"
-                      class="px-3 py-1 border rounded"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
+                    class="px-3 py-1 bg-indigo-600 text-white rounded"
+                  >
+                    Agregar
+                  </button>
+                  <button
+                    type="button"
+                    @click="open=false"
+                    class="px-3 py-1 border rounded"
+                  >
+                    Cancelar
+                  </button>
                 </div>
               </div>
             </div>
+          </div>
 
-            <!-- Público objetivo compacto -->
-            <div x-data="{openCareers:false}">
+          <!-- Público objetivo compacto -->
+          <div x-data="{openCareers:false}">
+            <label class="block text-sm font-medium text-gray-700"
+              >Público objetivo</label
+            >
+            <div class="flex items-center gap-4 mt-2">
+              <label class="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  x-model="currentActivity.target_audience_general"
+                  class="form-checkbox"
+                />
+                <span class="ml-2 text-sm text-gray-700"
+                  >Público en general</span
+                >
+              </label>
+            </div>
+
+            <div class="mt-3">
               <label class="block text-sm font-medium text-gray-700"
-                >Público objetivo</label
+                >Carreras / Áreas</label
               >
-              <div class="flex items-center gap-4 mt-2">
-                <label class="inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    x-model="currentActivity.target_audience_general"
-                    class="form-checkbox"
-                  />
-                  <span class="ml-2 text-sm text-gray-700"
-                    >Público en general</span
-                  >
-                </label>
-              </div>
-
-              <div class="mt-3">
-                <label class="block text-sm font-medium text-gray-700"
-                  >Carreras / Áreas</label
-                >
+              <template
+                x-if="(currentActivity.target_audience_careersList || []).length === 0"
+              >
+                <p class="text-sm text-gray-500 mt-1">
+                  No hay carreras agregadas.
+                </p>
+              </template>
+              <ul class="flex flex-wrap gap-2 mt-2">
                 <template
-                  x-if="(currentActivity.target_audience_careersList || []).length === 0"
+                  x-for="(c, idx) in (currentActivity.target_audience_careersList || [])"
+                  :key="idx"
                 >
-                  <p class="text-sm text-gray-500 mt-1">
-                    No hay carreras agregadas.
-                  </p>
-                </template>
-                <ul class="flex flex-wrap gap-2 mt-2">
-                  <template
-                    x-for="(c, idx) in (currentActivity.target_audience_careersList || [])"
-                    :key="idx"
+                  <li
+                    class="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-2"
                   >
-                    <li
-                      class="bg-gray-100 px-2 py-1 rounded text-sm flex items-center gap-2"
+                    <span x-text="c"></span>
+                    <button
+                      type="button"
+                      @click="currentActivity.target_audience_careersList.splice(idx,1)"
+                      class="text-red-500"
                     >
-                      <span x-text="c"></span>
-                      <button
-                        type="button"
-                        @click="currentActivity.target_audience_careersList.splice(idx,1)"
-                        class="text-red-500"
-                      >
-                        x
-                      </button>
-                    </li>
-                  </template>
-                </ul>
+                      x
+                    </button>
+                  </li>
+                </template>
+              </ul>
 
-                <div class="mt-2 flex gap-2">
-                  <input
-                    type="text"
-                    x-ref="newCareer"
-                    placeholder="Agregar carrera"
-                    class="p-2 border rounded flex-1"
-                  />
-                  <button
-                    type="button"
-                    @click="
+              <div class="mt-2 flex gap-2">
+                <input
+                  type="text"
+                  x-ref="newCareer"
+                  placeholder="Agregar carrera"
+                  class="p-2 border rounded flex-1"
+                />
+                <button
+                  type="button"
+                  @click="
                 const v = $refs.newCareer.value && $refs.newCareer.value.trim();
                 if(!v) return;
                 currentActivity.target_audience_careersList = currentActivity.target_audience_careersList || [];
                 currentActivity.target_audience_careersList.push(v);
                 $refs.newCareer.value='';
               "
-                    class="px-3 py-1 bg-indigo-600 text-white rounded"
+                  class="px-3 py-1 bg-indigo-600 text-white rounded"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+          <!-- Actividades relacionadas (enlaces salientes e entrantes) -->
+          <div class="mt-4">
+            <h4 class="text-sm font-medium text-gray-900">
+              Actividades relacionadas
+            </h4>
+            <p class="text-xs text-gray-500 mt-1">
+              Aquí puedes enlazar esta actividad hacia otra (cadena C → B → A).
+              Una actividad sólo puede enlazarse a UNA otra a la vez.
+            </p>
+
+            <div class="mt-3 space-y-2">
+              <!-- Enlaces salientes (esta actividad → otra) -->
+              <div>
+                <div class="text-xs text-gray-600">Enlaza a (saliente):</div>
+                <template x-if="relatedActivities && relatedActivities.length">
+                  <ul class="mt-2 space-y-1">
+                    <template x-for="ra in relatedActivities" :key="ra.id">
+                      <li
+                        class="flex items-center justify-between bg-gray-50 p-2 rounded"
+                      >
+                        <div
+                          class="text-sm text-gray-900"
+                          x-text="ra.name"
+                        ></div>
+                        <div class="flex items-center gap-2">
+                          <button
+                            type="button"
+                            @click.prevent="unlinkAndRefresh(ra.id)"
+                            class="text-sm text-red-600 hover:text-red-800"
+                          >
+                            Desenlazar
+                          </button>
+                        </div>
+                      </li>
+                    </template>
+                  </ul>
+                </template>
+                <template
+                  x-if="!relatedActivities || relatedActivities.length === 0"
+                >
+                  <div class="mt-2 text-sm text-gray-500">
+                    Esta actividad no enlaza a ninguna otra.
+                  </div>
+                </template>
+              </div>
+
+              <!-- Enlaces entrantes (otras → esta actividad) -->
+              <div>
+                <div class="text-xs text-gray-600">
+                  Enlazada por (entrante):
+                </div>
+                <template
+                  x-if="(activityRelations && activityRelations.length)"
+                >
+                  <ul class="mt-2 space-y-1">
+                    <template
+                      x-for="a in (activityRelations.filter(x => (x.related_activities || []).some(r => r.id === currentActivity.id)))"
+                      :key="a.id"
+                    >
+                      <li
+                        class="flex items-center justify-between bg-gray-50 p-2 rounded"
+                      >
+                        <div
+                          class="text-sm text-gray-900"
+                          x-text="a.name"
+                        ></div>
+                      </li>
+                    </template>
+                  </ul>
+                </template>
+              </div>
+
+              <!-- Selector para enlazar a otra actividad (solo disponibles en mismo evento y no ya enlazadas) -->
+              <div class="pt-2 border-t">
+                <label class="block text-xs text-gray-600"
+                  >Enlazar a otra actividad</label
+                >
+                <div class="mt-2 flex gap-2 items-center">
+                  <select
+                    x-model="selectedToLink"
+                    class="block w-full p-2 border rounded"
+                    :disabled="(relatedActivities && relatedActivities.length > 0)"
                   >
-                    Agregar
+                    <option value="">Seleccionar actividad...</option>
+                    <template x-for="a in getAvailableActivities()" :key="a.id">
+                      <option
+                        :value="a.id"
+                        x-text="a.name + ' — ' + (a.datesString || '')"
+                      ></option>
+                    </template>
+                  </select>
+                  <button
+                    type="button"
+                    @click.prevent="linkAndRefresh()"
+                    class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded disabled:opacity-50"
+                    :disabled="!selectedToLink || (relatedActivities && relatedActivities.length > 0)"
+                  >
+                    Enlazar
                   </button>
                 </div>
-              </div>
-            </div>
-            <!-- Actividades relacionadas (enlaces salientes e entrantes) -->
-            <div class="mt-4">
-              <h4 class="text-sm font-medium text-gray-900">Actividades relacionadas</h4>
-              <p class="text-xs text-gray-500 mt-1">Aquí puedes enlazar esta actividad hacia otra (cadena C → B → A). Una actividad sólo puede enlazarse a UNA otra a la vez.</p>
-
-              <div class="mt-3 space-y-2">
-                <!-- Enlaces salientes (esta actividad → otra) -->
-                <div>
-                  <div class="text-xs text-gray-600">Enlaza a (saliente):</div>
-                  <template x-if="relatedActivities && relatedActivities.length">
-                    <ul class="mt-2 space-y-1">
-                      <template x-for="ra in relatedActivities" :key="ra.id">
-                        <li class="flex items-center justify-between bg-gray-50 p-2 rounded">
-                          <div class="text-sm text-gray-900" x-text="ra.name"></div>
-                          <div class="flex items-center gap-2">
-                            <button type="button" @click.prevent="unlinkAndRefresh(ra.id)" class="text-sm text-red-600 hover:text-red-800">Desenlazar</button>
-                          </div>
-                        </li>
-                      </template>
-                    </ul>
+                <div class="mt-2 text-xs text-gray-500">
+                  <template
+                    x-if="relatedActivities && relatedActivities.length > 0"
+                  >
+                    <div>
+                      Esta actividad ya enlaza a otra. Elimina el enlace
+                      existente para enlazar a una distinta.
+                    </div>
                   </template>
-                  <template x-if="!relatedActivities || relatedActivities.length === 0">
-                    <div class="mt-2 text-sm text-gray-500">Esta actividad no enlaza a ninguna otra.</div>
+                  <template
+                    x-if="!(relatedActivities && relatedActivities.length > 0)"
+                  >
+                    <div>
+                      Selecciona sólo actividades del mismo evento. No se listan
+                      actividades que ya están enlazadas por otra.
+                    </div>
                   </template>
-                </div>
-
-                <!-- Enlaces entrantes (otras → esta actividad) -->
-                <div>
-                  <div class="text-xs text-gray-600">Enlazada por (entrante):</div>
-                  <template x-if="(activityRelations && activityRelations.length)">
-                    <ul class="mt-2 space-y-1">
-                      <template x-for="a in (activityRelations.filter(x => (x.related_activities || []).some(r => r.id === currentActivity.id)))" :key="a.id">
-                        <li class="flex items-center justify-between bg-gray-50 p-2 rounded">
-                          <div class="text-sm text-gray-900" x-text="a.name"></div>
-                        </li>
-                      </template>
-                    </ul>
-                  </template>
-                </div>
-
-                <!-- Selector para enlazar a otra actividad (solo disponibles en mismo evento y no ya enlazadas) -->
-                <div class="pt-2 border-t">
-                  <label class="block text-xs text-gray-600">Enlazar a otra actividad</label>
-                  <div class="mt-2 flex gap-2 items-center">
-                    <select x-model="selectedToLink" class="block w-full p-2 border rounded" :disabled="(relatedActivities && relatedActivities.length > 0)">
-                      <option value="">Seleccionar actividad...</option>
-                      <template x-for="a in getAvailableActivities()" :key="a.id">
-                        <option :value="a.id" x-text="a.name + ' — ' + (a.datesString || '')"></option>
-                      </template>
-                    </select>
-                    <button type="button" @click.prevent="linkAndRefresh()" class="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded disabled:opacity-50" :disabled="!selectedToLink || (relatedActivities && relatedActivities.length > 0)">Enlazar</button>
-                  </div>
-                  <div class="mt-2 text-xs text-gray-500">
-                    <template x-if="relatedActivities && relatedActivities.length > 0">
-                      <div>Esta actividad ya enlaza a otra. Elimina el enlace existente para enlazar a una distinta.</div>
-                    </template>
-                    <template x-if="!(relatedActivities && relatedActivities.length > 0)">
-                      <div>Selecciona sólo actividades del mismo evento. No se listan actividades que ya están enlazadas por otra.</div>
-                    </template>
-                  </div>
                 </div>
               </div>
             </div>
-          </fieldset>
+          </div>
+        </fieldset>
 
-          <!-- Acciones -->
-          <div class="flex gap-2 mt-4">
+        <!-- Acciones -->
+        <div class="flex gap-2 mt-4">
+          <button
+            type="submit"
+            :disabled="saving || !(currentActivity && currentActivity.event_id)"
+            class="flex-1 inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <template x-if="saving">
+              <span class="flex items-center">
+                <svg
+                  class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    class="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    stroke-width="4"
+                  ></circle>
+                  <path
+                    class="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Guardando...
+              </span>
+            </template>
+            <template x-if="!saving">
+              <span>Guardar</span>
+            </template>
+          </button>
+          <button
+            type="button"
+            @click="(editingActivity ? reloadCurrentActivity() : resetCurrentActivity()); showPanel=false"
+            class="flex-1 inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </aside>
+
+    <!-- Modal de Confirmación de Eliminación -->
+    <div
+      x-show="showDeleteModal"
+      x-cloak
+      class="fixed inset-0 z-50 overflow-y-auto"
+      aria-labelledby="modal-title"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+      >
+        <!-- Overlay -->
+        <div
+          x-show="showDeleteModal"
+          x-transition:enter="ease-out duration-300"
+          x-transition:enter-start="opacity-0"
+          x-transition:enter-end="opacity-100"
+          x-transition:leave="ease-in duration-200"
+          x-transition:leave-start="opacity-100"
+          x-transition:leave-end="opacity-0"
+          class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          @click="showDeleteModal = false"
+        ></div>
+
+        <!-- Contenido del modal -->
+        <div
+          x-show="showDeleteModal"
+          x-transition:enter="ease-out duration-300"
+          x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+          x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
+          x-transition:leave="ease-in duration-200"
+          x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+          x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+          class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+        >
+          <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div
+                class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"
+              >
+                <i class="ti ti-alert-triangle text-red-600"></i>
+              </div>
+              <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                <h3
+                  class="text-lg leading-6 font-medium text-gray-900"
+                  id="modal-title"
+                >
+                  Confirmar eliminación
+                </h3>
+                <div class="mt-2">
+                  <p class="text-sm text-gray-500">
+                    ¿Estás seguro de que quieres eliminar la actividad "<span
+                      x-text="activityToDelete?.name"
+                    ></span
+                    >"? Esta acción no se puede deshacer.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
             <button
-              type="submit"
-              :disabled="saving || !(currentActivity && currentActivity.event_id)"
-              class="flex-1 inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              @click="deleteActivity()"
+              :disabled="deleting"
+              class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <template x-if="saving">
+              <template x-if="deleting">
                 <span class="flex items-center">
                   <svg
                     class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
@@ -1335,131 +1774,20 @@
                       d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                     ></path>
                   </svg>
-                  Guardando...
+                  Eliminando...
                 </span>
               </template>
-              <template x-if="!saving">
-                <span>Guardar</span>
+              <template x-if="!deleting">
+                <span>Eliminar</span>
               </template>
             </button>
             <button
               type="button"
-              @click="(editingActivity ? reloadCurrentActivity() : resetCurrentActivity()); showPanel=false"
-              class="flex-1 inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50"
+              @click="showDeleteModal = false"
+              class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
             >
               Cancelar
             </button>
-          </div>
-        </form>
-      </aside>
-
-      <!-- Modal de Confirmación de Eliminación -->
-      <div
-        x-show="showDeleteModal"
-        x-cloak
-        class="fixed inset-0 z-50 overflow-y-auto"
-        aria-labelledby="modal-title"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div
-          class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
-        >
-          <!-- Overlay -->
-          <div
-            x-show="showDeleteModal"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0"
-            x-transition:enter-end="opacity-100"
-            x-transition:leave="ease-in duration-200"
-            x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0"
-            class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
-            @click="showDeleteModal = false"
-          ></div>
-
-          <!-- Contenido del modal -->
-          <div
-            x-show="showDeleteModal"
-            x-transition:enter="ease-out duration-300"
-            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-            x-transition:leave="ease-in duration-200"
-            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
-          >
-            <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-              <div class="sm:flex sm:items-start">
-                <div
-                  class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10"
-                >
-                  <i class="ti ti-alert-triangle text-red-600"></i>
-                </div>
-                <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                  <h3
-                    class="text-lg leading-6 font-medium text-gray-900"
-                    id="modal-title"
-                  >
-                    Confirmar eliminación
-                  </h3>
-                  <div class="mt-2">
-                    <p class="text-sm text-gray-500">
-                      ¿Estás seguro de que quieres eliminar la actividad "<span
-                        x-text="activityToDelete?.name"
-                      ></span
-                      >"? Esta acción no se puede deshacer.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div
-              class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"
-            >
-              <button
-                type="button"
-                @click="deleteActivity()"
-                :disabled="deleting"
-                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <template x-if="deleting">
-                  <span class="flex items-center">
-                    <svg
-                      class="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Eliminando...
-                  </span>
-                </template>
-                <template x-if="!deleting">
-                  <span>Eliminar</span>
-                </template>
-              </button>
-              <button
-                type="button"
-                @click="showDeleteModal = false"
-                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-              >
-                Cancelar
-              </button>
-            </div>
           </div>
         </div>
       </div>

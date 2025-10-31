@@ -1,14 +1,13 @@
 from app.models.registration import Registration
 from app.models.activity import Activity
-from datetime import datetime, time, timedelta
-from sqlalchemy import and_
+from datetime import datetime, timedelta
 from app import db
 
 
 def _get_daily_sessions(activity):
     """
     Genera una lista de tuplas (inicio, fin) para cada dia habil de una actividad.
-    Asume que la actividad va de start_datetime a end_datetime, 
+    Asume que la actividad va de start_datetime a end_datetime,
     y se repite diariamente entre esas fechas con un horario fijo.
     """
     if not activity.start_datetime or not activity.end_datetime:
@@ -44,12 +43,14 @@ def has_schedule_conflict(student_id, new_activity_id):
 
         # Obtener todas las actividades registradas del estudiante
         # Usar el query del modelo (Flask-SQLAlchemy) en lugar de db.session.query
-        registered_activities = Activity.query.join(
-            Registration
-        ).filter(
-            Registration.student_id == student_id,
-            Registration.status.in_(['Registrado', 'Confirmado'])
-        ).all()
+        registered_activities = (
+            Activity.query.join(Registration)
+            .filter(
+                Registration.student_id == student_id,
+                Registration.status.in_(["Registrado", "Confirmado"]),
+            )
+            .all()
+        )
 
         new_start = new_activity.start_datetime
         new_end = new_activity.end_datetime
@@ -59,13 +60,19 @@ def has_schedule_conflict(student_id, new_activity_id):
             existing_end = existing_activity.end_datetime
 
             # ✨ Manejar actividades multídias
-            if is_multi_day_activity(new_start, new_end) or is_multi_day_activity(existing_start, existing_end):
+            if is_multi_day_activity(new_start, new_end) or is_multi_day_activity(
+                existing_start, existing_end
+            ):
                 # Verificar solapamiento día por día
-                if check_multiday_overlap(new_start, new_end, existing_start, existing_end):
+                if check_multiday_overlap(
+                    new_start, new_end, existing_start, existing_end
+                ):
                     return True, f"Conflicto de horario con '{existing_activity.name}'"
             else:
                 # Verificación de solapamiento normal
-                if check_normal_overlap(new_start, new_end, existing_start, existing_end):
+                if check_normal_overlap(
+                    new_start, new_end, existing_start, existing_end
+                ):
                     return True, f"Conflicto de horario con '{existing_activity.name}'"
 
         return False, ""
@@ -117,7 +124,7 @@ def get_days_between(start_datetime, end_datetime):
     end_date = end_datetime.date()
 
     while current_date <= end_date:
-        days.append(current_date.strftime('%Y-%m-%d'))
+        days.append(current_date.strftime("%Y-%m-%d"))
         current_date += timedelta(days=1)
 
     return days
@@ -128,9 +135,9 @@ def get_daily_range(target_date_str, activity_start, activity_end):
     Obtiene el rango de horas para una actividad en un día específico.
     target_date_str: 'YYYY-MM-DD'
     """
-    from datetime import datetime, time, timedelta
+    from datetime import datetime, timedelta
 
-    target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
 
     # Use the activity's time-of-day for the given target date.
     start_time = activity_start.time()
@@ -165,12 +172,13 @@ def is_registration_allowed(activity_id):
     Retorna True si hay cupo, False si está lleno.
     """
     from app import db
+
     activity = db.session.get(Activity, activity_id)
     if not activity:
         raise ValueError("Actividad no encontrada")
 
     # Solo validar cupo para actividades que lo requieran (Conferencias, Talleres, Cursos)
-    if activity.activity_type not in ['Conferencia', 'Taller', 'Curso']:
+    if activity.activity_type not in ["Conferencia", "Taller", "Curso"]:
         return True  # Magistrales no requieren cupo
 
     if activity.max_capacity is None:
@@ -178,7 +186,7 @@ def is_registration_allowed(activity_id):
 
     # Contar preregistros confirmados
     current_registrations = Registration.query.filter_by(
-        activity_id=activity_id, status='Registrado'
+        activity_id=activity_id, status="Registrado"
     ).count()
 
     return current_registrations < activity.max_capacity
@@ -192,27 +200,31 @@ def create_registration_simple(student_id, activity_id):
     Útil para pruebas o entornos sin concurrencia alta.
     """
     from app import db
+
     try:
         # Validaciones básicas
         activity = db.session.get(Activity, activity_id)
         if not activity:
-            return False, 'Actividad no encontrada'
+            return False, "Actividad no encontrada"
 
         # Validar cupo si aplica
-        if activity.activity_type in ['Conferencia', 'Taller', 'Curso'] and activity.max_capacity is not None:
+        if (
+            activity.activity_type in ["Conferencia", "Taller", "Curso"]
+            and activity.max_capacity is not None
+        ):
             current_registrations = Registration.query.filter_by(
-                activity_id=activity_id, status='Registrado'
+                activity_id=activity_id, status="Registrado"
             ).count()
             if current_registrations >= activity.max_capacity:
-                return False, 'Cupo lleno para esta actividad.'
+                return False, "Cupo lleno para esta actividad."
 
         # Verificar registro existente
         existing = Registration.query.filter_by(
             student_id=student_id, activity_id=activity_id
         ).first()
         if existing:
-            if existing.status == 'Cancelado':
-                existing.status = 'Registrado'
+            if existing.status == "Cancelado":
+                existing.status = "Registrado"
                 existing.registration_date = db.func.now()
                 existing.confirmation_date = None
                 existing.attended = False
@@ -220,13 +232,13 @@ def create_registration_simple(student_id, activity_id):
                 db.session.commit()
                 return True, existing
             else:
-                return False, 'Ya existe un preregistro para esta actividad'
+                return False, "Ya existe un preregistro para esta actividad"
 
         # Crear nuevo preregistro y commitear inmediatamente
         reg = Registration()
         reg.student_id = student_id
         reg.activity_id = activity_id
-        reg.status = 'Registrado'
+        reg.status = "Registrado"
         db.session.add(reg)
         db.session.commit()
         return True, reg
@@ -256,6 +268,7 @@ def create_registration_atomic(student_id, activity_id):
     SQLAlchemy y transacciones.
     """
     from app import db
+
     try:
         # Abrir transacción
         with db.session.begin_nested():
@@ -266,12 +279,13 @@ def create_registration_atomic(student_id, activity_id):
             try:
                 bind = session.get_bind()
             except Exception:
-                bind = getattr(session, 'bind', None)
+                bind = getattr(session, "bind", None)
 
             if bind is None:
                 # Fallback al engine global (por ejemplo en tests o contextos especiales)
                 from app import db as _db
-                bind = getattr(_db, 'engine', None)
+
+                bind = getattr(_db, "engine", None)
 
             dialect_name = None
             try:
@@ -279,20 +293,21 @@ def create_registration_atomic(student_id, activity_id):
             except Exception:
                 dialect_name = None
 
-            if dialect_name in ('postgresql', 'mysql'):
+            if dialect_name in ("postgresql", "mysql"):
                 # Usar FOR UPDATE para evitar race conditions
                 activity = session.execute(
-                    db.select(Activity).where(Activity.id ==
-                                              activity_id).with_for_update()
+                    db.select(Activity)
+                    .where(Activity.id == activity_id)
+                    .with_for_update()
                 ).scalar_one_or_none()
             else:
                 # Para SQLite y otros, caer al get normal
                 activity = session.get(Activity, activity_id)
 
             if not activity:
-                return False, 'Actividad no encontrada'
+                return False, "Actividad no encontrada"
 
-            if activity.activity_type not in ['Conferencia', 'Taller', 'Curso']:
+            if activity.activity_type not in ["Conferencia", "Taller", "Curso"]:
                 # No aplica cupo
                 pass
 
@@ -301,21 +316,25 @@ def create_registration_atomic(student_id, activity_id):
                 pass
             else:
                 # Recalcular cantidad de preregistros actuales dentro de la transacción
-                current_registrations = session.query(Registration).filter_by(
-                    activity_id=activity_id, status='Registrado'
-                ).count()
+                current_registrations = (
+                    session.query(Registration)
+                    .filter_by(activity_id=activity_id, status="Registrado")
+                    .count()
+                )
 
                 if current_registrations >= activity.max_capacity:
-                    return False, 'Cupo lleno para esta actividad.'
+                    return False, "Cupo lleno para esta actividad."
 
             # Verificar si el estudiante ya tiene un registro (UniqueConstraint protege, pero mejor chequear)
-            existing = session.query(Registration).filter_by(
-                student_id=student_id, activity_id=activity_id
-            ).first()
+            existing = (
+                session.query(Registration)
+                .filter_by(student_id=student_id, activity_id=activity_id)
+                .first()
+            )
             if existing:
                 # Si existe y está cancelado, reactivar
-                if existing.status == 'Cancelado':
-                    existing.status = 'Registrado'
+                if existing.status == "Cancelado":
+                    existing.status = "Registrado"
                     existing.registration_date = db.func.now()
                     existing.confirmation_date = None
                     existing.attended = False
@@ -323,13 +342,13 @@ def create_registration_atomic(student_id, activity_id):
                     session.commit()
                     return True, existing
                 else:
-                    return False, 'Ya existe un preregistro para esta actividad'
+                    return False, "Ya existe un preregistro para esta actividad"
 
             # Crear nuevo preregistro
             reg = Registration()
             reg.student_id = student_id
             reg.activity_id = activity_id
-            reg.status = 'Registrado'
+            reg.status = "Registrado"
             session.add(reg)
             # Commit de la transacción
         # Si llegamos aquí, commit automático del context manager

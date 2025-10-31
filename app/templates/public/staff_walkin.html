@@ -176,7 +176,7 @@
               this.$refs &&
               this.$refs.ctrl &&
               this.$refs.ctrl.focus &&
-              this.$refs.ctrl.focus()
+              this.$refs.ctrl.focus(),
           );
       },
 
@@ -200,7 +200,7 @@
           // First: try local students search (same approach used in registrations_public.js)
           try {
             const local = await fetch(
-              `/api/students/?search=${encodeURIComponent(num)}&per_page=1`
+              `/api/students/?search=${encodeURIComponent(num)}&per_page=1`,
             );
             if (local && local.ok) {
               const j = await local.json().catch(() => ({}));
@@ -208,7 +208,7 @@
               const exact =
                 (students.find &&
                   students.find(
-                    (s) => String(s.control_number) === String(num)
+                    (s) => String(s.control_number) === String(num),
                   )) ||
                 null;
               if (exact) {
@@ -228,7 +228,7 @@
           // Not found locally -> try external proxy used by the public registrations UI
           try {
             const ext = await fetch(
-              `/api/students/validate?control_number=${encodeURIComponent(num)}`
+              `/api/students/validate?control_number=${encodeURIComponent(num)}`,
             );
             if (ext && ext.ok) {
               const j = await ext.json().catch(() => ({}));
@@ -284,7 +284,7 @@
           qs.set("q", num);
           qs.set("per_page", "1");
           const resp = await fetch(
-            `/api/public/registrations?${qs.toString()}`
+            `/api/public/registrations?${qs.toString()}`,
           );
           if (resp && resp.ok) {
             const j = await resp.json().catch(() => ({}));
@@ -380,7 +380,7 @@
               !confirm(
                 "Confirmar asistencia para " +
                   (this.student.full_name || this.controlNumber) +
-                  "?"
+                  "?",
               )
             )
               return;
@@ -418,7 +418,7 @@
               !confirm(
                 "Confirmar asistencia para " +
                   (this.student.full_name || this.controlNumber) +
-                  "?"
+                  "?",
               )
             )
               return;
@@ -433,7 +433,7 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
-              }
+              },
             );
             const body = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -460,7 +460,7 @@
               !confirm(
                 "¿Desea marcar como AUSENTE a " +
                   (this.student.full_name || this.controlNumber) +
-                  "? Esta acción se registrará como Ausente."
+                  "? Esta acción se registrará como Ausente.",
               )
             )
               return;
@@ -476,7 +476,7 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
-              }
+              },
             );
             const body = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -503,7 +503,7 @@
               !confirm(
                 "¿Desea eliminar la asistencia registrada para " +
                   (this.student.full_name || this.controlNumber) +
-                  "?"
+                  "?",
               )
             )
               return;
@@ -514,7 +514,7 @@
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
-              }
+              },
             );
             const body = await res.json().catch(() => ({}));
             if (res.ok) {
@@ -548,7 +548,7 @@
           !confirm(
             "Confirmar asistencia para " +
               (this.student.full_name || this.controlNumber) +
-              "?"
+              "?",
           )
         )
           return;
@@ -582,7 +582,7 @@
                   this.$refs &&
                   this.$refs.ctrl &&
                   this.$refs.ctrl.focus &&
-                  this.$refs.ctrl.focus()
+                  this.$refs.ctrl.focus(),
               );
           } else {
             this.message = body.message || "Error al registrar";
@@ -611,7 +611,7 @@
               this.$refs &&
               this.$refs.ctrl &&
               this.$refs.ctrl.focus &&
-              this.$refs.ctrl.focus()
+              this.$refs.ctrl.focus(),
           );
       },
     };

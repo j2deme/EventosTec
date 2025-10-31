@@ -32,7 +32,7 @@ function studentHistoryManager() {
           "[studentHistoryManager] init studentId=",
           this.studentId,
           "attempts=",
-          this._initAttempts
+          this._initAttempts,
         );
 
       if (this.studentId) {
@@ -60,7 +60,7 @@ function studentHistoryManager() {
       console.debug &&
         console.debug(
           "[studentHistoryManager] loadHistory called for studentId=",
-          this.studentId
+          this.studentId,
         );
 
       try {
@@ -68,7 +68,7 @@ function studentHistoryManager() {
           `/api/students/${this.studentId}/hours-by-event`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -102,7 +102,7 @@ function studentHistoryManager() {
           `/api/students/${this.studentId}/event/${eventData.event_id}/details`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {

@@ -69,7 +69,7 @@ function eventsManager() {
         const response = await f(`/api/events?${params.toString()}`);
         if (!response || !response.ok) {
           throw new Error(
-            `Error al cargar eventos: ${response && response.status}`
+            `Error al cargar eventos: ${response && response.status}`,
           );
         }
 
@@ -134,7 +134,7 @@ function eventsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al crear evento: ${response.status} ${response.statusText}`
+              `Error al crear evento: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -150,7 +150,7 @@ function eventsManager() {
               action: "create",
               eventId: newEvent.id,
             },
-          })
+          }),
         );
 
         showToast("Evento creado exitosamente", "success");
@@ -194,7 +194,7 @@ function eventsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al actualizar evento: ${response.status} ${response.statusText}`
+              `Error al actualizar evento: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -210,7 +210,7 @@ function eventsManager() {
               action: "update",
               eventId: updatedEvent.id,
             },
-          })
+          }),
         );
 
         showToast("Evento actualizado exitosamente", "success");
@@ -246,7 +246,7 @@ function eventsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al eliminar evento: ${response.status} ${response.statusText}`
+              `Error al eliminar evento: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -261,7 +261,7 @@ function eventsManager() {
               action: "delete",
               eventId: eventId,
             },
-          })
+          }),
         );
 
         showToast("Evento eliminado exitosamente", "success");

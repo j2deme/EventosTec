@@ -119,7 +119,7 @@ function activityEditorManager() {
         const response = await f(`/api/activities/${id}`);
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar actividad: ${response && response.status}`
+            `Error al cargar actividad: ${response && response.status}`,
           );
         const data = await response.json();
         const act = data.activity || data;
@@ -128,7 +128,7 @@ function activityEditorManager() {
         if (act.target_audience) {
           mapped.target_audience_general = !!act.target_audience.general;
           mapped.target_audience_careersList = Array.isArray(
-            act.target_audience.careers
+            act.target_audience.careers,
           )
             ? act.target_audience.careers
             : [];
@@ -164,7 +164,7 @@ function activityEditorManager() {
         const response = await f("/api/events/");
         if (!response || !response.ok)
           throw new Error(
-            `Error al cargar eventos: ${response && response.status}`
+            `Error al cargar eventos: ${response && response.status}`,
           );
         const data = await response.json();
         this.events = Array.isArray(data) ? data : data.events || [];
@@ -234,7 +234,7 @@ function activityEditorManager() {
           target_audience: {
             general: !!this.currentActivity.target_audience_general,
             careers: Array.isArray(
-              this.currentActivity.target_audience_careersList
+              this.currentActivity.target_audience_careersList,
             )
               ? this.currentActivity.target_audience_careersList
               : [],
@@ -263,21 +263,21 @@ function activityEditorManager() {
             : Promise.resolve({}));
           throw new Error(
             err.message ||
-              `Error al guardar actividad: ${response && response.status}`
+              `Error al guardar actividad: ${response && response.status}`,
           );
         }
 
         const saved = await response.json();
         showToast(
           this.editingActivity ? "Actividad actualizada" : "Actividad creada",
-          "success"
+          "success",
         );
 
         // Notificar a otros managers que refresquen
         window.dispatchEvent(
           new CustomEvent("activity-saved", {
             detail: { id: saved.id || saved.activity?.id },
-          })
+          }),
         );
 
         // Cerrar editor

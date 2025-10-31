@@ -60,7 +60,7 @@
         d.getMonth() + 1
       }/${d.getFullYear()} ${d.getHours()}:${String(d.getMinutes()).padStart(
         2,
-        "0"
+        "0",
       )}`;
     }
   }

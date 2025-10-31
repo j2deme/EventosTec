@@ -6,7 +6,7 @@
 // per-suite if they need custom responses.
 if (typeof global.fetch !== "function") {
   global.fetch = jest.fn(() =>
-    Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
+    Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
   );
 }
 

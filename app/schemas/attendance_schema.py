@@ -18,10 +18,12 @@ class AttendanceSchema(ma.SQLAlchemyAutoSchema):
     pause_time = fields.DateTime(load_default=None)
     resume_time = fields.DateTime(load_default=None)
     attendance_percentage = fields.Float(
-        load_default=0.0, validate=validate.Range(min=0, max=100))
-    status = fields.Str(load_default='Ausente', validate=validate.OneOf([
-        'Asistió', 'Parcial', 'Ausente'
-    ]))
+        load_default=0.0, validate=validate.Range(min=0, max=100)
+    )
+    status = fields.Str(
+        load_default="Ausente",
+        validate=validate.OneOf(["Asistió", "Parcial", "Ausente"]),
+    )
 
     # Campos de solo lectura
     id = fields.Int(dump_only=True)
@@ -30,10 +32,11 @@ class AttendanceSchema(ma.SQLAlchemyAutoSchema):
 
     @validates_schema
     def validate_times(self, data, **kwargs):
-        if data.get('check_in_time') and data.get('check_out_time'):
-            if data['check_in_time'] > data['check_out_time']:
+        if data.get("check_in_time") and data.get("check_out_time"):
+            if data["check_in_time"] > data["check_out_time"]:
                 raise ValidationError(
-                    'La hora de entrada debe ser anterior a la hora de salida.')
+                    "La hora de entrada debe ser anterior a la hora de salida."
+                )
 
 
 attendance_schema = AttendanceSchema()

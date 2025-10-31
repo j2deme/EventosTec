@@ -23,10 +23,9 @@ def parse_datetime_with_timezone(dt_string):
             dt = datetime.fromisoformat(dt_string)
         except Exception:
             try:
-                dt = datetime.strptime(dt_string, '%Y-%m-%d %H:%M:%S')
+                dt = datetime.strptime(dt_string, "%Y-%m-%d %H:%M:%S")
             except Exception:
-                raise ValidationError(
-                    f"Formato de fecha inválido: {dt_string}")
+                raise ValidationError(f"Formato de fecha inválido: {dt_string}")
 
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
@@ -36,7 +35,7 @@ def parse_datetime_with_timezone(dt_string):
     raise ValidationError(f"Valor de fecha no reconocido: {dt_string}")
 
 
-def localize_naive_datetime(dt, app_timezone='America/Mexico_City'):
+def localize_naive_datetime(dt, app_timezone="America/Mexico_City"):
     """
     Localiza un datetime naive al timezone de la aplicación y lo convierte a UTC.
 
@@ -61,11 +60,13 @@ def localize_naive_datetime(dt, app_timezone='America/Mexico_City'):
     # Si es naive, localizarlo al timezone de la app
     try:
         import zoneinfo
+
         tz = zoneinfo.ZoneInfo(app_timezone)
     except (ImportError, Exception):
         # Fallback: usar pytz si zoneinfo no está disponible (Python < 3.9)
         try:
             import pytz
+
             tz = pytz.timezone(app_timezone)
             localized = tz.localize(dt)
             return localized.astimezone(timezone.utc)
@@ -94,18 +95,17 @@ def safe_iso(dt):
     try:
         app_tz = None
         try:
-            app_tz = current_app.config.get(
-                'APP_TIMEZONE', 'America/Mexico_City')
+            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
         except Exception:
-            app_tz = 'America/Mexico_City'
+            app_tz = "America/Mexico_City"
 
         # python datetime
         if isinstance(dt, datetime):
             if dt.tzinfo is None:
-                l = localize_naive_datetime(dt, app_tz)
-                if l is None:
+                localized_dt = localize_naive_datetime(dt, app_tz)
+                if localized_dt is None:
                     return None
-                return l.isoformat()
+                return localized_dt.isoformat()
             return dt.astimezone(timezone.utc).isoformat()
 
         # attempt to parse ISO-like strings
@@ -126,7 +126,7 @@ def safe_iso(dt):
 
         # Fallback: try to call isoformat if present
         try:
-            if hasattr(dt, 'isoformat') and callable(dt.isoformat):
+            if hasattr(dt, "isoformat") and callable(dt.isoformat):
                 return dt.isoformat()
         except Exception:
             pass

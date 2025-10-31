@@ -39,7 +39,7 @@ function studentRegistrationsManager() {
       // Listen for a custom event within same tab
       window.addEventListener(
         "registration-created",
-        this._onRegistrationCreated
+        this._onRegistrationCreated,
       );
 
       // Listen for storage events from other tabs
@@ -67,7 +67,7 @@ function studentRegistrationsManager() {
         try {
           window.removeEventListener(
             "registration-created",
-            this._onRegistrationCreated
+            this._onRegistrationCreated,
           );
           window.removeEventListener("storage", this._onStorage);
           if (this._bc) this._bc.close();
@@ -104,7 +104,7 @@ function studentRegistrationsManager() {
           `/api/registrations?${params.toString()}`,
           {
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -113,7 +113,7 @@ function studentRegistrationsManager() {
             return;
           }
           throw new Error(
-            `Error al cargar preregistros: ${response.status} ${response.statusText}`
+            `Error al cargar preregistros: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -122,15 +122,15 @@ function studentRegistrationsManager() {
         this.registrations = data.registrations.map((registration) => ({
           ...registration,
           registration_date: this.formatDateTimeForInput(
-            registration.registration_date
+            registration.registration_date,
           ),
           activity: {
             ...registration.activity,
             start_datetime: this.formatDateTimeForInput(
-              registration.activity?.start_datetime
+              registration.activity?.start_datetime,
             ),
             end_datetime: this.formatDateTimeForInput(
-              registration.activity?.end_datetime
+              registration.activity?.end_datetime,
             ),
             total_days: this.getTotalDays(registration.activity),
             day_in_series: this.getDayInSeries(registration.activity),
@@ -196,7 +196,7 @@ function studentRegistrationsManager() {
           {
             method: "DELETE",
             headers: window.getAuthHeaders(),
-          }
+          },
         );
 
         if (!response.ok) {
@@ -207,7 +207,7 @@ function studentRegistrationsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al cancelar preregistro: ${response.status} ${response.statusText}`
+              `Error al cancelar preregistro: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -251,7 +251,7 @@ function studentRegistrationsManager() {
           const errorData = await response.json();
           throw new Error(
             errorData.message ||
-              `Error al volver a registrarse: ${response.status} ${response.statusText}`
+              `Error al volver a registrarse: ${response.status} ${response.statusText}`,
           );
         }
 
@@ -482,16 +482,16 @@ function studentRegistrationsManager() {
               // Normalize datetimes to input format if helper exists
               if (activity.start_datetime)
                 activity.start_datetime = this.formatDateTimeForInput(
-                  activity.start_datetime
+                  activity.start_datetime,
                 );
               if (activity.end_datetime)
                 activity.end_datetime = this.formatDateTimeForInput(
-                  activity.end_datetime
+                  activity.end_datetime,
                 );
               this.selectedActivity = Object.assign(
                 {},
                 this.selectedActivity || {},
-                activity
+                activity,
               );
             }
           } else if (resp.status === 401) {
@@ -499,7 +499,7 @@ function studentRegistrationsManager() {
           } else {
             console.warn(
               "No se pudieron cargar detalles de la actividad",
-              resp.status
+              resp.status,
             );
           }
         } catch (e) {
@@ -577,12 +577,12 @@ function studentRegistrationsManager() {
         const startDay = new Date(
           startDate.getFullYear(),
           startDate.getMonth(),
-          startDate.getDate()
+          startDate.getDate(),
         );
         const endDay = new Date(
           endDate.getFullYear(),
           endDate.getMonth(),
-          endDate.getDate()
+          endDate.getDate(),
         );
 
         return startDay.getTime() !== endDay.getTime();
@@ -600,12 +600,12 @@ function studentRegistrationsManager() {
         const startDay = new Date(
           startDate.getFullYear(),
           startDate.getMonth(),
-          startDate.getDate()
+          startDate.getDate(),
         );
         const endDay = new Date(
           endDate.getFullYear(),
           endDate.getMonth(),
-          endDate.getDate()
+          endDate.getDate(),
         );
         const timeDiff = endDay.getTime() - startDay.getTime();
         return Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
@@ -623,12 +623,12 @@ function studentRegistrationsManager() {
         const startDay = new Date(
           startDate.getFullYear(),
           startDate.getMonth(),
-          startDate.getDate()
+          startDate.getDate(),
         );
         const currentDay = new Date(
           currentDate.getFullYear(),
           currentDate.getMonth(),
-          currentDate.getDate()
+          currentDate.getDate(),
         );
         const timeDiff = currentDay.getTime() - startDay.getTime();
         return Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;

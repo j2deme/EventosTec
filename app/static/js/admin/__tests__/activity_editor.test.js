@@ -40,7 +40,7 @@ describe("activityEditorManager", () => {
 
       expect(addEventListenerSpy).toHaveBeenCalledWith(
         "open-activity-editor",
-        expect.any(Function)
+        expect.any(Function),
       );
     });
   });
@@ -118,12 +118,12 @@ describe("activityEditorManager", () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error loading activity in editor:",
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(mgr.errorMessage).toContain("Error al cargar actividad");
       expect(global.showToast).toHaveBeenCalledWith(
         expect.stringContaining("Error"),
-        "error"
+        "error",
       );
       expect(mgr.loading).toBe(false);
     });
@@ -200,7 +200,7 @@ describe("activityEditorManager", () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error loading events in editor:",
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(mgr.events).toEqual([]);
     });
@@ -237,7 +237,7 @@ describe("activityEditorManager", () => {
       expect(mgr.errorMessage).toContain("Selecciona un evento");
       expect(global.showToast).toHaveBeenCalledWith(
         expect.stringContaining("evento"),
-        "error"
+        "error",
       );
       expect(mockFetch).not.toHaveBeenCalled();
     });
@@ -279,16 +279,16 @@ describe("activityEditorManager", () => {
         expect.objectContaining({
           method: "POST",
           body: expect.any(String),
-        })
+        }),
       );
       expect(mgr.saving).toBe(false);
       expect(mgr.visible).toBe(false);
       expect(global.showToast).toHaveBeenCalledWith(
         "Actividad creada",
-        "success"
+        "success",
       );
       expect(dispatchEventSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "activity-saved" })
+        expect.objectContaining({ type: "activity-saved" }),
       );
     });
 
@@ -327,11 +327,11 @@ describe("activityEditorManager", () => {
         expect.objectContaining({
           method: "PUT",
           body: expect.any(String),
-        })
+        }),
       );
       expect(global.showToast).toHaveBeenCalledWith(
         "Actividad actualizada",
-        "success"
+        "success",
       );
     });
 
@@ -353,12 +353,12 @@ describe("activityEditorManager", () => {
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "Error saving activity:",
-        expect.any(Error)
+        expect.any(Error),
       );
       expect(mgr.errorMessage).toContain("Validation error");
       expect(global.showToast).toHaveBeenCalledWith(
         "Validation error",
-        "error"
+        "error",
       );
       expect(mgr.saving).toBe(false);
     });

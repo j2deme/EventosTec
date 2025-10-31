@@ -9,10 +9,8 @@ class StudentSchema(ma.SQLAlchemyAutoSchema):
         load_instance = False
 
     # Validaciones
-    control_number = fields.Str(
-        required=True, validate=validate.Length(min=1, max=20))
-    full_name = fields.Str(
-        required=True, validate=validate.Length(min=1, max=100))
+    control_number = fields.Str(required=True, validate=validate.Length(min=1, max=20))
+    full_name = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     career = fields.Str(load_default=None, validate=validate.Length(max=100))
     email = fields.Email(load_default=None, validate=validate.Length(max=100))
 
@@ -21,9 +19,8 @@ class StudentSchema(ma.SQLAlchemyAutoSchema):
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 
-    registrations = fields.Nested(
-        'RegistrationSchema', many=True, dump_only=True)
-    attendances = fields.Nested('AttendanceSchema', many=True, dump_only=True)
+    registrations = fields.Nested("RegistrationSchema", many=True, dump_only=True)
+    attendances = fields.Nested("AttendanceSchema", many=True, dump_only=True)
 
 
 student_schema = StudentSchema()

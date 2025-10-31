@@ -70,13 +70,13 @@ describe("eventsManager (consolidated)", () => {
       const comp = eventsManager();
       global.localStorage.setItem("authToken", "tok");
       global.fetch = jest.fn(() =>
-        Promise.resolve({ ok: false, status: 500, statusText: "err" })
+        Promise.resolve({ ok: false, status: 500, statusText: "err" }),
       );
       await comp.loadEvents();
       expect(comp.errorMessage).toMatch(/Error al cargar eventos/);
       expect(global.showToast).toHaveBeenCalledWith(
         "Error al cargar eventos",
-        "error"
+        "error",
       );
     });
 
@@ -85,7 +85,7 @@ describe("eventsManager (consolidated)", () => {
       global.localStorage.setItem("authToken", "tok");
       comp.currentEvent = { name: "X" };
       global.fetch = jest.fn(() =>
-        Promise.resolve({ ok: false, json: async () => ({ message: "bad" }) })
+        Promise.resolve({ ok: false, json: async () => ({ message: "bad" }) }),
       );
       await comp.createEvent();
       expect(comp.errorMessage).toBeTruthy();
@@ -139,9 +139,9 @@ describe("eventsManager (consolidated)", () => {
       // accept parameter order variations (page/per_page) and optional sort
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringMatching(
-          /\/api\/events.*(?:per_page=10.*page=1|page=1.*per_page=10)/
+          /\/api\/events.*(?:per_page=10.*page=1|page=1.*per_page=10)/,
         ),
-        expect.any(Object)
+        expect.any(Object),
       );
       expect(comp.events.length).toBeGreaterThan(0);
     });
@@ -155,10 +155,10 @@ describe("eventsManager (consolidated)", () => {
       await comp.deleteEvent();
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/events/99",
-        expect.objectContaining({ method: "DELETE" })
+        expect.objectContaining({ method: "DELETE" }),
       );
       expect(spy).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "event-deleted" })
+        expect.objectContaining({ type: "event-deleted" }),
       );
       spy.mockRestore();
     });

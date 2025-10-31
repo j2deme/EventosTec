@@ -44,7 +44,7 @@ function eventRegistrationsPublic() {
         if (initialActivityToken) {
           // Redirect to the public registrations page for the activity
           window.location.href = `/public/registrations/${encodeURIComponent(
-            initialActivityToken
+            initialActivityToken,
           )}`;
           return;
         }
@@ -134,7 +134,7 @@ function eventRegistrationsPublic() {
           activity_deadline_iso: a.activity_deadline_iso || null,
           // backend may provide either current_registrations or current_capacity
           current_registrations: Number(
-            a.current_registrations || a.current_capacity || 0
+            a.current_registrations || a.current_capacity || 0,
           ),
           // UI flags
           _loading_copy: false,
@@ -155,7 +155,7 @@ function eventRegistrationsPublic() {
                 } else {
                   // No mostrar horas, y quitar espacio antes de la abreviatura
                   act.dateDisplay = `${s.format("D")} - ${e.format(
-                    "D"
+                    "D",
                   )}/${s.format("MMM/YY")}`;
                 }
               } else if (act.start_datetime) {
@@ -228,7 +228,7 @@ function eventRegistrationsPublic() {
         // Ensure alphabetical order client-side as fallback
         try {
           this.activities.sort((x, y) =>
-            String(x.name || "").localeCompare(String(y.name || ""))
+            String(x.name || "").localeCompare(String(y.name || "")),
           );
         } catch (e) {
           // ignore
@@ -279,10 +279,10 @@ function eventRegistrationsPublic() {
           // Without an eventRef (token/id/slug) we must not generate slugs client-side.
           // The server is authoritative for slugs; instruct the user/admin to use the server-provided event link.
           console.error(
-            "Missing event token/id for generating public activity token"
+            "Missing event token/id for generating public activity token",
           );
           alert(
-            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento."
+            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento.",
           );
           return;
         }
@@ -292,7 +292,7 @@ function eventRegistrationsPublic() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ activity_id: this.selectedActivity.id }),
-          }
+          },
         );
         if (!resp) {
           alert("Error de red al generar el link");
@@ -308,7 +308,7 @@ function eventRegistrationsPublic() {
         if (j && j.activity_slug) {
           // Redirect using activity slug only (no query params)
           window.location.href = `/public/registrations/${encodeURIComponent(
-            j.activity_slug
+            j.activity_slug,
           )}`;
         } else {
           alert("Respuesta inválida del servidor");
@@ -333,10 +333,10 @@ function eventRegistrationsPublic() {
         if (!eventRef) {
           // Do not construct slugs in the client. Server must provide event slug or token.
           console.error(
-            "Missing event token/id for generating public activity token"
+            "Missing event token/id for generating public activity token",
           );
           alert(
-            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento."
+            "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor para este evento.",
           );
           a._loading_manage = false;
           return;
@@ -347,7 +347,7 @@ function eventRegistrationsPublic() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ activity_id: a.id }),
-          }
+          },
         );
         if (!resp) {
           alert("Error de red al generar el link");
@@ -369,7 +369,7 @@ function eventRegistrationsPublic() {
           } catch (e) {}
           // Redirect using activity slug only (no query params)
           window.location.href = `/public/registrations/${encodeURIComponent(
-            j.activity_slug
+            j.activity_slug,
           )}`;
         } else {
           alert("Respuesta inválida del servidor");
@@ -396,16 +396,16 @@ function eventRegistrationsPublic() {
         if (!eventRef) {
           // Do not generate slugs client-side. Inform user to use server-provided link.
           console.error(
-            "Missing event token/id for generating public activity token"
+            "Missing event token/id for generating public activity token",
           );
           if (typeof showToast === "function")
             showToast(
               "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor.",
-              "error"
+              "error",
             );
           else
             alert(
-              "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor."
+              "No se pudo generar el link público: token de evento ausente. Use el enlace proporcionado por el servidor.",
             );
           a._loading_copy = false;
           return;
@@ -416,7 +416,7 @@ function eventRegistrationsPublic() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ activity_id: a.id }),
-          }
+          },
         );
         if (!resp) {
           if (typeof showToast === "function")
@@ -524,11 +524,11 @@ function eventRegistrationsPublic() {
           if (typeof showToast === "function")
             showToast(
               "No se pudo generar el archivo: token de evento ausente. Use el enlace proporcionado por el servidor.",
-              "error"
+              "error",
             );
           else
             alert(
-              "No se pudo generar el archivo: token de evento ausente. Use el enlace proporcionado por el servidor."
+              "No se pudo generar el archivo: token de evento ausente. Use el enlace proporcionado por el servidor.",
             );
           a._loading_download = false;
           return;
@@ -567,7 +567,7 @@ function eventRegistrationsPublic() {
         const cd = resp.headers.get("Content-Disposition") || "";
         let filename = `${(a.name || "actividad").replace(
           /[^a-z0-9A-Z-_\.]/g,
-          "_"
+          "_",
         )}.xlsx`;
         const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
         if (m && m[1]) {

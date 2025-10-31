@@ -11,10 +11,10 @@ from app.models.event import Event
 from app.models.student import Student
 from sqlalchemy import func
 
-reports_bp = Blueprint('reports', __name__, url_prefix='/api/reports')
+reports_bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
 
-@reports_bp.route('/preregistrations_by_career', methods=['GET'])
+@reports_bp.route("/preregistrations_by_career", methods=["GET"])
 @jwt_required()
 @require_admin
 def preregistrations_by_career():
@@ -27,40 +27,45 @@ def preregistrations_by_career():
     Generation se deriva del `control_number` tomando los 2 o 4 primeros dígitos según formato.
     """
     try:
-        event_id = request.args.get('event_id', type=int)
-        activity_id = request.args.get('activity_id', type=int)
+        event_id = request.args.get("event_id", type=int)
+        activity_id = request.args.get("activity_id", type=int)
 
         query = db.session.query(
-            Student.career.label('career'),
-            func.substr(Student.control_number, 1, 4).label('generation'),
-            func.count(Registration.id).label('count')
+            Student.career.label("career"),
+            func.substr(Student.control_number, 1, 4).label("generation"),
+            func.count(Registration.id).label("count"),
         ).join(Registration, Registration.student_id == Student.id)
 
         if activity_id:
             query = query.filter(Registration.activity_id == activity_id)
         elif event_id:
-            query = query.join(Activity, Activity.id == Registration.activity_id).filter(
-                Activity.event_id == event_id)
+            query = query.join(
+                Activity, Activity.id == Registration.activity_id
+            ).filter(Activity.event_id == event_id)
 
-        query = query.group_by('career', 'generation')
+        query = query.group_by("career", "generation")
 
         results = query.all()
 
         data = []
         for row in results:
-            data.append({
-                'career': row.career or 'Sin Especificar',
-                'generation': (row.generation or '')[:4],
-                'count': int(row.count)
-            })
+            data.append(
+                {
+                    "career": row.career or "Sin Especificar",
+                    "generation": (row.generation or "")[:4],
+                    "count": int(row.count),
+                }
+            )
 
-        return jsonify({'data': data}), 200
+        return jsonify({"data": data}), 200
     except Exception as e:
-        return jsonify({'message': 'Error al generar estadísticas', 'error': str(e)}), 500
+        return jsonify(
+            {"message": "Error al generar estadísticas", "error": str(e)}
+        ), 500
 
 
 # Ruta HTML imprimible para lista de asistentes (admin)
-@reports_bp.route('/attendance_list', methods=['GET'])
+@reports_bp.route("/attendance_list", methods=["GET"])
 @jwt_required()
 @require_admin
 def attendance_list():
@@ -70,7 +75,7 @@ def attendance_list():
       - activity_id (required)
       - show_generation (bool, optional)
     """
-    activity_id = request.args.get('activity_id', type=int)
+    activity_id = request.args.get("activity_id", type=int)
     if not activity_id:
         return "activity_id es requerido", 400
 
@@ -81,8 +86,13 @@ def attendance_list():
     event = db.session.get(Event, activity.event_id)
 
     # Obtener preregistros ordenados por apellido/nombre (student.full_name)
-    regs = db.session.query(Registration).filter(
-        Registration.activity_id == activity_id).join(Student).order_by(Student.full_name).all()
+    regs = (
+        db.session.query(Registration)
+        .filter(Registration.activity_id == activity_id)
+        .join(Student)
+        .order_by(Student.full_name)
+        .all()
+    )
 
     students = []
     for r in regs:
@@ -90,38 +100,50 @@ def attendance_list():
         s = db.session.get(Student, r.student_id)
         if not s:
             continue
-        students.append({
-            'id': s.id,
-            'full_name': s.full_name,
-            'control_number': s.control_number,
-            'career': s.career,
-        })
+        students.append(
+            {
+                "id": s.id,
+                "full_name": s.full_name,
+                "control_number": s.control_number,
+                "career": s.career,
+            }
+        )
 
     # Determine if activity spans multiple days (localize DB datetimes first)
     multi_day = False
     try:
-        app_tz = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
+        app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
         start = activity.start_datetime
         end = activity.end_datetime
-        sdt = localize_naive_datetime(
-            start, app_tz) if start is not None else None
+        sdt = localize_naive_datetime(start, app_tz) if start is not None else None
         edt = localize_naive_datetime(end, app_tz) if end is not None else None
         if sdt and edt and sdt.date() != edt.date():
             multi_day = True
             # build list of dates inclusive
             delta = (edt.date() - sdt.date()).days
-            dates = [sdt.date() + timedelta(days=i)
-                     for i in range(delta + 1)]
+            dates = [sdt.date() + timedelta(days=i) for i in range(delta + 1)]
         else:
-            dates = [(sdt.date() if sdt is not None else (
-                edt.date() if edt is not None else None))]
+            dates = [
+                (
+                    sdt.date()
+                    if sdt is not None
+                    else (edt.date() if edt is not None else None)
+                )
+            ]
     except Exception:
         dates = []
 
-    return render_template('admin/reports/attendance_list.html', event=event, activity=activity, students=students, dates=dates, multi_day=multi_day)
+    return render_template(
+        "admin/reports/attendance_list.html",
+        event=event,
+        activity=activity,
+        students=students,
+        dates=dates,
+        multi_day=multi_day,
+    )
 
 
-@reports_bp.route('/participation_matrix', methods=['GET'])
+@reports_bp.route("/participation_matrix", methods=["GET"])
 @jwt_required()
 @require_admin
 def participation_matrix():
@@ -137,30 +159,32 @@ def participation_matrix():
     try:
         import re
 
-        event_id = request.args.get('event_id', type=int)
-        activity_id = request.args.get('activity_id', type=int)
+        event_id = request.args.get("event_id", type=int)
+        activity_id = request.args.get("activity_id", type=int)
 
         # Obtener los preregistros con datos relevantes
         q = db.session.query(Registration, Student).join(
-            Student, Registration.student_id == Student.id)
+            Student, Registration.student_id == Student.id
+        )
 
         if activity_id:
             q = q.filter(Registration.activity_id == activity_id)
         elif event_id:
             # join Activity to filter by event
             q = q.join(Activity, Activity.id == Registration.activity_id).filter(
-                Activity.event_id == event_id)
+                Activity.event_id == event_id
+            )
 
         rows = q.all()
 
         # Determinar la fecha de referencia para calcular semestre
         # Use timezone-aware UTC now as reference date and localize DB datetimes
         ref_date = datetime.now(timezone.utc)
-        app_tz = current_app.config.get('APP_TIMEZONE', 'America/Mexico_City')
+        app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
         if activity_id:
             try:
                 act = db.session.get(Activity, activity_id)
-                if act and getattr(act, 'start_datetime', None):
+                if act and getattr(act, "start_datetime", None):
                     rd = localize_naive_datetime(act.start_datetime, app_tz)
                     if rd is not None:
                         ref_date = rd
@@ -169,7 +193,7 @@ def participation_matrix():
         elif event_id:
             try:
                 ev = db.session.get(Event, event_id)
-                if ev and getattr(ev, 'start_date', None):
+                if ev and getattr(ev, "start_date", None):
                     rd = localize_naive_datetime(ev.start_date, app_tz)
                     if rd is not None:
                         ref_date = rd
@@ -185,28 +209,28 @@ def participation_matrix():
 
         for reg, student in rows:
             # Excluir estados no participativos
-            if getattr(reg, 'status', None) in ('Ausente', 'Cancelado'):
+            if getattr(reg, "status", None) in ("Ausente", "Cancelado"):
                 continue
 
-            career = (student.career or 'Sin Especificar')
-            cn = student.control_number or ''
+            career = student.career or "Sin Especificar"
+            cn = student.control_number or ""
             m = re.search(r"(\d{2})", cn)
-            gen = m.group(1) if m else ''
+            gen = m.group(1) if m else ""
 
             # Calcular semestre estimado a partir de la generación y la fecha de referencia
-            semester = ''
+            semester = ""
             if gen:
                 try:
                     gy = int(gen)
                     ingreso_year = 2000 + gy
-                    month = getattr(ref_date, 'month', datetime.utcnow().month)
+                    month = getattr(ref_date, "month", datetime.utcnow().month)
                     # Definimos: semestre 1 = Ago-Dic del año de ingreso; semestre 2 = Ene-Jun siguiente
                     event_sem_offset = 1 if 8 <= month <= 12 else 2
                     years_since = max(0, ref_date.year - ingreso_year)
                     sem_number = years_since * 2 + event_sem_offset
                     semester = str(sem_number)
                 except Exception:
-                    semester = ''
+                    semester = ""
 
             careers_set.add(career)
             generations_set.add(gen)
@@ -238,36 +262,38 @@ def participation_matrix():
                 matrix_semester[career][sem] = len(students_set)
                 semesters_set.add(sem)
 
-    # Ordenar generaciones numéricamente cuando sea posible
+        # Ordenar generaciones numéricamente cuando sea posible
         def gen_key(g):
             try:
                 return int(g)
             except Exception:
                 return 0
 
-        generations = sorted(
-            [g for g in generations_set if g != ''], key=gen_key)
-        if '' in generations_set:
-            generations.insert(0, '')
+        generations = sorted([g for g in generations_set if g != ""], key=gen_key)
+        if "" in generations_set:
+            generations.insert(0, "")
 
         careers = sorted(careers_set)
 
         # Ordenar semestres numéricamente
-        semesters = sorted(
-            [s for s in semesters_set if s != ''], key=lambda x: int(x))
+        semesters = sorted([s for s in semesters_set if s != ""], key=lambda x: int(x))
 
-        return jsonify({
-            'careers': careers,
-            'generations': generations,
-            'matrix': matrix,
-            'semesters': semesters,
-            'matrix_semester': matrix_semester
-        }), 200
+        return jsonify(
+            {
+                "careers": careers,
+                "generations": generations,
+                "matrix": matrix,
+                "semesters": semesters,
+                "matrix_semester": matrix_semester,
+            }
+        ), 200
     except Exception as e:
-        return jsonify({'message': 'Error al generar la matriz de participación', 'error': str(e)}), 500
+        return jsonify(
+            {"message": "Error al generar la matriz de participación", "error": str(e)}
+        ), 500
 
 
-@reports_bp.route('/activity_fill', methods=['GET'])
+@reports_bp.route("/activity_fill", methods=["GET"])
 @jwt_required()
 @require_admin
 def activity_fill():
@@ -279,31 +305,39 @@ def activity_fill():
       - include_unlimited (bool, optional)
     """
     try:
-        event_id = request.args.get('event_id', type=int)
-        activity_id = request.args.get('activity_id', type=int)
-        department = request.args.get('department', type=str)
-        include_unlimited = request.args.get(
-            'include_unlimited', '0') in ('1', 'true', 'True')
+        event_id = request.args.get("event_id", type=int)
+        activity_id = request.args.get("activity_id", type=int)
+        department = request.args.get("department", type=str)
+        include_unlimited = request.args.get("include_unlimited", "0") in (
+            "1",
+            "true",
+            "True",
+        )
 
         # Subquery: conteo de preregistros válidos por actividad
-        counts_q = db.session.query(
-            Registration.activity_id.label('aid'),
-            func.count(Registration.id).label('registered')
-        ).filter(~Registration.status.in_(['Ausente', 'Cancelado'])).group_by(Registration.activity_id).subquery()
+        counts_q = (
+            db.session.query(
+                Registration.activity_id.label("aid"),
+                func.count(Registration.id).label("registered"),
+            )
+            .filter(~Registration.status.in_(["Ausente", "Cancelado"]))
+            .group_by(Registration.activity_id)
+            .subquery()
+        )
 
         q = db.session.query(
-            Activity.id.label('id'),
-            Activity.name.label('name'),
-            Activity.modality.label('modality'),
-            Activity.event_id.label('event_id'),
-            func.coalesce(counts_q.c.registered, 0).label(
-                'current_registrations'),
-            Activity.max_capacity.label('capacity')
+            Activity.id.label("id"),
+            Activity.name.label("name"),
+            Activity.modality.label("modality"),
+            Activity.event_id.label("event_id"),
+            func.coalesce(counts_q.c.registered, 0).label("current_registrations"),
+            Activity.max_capacity.label("capacity"),
         ).outerjoin(counts_q, counts_q.c.aid == Activity.id)
 
         # join event for name
         q = q.outerjoin(Event, Event.id == Activity.event_id).add_columns(
-            Event.name.label('event_name'))
+            Event.name.label("event_name")
+        )
 
         if event_id:
             q = q.filter(Activity.event_id == event_id)
@@ -329,50 +363,54 @@ def activity_fill():
 
             if capacity is None:
                 percent = None
-                status = 'unlimited'
+                status = "unlimited"
             else:
                 try:
                     percent = round((current / float(capacity)) * 100.0, 1)
                 except Exception:
                     percent = 0.0
                 if current == 0:
-                    status = 'empty'
+                    status = "empty"
                 elif current >= capacity:
-                    status = 'full'
+                    status = "full"
                 else:
-                    status = 'available'
+                    status = "available"
 
             # Optionally filter out unlimited activities
             if capacity is None and not include_unlimited:
                 # skip
                 continue
 
-            results.append({
-                'id': aid,
-                'name': name,
-                'modality': modality,
-                'event_id': row.event_id,
-                'event_name': event_name,
-                'capacity': capacity,
-                'current_registrations': current,
-                'percent': percent,
-                'status': status
-            })
+            results.append(
+                {
+                    "id": aid,
+                    "name": name,
+                    "modality": modality,
+                    "event_id": row.event_id,
+                    "event_name": event_name,
+                    "capacity": capacity,
+                    "current_registrations": current,
+                    "percent": percent,
+                    "status": status,
+                }
+            )
 
         # Include applied filters in response for easier debugging in UI
         applied_filters = {
-            'event_id': event_id,
-            'activity_id': activity_id,
-            'department': department,
-            'department_normalized': dept_val if 'dept_val' in locals() else None,
+            "event_id": event_id,
+            "activity_id": activity_id,
+            "department": department,
+            "department_normalized": dept_val if "dept_val" in locals() else None,
         }
 
-        return jsonify({'activities': results, 'applied_filters': applied_filters}), 200
+        return jsonify({"activities": results, "applied_filters": applied_filters}), 200
     except Exception as e:
-        return jsonify({'message': 'Error generando reporte de llenado', 'error': str(e)}), 500
+        return jsonify(
+            {"message": "Error generando reporte de llenado", "error": str(e)}
+        ), 500
 
 
-@reports_bp.route('/event_registrations_txt', methods=['GET'])
+@reports_bp.route("/event_registrations_txt", methods=["GET"])
 @jwt_required()
 @require_admin
 def event_registrations_txt():
@@ -384,30 +422,33 @@ def event_registrations_txt():
     Se excluyen registros con status 'Ausente' o 'Cancelado'.
     """
     try:
-        event_id = request.args.get('event_id', type=int)
+        event_id = request.args.get("event_id", type=int)
         if not event_id:
-            return jsonify({'message': 'event_id es requerido'}), 400
+            return jsonify({"message": "event_id es requerido"}), 400
 
         event = db.session.get(Event, event_id)
         if not event:
-            return jsonify({'message': 'Evento no encontrado'}), 404
+            return jsonify({"message": "Evento no encontrado"}), 404
 
         # Consultar estudiantes únicos que tengan preregistros (excluyendo Ausente/Cancelado)
-        q = db.session.query(Student).join(
-            Registration, Registration.student_id == Student.id
-        ).join(
-            Activity, Activity.id == Registration.activity_id
-        ).filter(
-            Activity.event_id == event_id,
-            ~Registration.status.in_(['Ausente', 'Cancelado'])
-        ).distinct(Student.id).order_by(Student.full_name)
+        q = (
+            db.session.query(Student)
+            .join(Registration, Registration.student_id == Student.id)
+            .join(Activity, Activity.id == Registration.activity_id)
+            .filter(
+                Activity.event_id == event_id,
+                ~Registration.status.in_(["Ausente", "Cancelado"]),
+            )
+            .distinct(Student.id)
+            .order_by(Student.full_name)
+        )
 
         students = q.all()
 
         # Construir contenido de texto: una línea por estudiante con SOLO el número de control
         lines = []
         for s in students:
-            cn = (s.control_number or '').strip()
+            cn = (s.control_number or "").strip()
             if not cn:
                 # omitimos entradas sin número de control
                 continue
@@ -417,13 +458,12 @@ def event_registrations_txt():
 
         # Generar filename seguro
         # Use UTC-aware timestamp for filename
-        ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-        safe_event_name = (event.name or 'evento').replace(
-            ' ', '_').replace('/', '_')
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        safe_event_name = (event.name or "evento").replace(" ", "_").replace("/", "_")
         filename = f"{safe_event_name}_{ts}.txt"
 
-        resp = Response(content, mimetype='text/plain; charset=utf-8')
-        resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        resp = Response(content, mimetype="text/plain; charset=utf-8")
+        resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return resp
     except Exception as e:
-        return jsonify({'message': 'Error generando archivo', 'error': str(e)}), 500
+        return jsonify({"message": "Error generando archivo", "error": str(e)}), 500

@@ -1,49 +1,74 @@
 <!-- app/templates/admin/partials/header.html -->
 <div class="bg-white shadow sticky top-0 z-10">
-    <div class="px-4 py-4 flex justify-between items-center">
-        <div class="flex items-center">
-            <button @click="sidebarOpen = !sidebarOpen" class="md:hidden mr-3 text-gray-600">
-                <i class="ti ti-menu-2 text-xl"></i>
-                <span class="sr-only">Toggle sidebar</span>
-            </button>
-            <h1 class="text-xl font-bold text-gray-900 hidden md:block">Panel de Administrador</h1>
-        </div>
-        <div class="flex items-center space-x-4">
-            <div class="relative">
-                <button class="p-1 rounded-full text-gray-600 hover:text-gray-900 focus:outline-none">
-                    <i class="ti ti-bell text-xl"></i>
-                </button>
-                <span class="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-white bg-red-400"></span>
-            </div>
-            <div class="relative" x-data="{ dropdownOpen: false }">
-                <button @click="dropdownOpen = !dropdownOpen" 
-                        class="flex items-center text-sm rounded-full focus:outline-none">
-                    <div class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <span class="text-indigo-800 font-medium">A</span>
-                    </div>
-                </button>
-                
-                <div x-show="dropdownOpen" 
-                     @click.away="dropdownOpen = false"
-                     x-transition:enter="transition ease-out duration-100"
-                     x-transition:enter-start="transform opacity-0 scale-95"
-                     x-transition:enter-end="transform opacity-100 scale-100"
-                     x-transition:leave="transition ease-in duration-75"
-                     x-transition:leave-start="transform opacity-100 scale-100"
-                     x-transition:leave-end="transform opacity-0 scale-95"
-                     class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
-                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                        <i class="ti ti-user mr-2"></i>Perfil
-                    </a>
-                    <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                        <i class="ti ti-settings mr-2"></i>Ajustes
-                    </a>
-                    <div class="border-t border-gray-100"></div>
-                    <a href="#" @click.prevent="logout()" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
-                        <i class="ti ti-logout mr-2"></i>Cerrar Sesión
-                    </a>
-                </div>
-            </div>
-        </div>
+  <div class="px-4 py-4 flex justify-between items-center">
+    <div class="flex items-center">
+      <button
+        @click="sidebarOpen = !sidebarOpen"
+        class="md:hidden mr-3 text-gray-600"
+      >
+        <i class="ti ti-menu-2 text-xl"></i>
+        <span class="sr-only">Toggle sidebar</span>
+      </button>
+      <h1 class="text-xl font-bold text-gray-900 hidden md:block">
+        Panel de Administrador
+      </h1>
     </div>
+    <div class="flex items-center space-x-4">
+      <div class="relative">
+        <button
+          class="p-1 rounded-full text-gray-600 hover:text-gray-900 focus:outline-none"
+        >
+          <i class="ti ti-bell text-xl"></i>
+        </button>
+        <span
+          class="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-white bg-red-400"
+        ></span>
+      </div>
+      <div class="relative" x-data="{ dropdownOpen: false }">
+        <button
+          @click="dropdownOpen = !dropdownOpen"
+          class="flex items-center text-sm rounded-full focus:outline-none"
+        >
+          <div
+            class="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center"
+          >
+            <span class="text-indigo-800 font-medium">A</span>
+          </div>
+        </button>
+
+        <div
+          x-show="dropdownOpen"
+          @click.away="dropdownOpen = false"
+          x-transition:enter="transition ease-out duration-100"
+          x-transition:enter-start="transform opacity-0 scale-95"
+          x-transition:enter-end="transform opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-75"
+          x-transition:leave-start="transform opacity-100 scale-100"
+          x-transition:leave-end="transform opacity-0 scale-95"
+          class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none"
+        >
+          <a
+            href="#"
+            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            <i class="ti ti-user mr-2"></i>Perfil
+          </a>
+          <a
+            href="#"
+            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          >
+            <i class="ti ti-settings mr-2"></i>Ajustes
+          </a>
+          <div class="border-t border-gray-100"></div>
+          <a
+            href="#"
+            @click.prevent="logout()"
+            class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+          >
+            <i class="ti ti-logout mr-2"></i>Cerrar Sesión
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
