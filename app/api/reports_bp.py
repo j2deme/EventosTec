@@ -466,104 +466,160 @@ def event_registrations_txt():
         resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return resp
     except Exception as e:
-        return jsonify({'message': 'Error generando archivo', 'error': str(e)}), 500
+        return jsonify({"message": "Error generando archivo", "error": str(e)}), 500
 
 
-@reports_bp.route('/hours_compliance', methods=['GET'])
+@reports_bp.route("/hours_compliance", methods=["GET"])
 @jwt_required()
 @require_admin
 def hours_compliance():
     """Devuelve un reporte de cumplimiento de horas por estudiante en un evento.
-    
+
     Query params:
       - event_id (int, required): ID del evento
       - career (str, optional): Filtrar por carrera/programa educativo
       - search (str, optional): Buscar por número de control o nombre
       - min_hours (float, optional): Horas mínimas acumuladas (default: 0)
-    
+
     Retorna lista de estudiantes con horas acumuladas basadas en participaciones confirmadas.
     """
     try:
-        event_id = request.args.get('event_id', type=int)
+        event_id = request.args.get("event_id", type=int)
         if not event_id:
-            return jsonify({'message': 'event_id es requerido'}), 400
-        
+            return jsonify({"message": "event_id es requerido"}), 400
+
         event = db.session.get(Event, event_id)
         if not event:
-            return jsonify({'message': 'Evento no encontrado'}), 404
-        
-        career = request.args.get('career', type=str)
-        search = request.args.get('search', type=str)
-        min_hours = request.args.get('min_hours', type=float, default=0)
-        
-        # Consultar estudiantes con registros confirmados en el evento
-        # Status 'Confirmado' o 'Asistió' indican participación confirmada
-        query = db.session.query(
-            Student.id,
-            Student.control_number,
-            Student.full_name,
-            Student.career,
-            func.sum(Activity.duration_hours).label('total_hours')
-        ).join(
-            Registration, Registration.student_id == Student.id
-        ).join(
-            Activity, Activity.id == Registration.activity_id
-        ).filter(
-            Activity.event_id == event_id,
-            Registration.status.in_(['Confirmado', 'Asistió'])
-        )
-        
-        # Aplicar filtros opcionales
-        if career:
-            query = query.filter(Student.career == career)
-        
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                (Student.control_number.ilike(search_term)) |
-                (Student.full_name.ilike(search_term))
+            return jsonify({"message": "Evento no encontrado"}), 404
+
+        career = request.args.get("career", type=str)
+        search = request.args.get("search", type=str)
+        min_hours = request.args.get("min_hours", type=float, default=0)
+
+        # Construir listado de participaciones por actividad evitando doble conteo
+        # Queremos contar una actividad por estudiante si existe either:
+        # - un Registration con status Confirmado/Asistió, o
+        # - una Attendance con status 'Asistió'
+        # Para evitar duplicados cuando ambos existen, guardamos activity_ids ya contadas por estudiante.
+        from app.models.attendance import Attendance
+
+        # 1) Consultar participaciones desde Registration (por actividad)
+        reg_rows = (
+            db.session.query(
+                Student.id.label("sid"),
+                Student.control_number,
+                Student.full_name,
+                Student.career,
+                Activity.id.label("aid"),
+                Activity.duration_hours.label("dur"),
             )
-        
-        # Agrupar por estudiante y filtrar por horas mínimas
-        query = query.group_by(
-            Student.id, 
-            Student.control_number, 
-            Student.full_name, 
-            Student.career
-        ).having(func.sum(Activity.duration_hours) >= min_hours).order_by(
-            Student.full_name
+            .join(Registration, Registration.student_id == Student.id)
+            .join(Activity, Activity.id == Registration.activity_id)
+            .filter(
+                Activity.event_id == event_id,
+                Registration.status.in_(["Confirmado", "Asistió"]),
+            )
+            .all()
         )
-        
-        results = query.all()
-        
-        students = []
-        for row in results:
-            students.append({
-                'id': row.id,
-                'control_number': row.control_number,
-                'full_name': row.full_name,
-                'career': row.career or 'Sin especificar',
-                'total_hours': round(float(row.total_hours or 0), 2)
-            })
-        
-        return jsonify({
-            'students': students,
-            'event': {
-                'id': event.id,
-                'name': event.name
-            }
-        }), 200
+
+        # 2) Consultar participaciones desde Attendance (walk-ins)
+        att_rows = (
+            db.session.query(
+                Attendance.student_id.label("sid"),
+                Student.control_number,
+                Student.full_name,
+                Student.career,
+                Activity.id.label("aid"),
+                Activity.duration_hours.label("dur"),
+            )
+            .join(Activity, Activity.id == Attendance.activity_id)
+            .join(Student, Student.id == Attendance.student_id)
+            .filter(
+                Activity.event_id == event_id,
+                Attendance.status == "Asistió",
+            )
+            .all()
+        )
+
+        # Mapear por estudiante: { sid: { activities: Set[aids], total_hours: float, full data... } }
+        students_map = {}
+
+        def ensure_student(sid, control_number, full_name, career):
+            if sid not in students_map:
+                students_map[sid] = {
+                    "id": sid,
+                    "control_number": control_number,
+                    "full_name": full_name,
+                    "career": career or "Sin especificar",
+                    "activities": set(),
+                    "total_hours": 0.0,
+                }
+
+        # Procesar registros (preregistrados/confirmados)
+        for r in reg_rows:
+            sid = getattr(r, "sid", None)
+            aid = getattr(r, "aid", None)
+            dur = float(getattr(r, "dur", 0) or 0)
+            ensure_student(sid, r.control_number, r.full_name, r.career)
+            if aid is not None and aid not in students_map[sid]["activities"]:
+                students_map[sid]["activities"].add(aid)
+                students_map[sid]["total_hours"] += dur
+
+        # Procesar asistencias (walk-ins), solo agregar actividades no contabilizadas aún
+        for a in att_rows:
+            sid = getattr(a, "sid", None)
+            aid = getattr(a, "aid", None)
+            dur = float(getattr(a, "dur", 0) or 0)
+            ensure_student(sid, a.control_number, a.full_name, a.career)
+            if aid is not None and aid not in students_map[sid]["activities"]:
+                students_map[sid]["activities"].add(aid)
+                students_map[sid]["total_hours"] += dur
+
+        # Aplicar filtros de búsqueda y min_hours
+        students_list = []
+        for sid, info in students_map.items():
+            # Filtros por career
+            if career and info.get("career") != career:
+                continue
+            # Filtros por search (control_number o full_name)
+            if search:
+                st = search.lower()
+                if not (
+                    (info.get("control_number") or "").lower().find(st) >= 0
+                    or (info.get("full_name") or "").lower().find(st) >= 0
+                ):
+                    continue
+            total = round(float(info["total_hours"] or 0), 2)
+            if total >= (min_hours or 0):
+                students_list.append(
+                    {
+                        "id": info["id"],
+                        "control_number": info["control_number"],
+                        "full_name": info["full_name"],
+                        "career": info["career"],
+                        "total_hours": total,
+                    }
+                )
+
+        # Ordenar por nombre
+        students_list.sort(key=lambda x: (x.get("full_name") or ""))
+
+        students = students_list
+
+        return jsonify(
+            {"students": students, "event": {"id": event.id, "name": event.name}}
+        ), 200
     except Exception as e:
-        current_app.logger.error(f'Error generando reporte de horas: {str(e)}')
-        return jsonify({'message': 'Error generando reporte de horas'}), 500
+        current_app.logger.error(f"Error generando reporte de horas: {str(e)}")
+        return jsonify({"message": "Error generando reporte de horas"}), 500
 
 
-@reports_bp.route('/hours_compliance_excel', methods=['GET'])
+@reports_bp.route("/hours_compliance_excel", methods=["GET"])
 @jwt_required()
 @require_admin
 def hours_compliance_excel():
     """Genera archivo Excel con el reporte de cumplimiento de horas.
-    
+
     Query params: (mismos que /hours_compliance)
       - event_id (int, required)
       - career (str, optional)
@@ -573,179 +629,321 @@ def hours_compliance_excel():
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, Alignment
+
+        # Pylance static typing: import Worksheet to annotate wb.active
+        from openpyxl.worksheet.worksheet import Worksheet
+        from typing import cast
         import re
-        
-        event_id = request.args.get('event_id', type=int)
+
+        event_id = request.args.get("event_id", type=int)
         if not event_id:
-            return jsonify({'message': 'event_id es requerido'}), 400
-        
+            return jsonify({"message": "event_id es requerido"}), 400
+
         event = db.session.get(Event, event_id)
         if not event:
-            return jsonify({'message': 'Evento no encontrado'}), 404
-        
-        career = request.args.get('career', type=str)
-        search = request.args.get('search', type=str)
-        min_hours = request.args.get('min_hours', type=float, default=0)
-        
-        # Reutilizar la misma lógica de query
-        query = db.session.query(
-            Student.id,
-            Student.control_number,
-            Student.full_name,
-            Student.career,
-            func.sum(Activity.duration_hours).label('total_hours')
-        ).join(
-            Registration, Registration.student_id == Student.id
-        ).join(
-            Activity, Activity.id == Registration.activity_id
-        ).filter(
-            Activity.event_id == event_id,
-            Registration.status.in_(['Confirmado', 'Asistió'])
-        )
-        
-        if career:
-            query = query.filter(Student.career == career)
-        
-        if search:
-            search_term = f"%{search}%"
-            query = query.filter(
-                (Student.control_number.ilike(search_term)) |
-                (Student.full_name.ilike(search_term))
+            return jsonify({"message": "Evento no encontrado"}), 404
+
+        career = request.args.get("career", type=str)
+        search = request.args.get("search", type=str)
+        min_hours = request.args.get("min_hours", type=float, default=0)
+
+        # Construir el agregado combinando Registrations y Attendances (walk-ins)
+        # para evitar doble conteo por actividad por estudiante.
+        from app.models.attendance import Attendance
+
+        # 1) Consultar participaciones desde Registration (por actividad)
+        reg_rows = (
+            db.session.query(
+                Student.id.label("sid"),
+                Student.control_number,
+                Student.full_name,
+                Student.career,
+                Activity.id.label("aid"),
+                Activity.duration_hours.label("dur"),
             )
-        
-        query = query.group_by(
-            Student.id,
-            Student.control_number,
-            Student.full_name,
-            Student.career
-        ).having(func.sum(Activity.duration_hours) >= min_hours).order_by(
-            Student.full_name
+            .join(Registration, Registration.student_id == Student.id)
+            .join(Activity, Activity.id == Registration.activity_id)
+            .filter(
+                Activity.event_id == event_id,
+                Registration.status.in_(["Confirmado", "Asistió"]),
+            )
+            .all()
         )
-        
-        results = query.all()
-        
+
+        # 2) Consultar participaciones desde Attendance (walk-ins)
+        att_rows = (
+            db.session.query(
+                Attendance.student_id.label("sid"),
+                Student.control_number,
+                Student.full_name,
+                Student.career,
+                Activity.id.label("aid"),
+                Activity.duration_hours.label("dur"),
+            )
+            .join(Activity, Activity.id == Attendance.activity_id)
+            .join(Student, Student.id == Attendance.student_id)
+            .filter(
+                Activity.event_id == event_id,
+                Attendance.status == "Asistió",
+            )
+            .all()
+        )
+
+        # Mapear por estudiante: { sid: { activities: Set[aids], total_hours: float, control_number, full_name, career } }
+        students_map = {}
+
+        def ensure_student(sid, control_number, full_name, career):
+            if sid not in students_map:
+                students_map[sid] = {
+                    "id": sid,
+                    "control_number": control_number,
+                    "full_name": full_name,
+                    "career": career or "Sin especificar",
+                    "activities": set(),
+                    "total_hours": 0.0,
+                }
+
+        for r in reg_rows:
+            sid = getattr(r, "sid", None)
+            aid = getattr(r, "aid", None)
+            dur = float(getattr(r, "dur", 0) or 0)
+            ensure_student(sid, r.control_number, r.full_name, r.career)
+            if aid is not None and aid not in students_map[sid]["activities"]:
+                students_map[sid]["activities"].add(aid)
+                students_map[sid]["total_hours"] += dur
+
+        for a in att_rows:
+            sid = getattr(a, "sid", None)
+            aid = getattr(a, "aid", None)
+            dur = float(getattr(a, "dur", 0) or 0)
+            ensure_student(sid, a.control_number, a.full_name, a.career)
+            if aid is not None and aid not in students_map[sid]["activities"]:
+                students_map[sid]["activities"].add(aid)
+                students_map[sid]["total_hours"] += dur
+
+        # Aplicar filtros y construir resultados ordenados
+        results = []
+        for sid, info in students_map.items():
+            if career and info.get("career") != career:
+                continue
+            if search:
+                st = search.lower()
+                if not (
+                    (info.get("control_number") or "").lower().find(st) >= 0
+                    or (info.get("full_name") or "").lower().find(st) >= 0
+                ):
+                    continue
+            total = round(float(info["total_hours"] or 0), 2)
+            if total >= (min_hours or 0):
+                results.append(
+                    {
+                        "control_number": info["control_number"],
+                        "full_name": info["full_name"],
+                        "career": info["career"],
+                        "total_hours": total,
+                    }
+                )
+
+        # Ordenar por nombre
+        results.sort(key=lambda x: (x.get("full_name") or ""))
+
         # Crear workbook
         wb = Workbook()
-        ws = wb.active
+        # cast wb.active to Worksheet so static analyzer knows it's not None
+        ws = cast(Worksheet, wb.active)
         ws.title = "Cumplimiento de Horas"
-        
+
         # Encabezados
-        headers = ['ID', 'Número de Control', 'Nombre Completo', 'Carrera', 'Horas Acumuladas']
+        headers = [
+            "ID",
+            "Número de Control",
+            "Nombre Completo",
+            "Carrera",
+            "Horas Acumuladas",
+        ]
         ws.append(headers)
-        
+
         # Estilo para encabezados
         for cell in ws[1]:
             cell.font = Font(bold=True)
-            cell.alignment = Alignment(horizontal='center')
-        
+            cell.alignment = Alignment(horizontal="center")
+
         # Agregar datos
         for idx, row in enumerate(results, start=1):
-            ws.append([
-                idx,
-                row.control_number,
-                row.full_name,
-                row.career or 'Sin especificar',
-                round(float(row.total_hours or 0), 2)
-            ])
-        
+            ws.append(
+                [
+                    idx,
+                    row.get("control_number"),
+                    row.get("full_name"),
+                    row.get("career") or "Sin especificar",
+                    round(float(row.get("total_hours") or 0), 2),
+                ]
+            )
+
         # Ajustar ancho de columnas
-        ws.column_dimensions['A'].width = 8
-        ws.column_dimensions['B'].width = 18
-        ws.column_dimensions['C'].width = 35
-        ws.column_dimensions['D'].width = 30
-        ws.column_dimensions['E'].width = 18
-        
+        ws.column_dimensions["A"].width = 8
+        ws.column_dimensions["B"].width = 18
+        ws.column_dimensions["C"].width = 35
+        ws.column_dimensions["D"].width = 30
+        ws.column_dimensions["E"].width = 18
+
         # Generar filename con slug del evento y timestamp
-        ts = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         # Crear slug del nombre del evento
-        event_slug = re.sub(r'[^\w\s-]', '', event.name.lower())
-        event_slug = re.sub(r'[-\s]+', '-', event_slug).strip('-')
+        event_slug = re.sub(r"[^\w\s-]", "", event.name.lower())
+        event_slug = re.sub(r"[-\s]+", "-", event_slug).strip("-")
         filename = f"{event_slug}_{ts}.xlsx"
-        
+
         # Guardar en memoria
         from io import BytesIO
+
         output = BytesIO()
         wb.save(output)
         output.seek(0)
-        
+
         resp = Response(
             output.getvalue(),
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
-        resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return resp
     except Exception as e:
-        current_app.logger.error(f'Error generando archivo Excel: {str(e)}')
-        return jsonify({'message': 'Error generando archivo Excel'}), 500
+        current_app.logger.error(f"Error generando archivo Excel: {str(e)}")
+        return jsonify({"message": "Error generando archivo Excel"}), 500
 
 
-@reports_bp.route('/student_participations/<int:student_id>', methods=['GET'])
+@reports_bp.route("/student_participations/<int:student_id>", methods=["GET"])
 @jwt_required()
 @require_admin
 def student_participations(student_id):
     """Devuelve el detalle de participaciones confirmadas de un estudiante en un evento.
-    
+
     Path params:
       - student_id (int): ID del estudiante
-    
+
     Query params:
       - event_id (int, required): ID del evento
-    
+
     Retorna lista de actividades con participación confirmada, ordenadas cronológicamente.
     """
     try:
-        event_id = request.args.get('event_id', type=int)
+        event_id = request.args.get("event_id", type=int)
         if not event_id:
-            return jsonify({'message': 'event_id es requerido'}), 400
-        
+            return jsonify({"message": "event_id es requerido"}), 400
+
         student = db.session.get(Student, student_id)
         if not student:
-            return jsonify({'message': 'Estudiante no encontrado'}), 404
-        
-        # Consultar actividades con participación confirmada
-        query = db.session.query(
-            Activity.id,
-            Activity.name,
-            Activity.start_datetime,
-            Activity.end_datetime,
-            Activity.duration_hours,
-            Activity.activity_type,
-            Activity.location,
-            Registration.status,
-            Registration.confirmation_date
-        ).join(
-            Registration, Registration.activity_id == Activity.id
-        ).filter(
-            Activity.event_id == event_id,
-            Registration.student_id == student_id,
-            Registration.status.in_(['Confirmado', 'Asistió'])
-        ).order_by(Activity.start_datetime)
-        
-        results = query.all()
-        
-        participations = []
-        for row in results:
-            participations.append({
-                'id': row.id,
-                'name': row.name,
-                'start_datetime': row.start_datetime.isoformat() if row.start_datetime else None,
-                'end_datetime': row.end_datetime.isoformat() if row.end_datetime else None,
-                'duration_hours': float(row.duration_hours or 0),
-                'activity_type': row.activity_type,
-                'location': row.location,
-                'status': row.status,
-                'confirmation_date': row.confirmation_date.isoformat() if row.confirmation_date else None
-            })
-        
-        return jsonify({
-            'student': {
-                'id': student.id,
-                'control_number': student.control_number,
-                'full_name': student.full_name,
-                'career': student.career
-            },
-            'participations': participations
-        }), 200
+            return jsonify({"message": "Estudiante no encontrado"}), 404
+
+        # Consultar actividades con participación confirmada (Registration)
+        reg_q = (
+            db.session.query(
+                Activity.id,
+                Activity.name,
+                Activity.start_datetime,
+                Activity.end_datetime,
+                Activity.duration_hours,
+                Activity.activity_type,
+                Activity.location,
+                Registration.status,
+                Registration.confirmation_date,
+            )
+            .join(Registration, Registration.activity_id == Activity.id)
+            .filter(
+                Activity.event_id == event_id,
+                Registration.student_id == student_id,
+                Registration.status.in_(["Confirmado", "Asistió"]),
+            )
+        )
+
+        reg_results = reg_q.all()
+
+        # Consultar asistencias (walk-ins) desde Attendance
+        from app.models.attendance import Attendance
+
+        att_q = (
+            db.session.query(
+                Activity.id,
+                Activity.name,
+                Activity.start_datetime,
+                Activity.end_datetime,
+                Activity.duration_hours,
+                Activity.activity_type,
+                Activity.location,
+                Attendance.status,
+            )
+            .join(Attendance, Attendance.activity_id == Activity.id)
+            .filter(
+                Activity.event_id == event_id,
+                Attendance.student_id == student_id,
+                Attendance.status == "Asistió",
+            )
+        )
+
+        att_results = att_q.all()
+
+        # Unir ambos conjuntos evitando duplicados por actividad
+        parts_map = {}
+
+        for row in reg_results:
+            aid = getattr(row, "id", None)
+            parts_map[aid] = {
+                "id": aid,
+                "name": row.name,
+                "start_datetime": row.start_datetime.isoformat()
+                if row.start_datetime
+                else None,
+                "end_datetime": row.end_datetime.isoformat()
+                if row.end_datetime
+                else None,
+                "duration_hours": float(row.duration_hours or 0),
+                "activity_type": row.activity_type,
+                "location": row.location,
+                "status": row.status,
+                "confirmation_date": row.confirmation_date.isoformat()
+                if row.confirmation_date
+                else None,
+            }
+
+        for row in att_results:
+            aid = getattr(row, "id", None)
+            # si ya existe por preregistro, no sobreescribir (evita doble entrada)
+            if aid in parts_map:
+                continue
+            parts_map[aid] = {
+                "id": aid,
+                "name": row.name,
+                "start_datetime": row.start_datetime.isoformat()
+                if row.start_datetime
+                else None,
+                "end_datetime": row.end_datetime.isoformat()
+                if row.end_datetime
+                else None,
+                "duration_hours": float(row.duration_hours or 0),
+                "activity_type": row.activity_type,
+                "location": row.location,
+                # Attendance: usar status y no tenemos confirmation_date por defecto
+                "status": getattr(row, "status", "Asistió"),
+                "confirmation_date": None,
+            }
+
+        # Ordenar participaciones cronológicamente por start_datetime
+        participations = sorted(
+            list(parts_map.values()),
+            key=lambda x: x.get("start_datetime") or "",
+        )
+
+        return jsonify(
+            {
+                "student": {
+                    "id": student.id,
+                    "control_number": student.control_number,
+                    "full_name": student.full_name,
+                    "career": student.career,
+                },
+                "participations": participations,
+            }
+        ), 200
     except Exception as e:
-        current_app.logger.error(f'Error obteniendo participaciones: {str(e)}')
-        return jsonify({'message': 'Error obteniendo participaciones'}), 500
+        current_app.logger.error(f"Error obteniendo participaciones: {str(e)}")
+        return jsonify({"message": "Error obteniendo participaciones"}), 500

@@ -344,7 +344,7 @@ function reportsManager() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const res = await f(
-          `/api/reports/hours_compliance?${params.toString()}`
+          `/api/reports/hours_compliance?${params.toString()}`,
         );
         if (res && res.ok) {
           const d = await res.json();
@@ -353,7 +353,7 @@ function reportsManager() {
             window.showToast &&
               window.showToast(
                 "No se encontraron estudiantes con los filtros seleccionados",
-                "info"
+                "info",
               );
           }
         } else {
@@ -361,7 +361,7 @@ function reportsManager() {
           window.showToast &&
             window.showToast(
               err.message || "Error generando reporte de horas",
-              "error"
+              "error",
             );
         }
       } catch (e) {
@@ -392,7 +392,7 @@ function reportsManager() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const res = await f(
-          `/api/reports/hours_compliance_excel?${params.toString()}`
+          `/api/reports/hours_compliance_excel?${params.toString()}`,
         );
         if (!res) return;
         if (res.ok) {
@@ -414,7 +414,7 @@ function reportsManager() {
           window.showToast &&
             window.showToast(
               err.message || "Error descargando archivo Excel",
-              "error"
+              "error",
             );
         }
       } catch (e) {
@@ -447,21 +447,21 @@ function reportsManager() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
         const res = await f(
-          `/api/reports/student_participations/${studentId}?${params.toString()}`
+          `/api/reports/student_participations/${studentId}?${params.toString()}`,
         );
         if (res && res.ok) {
           const d = await res.json();
           this.participationDetails = d.participations || [];
           this.totalParticipationHours = this.participationDetails.reduce(
             (sum, p) => sum + (p.duration_hours || 0),
-            0
+            0,
           );
         } else {
           const err = await res.json().catch(() => ({}));
           window.showToast &&
             window.showToast(
               err.message || "Error obteniendo participaciones",
-              "error"
+              "error",
             );
         }
       } catch (e) {
