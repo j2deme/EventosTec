@@ -8,6 +8,7 @@ from datetime import datetime
 from app.utils.auth_helpers import require_admin
 from sqlalchemy import asc, desc, or_
 from typing import Iterable, cast
+from app.utils.slug_utils import generate_unique_slug, slugify as canonical_slugify
 
 events_bp = Blueprint('events', __name__, url_prefix='/api/events')
 
@@ -65,7 +66,7 @@ def get_events():
         for ev in items:
             if isinstance(ev, dict) and ev.get('public_slug'):
                 ev['public_url'] = request.host_url.rstrip(
-                    '/') + '/public/event-registrations/' + ev['public_slug']
+                    '/') + '/public/event/' + ev['public_slug']
 
         return jsonify({
             'events': items,
@@ -94,13 +95,24 @@ def create_event():
         event = Event()
         for key, value in data.items():
             setattr(event, key, value)
+        # Ensure a public_slug is generated when creating an event if not provided
+        try:
+            if not getattr(event, 'public_slug', None):
+                # Use the name to generate a unique slug; fallback to id-based later
+                name_val = getattr(event, 'name', '') or ''
+                if name_val:
+                    event.public_slug = generate_unique_slug(
+                        db.session, Event, name_val, column='public_slug')
+        except Exception:
+            # swallow slug generation issues; event can still be created
+            pass
         db.session.add(event)
         db.session.commit()
 
         ev = event_schema.dump(event)
         if isinstance(ev, dict) and ev.get('public_slug'):
             ev['public_url'] = request.host_url.rstrip(
-                '/') + '/public/event-registrations/' + ev['public_slug']
+                '/') + '/public/event/' + ev['public_slug']
         return jsonify({
             'message': 'Evento creado exitosamente',
             'event': ev
@@ -120,10 +132,26 @@ def get_event(event_id):
         if not event:
             return jsonify({'message': 'Evento no encontrado'}), 404
 
+        # If event lacks a public_slug, generate and persist one so the admin
+        # UI can show the public link immediately.
+        try:
+            if not getattr(event, 'public_slug', None):
+                if getattr(event, 'name', None):
+                    event.public_slug = generate_unique_slug(
+                        db.session, Event, event.name or '', column='public_slug')
+                    db.session.add(event)
+                    db.session.commit()
+        except Exception:
+            # Don't fail the GET if slug generation fails; just continue.
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
         ev = event_schema.dump(event)
         if isinstance(ev, dict) and ev.get('public_slug'):
             ev['public_url'] = request.host_url.rstrip(
-                '/') + '/public/event-registrations/' + ev['public_slug']
+                '/') + '/public/event/' + ev['public_slug']
         return jsonify({'event': ev}), 200
 
     except Exception as e:
@@ -143,7 +171,7 @@ def get_event_public_token(event_id):
 
         token = generate_public_event_token(event.id)
         url = request.host_url.rstrip(
-            '/') + '/public/event-registrations/' + token
+            '/') + '/public/event/' + event.public_slug if event.public_slug else request.host_url.rstrip('/') + '/public/event/' + str(event.id)
 
         return jsonify({'token': token, 'url': url}), 200
     except Exception as e:
@@ -161,16 +189,36 @@ def update_event(event_id):
         # Validar datos de entrada
         data = event_schema.load(request.get_json() or {}, partial=True)
 
+        # Preserve previous name to decide whether slug should be regenerated
+        old_name = getattr(event, 'name', None)
+
         # Actualizar campos
         for key, value in data.items():
             setattr(event, key, value)
+
+        # If name changed and slug was empty or derived from previous name,
+        # regenerate a unique slug so public URL stays consistent with title.
+        try:
+            if 'name' in data:
+                new_name = data.get('name') or ''
+                current_slug = getattr(event, 'public_slug', None)
+                # regenerate if slug missing or equals slugified old name
+                if (not current_slug) or (old_name and current_slug == canonical_slugify(old_name or '')):
+                    if new_name:
+                        event.public_slug = generate_unique_slug(
+                            db.session, Event, new_name, column='public_slug')
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
 
         db.session.commit()
 
         ev = event_schema.dump(event)
         if isinstance(ev, dict) and ev.get('public_slug'):
             ev['public_url'] = request.host_url.rstrip(
-                '/') + '/public/event-registrations/' + ev['public_slug']
+                '/') + '/public/event/' + ev['public_slug']
         return jsonify({
             'message': 'Evento actualizado exitosamente',
             'event': ev
