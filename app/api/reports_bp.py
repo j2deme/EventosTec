@@ -10,6 +10,7 @@ from app.models.activity import Activity
 from app.models.event import Event
 from app.models.student import Student
 from sqlalchemy import func
+from typing import Any, List
 
 reports_bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
@@ -278,6 +279,66 @@ def participation_matrix():
         # Ordenar semestres numéricamente
         semesters = sorted([s for s in semesters_set if s != ""], key=lambda x: int(x))
 
+        # **NUEVO: Calcular rowSubtotals y columnSubtotals en el backend**
+        # rowSubtotals: suma de cada fila (por carrera)
+        # columnSubtotals: suma de cada columna (por semestre)
+        rowSubtotals = {}
+        columnSubtotals = {}
+        grandTotal = 0
+
+        if semesters:
+            # Usar matrix_semester si hay semestres
+            for career in careers:
+                row_sum = 0
+                for sem in semesters:
+                    val = matrix_semester.get(career, {}).get(sem, 0)
+                    row_sum += val
+                    columnSubtotals.setdefault(sem, 0)
+                    columnSubtotals[sem] += val
+                rowSubtotals[career] = row_sum
+                grandTotal += row_sum
+        else:
+            # Usar matrix si solo hay generaciones
+            for career in careers:
+                row_sum = 0
+                for gen in generations:
+                    val = matrix.get(career, {}).get(gen, 0)
+                    row_sum += val
+                    columnSubtotals.setdefault(gen, 0)
+                    columnSubtotals[gen] += val
+                rowSubtotals[career] = row_sum
+                grandTotal += row_sum
+
+        # Build a simple tabular structure for easier rendering in the UI
+        # headers: list of semester/generation labels (strings)
+        # rows: list of arrays -> [ career, v1, v2, ..., subtotal ]
+        # footer: array -> [ 'Total', c1, c2, ..., grandTotal ]
+        matrix_headers = semesters if semesters else generations
+        matrix_rows = []
+        for career in careers:
+            row = [career]
+            if matrix_headers:
+                for h in matrix_headers:
+                    # prefer semester matrix when available, fallback to generation matrix
+                    v = (
+                        matrix_semester.get(career, {}).get(h)
+                        if matrix_semester
+                        else None
+                    )
+                    if v is None:
+                        v = matrix.get(career, {}).get(h, 0)
+                    row.append(v or 0)
+            # append subtotal per career
+            row.append(rowSubtotals.get(career, 0))
+            matrix_rows.append(row)
+
+        # annotated as List[Any] so static analyzers (Pylance) accept mixed types
+        matrix_footer: List[Any] = ["Total"]
+        if matrix_headers:
+            for h in matrix_headers:
+                matrix_footer.append(columnSubtotals.get(h, 0))
+        matrix_footer.append(grandTotal)
+
         return jsonify(
             {
                 "careers": careers,
@@ -285,6 +346,13 @@ def participation_matrix():
                 "matrix": matrix,
                 "semesters": semesters,
                 "matrix_semester": matrix_semester,
+                "rowSubtotals": rowSubtotals,
+                "columnSubtotals": columnSubtotals,
+                "grandTotal": grandTotal,
+                # simplified table structure for frontend
+                "matrix_headers": matrix_headers,
+                "matrix_rows": matrix_rows,
+                "matrix_footer": matrix_footer,
             }
         ), 200
     except Exception as e:

@@ -10,25 +10,23 @@ function reportsManager() {
       department: "",
     },
     loading: false,
-    matrix: null,
-    matrix_semester: {},
-    rowSubtotals: {},
-    totalSumSemesters: 0,
-    careers: [],
-    generations: [],
-    semesters: [],
+
+    // Simplified table structure coming from backend
+    matrix_headers: [], // array of semester/generation labels
+    matrix_rows: [], // array of arrays -> [ career, v1, v2, ..., subtotal ]
+    matrix_footer: [], // array -> [ 'Total', c1, c2, ..., grandTotal ]
 
     // Hours compliance report
     hoursFilters: {
-      event_id: "",
       career: "",
       search: "",
       min_hours: 0,
-      filter_10_plus: false,
     },
     hoursLoading: false,
     hoursStudents: [],
     uniqueCareers: [],
+    careerFilterLoading: false,
+    activitiesFilterLoading: false,
     showParticipationModal: false,
     currentStudent: null,
     participationDetails: [],
@@ -44,11 +42,20 @@ function reportsManager() {
     departments: [],
 
     formatSemester(sem) {
-      // Si es número o string numérico, devolver con 'o' (1 -> 1o). Mantener valores no numéricos.
       if (sem === null || sem === undefined) return "";
       const n = Number(sem);
       if (!Number.isNaN(n)) return `${n}o`;
       return String(sem);
+    },
+
+    formatNumber(n) {
+      // Safe format for numbers with thousands separator (es-MX)
+      try {
+        const num = Number(n || 0);
+        return new Intl.NumberFormat("es-MX").format(num);
+      } catch (e) {
+        return String(n || "0");
+      }
     },
 
     async loadEvents() {
@@ -74,7 +81,6 @@ function reportsManager() {
           const d = await res.json();
           this.activities = d.activities || [];
           this.filterActivities();
-          // derive departments list
           const deps = new Set();
           for (const a of this.activities)
             if (a.department) deps.add(a.department);
@@ -101,12 +107,23 @@ function reportsManager() {
 
     onEventChange() {
       this.filters.activity_id = "";
-      this.filterActivities();
+      this.activitiesFilterLoading = true;
+      this.careerFilterLoading = true;
+      setTimeout(() => {
+        this.filterActivities();
+        this.activitiesFilterLoading = false;
+      }, 50);
+      setTimeout(() => {
+        this.careerFilterLoading = false;
+      }, 75);
+      this.hoursFilters.event_id = this.filters.event_id;
     },
 
     async generateMatrix() {
       this.loading = true;
-      this.matrix = null;
+      this.matrix_headers = [];
+      this.matrix_rows = [];
+      this.matrix_footer = [];
       try {
         const params = new URLSearchParams();
         if (this.filters.event_id)
@@ -123,35 +140,14 @@ function reportsManager() {
         );
         if (res && res.ok) {
           const d = await res.json();
-          this.careers = Array.isArray(d.careers) ? d.careers : [];
-          this.generations = Array.isArray(d.generations) ? d.generations : [];
-          this.matrix = d.matrix || {};
-          // Nuevo: datos por semestre (compatibilidad hacia atrás)
-          this.semesters = Array.isArray(d.semesters) ? d.semesters : [];
-          this.matrix_semester = d.matrix_semester || {};
-
-          // Calcular subtotales por carrera y total general para exponer en el template
-          // Forzar valores primitivos (Number) para evitar problemas con Proxies/reactividad
-          const computedRowSubtotals = {};
-          let computedTotal = 0;
-          if (this.semesters.length && this.careers && this.careers.length) {
-            for (const career of this.careers) {
-              const key = String(career);
-              let subtotal = 0;
-              for (const s of this.semesters) {
-                const raw = this.matrix_semester?.[key]?.[s];
-                const val = typeof raw === "number" ? raw : Number(raw) || 0;
-                subtotal += val;
-              }
-              // asegurar número primitivo
-              computedRowSubtotals[key] = subtotal;
-              computedTotal += subtotal;
-            }
-          }
-
-          // Asignar en bloque (mejor para reactividad y evita Proxies en los valores)
-          this.rowSubtotals = computedRowSubtotals;
-          this.totalSumSemesters = computedTotal;
+          // assign simplified table from backend
+          this.matrix_headers = Array.isArray(d.matrix_headers)
+            ? d.matrix_headers
+            : [];
+          this.matrix_rows = Array.isArray(d.matrix_rows) ? d.matrix_rows : [];
+          this.matrix_footer = Array.isArray(d.matrix_footer)
+            ? d.matrix_footer
+            : [];
         } else {
           const err = await res.json().catch(() => ({}));
           window.showToast &&
@@ -308,23 +304,8 @@ function reportsManager() {
       }
     },
 
-    onHoursEventChange() {
-      // Reset other filters when event changes
-      this.hoursFilters.career = "";
-      this.hoursFilters.search = "";
-      this.hoursStudents = [];
-    },
-
-    apply10PlusFilter() {
-      if (this.hoursFilters.filter_10_plus) {
-        this.hoursFilters.min_hours = 10;
-      } else {
-        this.hoursFilters.min_hours = 0;
-      }
-    },
-
     async generateHoursReport() {
-      if (!this.hoursFilters.event_id) {
+      if (!this.filters.event_id) {
         window.showToast &&
           window.showToast("Selecciona un evento primero", "error");
         return;
@@ -334,7 +315,7 @@ function reportsManager() {
       this.hoursStudents = [];
       try {
         const params = new URLSearchParams();
-        params.set("event_id", this.hoursFilters.event_id);
+        params.set("event_id", this.filters.event_id);
         if (this.hoursFilters.career)
           params.set("career", this.hoursFilters.career);
         if (this.hoursFilters.search)
@@ -374,7 +355,7 @@ function reportsManager() {
     },
 
     async downloadHoursExcel() {
-      if (!this.hoursFilters.event_id) {
+      if (!this.filters.event_id) {
         window.showToast &&
           window.showToast("Selecciona un evento primero", "error");
         return;
@@ -382,7 +363,7 @@ function reportsManager() {
 
       try {
         const params = new URLSearchParams();
-        params.set("event_id", this.hoursFilters.event_id);
+        params.set("event_id", this.filters.event_id);
         if (this.hoursFilters.career)
           params.set("career", this.hoursFilters.career);
         if (this.hoursFilters.search)
@@ -425,7 +406,7 @@ function reportsManager() {
     },
 
     async viewParticipationDetails(studentId) {
-      if (!this.hoursFilters.event_id) {
+      if (!this.filters.event_id) {
         return;
       }
 
@@ -442,7 +423,7 @@ function reportsManager() {
 
       try {
         const params = new URLSearchParams();
-        params.set("event_id", this.hoursFilters.event_id);
+        params.set("event_id", this.filters.event_id);
 
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
@@ -488,9 +469,14 @@ function reportsManager() {
         return isoString;
       }
     },
+
+    // fin del objeto
   };
 }
 
-if (typeof window !== "undefined") window.reportsManager = reportsManager;
+if (typeof window !== "undefined") {
+  window.reportsManager = reportsManager;
+}
+
 if (typeof module !== "undefined" && module.exports)
   module.exports = reportsManager;
