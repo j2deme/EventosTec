@@ -12,6 +12,7 @@ function settingsManager() {
     success: null,
     editingKey: null,
     editingValue: null,
+    editingDescription: null,
 
     /**
      * Initialize: Load all settings
@@ -31,7 +32,7 @@ function settingsManager() {
           method: "GET",
           headers: getAuthHeaders(),
         });
-        if (!response.ok) throw new Error("Failed to load settings");
+        if (!response.ok) throw new Error("Error al cargar settings");
         const data = await response.json();
         this.settings = data.settings;
       } catch (err) {
@@ -44,9 +45,10 @@ function settingsManager() {
     /**
      * Start editing a setting
      */
-    startEdit(key, currentValue) {
+    startEdit(key, currentValue, currentDescription) {
       this.editingKey = key;
       this.editingValue = currentValue || "";
+      this.editingDescription = currentDescription || "";
     },
 
     /**
@@ -55,6 +57,7 @@ function settingsManager() {
     cancelEdit() {
       this.editingKey = null;
       this.editingValue = null;
+      this.editingDescription = null;
     },
 
     /**
@@ -66,18 +69,23 @@ function settingsManager() {
       this.saving = true;
       this.error = null;
       try {
+        const body = {};
+        if (this.editingValue !== null) body.value = this.editingValue;
+        if (this.editingDescription !== null)
+          body.description = this.editingDescription;
+
         const response = await fetch(`/admin/api/settings/${this.editingKey}`, {
           method: "PUT",
           headers: getAuthHeaders(),
-          body: JSON.stringify({ value: this.editingValue }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.error || "Failed to save setting");
+          throw new Error(error.error || "Error al guardar la configuración");
         }
 
-        this.success = `Setting "${this.editingKey}" updated`;
+        this.success = `Configuración "${this.editingKey}" actualizada`;
         setTimeout(() => (this.success = null), 3000);
 
         await this.loadSettings();
@@ -93,7 +101,7 @@ function settingsManager() {
      * Reset a setting to its default value
      */
     async resetToDefault(key) {
-      if (!confirm(`Reset "${key}" to default?`)) return;
+      if (!confirm(`¿Reiniciar "${key}" al valor por defecto?`)) return;
 
       this.saving = true;
       this.error = null;
@@ -105,10 +113,10 @@ function settingsManager() {
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.error || "Failed to reset setting");
+          throw new Error(error.error || "Error al reiniciar la configuración");
         }
 
-        this.success = `Setting "${key}" reset to default`;
+        this.success = `Configuración "${key}" reiniciada al valor por defecto`;
         setTimeout(() => (this.success = null), 3000);
 
         await this.loadSettings();
