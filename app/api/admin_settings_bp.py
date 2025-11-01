@@ -25,7 +25,7 @@ def list_all_settings():
 
         for setting in settings:
             # Check if locked by ENV
-            env_key = f"APP_{setting.key.upper()}"
+            env_key = SettingsManager._env_key_for(setting.key)
             env_value = os.environ.get(env_key)
 
             created_at_iso = (
@@ -56,8 +56,10 @@ def list_all_settings():
         return jsonify({"settings": result}), 200
 
     except Exception as e:
-        current_app.logger.error(f"[admin_settings] Error fetching settings: {e}")
-        return jsonify({"error": "Falló al obtener la configuración"}), 500
+        current_app.logger.error(
+            f"[admin_settings] Error al obtener configuraciones: {e}"
+        )
+        return jsonify({"error": "Error al obtener configuraciones"}), 500
 
 
 @admin_settings_bp.route("/<key>", methods=["GET"])
@@ -70,7 +72,7 @@ def get_setting(key: str):
         if not setting:
             return jsonify({"error": f'Configuración "{key}" no encontrada'}), 404
 
-        env_key = f"APP_{key.upper()}"
+        env_key = SettingsManager._env_key_for(key)
         env_value = os.environ.get(env_key)
 
         return (
@@ -79,7 +81,7 @@ def get_setting(key: str):
                     "key": setting.key,
                     "value": setting.value,
                     "effective_value": env_value
-                    or setting.value,  # Show which value is actually used
+                    or setting.value,  # Muestra el valor efectivo usado
                     "description": setting.description,
                     "data_type": setting.data_type,
                     "is_locked_by_env": env_value is not None,
@@ -91,9 +93,9 @@ def get_setting(key: str):
 
     except Exception as e:
         current_app.logger.error(
-            f"[admin_settings] Error fetching setting '{key}': {e}"
+            f"[admin_settings] Error al obtener la configuración '{key}': {e}"
         )
-        return jsonify({"error": "Falló al obtener la configuración"}), 500
+        return jsonify({"error": "Error al obtener la configuración"}), 500
 
 
 @admin_settings_bp.route("/<key>", methods=["PUT"])
@@ -110,8 +112,10 @@ def update_setting(key: str):
         new_description = body.get("description")
 
         if new_value is None and new_description is None:
-            return jsonify(
-                {"error": "Falta valor o descripción en el cuerpo de la solicitud"},
+            return (
+                jsonify(
+                    {"error": "Falta valor o descripción en el cuerpo de la solicitud"}
+                ),
                 400,
             )
 
@@ -124,7 +128,7 @@ def update_setting(key: str):
             setting = AppSetting.find_by_key(key)
             if not setting:
                 return (
-                    jsonify({"error": f'Setting "{key}" not found'}),
+                    jsonify({"error": f'Configuración "{key}" no encontrada'}),
                     404,
                 )
             # Limit description length to model constraint
@@ -141,10 +145,10 @@ def update_setting(key: str):
             except Exception as e:
                 db.session.rollback()
                 current_app.logger.error(
-                    f"[admin_settings] Failed saving description for '{key}': {e}"
+                    f"[admin_settings] Error al guardar la descripción de '{key}': {e}"
                 )
                 return jsonify(
-                    {"error": "Fallo al actualizar la descripción de la configuración"}
+                    {"error": "Error al actualizar la descripción de la configuración"}
                 ), 500
 
         # Return updated setting
@@ -171,22 +175,39 @@ def update_setting(key: str):
         )
 
     except ValueError as e:
-        # Validation error (e.g., locked by ENV, invalid timezone)
+        # Error de validación (p. ej. bloqueada por ENV, zona horaria inválida)
+        msg = str(e)
+        # Map some common validation messages to Spanish-friendly text
+        if (
+            "locked by environment variable" in msg
+            or "bloqueada por environment" in msg
+        ):
+            user_msg = "La configuración está bloqueada por una variable de entorno y no puede modificarse desde la interfaz."
+        elif "does not exist" in msg or "does not exist" in msg:
+            user_msg = "La configuración solicitada no existe."
+        elif "not editable" in msg or "not editable" in msg:
+            user_msg = "La configuración no es editable."
+        elif "Invalid timezone" in msg or "Invalid timezone" in msg:
+            # Preserve specific timezone value if present
+            user_msg = f"Zona horaria inválida: {msg.split(':')[-1].strip()}"
+        else:
+            user_msg = f"Error de validación: {msg}"
+
         current_app.logger.warning(
-            f"[admin_settings] Validation error updating '{key}': {e}"
+            f"[admin_settings] Error de validación al actualizar '{key}': {msg}"
         )
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": user_msg}), 400
 
     except RuntimeError as e:
         # DB error
         current_app.logger.error(
-            f"[admin_settings] Error updating setting '{key}': {e}"
+            f"[admin_settings] Error al actualizar la configuración '{key}': {e}"
         )
         return jsonify({"error": "Fallo al actualizar la configuración"}), 500
 
     except Exception as e:
         current_app.logger.error(
-            f"[admin_settings] Unexpected error updating '{key}': {e}"
+            f"[admin_settings] Error inesperado al actualizar la configuración '{key}': {e}"
         )
         return jsonify({"error": "Error interno del servidor"}), 500
 
@@ -201,7 +222,7 @@ def reset_setting_to_default(key: str):
         setting = AppSetting.find_by_key(key)
 
         if not setting:
-            return jsonify({"error": f'Setting "{key}" not found'}), 404
+            return jsonify({"error": f'Configuración "{key}" no encontrada'}), 404
 
         if setting.default_value is None:
             return jsonify({"error": f'No hay valor por defecto para "{key}"'}), 400
@@ -220,5 +241,5 @@ def reset_setting_to_default(key: str):
         )
 
     except Exception as e:
-        current_app.logger.error(f"[admin_settings] Error resetting '{key}': {e}")
-        return jsonify({"error": "Fallo al reiniciar la configuración"}), 500
+        current_app.logger.error(f"[admin_settings] Error al reiniciar '{key}': {e}")
+        return jsonify({"error": "Error al reiniciar la configuración"}), 500
