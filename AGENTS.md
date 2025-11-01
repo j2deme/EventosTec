@@ -29,6 +29,32 @@ Archivos y rutas clave
 - `app/services/` — lugar recomendado para extraer lógica reutilizable del backend (por ejemplo `synth` extraction).
 - `tests/` — tests backend (pytest) organizados por módulos; `app/static/js/admin/__tests__` contiene tests Jest para frontend.
 
+### Standalone scripts: patrón recomendado
+
+Algunos scripts en `scripts/` o `tools/` se ejecutan como programas independientes
+(por ejemplo `python scripts/initialize_app_settings.py` o `python tools/backfill_public_slugs.py`).
+Para evitar `ModuleNotFoundError: No module named 'app'` y facilitar la depuración, sigue este
+patrón en esos scripts:
+
+- Inserta la raíz del proyecto en `sys.path` antes de hacer `from app import ...`:
+
+```python
+import sys, os
+proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if proj_root not in sys.path:
+  sys.path.insert(0, proj_root)
+
+# ahora ya se puede importar el paquete 'app'
+from app import create_app, db
+```
+
+- Envuelve los imports en un `try/except` y, si falla, imprime diagnóstico útil
+  (cwd, `proj_root`, `sys.path` y lista del contenido de `proj_root`) antes de volver a lanzar
+  la excepción. Esto ayuda a diagnosticar problemas específicos de rutas en Windows/PowerShell
+  o cuando el script se ejecuta desde subdirectorios.
+
+Ver ejemplos reales en `tools/backfill_public_slugs.py` y `scripts/initialize_app_settings.py`.
+
 Contratos y convenciones JSON importantes
 
 - `GET /api/registrations/<id>`:
