@@ -162,3 +162,94 @@ Notas y buenas prácticas:
 - Si el proyecto cuenta con una librería de iconos por webfont, preferir usar esa librería en lugar de SVGs inline para consistencia visual y menor tamaño de bundle.
 
 Seguir este proceso evita regresiones y mantiene consistencia entre backend y frontend cuando evoluciona el modelo de datos.
+
+## Sistema Híbrido de Configuración (AppSettings + BD + Cache)
+
+A partir de 2025-10-31, se implementó un sistema de configuración híbrido que reemplaza las variables de entorno estáticas con un sistema BD+Caché que permite cambios en tiempo de ejecución sin redeploy.
+
+### Jerarquía de Configuración
+
+```
+NIVEL 1: ENV Variable (APP_{KEY_UPPER})
+  ↓ (si no existe o timeout)
+NIVEL 2: BD + Caché (TTL=10s)
+  ↓ (si caché expire o BD fail)
+NIVEL 3: Hard-coded Default
+```
+
+### Candidatos Implementados
+
+| Clave                                            | Ubicación                                                      | Descripción                      |
+| ------------------------------------------------ | -------------------------------------------------------------- | -------------------------------- |
+| `app_timezone`                                   | `AppSettings.app_timezone()`                                   | Zona horaria de aplicación       |
+| `public_pause_available_from_seconds`            | `AppSettings.public_pause_available_from_seconds()`            | Tiempo de pausa pública          |
+| `public_pause_available_until_after_end_minutes` | `AppSettings.public_pause_available_until_after_end_minutes()` | Período de gracia post-actividad |
+| `public_confirm_window_days`                     | `AppSettings.public_confirm_window_days()`                     | Ventana de confirmación pública  |
+
+### Acceso en Código
+
+**Viejo (deprecated):**
+
+```python
+from flask import current_app
+value = current_app.config.get("APP_TIMEZONE", "UTC")
+```
+
+**Nuevo (recomendado):**
+
+```python
+from app.services.settings_manager import AppSettings
+value = AppSettings.app_timezone()  # Retorna string, nunca None (fallback a default)
+```
+
+### Creación de Nuevos Settings
+
+Si necesitas agregar un nuevo setting:
+
+1. **Agregar a `app/models/app_setting.py`:**
+   - Documentar en docstring del modelo
+
+2. **Agregar convenience method en `app/services/settings_manager.py`:**
+
+   ```python
+   @staticmethod
+   def new_setting_key():
+       return SettingsManager.get("new_setting_key", "default_value", data_type="string")
+   ```
+
+3. **Agregar constant en `scripts/initialize_app_settings.py`:**
+   - Definir ENV variable y default value
+
+4. **Agregar test en `tests/test_settings_manager.py`:**
+   - Cobertura de jerarquía, caché, validación
+
+5. **Ejecutar:**
+   ```bash
+   flask db migrate -m "Add new_setting_key"
+   flask db upgrade
+   python scripts/initialize_app_settings.py
+   ```
+
+### Características de Seguridad
+
+- ✅ ENV variables **locken** settings: si ENV existe, UI no puede cambiar
+- ✅ Auditoría: `updated_at` y `updated_by_user_id` registran cambios
+- ✅ Validación de tipos antes de guardar en BD
+- ✅ Endpoint `/admin/api/settings` requiere JWT + `@require_admin`
+
+### Performance
+
+- ✅ Caché en-memory (no queries cada 10s)
+- ✅ Índice en `app_settings.key`
+- ✅ Fallback seguro si BD unavailable
+- ✅ Lazy-load: solo fetch si cache miss
+
+### Recursos
+
+- `app/models/app_setting.py` — Modelo
+- `app/services/settings_manager.py` — Servicio (jerarquía + caché)
+- `app/api/admin_settings_bp.py` — Endpoints REST
+- `app/static/js/admin/settings.js` — Componente Alpine
+- `app/templates/admin/partials/settings.html` — UI admin
+- `STATUS_IMPLEMENTATION.md` — Detalles y timeline
+- `INTEGRATION_STEPS.md` — Pasos de integración en dashboard
