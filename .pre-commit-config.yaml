@@ -5,7 +5,7 @@ repos:
     hooks:
       # Run the linter and auto-fix what's possible
       - id: ruff
-        args: [check, --fix, --unsafe-fixes, --ignore, E902]
+        args: [check, --fix, --unsafe-fixes, --ignore, E902, --ignore, F401]
       # Run the formatter (replaces Black and isort)
       - id: ruff-format
 

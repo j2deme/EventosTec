@@ -4,6 +4,7 @@ from app.models.student import Student
 from app.models.user import User  # NUEVO
 from app.models.attendance import Attendance
 from app.models.registration import Registration
+from app.models.app_setting import AppSetting
 
 # Tabla de relación muchos a muchos para actividades relacionadas
 from app import db
@@ -28,5 +29,6 @@ __all__ = [
     "User",
     "Attendance",
     "Registration",
+    "AppSetting",
     "activity_relations",
 ]

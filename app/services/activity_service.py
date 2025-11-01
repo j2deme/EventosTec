@@ -1,8 +1,8 @@
-from flask import current_app
 from app.utils.datetime_utils import localize_naive_datetime, safe_iso
 from app import db
 from app.models.activity import Activity
 from app.models.event import Event
+from app.services.settings_manager import AppSettings
 from marshmallow import ValidationError
 import json
 from io import BytesIO
@@ -35,7 +35,7 @@ def validate_activity_dates(activity_data):
 
         # Asegurar que las fechas sean timezone-aware: interpretar datetimes
         # naive usando APP_TIMEZONE y convertir a UTC
-        app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_timezone = AppSettings.app_timezone()
         if start_datetime is not None:
             start_datetime = localize_naive_datetime(start_datetime, app_timezone)
         if end_datetime is not None:
@@ -51,7 +51,7 @@ def validate_activity_dates(activity_data):
         # Asegurar que las fechas del evento sean timezone-aware
         event_start = event.start_date
         event_end = event.end_date
-        app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_timezone = AppSettings.app_timezone()
         if event_start is not None:
             event_start = localize_naive_datetime(event_start, app_timezone)
         if event_end is not None:
@@ -105,7 +105,7 @@ def create_activity(activity_data):
     validate_activity_dates(activity_data)
 
     # Asegurar que las fechas sean timezone-aware: interpretar naive en APP_TIMEZONE
-    app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+    app_timezone = AppSettings.app_timezone()
     if (
         "start_datetime" in activity_data
         and activity_data["start_datetime"] is not None
@@ -210,7 +210,7 @@ def update_activity(activity_id, activity_data):
         validate_activity_dates(validation_data)
 
     # Asegurar que las fechas sean timezone-aware si se actualizan
-    app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+    app_timezone = AppSettings.app_timezone()
     if (
         "start_datetime" in activity_data
         and activity_data["start_datetime"] is not None

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from marshmallow import ValidationError
-from flask import current_app
+from app.services.settings_manager import AppSettings
 
 
 def parse_datetime_with_timezone(dt_string):
@@ -95,7 +95,7 @@ def safe_iso(dt):
     try:
         app_tz = None
         try:
-            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+            app_tz = AppSettings.app_timezone()
         except Exception:
             app_tz = "America/Mexico_City"
 

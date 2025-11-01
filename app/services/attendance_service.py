@@ -1,6 +1,6 @@
 from datetime import datetime, timezone, timedelta
-from flask import current_app
 from app.utils.datetime_utils import localize_naive_datetime
+from app.services.settings_manager import AppSettings
 from typing import Iterable, cast
 
 from app.models.attendance import Attendance
@@ -59,7 +59,7 @@ def calculate_net_duration_seconds(attendance):
             return None
         if dt.tzinfo is not None:
             return dt.astimezone(timezone.utc)
-        app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_timezone = AppSettings.app_timezone()
         return localize_naive_datetime(dt, app_timezone)
 
     start = _ensure_tz(attendance.check_in_time)
@@ -103,7 +103,7 @@ def calculate_attendance_percentage(attendance_id):
             return None
         if dt.tzinfo is not None:
             return dt.astimezone(timezone.utc)
-        app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_timezone = AppSettings.app_timezone()
         return localize_naive_datetime(dt, app_timezone)
 
     pres_start = _ensure_tz(attendance.check_in_time)

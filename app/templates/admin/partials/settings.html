@@ -1,0 +1,176 @@
+<!-- Admin Settings Management Panel -->
+<div class="card shadow-sm" x-data="settingsManager()" x-init="init()">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0">
+      <i class="ti ti-settings me-2"></i>Configuración de Aplicación
+    </h5>
+  </div>
+
+  <div class="card-body">
+    <!-- Success Message -->
+    <template x-if="success">
+      <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <strong>✓</strong> <span x-text="success"></span>
+        <button
+          type="button"
+          class="btn-close"
+          @click="success = null"
+          aria-label="Close"
+        ></button>
+      </div>
+    </template>
+
+    <!-- Error Message -->
+    <template x-if="error">
+      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <strong>⚠️</strong> <span x-text="error"></span>
+        <button
+          type="button"
+          class="btn-close"
+          @click="error = null"
+          aria-label="Close"
+        ></button>
+      </div>
+    </template>
+
+    <!-- Loading State -->
+    <template x-if="loading">
+      <div class="text-center">
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    </template>
+
+    <!-- Settings Table -->
+    <template x-if="!loading && settings.length > 0">
+      <div class="table-responsive">
+        <table class="table table-hover table-sm">
+          <thead class="table-light">
+            <tr>
+              <th>Parámetro</th>
+              <th>Valor Actual</th>
+              <th>Tipo</th>
+              <th>Estado</th>
+              <th style="width: 200px">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="setting in settings" :key="setting.key">
+              <tr>
+                <!-- Key & Description -->
+                <td>
+                  <strong x-text="setting.key"></strong>
+                  <br />
+                  <small
+                    class="text-muted"
+                    x-text="setting.description"
+                  ></small>
+                </td>
+
+                <!-- Value -->
+                <td>
+                  <template x-if="editingKey !== setting.key">
+                    <code x-text="getDisplayValue(setting)"></code>
+                  </template>
+                  <template x-if="editingKey === setting.key">
+                    <input
+                      type="text"
+                      class="form-control form-control-sm"
+                      x-model="editingValue"
+                      :type="getInputType(setting.data_type)"
+                      placeholder="Enter new value"
+                      @keyup.enter="saveSetting()"
+                      @keyup.escape="cancelEdit()"
+                    />
+                  </template>
+                </td>
+
+                <!-- Type -->
+                <td>
+                  <span class="badge bg-info" x-text="setting.data_type"></span>
+                </td>
+
+                <!-- Status -->
+                <td>
+                  <template x-if="setting.is_locked_by_env">
+                    <span class="badge bg-danger">🔒 Locked (ENV)</span>
+                  </template>
+                  <template
+                    x-if="!setting.is_locked_by_env && setting.is_editable"
+                  >
+                    <span class="badge bg-success">✏️ Editable</span>
+                  </template>
+                </td>
+
+                <!-- Actions -->
+                <td>
+                  <template
+                    x-if="editingKey !== setting.key && !setting.is_locked_by_env"
+                  >
+                    <button
+                      class="btn btn-sm btn-warning"
+                      @click="startEdit(setting.key, setting.value)"
+                      :disabled="saving"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      class="btn btn-sm btn-outline-secondary"
+                      @click="resetToDefault(setting.key)"
+                      :disabled="saving"
+                      title="Reset to default value"
+                    >
+                      Reset
+                    </button>
+                  </template>
+
+                  <template x-if="editingKey === setting.key">
+                    <button
+                      class="btn btn-sm btn-success"
+                      @click="saveSetting()"
+                      :disabled="saving"
+                    >
+                      <span x-show="!saving">Save</span>
+                      <span x-show="saving">
+                        <span
+                          class="spinner-border spinner-border-sm"
+                          role="status"
+                          aria-hidden="true"
+                        ></span>
+                      </span>
+                    </button>
+                    <button
+                      class="btn btn-sm btn-outline-secondary"
+                      @click="cancelEdit()"
+                      :disabled="saving"
+                    >
+                      Cancel
+                    </button>
+                  </template>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+    <!-- Empty State -->
+    <template x-if="!loading && settings.length === 0">
+      <p class="text-muted">No settings found.</p>
+    </template>
+
+    <!-- Legend -->
+    <div class="mt-3 small text-muted">
+      <p>
+        <strong><i class="ti ti-lock"></i> Locked (ENV):</strong> Valores
+        fijados por variable de entorno (no se pueden cambiar desde aquí)
+      </p>
+      <p>
+        <strong><i class="ti ti-pencil"></i> Editable:</strong> Valores que se
+        pueden ajustar en tiempo real sin necesidad de reiniciar la aplicación
+      </p>
+    </div>
+  </div>
+</div>

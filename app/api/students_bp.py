@@ -5,6 +5,7 @@ from app import db
 from app.schemas import student_schema, students_schema
 from app.models.student import Student
 from app.utils.auth_helpers import require_admin
+from app.services.settings_manager import AppSettings
 from openpyxl import Workbook
 from typing import Any
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -355,7 +356,7 @@ def get_student_hours_by_event(student_id):
             .all()
         )
         events_hours = []
-        app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_tz = AppSettings.app_timezone()
         for row in results:
             total_hours = float(row.total_hours or 0)
             has_credit = total_hours >= 10.0
@@ -513,7 +514,7 @@ def get_student_event_details(student_id, event_id):
                 sdt = (
                     localize_naive_datetime(
                         activity.start_datetime,
-                        current_app.config.get("APP_TIMEZONE", "America/Mexico_City"),
+                        AppSettings.app_timezone(),
                     )
                     if getattr(activity, "start_datetime", None) is not None
                     else None
@@ -524,7 +525,7 @@ def get_student_event_details(student_id, event_id):
                 edt = (
                     localize_naive_datetime(
                         activity.end_datetime,
-                        current_app.config.get("APP_TIMEZONE", "America/Mexico_City"),
+                        AppSettings.app_timezone(),
                     )
                     if getattr(activity, "end_datetime", None) is not None
                     else None
@@ -537,7 +538,7 @@ def get_student_event_details(student_id, event_id):
                 reg_dt = (
                     localize_naive_datetime(
                         reg.registration_date,
-                        current_app.config.get("APP_TIMEZONE", "America/Mexico_City"),
+                        AppSettings.app_timezone(),
                     )
                     if getattr(reg, "registration_date", None)
                     else None
@@ -548,7 +549,7 @@ def get_student_event_details(student_id, event_id):
                 conf_dt = (
                     localize_naive_datetime(
                         reg.confirmation_date,
-                        current_app.config.get("APP_TIMEZONE", "America/Mexico_City"),
+                        AppSettings.app_timezone(),
                     )
                     if getattr(reg, "confirmation_date", None)
                     else None
@@ -699,7 +700,7 @@ def get_student_event_details(student_id, event_id):
             ev_s = (
                 localize_naive_datetime(
                     event.start_date,
-                    current_app.config.get("APP_TIMEZONE", "America/Mexico_City"),
+                    AppSettings.app_timezone(),
                 )
                 if getattr(event, "start_date", None) is not None
                 else None
@@ -710,7 +711,7 @@ def get_student_event_details(student_id, event_id):
             ev_e = (
                 localize_naive_datetime(
                     event.end_date,
-                    current_app.config.get("APP_TIMEZONE", "America/Mexico_City"),
+                    AppSettings.app_timezone(),
                 )
                 if getattr(event, "end_date", None) is not None
                 else None
@@ -817,7 +818,7 @@ def get_students_with_complementary_credits():
 
         # Localizar fechas del evento de forma consistente antes de serializar
         try:
-            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+            app_tz = AppSettings.app_timezone()
             ev_s = (
                 localize_naive_datetime(event.start_date, app_tz)
                 if getattr(event, "start_date", None) is not None
@@ -1002,7 +1003,7 @@ def export_complementary_credits():
 
         # Localizar fechas del evento antes de devolver metadatos en la exportación
         try:
-            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+            app_tz = AppSettings.app_timezone()
             (
                 localize_naive_datetime(event.start_date, app_tz)
                 if getattr(event, "start_date", None) is not None

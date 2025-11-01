@@ -4,6 +4,7 @@ from app.models.activity import Activity
 from app.models.registration import Registration
 from app.models.attendance import Attendance
 from app.models.student import Student
+from app.services.settings_manager import AppSettings
 from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.slug_utils import slugify as canonical_slugify
@@ -102,9 +103,9 @@ def public_registrations_view(activity_ref):
 
     try:
         # confirmation window: localize activity.end_datetime then add configured days (default 30)
-        window_days = int(current_app.config.get("PUBLIC_CONFIRM_WINDOW_DAYS", 30))
+        window_days = int(AppSettings.public_confirm_window_days())
         if getattr(activity, "end_datetime", None) is not None:
-            app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+            app_timezone = AppSettings.app_timezone()
             end_dt = localize_naive_datetime(activity.end_datetime, app_timezone)
             if end_dt is not None:
                 deadline_dt = end_dt + timedelta(days=window_days)
@@ -518,9 +519,9 @@ def api_confirm_registration(reg_id):
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
-    window_days = int(current_app.config.get("PUBLIC_CONFIRM_WINDOW_DAYS", 30))
+    window_days = int(AppSettings.public_confirm_window_days())
     if getattr(activity, "end_datetime", None) is not None:
-        app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_timezone = AppSettings.app_timezone()
         end_dt = localize_naive_datetime(activity.end_datetime, app_timezone)
         if end_dt is None:
             return jsonify({"message": "La ventana de confirmación ha expirado"}), 400
@@ -638,9 +639,9 @@ def api_walkin():
         return jsonify({"message": "Actividad no encontrada"}), 404
 
     # allow walk-in within confirmation window
-    window_days = int(current_app.config.get("PUBLIC_CONFIRM_WINDOW_DAYS", 30))
+    window_days = int(AppSettings.public_confirm_window_days())
     if getattr(activity, "end_datetime", None) is not None:
-        app_timezone = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_timezone = AppSettings.app_timezone()
         end_dt = localize_naive_datetime(activity.end_datetime, app_timezone)
         if end_dt is None:
             return jsonify({"message": "La ventana de confirmación ha expirado"}), 400
@@ -900,10 +901,8 @@ def public_pause_attendance_view(activity_ref):
             error_message="Actividad inválida",
         )
 
-    from_seconds = int(current_app.config.get("PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS", 0))
-    until_minutes = int(
-        current_app.config.get("PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", 5)
-    )
+    from_seconds = int(AppSettings.public_pause_available_from_seconds())
+    until_minutes = int(AppSettings.public_pause_available_until_after_end_minutes())
 
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
@@ -1123,10 +1122,8 @@ def api_public_search_attendances():
     if end_dt is None:
         return jsonify({"message": "Actividad inválida o no encontrada."}), 400
 
-    from_seconds = int(current_app.config.get("PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS", 0))
-    until_minutes = int(
-        current_app.config.get("PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", 5)
-    )
+    from_seconds = int(AppSettings.public_pause_available_from_seconds())
+    until_minutes = int(AppSettings.public_pause_available_until_after_end_minutes())
 
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
@@ -1233,10 +1230,8 @@ def api_public_pause_attendance(attendance_id):
     if end_dt is None:
         return jsonify({"message": "Token inválido o actividad no encontrada."}), 400
 
-    from_seconds = int(current_app.config.get("PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS", 0))
-    until_minutes = int(
-        current_app.config.get("PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", 5)
-    )
+    from_seconds = int(AppSettings.public_pause_available_from_seconds())
+    until_minutes = int(AppSettings.public_pause_available_until_after_end_minutes())
 
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:
@@ -1334,10 +1329,8 @@ def api_public_resume_attendance(attendance_id):
     if end_dt is None:
         return jsonify({"message": "Token inválido o actividad no encontrada."}), 400
 
-    from_seconds = int(current_app.config.get("PUBLIC_PAUSE_AVAILABLE_FROM_SECONDS", 0))
-    until_minutes = int(
-        current_app.config.get("PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", 5)
-    )
+    from_seconds = int(AppSettings.public_pause_available_from_seconds())
+    until_minutes = int(AppSettings.public_pause_available_until_after_end_minutes())
 
     start_dt = activity.start_datetime
     if from_seconds > 0 and start_dt is not None:

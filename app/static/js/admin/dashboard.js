@@ -51,6 +51,7 @@ function adminDashboard() {
       { id: "attendances", name: "Asistencias", icon: "ti ti-check" },
       { id: "students", name: "Estudiantes", icon: "ti ti-users" },
       { id: "reports", name: "Reportes", icon: "ti ti-chart-bar" },
+      { id: "settings", name: "Configuración", icon: "ti ti-settings" },
     ],
 
     events: [],
@@ -150,6 +151,7 @@ function adminDashboard() {
         "reports",
         "attendances",
         "students",
+        "settings",
       ].includes(tabId);
     },
 

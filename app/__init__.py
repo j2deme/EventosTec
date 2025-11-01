@@ -35,7 +35,15 @@ def create_app(config_name=None):
     ma.init_app(app)
 
     # Importar modelos para que Flask-Migrate los detecte
-    from app.models import Event, Activity, Student, User, Attendance, Registration  # noqa: F401
+    from app.models import (
+        Event,
+        Activity,
+        Student,
+        User,
+        Attendance,
+        Registration,
+        AppSetting,
+    )
 
     # Registrar blueprints
     from app.api.auth_bp import auth_bp
@@ -49,6 +57,7 @@ def create_app(config_name=None):
     from app.api.self_register_bp import self_register_bp
     from app.api.public_registrations_bp import public_registrations_bp
     from app.api.public_event_bp import public_event_bp
+    from app.api.admin_settings_bp import admin_settings_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(events_bp)
@@ -61,6 +70,7 @@ def create_app(config_name=None):
     app.register_blueprint(self_register_bp)
     app.register_blueprint(public_registrations_bp)
     app.register_blueprint(public_event_bp)
+    app.register_blueprint(admin_settings_bp)
 
     # Registrar filtros Jinja útiles
     try:
