@@ -23,6 +23,74 @@
     </div>
   </div>
 
+  <!-- Debug panel (collapsible) -->
+  <div class="mt-4">
+    <div x-data="{ debugVisible: false }">
+      <button
+        @click="debugVisible = !debugVisible"
+        class="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+      >
+        <i class="ti ti-bug mr-2"></i>
+        <span x-text="debugVisible ? 'Ocultar debug' : 'Mostrar debug'"
+          >Mostrar debug</span
+        >
+      </button>
+
+      <div
+        x-show="debugVisible"
+        class="mt-4 bg-gray-50 p-4 rounded shadow-sm overflow-auto"
+      >
+        <h3 class="text-sm font-semibold text-gray-800 mb-2">
+          Debug de origen de settings
+        </h3>
+        <p class="text-xs text-gray-600 mb-3">
+          Muestra qué variable de entorno (si la hay) se detectó, el valor en BD
+          y la fuente efectiva.
+        </p>
+
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs text-gray-500 uppercase">
+              <th class="pr-4">Parámetro</th>
+              <th class="pr-4">Env keys intentadas</th>
+              <th class="pr-4">Env key usada</th>
+              <th class="pr-4">ENV</th>
+              <th class="pr-4">BD</th>
+              <th class="pr-4">Fuente efectiva</th>
+            </tr>
+          </thead>
+          <tbody class="align-top">
+            <template x-for="s in settings" :key="s.key">
+              <tr class="border-t text-xs">
+                <td class="py-2 font-medium text-gray-800" x-text="s.key"></td>
+                <td
+                  class="py-2 text-gray-700"
+                  x-text="(s._debug && s._debug.attempted_env_keys) ? s._debug.attempted_env_keys.join(', ') : '-' "
+                ></td>
+                <td
+                  class="py-2 text-gray-700"
+                  x-text="(s._debug && s._debug.env_key_used) ? s._debug.env_key_used : '-' "
+                ></td>
+                <td
+                  class="py-2 text-gray-700"
+                  x-text="(s._debug && s._debug.env_value) ? s._debug.env_value : '-' "
+                ></td>
+                <td
+                  class="py-2 text-gray-700"
+                  x-text="(s._debug && s._debug.db_value) ? s._debug.db_value : '-' "
+                ></td>
+                <td
+                  class="py-2 text-gray-700"
+                  x-text="(s._debug && s._debug.effective_source) ? s._debug.effective_source : '-' "
+                ></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Messages -->
   <div x-show="success" class="mb-4 rounded-md bg-green-50 p-4">
     <div class="flex">

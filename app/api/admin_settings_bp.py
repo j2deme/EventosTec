@@ -23,10 +23,21 @@ def list_all_settings():
         settings = AppSetting.query.all()
         result = []
 
+        # Determine whether we should include debug details (only in dev-like envs)
+        debug_mode = (
+            current_app.config.get("DEBUG")
+            or os.environ.get("FLASK_CONFIG") == "development"
+            or current_app.config.get("ENV") == "development"
+        )
+
         for setting in settings:
             # Check if locked by ENV
+            # Compute possible env keys and which one is present
             env_key = SettingsManager._env_key_for(setting.key)
+            plain_key = setting.key.upper()
+            app_key = f"APP_{plain_key}"
             env_value = os.environ.get(env_key)
+            attempted = [app_key, plain_key]
 
             created_at_iso = (
                 setting.created_at.isoformat()
@@ -50,10 +61,22 @@ def list_all_settings():
                     "is_locked_by_env": env_value is not None,
                     "created_at": created_at_iso,
                     "updated_at": updated_at_iso,
+                    # Debug info (only meaningful when debug_mode=True)
+                    "_debug": {
+                        "attempted_env_keys": attempted,
+                        "env_key_used": env_key if env_value is not None else None,
+                        "env_value": env_value,
+                        "db_value": setting.value,
+                        "effective_source": (
+                            "env"
+                            if env_value is not None
+                            else ("db" if setting.value is not None else "default")
+                        ),
+                    },
                 }
             )
 
-        return jsonify({"settings": result}), 200
+        return jsonify({"settings": result, "debug_mode": bool(debug_mode)}), 200
 
     except Exception as e:
         current_app.logger.error(

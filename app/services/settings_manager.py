@@ -40,7 +40,10 @@ class SettingsManager:
             Configuration value (from ENV, BD cache, or default)
         """
         # Step 1: Check ENV (highest priority)
-        env_key = f"APP_{key.upper()}"
+        # Determine the ENV var key used to lock/override settings.
+        # Support both forms: keys stored as 'app_timezone' in DB and
+        # environment variables declared as either 'APP_TIMEZONE'
+        env_key = cls._env_key_for(key)
         env_value = os.environ.get(env_key)
         if env_value is not None:
             return cls._parse_value(env_value, cls._infer_type(key))
@@ -83,7 +86,7 @@ class SettingsManager:
         from app import db
 
         # Check if this key is locked by ENV
-        env_key = f"APP_{key.upper()}"
+        env_key = cls._env_key_for(key)
         if os.environ.get(env_key) is not None:
             raise ValueError(
                 f"Setting '{key}' is locked by environment variable '{env_key}'. "
@@ -217,6 +220,33 @@ class SettingsManager:
             return "boolean"
         else:
             return "string"
+
+    @classmethod
+    def _env_key_for(cls, key: str) -> str:
+        """Return the environment variable name used to lock/override a setting.
+
+        Accept both raw keys like 'app_timezone' (mapped to 'APP_TIMEZONE')
+        and already-prefixed keys like 'APP_TIMEZONE'. This prevents an accidental
+        double 'APP_APP_*' prefix when constructing the env var name.
+        """
+        ku = key.upper()
+        app_k = f"APP_{ku}"
+
+        # Prefer explicit APP_ names if present in the environment.
+        # Fallback to the plain uppercase key if that exists (legacy entries).
+        # If neither exists, default to the APP_ form so callers that write
+        # or expose var names keep the canonical 'APP_*' namespace.
+        try:
+            if os.environ.get(app_k) is not None:
+                return app_k
+            if os.environ.get(ku) is not None:
+                return ku
+        except Exception:
+            # In very constrained environments os.environ access might fail,
+            # but this is rare; fall back to canonical name.
+            pass
+
+        return app_k
 
 
 class AppSettings:
