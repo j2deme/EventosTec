@@ -14,7 +14,7 @@ Reglas generales que debe seguir un agente
 1. Siempre leer los archivos relevantes antes de editar.
 2. Antes de cualquier cambio, crear o actualizar la lista de TODOs con `manage_todo_list` y marcar exactamente UNA tarea como `in-progress`.
 3. Hacer cambios pequeños y autocontenidos. Preferir aplicar parches mínimos y atómicos.
-4. Ejecutar pruebas relevantes localmente (backend con pytest, frontend con jest) después de cambios significativos. Si no es posible ejecutar jest, al menos ejecutar pytest para validar backend.
+4. La ejecución de pruebas siempre debe llevar la aprobación del usuario.Ejecutar pruebas relevantes localmente (backend con pytest, frontend con jest) después de cambios significativos. Si no es posible ejecutar jest, al menos ejecutar pytest para validar backend.
 5. No exfiltrar secretos ni modificar archivos en `instance/` o `venv/`.
 6. No ejecutar llamadas de red externas que no sean necesarias. Si el cambio requiere credenciales o servicios externos, explicar la limitación y proponer alternativas.
 7. Si se crea o cambia un endpoint público o contrato JSON, documentar el cambio y añadir tests que cubran el nuevo comportamiento.
