@@ -1025,7 +1025,13 @@ def batch_upload_attendances():
         )
 
         status_code = 200 if dry else 201
-        return jsonify({"message": "Batch procesado", "report": report}), status_code
+        # Exponer explicitamente si la operación fue dry_run en la respuesta
+        return (
+            jsonify(
+                {"message": "Batch procesado", "report": report, "dry_run": bool(dry)}
+            ),
+            status_code,
+        )
 
     except Exception as e:
         tb = traceback.format_exc()

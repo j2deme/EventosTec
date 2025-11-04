@@ -1218,7 +1218,45 @@ function attendancesAdmin() {
             if (xhr.status >= 200 && xhr.status < 300) {
               try {
                 const report = JSON.parse(xhr.responseText || "{}");
-                this.batchUploadReport = report.report || report;
+                this.batchUploadReport = report.report || report || {};
+                // Normalize shape so templates can iterate safely
+                this.batchUploadReport.details =
+                  this.batchUploadReport.details || [];
+                this.batchUploadReport.errors =
+                  this.batchUploadReport.errors || [];
+                // Prefer server-provided dry_run flag when available; fallback to top-level report or client value
+                try {
+                  const serverDry =
+                    report &&
+                    (report.report &&
+                    typeof report.report.dry_run !== "undefined"
+                      ? report.report.dry_run
+                      : typeof report.dry_run !== "undefined"
+                        ? report.dry_run
+                        : undefined);
+                  this.batchUploadReport.dry_run =
+                    typeof serverDry !== "undefined"
+                      ? !!serverDry
+                      : !!this.batchUploadDryRun;
+                } catch (e) {
+                  this.batchUploadReport.dry_run = !!this.batchUploadDryRun;
+                }
+                this.batchUploadReport.created =
+                  typeof this.batchUploadReport.created === "number"
+                    ? this.batchUploadReport.created
+                    : 0;
+                this.batchUploadReport.skipped =
+                  typeof this.batchUploadReport.skipped === "number"
+                    ? this.batchUploadReport.skipped
+                    : 0;
+                this.batchUploadReport.not_found =
+                  typeof this.batchUploadReport.not_found === "number"
+                    ? this.batchUploadReport.not_found
+                    : 0;
+                this.batchUploadReport.invalid =
+                  typeof this.batchUploadReport.invalid === "number"
+                    ? this.batchUploadReport.invalid
+                    : 0;
                 this.batchUploadView = "report";
                 // If this was not a dry run and attendances were created, reload list
                 if (

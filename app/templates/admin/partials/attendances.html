@@ -6,22 +6,24 @@
   <div
     class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6"
   >
-    <div>
-      <h2 class="text-2xl font-bold text-gray-900">Gestión de Asistencias</h2>
-      <p class="mt-1 text-sm text-gray-600">
-        Controla asistencias directas (walk-ins) y registros
-      </p>
+    <div class="w-full">
+      <h2 class="text-lg font-semibold">Asistencias</h2>
+      <div class="text-sm text-gray-600">
+        Panel de gestión de asistencias y herramientas batch
+      </div>
     </div>
-    <div class="mt-4 sm:mt-0 inline-flex items-center space-x-3">
-      <!-- Botón para registrar walk-in con buscador por número de control -->
+
+    <div class="flex items-center space-x-2">
       <button
         @click="openRegister()"
-        class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+        type="button"
+        class="bg-green-600 text-white px-4 py-2 rounded inline-flex items-center space-x-2"
+        title="Registrar walk-in"
       >
         <i class="ti ti-user-plus mr-2"></i>
-        Registrar walk-in
+        <span>Registrar walk-in</span>
       </button>
-      <!-- Botón para subida batch de asistencias -->
+
       <button
         @click="openBatchUploadModal()"
         class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -29,7 +31,7 @@
         <i class="ti ti-upload mr-2"></i>
         Subida batch
       </button>
-      <!-- Botón para ejecutar batch-checkout (recalcular/check-out en lote) -->
+
       <button
         @click="openBatchCheckoutModal()"
         class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
@@ -37,7 +39,7 @@
         <i class="ti ti-clock mr-2"></i>
         Batch checkout
       </button>
-      <!-- Botón de sincronización on-demand para actividades relacionadas -->
+
       <button
         @click="$dispatch('open-sync-modal')"
         class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -1244,6 +1246,23 @@
                       </div>
                     </div>
 
+                    <!-- Modo: dry-run o normal -->
+                    <div class="mt-2">
+                      <template x-if="batchUploadReport.dry_run === true">
+                        <div class="text-xs text-gray-600">
+                          Modo:
+                          <span class="font-medium">Dry run</span>
+                          (previsualización, no se guardaron cambios)
+                        </div>
+                      </template>
+                      <template x-if="batchUploadReport.dry_run === false">
+                        <div class="text-xs text-gray-600">
+                          Modo: <span class="font-medium">Normal</span> (se
+                          guardaron cambios)
+                        </div>
+                      </template>
+                    </div>
+
                     <!-- Detalles -->
                     <div class="mt-3">
                       <template
@@ -1255,30 +1274,155 @@
                           <table class="min-w-full text-sm">
                             <thead>
                               <tr class="text-left text-gray-600 text-xs">
+                                <th class="pr-2">Fila</th>
                                 <th class="pr-2">Número de control</th>
                                 <th class="pr-2">Estudiante</th>
                                 <th class="pr-2">Acción</th>
+                                <th class="pr-2">Fuente</th>
                               </tr>
                             </thead>
                             <tbody>
                               <template
-                                x-for="d in batchUploadReport.details"
-                                :key="d.control_number"
+                                x-for="(d, i) in batchUploadReport.details"
+                                :key="(d.row_index || d.control_number || 'detail') + '-' + i"
                               >
                                 <tr class="border-t">
                                   <td
-                                    class="pr-2 text-gray-700"
-                                    x-text="d.control_number"
-                                  ></td>
+                                    class="px-2 py-2 align-top text-sm text-gray-700"
+                                  >
+                                    <div x-text="d.row_index || '-' "></div>
+                                  </td>
+
                                   <td
-                                    class="pr-2 text-gray-700"
-                                    x-text="d.student_name || '-'"
-                                  ></td>
+                                    class="px-2 py-2 align-top text-sm text-gray-700"
+                                  >
+                                    <div
+                                      x-text="d.control_number || '-' "
+                                    ></div>
+                                  </td>
+
+                                  <td class="px-2 py-2 align-top">
+                                    <div
+                                      class="font-medium text-gray-900"
+                                      x-text="d.student_name || '-' "
+                                    ></div>
+                                    <div
+                                      class="text-xs text-gray-500 mt-1"
+                                      x-show="d.lookup_message"
+                                      x-text="d.lookup_message"
+                                    ></div>
+                                    <div
+                                      class="text-xs text-gray-500 mt-1"
+                                      x-show="d.external_name"
+                                    >
+                                      API:
+                                      <span
+                                        class="font-medium"
+                                        x-text="d.external_name"
+                                      ></span>
+                                      <span class="text-gray-500"> — </span>
+                                      <span x-text="d.external_career"></span>
+                                    </div>
+                                    <div
+                                      class="text-xs text-gray-500 mt-1 italic"
+                                      x-show="d.student_source === 'external' && d.persisted === false"
+                                    >
+                                      Encontrado (dry-run — no creado)
+                                    </div>
+                                  </td>
+
                                   <td
-                                    class="pr-2"
-                                    :class="d.action === 'created' ? 'text-green-700' : 'text-yellow-700'"
-                                    x-text="d.action === 'created' ? 'Creada' : 'Omitida'"
-                                  ></td>
+                                    class="px-2 py-2 align-top text-sm"
+                                    :class="d.action === 'created' ? 'text-green-700' : (d.action === 'skipped' ? 'text-yellow-700' : (d.action === 'external_incomplete' ? 'text-blue-700' : 'text-gray-700'))"
+                                  >
+                                    <div
+                                      x-text="d.action === 'created' ? 'Creada' : (d.action === 'skipped' ? 'Omitida' : (d.action === 'invalid' ? 'Inválido' : (d.action === 'not_found' ? 'No encontrado' : (d.action === 'external_incomplete' ? 'Encontrado (incompleto)' : d.action))))"
+                                    ></div>
+                                  </td>
+
+                                  <td
+                                    class="px-2 py-2 align-top text-sm text-gray-700"
+                                  >
+                                    <!-- Iconographic source representation -->
+                                    <div class="flex items-center space-x-2">
+                                      <template
+                                        x-if="d.student_source === 'local'"
+                                      >
+                                        <div
+                                          class="flex items-center space-x-1"
+                                        >
+                                          <i
+                                            class="ti ti-database text-gray-600"
+                                          ></i
+                                          ><span class="sr-only">Local</span>
+                                        </div>
+                                      </template>
+                                      <template
+                                        x-if="d.student_source === 'created'"
+                                      >
+                                        <div
+                                          class="flex items-center space-x-1"
+                                        >
+                                          <i
+                                            class="ti ti-cloud-upload text-green-600"
+                                          ></i
+                                          ><span class="sr-only">Creado</span>
+                                        </div>
+                                      </template>
+                                      <template
+                                        x-if="d.student_source === 'external'"
+                                      >
+                                        <div
+                                          class="flex items-center space-x-1"
+                                        >
+                                          <i
+                                            class="ti ti-cloud text-blue-600"
+                                          ></i
+                                          ><span class="sr-only"
+                                            >Encontrado (dry-run)</span
+                                          >
+                                        </div>
+                                      </template>
+                                      <template
+                                        x-if="d.student_source === 'not_found'"
+                                      >
+                                        <div
+                                          class="flex items-center space-x-1"
+                                        >
+                                          <i
+                                            class="ti ti-search text-red-600"
+                                          ></i
+                                          ><span class="sr-only"
+                                            >No encontrado</span
+                                          >
+                                        </div>
+                                      </template>
+                                      <template
+                                        x-if="d.student_source === 'invalid'"
+                                      >
+                                        <div
+                                          class="flex items-center space-x-1"
+                                        >
+                                          <i
+                                            class="ti ti-alert-circle text-red-500"
+                                          ></i
+                                          ><span class="sr-only">Inválido</span>
+                                        </div>
+                                      </template>
+                                      <template x-if="!d.student_source">
+                                        <div
+                                          class="flex items-center space-x-1"
+                                        >
+                                          <i
+                                            class="ti ti-help text-gray-400"
+                                          ></i
+                                          ><span class="sr-only"
+                                            >Desconocido</span
+                                          >
+                                        </div>
+                                      </template>
+                                    </div>
+                                  </td>
                                 </tr>
                               </template>
                             </tbody>
@@ -1300,8 +1444,8 @@
                             class="max-h-32 overflow-auto border rounded-md bg-red-50 mt-1 p-2 text-xs text-red-800"
                           >
                             <template
-                              x-for="err in batchUploadReport.errors"
-                              :key="err.control_number"
+                              x-for="(err, i) in batchUploadReport.errors"
+                              :key="(err.control_number || 'err') + '-' + i"
                             >
                               <div class="py-1 border-b border-red-200">
                                 <span
@@ -1330,6 +1474,26 @@
             class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <template x-if="batchUploadUploading">
+              <svg
+                class="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                ></path>
+              </svg>
               <span>Procesando...</span>
             </template>
             <template x-if="!batchUploadUploading">
@@ -1346,14 +1510,41 @@
         </div>
 
         <!-- Progress bar (opcional) -->
-        <template x-if="batchUploadProgress > 0 && batchUploadUploading">
+        <!-- Progress: show determinate upload progress when >0, otherwise show an indeterminate bar while server is processing -->
+        <template x-if="batchUploadUploading">
           <div class="mt-4">
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div
-                class="bg-blue-600 h-2 rounded-full transition-all"
-                :style="'width: ' + batchUploadProgress + '%'"
-              ></div>
-            </div>
+            <template x-if="batchUploadProgress > 0">
+              <div class="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  class="bg-blue-600 h-2 rounded-full transition-all"
+                  :style="'width: ' + batchUploadProgress + '%'"
+                ></div>
+              </div>
+            </template>
+            <template x-if="batchUploadProgress === 0">
+              <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  class="h-2 bg-blue-600 w-1/3 animate-[move_1.2s_linear_infinite]"
+                  style="transform: translateX(-100%)"
+                ></div>
+              </div>
+              <style>
+                @keyframes move {
+                  0% {
+                    transform: translateX(-100%);
+                  }
+                  50% {
+                    transform: translateX(25%);
+                  }
+                  100% {
+                    transform: translateX(150%);
+                  }
+                }
+                .animate-\[move_1\.2s_linear_infinite\] {
+                  animation: move 1.2s linear infinite;
+                }
+              </style>
+            </template>
           </div>
         </template>
       </div>

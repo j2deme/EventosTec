@@ -92,6 +92,20 @@
         Exportar Créditos
       </button>
       <button
+        @click="syncStudentsFromAPI()"
+        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+        title="Sincronizar estudiantes desde API externa"
+      >
+        <template x-if="!syncingStudents">
+          <i class="ti ti-cloud-download mr-1"></i>
+          Sincronizar API
+        </template>
+        <template x-if="syncingStudents">
+          <i class="ti ti-loader animate-spin mr-1"></i>
+          Sincronizando…
+        </template>
+      </button>
+      <button
         @click="clearFilters()"
         class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
       >

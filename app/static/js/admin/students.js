@@ -51,6 +51,8 @@ function studentsAdmin() {
     exportData: [],
     loadingExport: false,
     exportError: "",
+    // Sincronización desde API externa
+    syncingStudents: false,
 
     // Inicialización
     async init() {
@@ -264,6 +266,48 @@ function studentsAdmin() {
           window.showToast("Error al cargar actividades", "error");
       } finally {
         this.loadingEventDetail = false;
+      }
+    },
+
+    // Sincronizar estudiantes desde API externa hacia la BD local.
+    // Esto es una acción explícita del admin: no forma parte del flujo de
+    // subida batch (la subida ya consultará el API cuando sea necesario).
+    async syncStudentsFromAPI() {
+      if (
+        !confirm(
+          "¿Deseas sincronizar estudiantes desde la API externa? Esto puede crear/actualizar muchos registros.",
+        )
+      )
+        return;
+      this.syncingStudents = true;
+      try {
+        const res = await fetch(`/api/students/sync-external`, {
+          method: "POST",
+          headers: window.getAuthHeaders({
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({}),
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(`Error: ${res.status} ${txt}`);
+        }
+        const body = await res.json().catch(() => ({}));
+        const created = body.created || 0;
+        const updated = body.updated || 0;
+        window.showToast &&
+          window.showToast(
+            `Sincronización completada. Creados: ${created}, Actualizados: ${updated}`,
+            "success",
+          );
+        // refrescar la lista de estudiantes para ver los cambios
+        await this.loadStudents(1);
+      } catch (err) {
+        console.error("syncStudentsFromAPI error", err);
+        window.showToast &&
+          window.showToast("Error al sincronizar estudiantes", "error");
+      } finally {
+        this.syncingStudents = false;
       }
     },
 
