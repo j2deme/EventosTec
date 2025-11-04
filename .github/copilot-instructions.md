@@ -69,14 +69,14 @@ require("../app");
 - Instalar dependencias Python: `pip install -r requirements.txt`
 - Ejecutar servidor dev Flask: `flask run` o `python run.py`
 - Migraciones: `flask db migrate -m "..."` y `flask db upgrade`
-- Ejecutar tests backend: `python -m pytest -q`
-- Ejecutar tests frontend (desde workspace root): `npx jest --coverage --colors`
+- Ejecutar tests backend: `python -m pytest -q` (sólo cuando el usuario lo pida)
+- Ejecutar tests frontend (desde workspace root): `npx jest --coverage --colors` (sólo cuando el usuario lo pida)
 
 ## Contribuir cambios al frontend JS:
 
 - Evita modificar `app/static/js/app.js` sin considerar efectos en tests (interceptor y helpers globales). Si cambias cómo se instala el interceptor, actualiza los tests asociados — ver la sección "Tests frontend" para recomendaciones de mocking y `jest.resetModules()`.
 - Para agregar nuevas utilidades compartidas, exponerlas en `app/static/js/app.js` (window) y documentarlas en README.
-- Si realizas cambios en el frontend JS que afectan a la interfaz o al comportamiento, actualiza o añade tests Jest en `app/static/js/admin/__tests__/` que cubran el nuevo comportamiento. Mockear `fetch` y `localStorage` según sea necesario.
+- Si realizas cambios en el frontend JS que afectan a la interfaz o al comportamiento, actualiza o añade tests Jest en `app/static/js/admin/__tests__/` que cubran el nuevo comportamiento. Mockear `fetch` y `localStorage` según sea necesario, NUNCA ejecutes tests sin que el usario lo pida.
 - Si agregas nuevos endpoints o cambias contratos JSON, actualiza los tests Jest que consumen esos endpoints y asegúrate de que los mocks reflejen el nuevo contrato.
 - Si el cambio afecta exclusivamente a la UI (p. ej. HTML/CSS en plantillas Jinja2), puedes omitir tests Jest y tests pytest, pero documenta el cambio en la descripción del PR.
 
