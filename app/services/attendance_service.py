@@ -523,6 +523,70 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
                 if not cand:
                     continue
                 try:
+                    # First, try the local proxy endpoint used by public UI (avoid duplicating normalization)
+                    try:
+                        from flask import request as _fl_req
+
+                        proxy_url = f"{_fl_req.url_root.rstrip('/')}/api/students/validate?control_number={cand}"
+                        resp_proxy = requests.get(proxy_url, timeout=6)
+                        if resp_proxy.status_code == 200:
+                            pdata = resp_proxy.json() or {}
+                            p_student = pdata.get("student") or {}
+                            external_name = (
+                                p_student.get("full_name")
+                                or p_student.get("name")
+                                or p_student.get("nombre")
+                            )
+                            career_field = p_student.get("career") or p_student.get(
+                                "carrera"
+                            )
+                            if isinstance(career_field, dict):
+                                external_career = career_field.get(
+                                    "name"
+                                ) or career_field.get("nombre")
+                            else:
+                                external_career = career_field
+                            lookup_attempts.append(
+                                {
+                                    "candidate": cand,
+                                    "external_name": external_name,
+                                    "external_career": external_career,
+                                    "source": "local_proxy",
+                                }
+                            )
+                            if external_name and external_career:
+                                if dry_run:
+                                    student_source = "external"
+                                    persisted = False
+                                else:
+                                    student_source = "created"
+                                    persisted = True
+                                student = Student()
+                                student.control_number = (
+                                    p_student.get("control_number")
+                                    or p_student.get("username")
+                                    or cand
+                                )
+                                student.full_name = external_name
+                                student.career = external_career
+                                student.email = p_student.get("email") or ""
+                                external_name_used = external_name
+                                external_career_used = external_career
+                                if not dry_run:
+                                    db.session.add(student)
+                                    db.session.flush()
+                                break
+                            else:
+                                # record incomplete result from proxy and continue to other sources
+                                lookup_errors.append(
+                                    (
+                                        cand,
+                                        "API proxy devolvió datos incompletos (falta nombre o carrera)",
+                                    )
+                                )
+                    except Exception:
+                        # if proxy fails, continue to other external attempts
+                        pass
                     # First, try the validate endpoint used elsewhere in the app
                     validate_url = f"http://apps.tecvalles.mx:8091/api/validate/student?username={cand}"
                     resp = requests.get(validate_url, timeout=8)
