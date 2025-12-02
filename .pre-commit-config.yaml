@@ -5,7 +5,11 @@ repos:
     hooks:
       # Run the linter and auto-fix what's possible
       - id: ruff
-        args: [check, --fix, --unsafe-fixes, --ignore, E902, --ignore, F401]
+        # Do not run auto-fixes here to avoid modifying working-tree files
+        # during a commit (which can conflict with pre-commit's stash/restore).
+        # Keep ruff as a linter/checker; use `ruff-format` or run `ruff format`
+        # explicitly before committing to apply fixes.
+        args: [check, --ignore, E902, --ignore, F401]
       # Run the formatter (replaces Black and isort)
       - id: ruff-format
 
