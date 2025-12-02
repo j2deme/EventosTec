@@ -43,6 +43,8 @@ function attendancesAdmin() {
       activity_type: "",
     },
 
+    // CSV download removed as per UX request
+
     // Stats for dashboard cards
     statsToday: 0,
     statsWalkins: 0,
@@ -74,6 +76,9 @@ function attendancesAdmin() {
     syncDryRun: true,
     syncSourceActivityId: null,
     syncResult: null,
+    // actividades cargadas específicamente para el modal de sincronización
+    modalRelatedActivities: [],
+    modalRelatedLoading: false,
     // Batch checkout modal state
     showBatchCheckoutModal: false,
     batchDryRun: true,
@@ -124,6 +129,9 @@ function attendancesAdmin() {
       }
       return byEvent;
     },
+
+    // Return only activities that have outgoing related activities (i.e. point to another activity)
+    // (removed) activitiesWithRelations: modal now requests related activities from server
 
     // Return activities filtered specifically for the batch modal using batchEventId
     batchFilteredActivities() {
@@ -419,16 +427,44 @@ function attendancesAdmin() {
     },
 
     // Sync modal helpers
-    openSyncModal() {
+    async openSyncModal() {
       this.showSyncModal = true;
       this.syncDryRun = true;
       this.syncSourceActivityId = "";
       this.syncResult = null;
+      // Cargar actividades relacionadas desde el servidor para el modal
+      // (evita afectar selects globales y hace el filtrado en backend)
+      await this.loadModalRelatedActivities();
       // Preserve existing per-row selections. Set master checkbox state based
       // on currently visible rows so UI reflects the current selection.
       const visible = this.attendancesTableFiltered() || [];
       this.selectAllForSync =
         visible.length > 0 && visible.every((r) => !!r.__selected_for_sync);
+    },
+
+    async loadModalRelatedActivities() {
+      this.modalRelatedActivities = [];
+      this.modalRelatedLoading = true;
+      try {
+        const qs = new URLSearchParams();
+        qs.set("per_page", "500");
+        qs.set("has_related", "1");
+        // if the UI has a selected event filter, send it so backend filters by event
+        if (this.filters && this.filters.event_id)
+          qs.set("event_id", String(this.filters.event_id));
+
+        const url = "/api/activities?" + qs.toString();
+        const res = await this.sf(url, { method: "GET" });
+        const body = await (res && res.json
+          ? res.json().catch(() => ({}))
+          : Promise.resolve({}));
+        this.modalRelatedActivities = body.activities || body.data || [];
+      } catch (e) {
+        console.error("Error loading related activities for modal", e);
+        this.modalRelatedActivities = [];
+      } finally {
+        this.modalRelatedLoading = false;
+      }
     },
 
     closeSyncModal() {
@@ -501,7 +537,10 @@ function attendancesAdmin() {
       // Validar activity id
       if (!this.syncSourceActivityId) {
         window.showToast &&
-          window.showToast("Selecciona una actividad fuente válida", "error");
+          window.showToast(
+            "Selecciona una actividad a sincronizar válida",
+            "error",
+          );
         return;
       }
       const activityExists = (this.activities || []).some(
@@ -541,7 +580,36 @@ function attendancesAdmin() {
         const body = await (res && res.json
           ? res.json().catch(() => ({}))
           : Promise.resolve({}));
-        this.syncResult = body.summary || body;
+        // Keep full response and merge metadata into syncResult so template can access resolved_source
+        const full = body || {};
+        this.syncResult = full.summary || full;
+        if (full.resolved_source)
+          this.syncResult.resolved_source = full.resolved_source;
+        if (full.selected_activity)
+          this.syncResult.selected_activity = full.selected_activity;
+
+        // Enriquecer detalles con nombres cuando sea posible (backend también los incluye cuando puede)
+        try {
+          (this.syncResult.details || []).forEach((d) => {
+            // target_activity_name is provided by backend; no client-side enrichment required
+            // Prefer backend-provided student fields; fallback to current attendances cache (best-effort)
+            const cached = (this.attendances || []).find(
+              (x) => String(x.student_id) === String(d.student_id),
+            );
+            if (!d.student_name && cached) {
+              d.student_name =
+                cached.student_name || cached.student_identifier || "";
+            }
+            // Prefer server student_identifier; fallback to cache.control_number
+            d.student_identifier =
+              d.student_identifier ||
+              (cached &&
+                (cached.student_identifier || cached.control_number)) ||
+              "";
+          });
+        } catch (e) {
+          // ignore enrichment errors
+        }
 
         if (!this.syncDryRun && res && res.ok) {
           window.showToast &&

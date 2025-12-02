@@ -256,7 +256,7 @@ def create_related_attendances(student_id, activity_id):
 
 
 def sync_related_attendances_from_source(
-    source_activity_id, student_ids=None, dry_run=False
+    source_activity_id, student_ids=None, dry_run=False, target_activity_ids=None
 ):
     """
     Sincroniza (on-demand) asistencias desde una actividad fuente hacia sus
@@ -280,9 +280,23 @@ def sync_related_attendances_from_source(
     if not source_activity:
         raise ValueError("Actividad fuente no encontrada")
 
-    related = list(getattr(source_activity, "related_activities", []) or [])
+    # Obtener solo las actividades que apuntan a la fuente (entrantes).
+    # Semántica: B -> A significa que B es receptora y A es fuente; al invocar
+    # sincronización sobre A se crearán asistencias en las actividades que
+    # apuntan a A (p. ej. B). Esto evita sincronizaciones inesperadas en la
+    # dirección opuesta.
+    related = list(getattr(source_activity, "related_to_activities", []) or [])
     if not related:
         return summary
+
+    # Si se pasó un filtro de targets, limitar la lista a esos ids
+    if target_activity_ids:
+        try:
+            target_set = set(int(x) for x in target_activity_ids)
+            related = [r for r in related if getattr(r, "id", None) in target_set]
+        except Exception:
+            # Si la conversión falla, ignorar el filtro y continuar con todos
+            pass
 
     # Construir query de asistencias en la actividad fuente
     query = Attendance.query.filter_by(activity_id=source_activity_id)
@@ -290,6 +304,26 @@ def sync_related_attendances_from_source(
         query = query.filter(Attendance.student_id.in_(student_ids))
 
     source_attendances = query.all()
+
+    # Pre-cache student names and control numbers for efficiency (best-effort)
+    try:
+        student_ids_in_source = {s.student_id for s in source_attendances}
+        students_map = {}
+        if student_ids_in_source:
+            from app.models.student import Student
+
+            students = (
+                db.session.query(Student.id, Student.full_name, Student.control_number)
+                .filter(Student.id.in_(list(student_ids_in_source)))
+                .all()
+            )
+            for sid, full_name, control in students:
+                students_map[int(sid)] = {
+                    "full_name": full_name or "",
+                    "control_number": control or "",
+                }
+    except Exception:
+        students_map = {}
 
     for src in source_attendances:
         for target in related:
@@ -299,53 +333,53 @@ def sync_related_attendances_from_source(
             ).first()
             if exists:
                 summary["skipped"] += 1
+                # Build detail with explicit name and control (if available)
+                student_info = students_map.get(int(src.student_id), {}) or {}
                 summary["details"].append(
                     {
                         "student_id": src.student_id,
+                        "student_name": student_info.get("full_name", ""),
+                        "student_identifier": student_info.get("control_number", ""),
                         "target_activity_id": target.id,
+                        "target_activity_name": getattr(target, "name", ""),
                         "action": "skipped",
                         "reason": "already_exists",
                     }
                 )
                 continue
 
-            # Construir nueva asistencia copiando tiempos fuente
+            # Construir nueva asistencia copiando tiempos fuente.
+            # Requerimiento: las asistencias sincronizadas deben representar 100%.
             new_att = Attendance()
             new_att.student_id = src.student_id
             new_att.activity_id = target.id
+            # Copiar tiempos si existen para referencia, pero marcar 100% explícitamente
             new_att.check_in_time = src.check_in_time
             new_att.check_out_time = src.check_out_time
-
-            # Calcular porcentaje/estado si tenemos ambos tiempos
-            if new_att.check_in_time and new_att.check_out_time:
-                try:
-                    # Utiliza la función local para calcular porcentaje
-                    # safe: will return None if not persisted
-                    calculate_attendance_percentage(new_att.id)
-                except Exception:
-                    # ignore calculation failures here; endpoint llamador puede recalcular
-                    pass
+            new_att.attendance_percentage = 100.0
+            new_att.status = "Asistió"
 
             if not dry_run:
                 db.session.add(new_att)
-                # sync registration if exists
+                # Sincronizar preregistro si existe: marcar como asistido al 100%
                 reg = Registration.query.filter_by(
                     student_id=src.student_id, activity_id=target.id
                 ).first()
                 if reg:
-                    reg.attended = bool(
-                        new_att.check_in_time and new_att.check_out_time
-                    )
-                    if reg.attended:
-                        reg.status = "Asistió"
-                        reg.confirmation_date = db.func.now()
+                    reg.attended = True
+                    reg.status = "Asistió"
+                    reg.confirmation_date = db.func.now()
                     db.session.add(reg)
 
             summary["created"] += 1
+            student_info = students_map.get(int(src.student_id), {}) or {}
             summary["details"].append(
                 {
                     "student_id": src.student_id,
+                    "student_name": student_info.get("full_name", ""),
+                    "student_identifier": student_info.get("control_number", ""),
                     "target_activity_id": target.id,
+                    "target_activity_name": getattr(target, "name", ""),
                     "action": "created",
                     "reason": "synced_from_source",
                 }
@@ -525,7 +559,7 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
                 try:
                     # First, try the local proxy endpoint used by public UI (avoid duplicating normalization)
                     try:
-                        from flask import request as _fl_req
+                        from flask import request as _fl_req  # type: ignore
 
                         proxy_url = f"{_fl_req.url_root.rstrip('/')}/api/students/validate?control_number={cand}"
                         resp_proxy = requests.get(proxy_url, timeout=6)

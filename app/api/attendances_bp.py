@@ -359,7 +359,7 @@ def get_attendances():
                     Registration.activity_id == Attendance.activity_id,
                 ),
             )
-            walkins = walkins_q.filter(Registration.id is None).count() # type: ignore
+            walkins = walkins_q.filter(Registration.id is None).count()  # type: ignore
         except Exception:
             walkins = 0
 
@@ -818,15 +818,63 @@ def sync_related():
         if not source_id:
             return jsonify({"message": "source_activity_id es requerido"}), 400
 
-        # Llamar al servicio
+        # Resolver semántica del formulario: si la actividad seleccionada
+        # tiene un enlace saliente (es decir, apunta hacia otra actividad),
+        # la actividad seleccionada se interpreta como *receptora* y la
+        # actividad hacia la que apunta será la *fuente* real. En ese caso
+        # limitamos la sincronización solo a la actividad receptora para
+        # evitar crear asistencias en otros posibles receptores.
+        from app.models.activity import Activity
         from app.services.attendance_service import sync_related_attendances_from_source
+
+        target_activity_ids = None
+        # Intentar resolver la actividad seleccionada
+        sel_activity = db.session.get(Activity, source_id)
+        if sel_activity:
+            out_links = list(getattr(sel_activity, "related_activities", []) or [])
+            if out_links:
+                # La actividad seleccionada apunta a otra -> interpretarla como receptora
+                real_source = getattr(out_links[0], "id", None)
+                # Limitar targets a la actividad seleccionada
+                target_activity_ids = [source_id]
+                source_to_use = real_source or source_id
+            else:
+                source_to_use = source_id
+        else:
+            source_to_use = source_id
 
         try:
             summary = sync_related_attendances_from_source(
-                source_id, student_ids=student_ids, dry_run=dry_run
+                source_to_use,
+                student_ids=student_ids,
+                dry_run=dry_run,
+                target_activity_ids=target_activity_ids,
             )
         except ValueError as ve:
             return jsonify({"message": str(ve)}), 404
+
+        # Enviar información de la fuente resuelta y la actividad seleccionada
+        try:
+            resolved = None
+            src_act = db.session.get(Activity, source_to_use)
+            if src_act:
+                resolved = {
+                    "id": getattr(src_act, "id", None),
+                    "name": getattr(src_act, "name", None),
+                }
+        except Exception:
+            resolved = None
+
+        selected_info = None
+        try:
+            sel_act = db.session.get(Activity, source_id)
+            if sel_act:
+                selected_info = {
+                    "id": getattr(sel_act, "id", None),
+                    "name": getattr(sel_act, "name", None),
+                }
+        except Exception:
+            selected_info = None
 
         status_code = 200 if dry_run else 201
         return jsonify(
@@ -834,6 +882,8 @@ def sync_related():
                 "message": "Sincronizaci\u00f3n completada",
                 "dry_run": dry_run,
                 "summary": summary,
+                "resolved_source": resolved,
+                "selected_activity": selected_info,
             }
         ), status_code
 

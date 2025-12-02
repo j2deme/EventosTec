@@ -8,6 +8,7 @@ from sqlalchemy import func
 from app.models.event import Event
 from app.models.registration import Registration
 from app.services import activity_service
+from app.models import activity_relations
 from app.utils.slug_utils import slugify, generate_unique_slug
 from app.utils.auth_helpers import require_admin, get_user_or_403
 from datetime import datetime, timezone
@@ -99,6 +100,17 @@ def get_activities():
 
         if activity_type:
             query = query.filter(Activity.activity_type == activity_type)
+
+        # Filtrar actividades que tienen relaciones salientes (activity_relations)
+        has_related = request.args.get("has_related", default=None)
+        if has_related is not None:
+            sval = str(has_related).lower()
+            if sval in ("1", "true", "yes"):
+                # join con la tabla de asociación para requerir al menos una relación
+                query = query.join(
+                    activity_relations,
+                    Activity.id == activity_relations.c.activity_id,
+                )
 
         if event_id:
             query = query.filter(Activity.event_id == event_id)

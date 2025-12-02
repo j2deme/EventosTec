@@ -1042,19 +1042,54 @@
         Sincronizar actividades relacionadas
       </h3>
       <div class="mb-3">
-        <label class="block text-sm">Actividad fuente</label>
+        <label class="block text-sm">Actividad a sincronizar</label>
         <select
           x-model="syncSourceActivityId"
           class="mt-1 block w-full rounded border-gray-300"
+          :disabled="modalRelatedLoading || (modalRelatedActivities && modalRelatedActivities.length === 0)"
+          aria-busy="modalRelatedLoading"
         >
           <option value="">-- Selecciona una actividad --</option>
-          <template x-for="a in activities" :key="a.id">
+          <template
+            x-if="modalRelatedActivities && modalRelatedActivities.length === 0"
+          >
+            <option value="">
+              -- No se encontraron actividades relacionadas --
+            </option>
+          </template>
+          <template x-for="a in modalRelatedActivities" :key="a.id">
             <option
               :value="a.id"
               x-text="(a.name || ('Actividad ' + a.id)) + (a.event_name ? (' — ' + a.event_name) : '')"
             ></option>
           </template>
         </select>
+        <div class="mt-2 text-xs text-gray-500">
+          <template x-if="modalRelatedLoading">
+            <div class="flex items-center space-x-2">
+              <svg
+                class="animate-spin h-4 w-4 text-gray-500"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                  fill="none"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                ></path>
+              </svg>
+              <div>Cargando actividades relacionadas…</div>
+            </div>
+          </template>
+        </div>
       </div>
       <div class="mb-3">
         <label class="inline-flex items-center">
@@ -1092,7 +1127,7 @@
         <button
           @click="performSync()"
           class="px-3 py-2 bg-indigo-600 text-white rounded flex items-center"
-          :disabled="syncRunning"
+          :disabled="syncRunning || modalRelatedLoading || (modalRelatedActivities && modalRelatedActivities.length === 0)"
         >
           <svg
             x-show="syncRunning"
@@ -1118,24 +1153,79 @@
           <span x-text="syncRunning ? 'Sincronizando...' : 'Ejecutar'"></span>
         </button>
       </div>
-
       <template x-if="syncResult">
         <div class="mt-4">
-          <div class="text-sm font-medium">Resumen</div>
-          <div class="text-xs text-gray-600">
-            Creados: <span x-text="syncResult.created || 0"></span>, Saltados:
-            <span x-text="syncResult.skipped || 0"></span>
+          <template x-if="syncResult && syncResult.resolved_source">
+            <div class="text-xs text-gray-500 mb-2">
+              Obteniendo asistencias desde:
+              <span
+                class="font-medium"
+                x-text="syncResult.resolved_source.name"
+              ></span>
+            </div>
+          </template>
+
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-medium">Resumen</div>
+              <div class="text-xs text-gray-600">
+                Creados: <span x-text="syncResult.created || 0"></span>,
+                Saltados: <span x-text="syncResult.skipped || 0"></span>
+              </div>
+              <template x-if="syncResult && syncResult.selected_activity">
+                <div class="text-xs text-gray-500 mt-1">
+                  Copiando asistencias hacia:
+                  <span
+                    class="font-medium"
+                    x-text="syncResult.selected_activity.name || syncResult.selected_activity.title || ''"
+                  ></span>
+                </div>
+              </template>
+            </div>
           </div>
-          <div class="mt-2 max-h-48 overflow-auto text-xs text-gray-700">
+
+          <div class="mt-2 max-h-48 overflow-auto text-sm text-gray-700">
             <template
               x-for="d in (syncResult.details || [])"
-              :key="d.student_id + '-' + d.target_activity_id"
+              :key="d.student_id"
             >
-              <div class="py-1 border-b">
-                ID estudiante: <span x-text="d.student_id"></span> → Actividad:
-                <span x-text="d.target_activity_id"></span> —
-                <span x-text="d.action"></span> (<span x-text="d.reason"></span
-                >)
+              <div class="py-2 border-b flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center space-x-3">
+                    <div
+                      class="font-medium text-gray-900"
+                      x-text="d.student_name || ''"
+                    ></div>
+                    <div class="text-xs text-gray-500">&mdash;</div>
+                    <div
+                      class="text-sm text-gray-700"
+                      x-text="d.student_identifier || ''"
+                    ></div>
+                  </div>
+                </div>
+
+                <div class="ml-4 flex-shrink-0 text-right">
+                  <template x-if="d.action === 'created'">
+                    <span
+                      class="inline-flex items-center px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs"
+                      >Creado</span
+                    >
+                  </template>
+                  <template x-if="d.action === 'skipped'">
+                    <span
+                      class="inline-flex items-center px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs"
+                      >Saltado</span
+                    >
+                  </template>
+                  <div class="text-xs text-gray-500 mt-1">
+                    <i
+                      class="ti ti-info"
+                      title="Motivo: "
+                      x-bind:title="'Motivo: ' + (d.reason || '')"
+                      style="cursor: help"
+                    ></i>
+                  </div>
+                </div>
               </div>
             </template>
           </div>
