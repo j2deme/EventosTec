@@ -26,6 +26,13 @@ function attendancesAdmin() {
     activities: [],
     activityTypes: [],
     attendances: [],
+    // Global stats returned by the server for the whole query
+    globalStats: null,
+    // Pagination
+    page: 1,
+    per_page: 10,
+    total: 0,
+    pages: 1,
     loading: false,
     filters: {
       search: "",
@@ -254,6 +261,16 @@ function attendancesAdmin() {
         d1.getMonth() === d2.getMonth() &&
         d1.getDate() === d2.getDate();
 
+      // If server provided aggregated stats for the full query, prefer them
+      if (this.globalStats) {
+        this.statsToday =
+          this.globalStats.today || this.globalStats.stats_today || 0;
+        this.statsWalkins = this.globalStats.walkins || 0;
+        this.statsConverted = this.globalStats.converted || 0;
+        this.statsErrors = this.globalStats.errors || 0;
+        return;
+      }
+
       this.statsToday = (this.attendances || []).filter((att) => {
         if (!att.created_at) return false;
         const d = new Date(att.created_at);
@@ -313,6 +330,9 @@ function attendancesAdmin() {
 
         // load attendances with current filters (server-side support optional)
         const qs = new URLSearchParams();
+        // include pagination params so backend returns correct page
+        qs.set("page", String(this.page || 1));
+        qs.set("per_page", String(this.per_page || 10));
         if (this.filters.search) qs.set("search", this.filters.search);
         if (this.filters.activity_id)
           qs.set("activity_id", this.filters.activity_id);
@@ -329,6 +349,24 @@ function attendancesAdmin() {
           ? res.json().catch(() => ({}))
           : Promise.resolve({}));
         this.attendances = this.parseAttendancesPayload(body);
+
+        // consume aggregated stats returned by the API for the whole query
+        try {
+          this.globalStats = body.stats || null;
+        } catch (e) {
+          this.globalStats = null;
+        }
+
+        // pagination metadata (backend returns total/pages/current_page)
+        try {
+          this.total = body.total || body.count || this.total || 0;
+          this.pages =
+            body.pages ||
+            Math.max(1, Math.ceil((this.total || 0) / (this.per_page || 10)));
+          this.page = body.current_page || this.page || 1;
+        } catch (e) {
+          // ignore if response shape unexpected
+        }
 
         // Normalizar datos para la plantilla (status tokens, date_display, activity_type)
         this.normalizeAttendances();
@@ -547,6 +585,22 @@ function attendancesAdmin() {
       // Only toggle rows that are currently visible after filters
       const visible = this.attendancesTableFiltered() || [];
       visible.forEach((r) => (r.__selected_for_sync = newVal));
+    },
+
+    // Pagination helpers
+    async changePage(newPage) {
+      const n = parseInt(newPage, 10) || 1;
+      if (n < 1) return;
+      if (this.pages && n > this.pages) return;
+      this.page = n;
+      await this.refresh();
+    },
+
+    async setPerPage(n) {
+      const p = parseInt(n, 10) || 10;
+      this.per_page = p;
+      this.page = 1;
+      await this.refresh();
     },
 
     async loadEvents() {

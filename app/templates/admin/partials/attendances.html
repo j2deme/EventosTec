@@ -332,12 +332,9 @@
             <!-- Eliminado buscador y botón: edición por fila individual -->
           </div>
 
-          <div class="overflow-x-auto">
-            <!-- Indicador de carga -->
-            <div x-show="loading" class="py-8 text-center text-gray-500">
-              Cargando asistencias...
-            </div>
-            <table x-show="!loading" class="min-w-full table-auto text-sm">
+          <div class="overflow-x-auto relative">
+            <!-- Usar solo skeleton rows (no overlay) -->
+            <table class="min-w-full table-auto text-sm">
               <thead>
                 <tr class="bg-gray-50">
                   <th class="px-3 py-3">
@@ -376,6 +373,67 @@
                 </tr>
               </thead>
               <tbody>
+                <!-- Skeleton rows while loading (filas esqueléticas que imitan el layout real) -->
+                <template x-if="loading">
+                  <template
+                    x-for="i in (per_page > 100 ? 100 : per_page)"
+                    :key="i"
+                  >
+                    <tr class="border-t">
+                      <td class="px-3 py-4 align-top">
+                        <div
+                          class="h-4 w-4 bg-gray-200 rounded animate-pulse"
+                        ></div>
+                      </td>
+
+                      <td class="px-6 py-4 align-top">
+                        <div
+                          class="h-4 bg-gray-200 rounded w-3/4 animate-pulse mb-2"
+                        ></div>
+                        <div
+                          class="h-3 bg-gray-200 rounded w-1/2 animate-pulse"
+                        ></div>
+                      </td>
+
+                      <td class="px-6 py-4 align-top">
+                        <div
+                          class="h-4 bg-gray-200 rounded w-2/3 animate-pulse mb-2"
+                        ></div>
+                        <div
+                          class="h-3 bg-gray-200 rounded w-1/2 animate-pulse"
+                        ></div>
+                      </td>
+
+                      <td class="px-6 py-4 align-top">
+                        <!-- status pill skeleton -->
+                        <div
+                          class="h-6 w-20 bg-gray-200 rounded-full animate-pulse"
+                        ></div>
+                      </td>
+
+                      <td class="px-6 py-4 align-top">
+                        <div
+                          class="h-4 bg-gray-200 rounded w-32 animate-pulse"
+                        ></div>
+                      </td>
+
+                      <td class="px-6 py-4 align-top">
+                        <!-- action buttons skeletons (edit, view, delete) -->
+                        <div class="flex items-center space-x-2">
+                          <div
+                            class="h-8 w-8 bg-gray-200 rounded animate-pulse"
+                          ></div>
+                          <div
+                            class="h-8 w-8 bg-gray-200 rounded animate-pulse"
+                          ></div>
+                          <div
+                            class="h-8 w-8 bg-gray-200 rounded animate-pulse"
+                          ></div>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </template>
                 <template
                   x-for="row in attendancesTableFiltered()"
                   :key="row.key"
@@ -533,6 +591,58 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pagination controls -->
+      <div class="mt-3 px-4 sm:px-6" x-show="pages && pages > 1">
+        <div class="flex items-center justify-between text-sm text-gray-600">
+          <div>
+            Mostrando página <strong x-text="page"></strong> de
+            <strong x-text="pages"></strong> — Total registros:
+            <strong x-text="total"></strong>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button
+              class="px-2 py-1 bg-white border rounded"
+              :disabled="page <= 1"
+              @click="changePage(page - 1)"
+            >
+              Anterior
+            </button>
+
+            <div class="px-2">Página</div>
+            <input
+              type="number"
+              class="w-16 px-2 py-1 border rounded"
+              min="1"
+              :max="pages"
+              :value="page"
+              @change="changePage($event.target.value)"
+            />
+
+            <button
+              class="px-2 py-1 bg-white border rounded"
+              :disabled="page >= pages"
+              @click="changePage(page + 1)"
+            >
+              Siguiente
+            </button>
+
+            <div class="ml-4 flex items-center">
+              <div class="mr-2">Filas por página</div>
+              <select
+                class="px-2 py-1 border rounded"
+                @change="setPerPage($event.target.value)"
+                :value="per_page"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>

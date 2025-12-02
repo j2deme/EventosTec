@@ -332,10 +332,71 @@ def get_attendances():
             )
 
         query = query.order_by(Attendance.created_at.desc())
+        # Mantener una referencia a la consulta sin paginar para cálculos agregados
+        base_query = query
 
-        total = query.count()
+        total = base_query.count()
         items = query.limit(per_page).offset((page - 1) * per_page).all()
         pages = (total + per_page - 1) // per_page if per_page else 1
+
+        # Estadísticas agregadas sobre toda la consulta (no solo la página)
+        try:
+            from datetime import date
+
+            # contar asistencias creadas hoy
+            stats_today = base_query.filter(
+                db.func.date(Attendance.created_at) == date.today()
+            ).count()
+        except Exception:
+            stats_today = 0
+
+        try:
+            # walkins: attendances without a matching registration (left outer join)
+            walkins_q = base_query.outerjoin(
+                Registration,
+                db.and_(
+                    Registration.student_id == Attendance.student_id,
+                    Registration.activity_id == Attendance.activity_id,
+                ),
+            )
+            walkins = walkins_q.filter(Registration.id is None).count() # type: ignore
+        except Exception:
+            walkins = 0
+
+        try:
+            # converted: attendances with registration and considered present/registered
+            converted_q = base_query.join(
+                Registration,
+                db.and_(
+                    Registration.student_id == Attendance.student_id,
+                    Registration.activity_id == Attendance.activity_id,
+                ),
+            )
+            converted = converted_q.filter(
+                Attendance.status.in_(
+                    [
+                        "Asistió",
+                        "Parcial",
+                        "Registrado",
+                        "Confirmado",
+                        "present",
+                        "registered",
+                    ]
+                )
+            ).count()
+        except Exception:
+            converted = 0
+
+        try:
+            # errors: status 'Ausente' or low percentage (<50)
+            errors = base_query.filter(
+                db.or_(
+                    Attendance.status == "Ausente",
+                    Attendance.attendance_percentage < 50,
+                )
+            ).count()
+        except Exception:
+            errors = 0
 
         # Serializar y adjuntar objetos relacionados (student, activity) para
         # facilitar el consumo en el frontend sin múltiples requests.
@@ -436,6 +497,12 @@ def get_attendances():
                 "total": total,
                 "pages": pages,
                 "current_page": page,
+                "stats": {
+                    "today": stats_today,
+                    "walkins": walkins,
+                    "converted": converted,
+                    "errors": errors,
+                },
             }
         ), 200
 
