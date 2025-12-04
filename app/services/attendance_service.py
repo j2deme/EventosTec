@@ -7,6 +7,28 @@ from app.models.attendance import Attendance
 from app.models.activity import Activity
 
 
+def _normalize_external_json(obj):
+    """Normalize various shapes returned by external student APIs.
+
+    - If obj is a dict and contains a 'data' dict, return that dict.
+    - If obj is a dict and contains a 'student' dict, return that dict.
+    - If obj is a list whose first item is a dict, return that first dict.
+    - Otherwise return an empty dict or the dict itself when appropriate.
+    """
+    if isinstance(obj, dict):
+        # common wrapper: {"success": true, "data": {...}}
+        if isinstance(obj.get("data"), dict):
+            return obj.get("data")
+        # proxy shape: {"student": {...}}
+        if isinstance(obj.get("student"), dict):
+            return obj.get("student")
+        # already a useful dict
+        return obj
+    if isinstance(obj, list) and len(obj) > 0 and isinstance(obj[0], dict):
+        return obj[0]
+    return {}
+
+
 def pause_attendance(attendance_id):
     """Marca la asistencia como pausada."""
     from app import db
@@ -564,8 +586,14 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
                         proxy_url = f"{_fl_req.url_root.rstrip('/')}/api/students/validate?control_number={cand}"
                         resp_proxy = requests.get(proxy_url, timeout=6)
                         if resp_proxy.status_code == 200:
-                            pdata = resp_proxy.json() or {}
-                            p_student = pdata.get("student") or {}
+                            try:
+                                pdata_raw = resp_proxy.json() if resp_proxy.text else {}
+                            except Exception:
+                                pdata_raw = {}
+                            # normalize shapes (dict with data/student, or list)
+                            pdata = _normalize_external_json(pdata_raw)
+                            # pdata may already be the inner student dict
+                            p_student = pdata if isinstance(pdata, dict) else {}
                             external_name = (
                                 p_student.get("full_name")
                                 or p_student.get("name")
@@ -625,7 +653,14 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
                     validate_url = f"http://apps.tecvalles.mx:8091/api/validate/student?username={cand}"
                     resp = requests.get(validate_url, timeout=8)
                     if resp.status_code == 200:
-                        external_data = resp.json() or {}
+                        try:
+                            external_raw = resp.json() if resp.text else {}
+                        except Exception:
+                            external_raw = {}
+                        external_data = _normalize_external_json(external_raw)
+                        # Ensure external_data is a dict before calling .get()
+                        if not isinstance(external_data, dict):
+                            external_data = {}
                         # Only create a Student if the external API returned
                         # at least a name and a career (policy requirement)
                         external_name = (
@@ -655,7 +690,9 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
                                 persisted = True
                             student = Student()
                             student.control_number = (
-                                external_data.get("username") or cand
+                                external_data.get("username")
+                                or external_data.get("control_number")
+                                or cand
                             )
                             student.full_name = external_name
                             student.career = external_career
