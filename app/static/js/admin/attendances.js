@@ -92,6 +92,7 @@ function attendancesAdmin() {
     batchUploadActivityId: null,
     batchUploadFile: null,
     batchUploadDryRun: true,
+    batchUploadMode: "entry",
     batchUploadReport: null,
     batchUploadError: null,
     batchUploadUploading: false,
@@ -1248,6 +1249,7 @@ function attendancesAdmin() {
       this.batchUploadActivityId = null;
       this.batchUploadFile = null;
       this.batchUploadDryRun = true;
+      this.batchUploadMode = "entry";
       this.batchUploadReport = null;
       this.batchUploadError = null;
       this.batchUploadProgress = 0;
@@ -1310,6 +1312,11 @@ function attendancesAdmin() {
         fd.append("file", this.batchUploadFile);
         fd.append("activity_id", String(this.batchUploadActivityId));
         fd.append("dry_run", this.batchUploadDryRun ? "1" : "0");
+        // include mode ('entry' or 'exit') and action (mark_absent)
+        fd.append("mode", this.batchUploadMode || "entry");
+        if ((this.batchUploadMode || "entry") === "exit") {
+          fd.append("action", "mark_absent");
+        }
 
         await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest();
@@ -1346,6 +1353,61 @@ function attendancesAdmin() {
                   this.batchUploadReport.details || [];
                 this.batchUploadReport.errors =
                   this.batchUploadReport.errors || [];
+                // Compute occurrences of control_number within this report
+                try {
+                  const occ = {};
+                  (this.batchUploadReport.details || []).forEach((d) => {
+                    const cn = String(d.control_number || "").trim();
+                    if (!cn) return;
+                    occ[cn] = (occ[cn] || 0) + 1;
+                  });
+                  (this.batchUploadReport.details || []).forEach((d) => {
+                    const cn = String(d.control_number || "").trim();
+                    d.__occurrences = occ[cn] || 0;
+                  });
+                } catch (e) {
+                  // ignore
+                }
+                // Recompute aggregate counters from details to keep stats consistent
+                try {
+                  const counts = {
+                    created: 0,
+                    skipped: 0,
+                    not_found: 0,
+                    unmatched: 0,
+                    mark_absent: 0,
+                    invalid: 0,
+                  };
+                  (this.batchUploadReport.details || []).forEach((d) => {
+                    const a = String(d.action || "").toLowerCase();
+                    if (a === "created") counts.created += 1;
+                    else if (a === "skipped") counts.skipped += 1;
+                    else if (a === "not_found") counts.not_found += 1;
+                    else if (a === "unmatched") counts.unmatched += 1;
+                    else if (a === "mark_absent") counts.mark_absent += 1;
+                    else if (a === "invalid") counts.invalid += 1;
+                  });
+
+                  // Determine header values depending on mode
+                  if ((this.batchUploadMode || "entry") === "exit") {
+                    // For exit mode, consider 'Aplicadas' = planned mark_absent (even in dry-run)
+                    this.batchUploadReport.created = counts.mark_absent;
+                    this.batchUploadReport.skipped = counts.skipped;
+                    // Not found includes both 'not_found' (no attendance) and 'unmatched' (no student)
+                    this.batchUploadReport.not_found =
+                      counts.not_found + counts.unmatched;
+                    this.batchUploadReport.invalid = counts.invalid;
+                  } else {
+                    // Entry mode: map to original counters
+                    this.batchUploadReport.created = counts.created;
+                    this.batchUploadReport.skipped = counts.skipped;
+                    this.batchUploadReport.not_found = counts.not_found;
+                    this.batchUploadReport.invalid =
+                      counts.invalid + counts.unmatched;
+                  }
+                } catch (e) {
+                  // ignore
+                }
                 // Prefer server-provided dry_run flag when available; fallback to top-level report or client value
                 try {
                   const serverDry =
@@ -1367,6 +1429,13 @@ function attendancesAdmin() {
                   typeof this.batchUploadReport.created === "number"
                     ? this.batchUploadReport.created
                     : 0;
+                // Normalize fields across 'entry' and 'exit' reports
+                this.batchUploadReport.created =
+                  typeof this.batchUploadReport.created === "number"
+                    ? this.batchUploadReport.created
+                    : typeof report.applied === "number"
+                      ? report.applied
+                      : 0;
                 this.batchUploadReport.skipped =
                   typeof this.batchUploadReport.skipped === "number"
                     ? this.batchUploadReport.skipped
@@ -1374,11 +1443,16 @@ function attendancesAdmin() {
                 this.batchUploadReport.not_found =
                   typeof this.batchUploadReport.not_found === "number"
                     ? this.batchUploadReport.not_found
-                    : 0;
+                    : typeof report.not_found === "number"
+                      ? report.not_found
+                      : 0;
+                // 'unmatched' controls (no student) map to 'invalid' count in UI
                 this.batchUploadReport.invalid =
                   typeof this.batchUploadReport.invalid === "number"
                     ? this.batchUploadReport.invalid
-                    : 0;
+                    : typeof report.unmatched === "number"
+                      ? report.unmatched
+                      : 0;
                 this.batchUploadView = "report";
                 // If this was not a dry run and attendances were created, reload list
                 if (

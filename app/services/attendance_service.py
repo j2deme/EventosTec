@@ -928,3 +928,204 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
             summary["created"] = 0
 
     return summary
+
+
+def process_exit_from_file(
+    file_stream, activity_id, dry_run=True, action="mark_absent"
+):
+    """
+    Procesa un archivo TXT o XLSX con números de control para marcar salidas.
+
+    - action: 'mark_absent' (recommended, non-destructive) or 'delete'
+    - dry_run: if True, only validate and return report
+
+    Returns dict similar to create_attendances_from_file with keys:
+      created -> number of rows updated/deleted
+      not_found -> attendances not found for the provided controls
+      unmatched -> controls with no student
+      errors, details
+    """
+    from app import db
+    from app.models.student import Student
+    from app.models.attendance import Attendance
+
+    summary = {
+        "applied": 0,
+        "skipped": 0,
+        "not_found": 0,
+        "unmatched": 0,
+        "errors": [],
+        "details": [],
+    }
+    summary["dry_run"] = bool(dry_run)
+
+    # Verify activity exists
+    activity = db.session.get(Activity, activity_id)
+    if not activity:
+        summary["errors"].append(
+            {"control_number": "", "message": "Actividad no encontrada"}
+        )
+        return summary
+
+    # Read control numbers (reuse same strategy: try XLSX then TXT)
+    control_numbers = []
+    try:
+        try:
+            import pandas as pd
+            import io
+
+            file_stream.seek(0)
+            df = pd.read_excel(
+                io.BytesIO(file_stream.read()),
+                sheet_name=0,
+                engine="openpyxl",
+                header=None,
+            )
+            if df.shape[0] > 0:
+                control_numbers = [
+                    str(val).strip() for val in df.iloc[:, 0] if str(val).strip()
+                ]
+        except Exception:
+            file_stream.seek(0)
+            content = file_stream.read()
+            if isinstance(content, bytes):
+                content = content.decode("utf-8", errors="ignore")
+            lines = content.strip().split("\n")
+            control_numbers = [line.strip() for line in lines if line.strip()]
+    except Exception as e:
+        summary["errors"].append(
+            {"control_number": "", "message": f"Error al leer archivo: {str(e)}"}
+        )
+        return summary
+
+    if not control_numbers:
+        summary["errors"].append(
+            {
+                "control_number": "",
+                "message": "El archivo no contiene números de control",
+            }
+        )
+        return summary
+
+    import re
+
+    pattern = re.compile(r"^(?:\d+|[BCbc]\d+)$")
+
+    # process
+    seen = set()
+    valid_controls = []
+    for idx, raw in enumerate(control_numbers, start=1):
+        val = str(raw).strip()
+        if not val:
+            continue
+        if not pattern.match(val):
+            summary["errors"].append(
+                {"control_number": val, "message": "Número de control inválido"}
+            )
+            summary["details"].append(
+                {"control_number": val, "action": "invalid", "row_index": idx}
+            )
+            continue
+        if val in seen:
+            continue
+        seen.add(val)
+        valid_controls.append({"value": val, "row_index": idx})
+
+    # For exit processing we only consider local DB students; do not create new students from external APIs
+    for control in valid_controls:
+        cn = control.get("value")
+        row_index = control.get("row_index")
+        student = Student.query.filter_by(control_number=cn).first()
+        if not student:
+            summary["unmatched"] += 1
+            summary["details"].append(
+                {
+                    "control_number": cn,
+                    "action": "unmatched",
+                    "action_display": "Estudiante no encontrado",
+                    "student_name": "-",
+                    "row_index": row_index,
+                    "reason": "No student found in DB",
+                }
+            )
+            continue
+
+        attendance = Attendance.query.filter_by(
+            student_id=student.id, activity_id=activity_id
+        ).first()
+        if not attendance:
+            summary["not_found"] += 1
+            summary["details"].append(
+                {
+                    "control_number": cn,
+                    "student_id": student.id,
+                    "student_name": getattr(student, "full_name", "-")
+                    if student
+                    else "-",
+                    "action": "not_found",
+                    "action_display": "No encontrado",
+                    "row_index": row_index,
+                    "reason": "No attendance for activity",
+                }
+            )
+            continue
+
+        # matched attendance
+        # determine human-friendly action display
+        if action == "mark_absent":
+            action_display = (
+                "Se marcará como Ausente" if dry_run else "Marcado como Ausente"
+            )
+            action_token = "mark_absent"
+        elif action == "delete":
+            action_display = "Se eliminará" if dry_run else "Eliminado"
+            action_token = "delete"
+        else:
+            action_display = "Acción" if dry_run else "Aplicado"
+            action_token = action
+
+        summary["details"].append(
+            {
+                "control_number": cn,
+                "student_id": student.id,
+                "student_name": getattr(student, "full_name", "-") if student else "-",
+                "attendance_id": attendance.id,
+                "current_status": attendance.status,
+                "row_index": row_index,
+                "action": action_token,
+                "action_display": action_display,
+            }
+        )
+
+        if not dry_run:
+            try:
+                if action == "mark_absent":
+                    attendance.status = "Ausente"
+                    attendance.attendance_percentage = 0.0
+                    attendance.check_in_time = None
+                    attendance.check_out_time = None
+                    attendance.is_paused = False
+                    attendance.pause_time = None
+                    attendance.resume_time = None
+                    db.session.add(attendance)
+                elif action == "delete":
+                    db.session.delete(attendance)
+                else:
+                    # unknown action -> skip
+                    summary["skipped"] += 1
+                    continue
+                summary["applied"] += 1
+            except Exception as e:
+                db.session.rollback()
+                summary["errors"].append({"control_number": cn, "message": str(e)})
+
+    if not dry_run:
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            summary["errors"].append(
+                {"control_number": "", "message": f"Error al guardar cambios: {str(e)}"}
+            )
+
+    return summary

@@ -1394,6 +1394,43 @@
                   </label>
                 </div>
 
+                <!-- Tipo: Entrada / Salida -->
+                <div class="mt-3">
+                  <div class="text-sm font-medium text-gray-700">Tipo</div>
+                  <div class="mt-1 flex items-center gap-4">
+                    <label class="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name="batch_mode"
+                        value="entry"
+                        x-model="batchUploadMode"
+                      />
+                      <span class="ml-2 text-sm"
+                        >Entrada (añadir asistencias)</span
+                      >
+                    </label>
+                    <label class="inline-flex items-center">
+                      <input
+                        type="radio"
+                        name="batch_mode"
+                        value="exit"
+                        x-model="batchUploadMode"
+                      />
+                      <span class="ml-2 text-sm"
+                        >Salida (marcar como Ausente)</span
+                      >
+                    </label>
+                  </div>
+                  <div
+                    class="text-xs text-gray-500 mt-1"
+                    x-show="batchUploadMode === 'exit'"
+                  >
+                    La opción <strong>Salida</strong> sólo marcará como
+                    <em>Ausente</em> a las asistencias existentes; no se crearán
+                    nuevos estudiantes ni se eliminarán filas.
+                  </div>
+                </div>
+
                 <!-- Inline validation error -->
                 <div
                   x-show="batchUploadError"
@@ -1424,7 +1461,10 @@
                   <div class="mt-2 text-sm text-gray-700">
                     <div class="grid grid-cols-3 gap-4 text-sm">
                       <div>
-                        <div class="text-xs text-gray-500">Creadas</div>
+                        <div
+                          class="text-xs text-gray-500"
+                          x-text="batchUploadReport.dry_run ? 'Por aplicar' : 'Aplicadas'"
+                        ></div>
                         <div
                           class="font-semibold text-green-700"
                           x-text="batchUploadReport.created || 0"
@@ -1496,9 +1536,20 @@
                                   <td
                                     class="px-2 py-2 align-top text-sm text-gray-700"
                                   >
-                                    <div
-                                      x-text="d.control_number || '-' "
-                                    ></div>
+                                    <div class="flex items-center gap-2">
+                                      <div
+                                        x-text="d.control_number || '-' "
+                                      ></div>
+                                      <template
+                                        x-if="(d.__occurrences || 0) > 1"
+                                      >
+                                        <div
+                                          class="text-xs bg-yellow-100 text-yellow-800 rounded-full px-2 py-0.5 font-medium"
+                                          title="Presente en varios registros"
+                                          x-text="'×' + (d.__occurrences || 0)"
+                                        ></div>
+                                      </template>
+                                    </div>
                                   </td>
 
                                   <td class="px-2 py-2 align-top">
@@ -1531,13 +1582,49 @@
                                     </div>
                                   </td>
 
-                                  <td
-                                    class="px-2 py-2 align-top text-sm"
-                                    :class="d.action === 'created' ? 'text-green-700' : (d.action === 'skipped' ? 'text-yellow-700' : (d.action === 'external_incomplete' ? 'text-blue-700' : 'text-gray-700'))"
-                                  >
-                                    <div
-                                      x-text="d.action === 'created' ? 'Creada' : (d.action === 'skipped' ? 'Omitida' : (d.action === 'invalid' ? 'Inválido' : (d.action === 'not_found' ? 'No encontrado' : (d.action === 'external_incomplete' ? 'Encontrado (incompleto)' : d.action))))"
-                                    ></div>
+                                  <td class="px-2 py-2 align-top text-sm">
+                                    <div class="flex items-center gap-2">
+                                      <template x-if="d.action === 'created'">
+                                        <i
+                                          class="ti ti-check text-green-600"
+                                          :title="d.action_display || 'Creada'"
+                                        ></i>
+                                      </template>
+                                      <template x-if="d.action === 'skipped'">
+                                        <i
+                                          class="ti ti-minus text-yellow-700"
+                                          :title="d.action_display || 'Omitida'"
+                                        ></i>
+                                      </template>
+                                      <template
+                                        x-if="d.action === 'mark_absent'"
+                                      >
+                                        <i
+                                          class="ti ti-user-x text-yellow-700"
+                                          :title="d.action_display || 'Se marcará como Ausente'"
+                                        ></i>
+                                      </template>
+                                      <template
+                                        x-if="d.action === 'not_found' || d.action === 'unmatched'"
+                                      >
+                                        <i
+                                          class="ti ti-x text-red-600"
+                                          :title="d.action_display || 'No encontrado'"
+                                        ></i>
+                                      </template>
+                                      <template
+                                        x-if="!(['created','skipped','mark_absent','not_found','unmatched'].includes(d.action))"
+                                      >
+                                        <i
+                                          class="ti ti-help text-gray-600"
+                                          :title="d.action_display || d.action"
+                                        ></i>
+                                      </template>
+                                      <span
+                                        class="sr-only"
+                                        x-text="d.action_display || d.action"
+                                      ></span>
+                                    </div>
                                   </td>
 
                                   <td

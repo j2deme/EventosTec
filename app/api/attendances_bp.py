@@ -1134,12 +1134,23 @@ def batch_upload_attendances():
         if not activity_id:
             return jsonify({"message": "activity_id es requerido"}), 400
 
-        # Call service
-        from app.services.attendance_service import create_attendances_from_file
+        # Determine mode: entry (create) or exit (mark_absent/delete)
+        mode = request.form.get("mode", "entry").strip().lower()
+        action = request.form.get("action", "mark_absent").strip().lower()
 
-        report = create_attendances_from_file(
-            file.stream, activity_id=int(activity_id), dry_run=dry
-        )
+        if mode == "exit":
+            from app.services.attendance_service import process_exit_from_file
+
+            report = process_exit_from_file(
+                file.stream, activity_id=int(activity_id), dry_run=dry, action=action
+            )
+        else:
+            # default: create attendances (existing behavior)
+            from app.services.attendance_service import create_attendances_from_file
+
+            report = create_attendances_from_file(
+                file.stream, activity_id=int(activity_id), dry_run=dry
+            )
 
         status_code = 200 if dry else 201
         # Exponer explicitamente si la operación fue dry_run en la respuesta
