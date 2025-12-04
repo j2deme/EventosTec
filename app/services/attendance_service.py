@@ -711,82 +711,17 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
                                     "API devolvió datos incompletos (falta nombre o carrera)",
                                 )
                             )
-                    # Second fallback: general students search endpoint
-                    est_url = (
-                        f"http://apps.tecvalles.mx:8091/api/estudiantes?search={cand}"
-                    )
-                    resp2 = requests.get(est_url, timeout=8)
-                    if resp2.status_code == 200:
-                        external_data = resp2.json() or {}
-                        # The endpoint may return an array or an object; try to extract
-                        record = None
-                        if isinstance(external_data, list) and len(external_data) > 0:
-                            record = external_data[0]
-                        elif isinstance(external_data, dict):
-                            # common shapes: {data: [...]} or single object
-                            if (
-                                "data" in external_data
-                                and isinstance(external_data["data"], list)
-                                and external_data["data"]
-                            ):
-                                record = external_data["data"][0]
-                            elif external_data:
-                                record = external_data
-                        # record attempt for diagnostics
-                        if record is not None:
-                            lookup_attempts.append(
-                                {
-                                    "candidate": cand,
-                                    "external_name": record.get("full_name")
-                                    or record.get("nombre")
-                                    or record.get("name"),
-                                    "external_career": record.get("career")
-                                    or record.get("carrera"),
-                                    "source": "estudiantes",
-                                }
-                            )
-                        if record is not None:
-                            rec_name = (
-                                record.get("full_name")
-                                or record.get("nombre")
-                                or record.get("name")
-                            )
-                            rec_career = record.get("career") or record.get("carrera")
-                            # Only create when we have at least name and career
-                            if rec_name and rec_career:
-                                # Mark source/persistence according to dry_run
-                                if dry_run:
-                                    student_source = "external"
-                                    persisted = False
-                                else:
-                                    student_source = "created"
-                                    persisted = True
-                                student = Student()
-                                # prefer a returned control number field if present
-                                student.control_number = str(
-                                    record.get("control_number")
-                                    or record.get("username")
-                                    or digits_only
-                                    or cand
-                                )
-                                student.full_name = rec_name
-                                student.career = rec_career
-                                student.email = record.get("email") or ""
-                                external_name_used = rec_name
-                                external_career_used = rec_career
-                                if not dry_run:
-                                    db.session.add(student)
-                                    db.session.flush()
-                                break
-                            else:
-                                lookup_errors.append(
-                                    (
-                                        cand,
-                                        "API devolvió datos incompletos (falta nombre o carrera)",
-                                    )
-                                )
-                    # If status is 404 for both responses, record not found
-                    if resp.status_code == 404 and resp2.status_code == 404:
+                    # NOTE: We intentionally DO NOT call the general search endpoint
+                    # `/api/estudiantes?search=` as a validation fallback here because
+                    # that endpoint returns a LIST of candidates (intended for free
+                    # search / select UI) and can produce shapes that confuse the
+                    # single-record validation flow. For validating a single
+                    # control_number we prefer the dedicated single-result endpoint
+                    # `/api/validate/student?username=` (handled above) or the local
+                    # proxy. If additional heuristics are desired they should be
+                    # implemented explicitly and carefully.
+                    # If the external validate call returned 404, record it for diagnostics
+                    if resp.status_code == 404:
                         lookup_errors.append((cand, "No encontrado (404)"))
                 except Exception as e:
                     lookup_errors.append((cand, str(e)))
