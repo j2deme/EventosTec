@@ -88,6 +88,20 @@
         display: flex;
         align-items: center;
       }
+
+      /* Colorea los controles nativos (checkbox/radio) para que sigan la paleta indigo */
+      input[type="checkbox"],
+      input[type="radio"] {
+        accent-color: #4f46e5; /* indigo-600 */
+      }
+
+      /* Mejorar indicador de foco para accesibilidad (se ve bien con Tailwind CDN) */
+      input[type="checkbox"]:focus,
+      input[type="radio"]:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); /* indigo-600 a 15% */
+        border-radius: 0.25rem;
+      }
     </style>
   </head>
   <body class="bg-gray-50">
