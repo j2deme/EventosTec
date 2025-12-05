@@ -6,7 +6,7 @@ services:
     ports:
       - "8092:8000"
     volumes:
-      - .:/app:cached
+      # - .:/app:cached # Uncomment for local development with live code reloading
       - ./instance:/app/instance
     # Use an env_file (./.env) or environment on the host to provide secrets and DB connection data.
     # Create a local .env (not committed) with the DB credentials or export the variables in the host environment.
