@@ -1,0 +1,70 @@
+# .gitattributes — normalización de fin de línea (EventosTec)
+# Objetivo: LF en el repositorio en cualquier SO y que `git status`
+# deje de mostrar "modificaciones" que solo son CRLF <-> LF.
+
+# Por defecto: normaliza todo lo que Git detecte como texto.
+# Los binarios se detectan solos y no se tocan.
+* text=auto
+
+# ------------------------------------------------------------------
+# Código fuente y configuración: LF también en el árbol de trabajo
+# (evita que un editor en Windows reescriba el archivo con CRLF)
+# ------------------------------------------------------------------
+*.py text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.mako text eol=lf
+*.sql text eol=lf
+*.svg text eol=lf
+
+# Crítico: CRLF en scripts con shebang rompe su ejecución en Linux/Docker
+*.sh text eol=lf
+
+# Archivos especiales sin extensión
+Dockerfile text eol=lf
+.dockerignore text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.env.example text eol=lf
+
+# ------------------------------------------------------------------
+# Scripts de Windows: conservan CRLF (si se añaden en el futuro)
+# ------------------------------------------------------------------
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# ------------------------------------------------------------------
+# Binarios: nunca convertir finales de línea
+# ------------------------------------------------------------------
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.eot binary
+*.pdf binary
+*.xls binary
+*.xlsx binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.db binary
+*.sqlite binary
+*.pyc binary
