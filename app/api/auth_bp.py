@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
 import requests
 from app import db
@@ -47,6 +47,7 @@ def login():
         return jsonify({"message": "Credenciales inválidas"}), 401
 
     except Exception as e:
+        current_app.logger.exception("Error in /api/auth/login")
         return jsonify({"message": "Error en el login", "error": str(e)}), 400
 
 
@@ -146,11 +147,13 @@ def student_login():
             ), 503
         except Exception as e:
             db.session.rollback()
+            current_app.logger.exception("Error in /api/auth/student-login")
             return jsonify(
                 {"message": "Error en el login de estudiante", "error": str(e)}
             ), 400
 
     except Exception as e:
+        current_app.logger.exception("Unhandled error in /api/auth/student-login outer")
         return jsonify(
             {"message": "Error en el login de estudiante", "error": str(e)}
         ), 400
