@@ -56,6 +56,18 @@ class Config:
     # This should match the timezone where the app is deployed and users are located
     # Default: America/Mexico_City (UTC-6 in winter, UTC-5 in DST)
     APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "America/Mexico_City")
+    # Engine options for SQLAlchemy to improve resiliency against dropped MySQL
+    # connections (e.g. when the DB server closes idle connections).
+    # - pool_pre_ping: checks connections before using them and reconnects if needed.
+    # - pool_recycle: recycle connections older than this many seconds.
+    # - connect_args: passthrough args to the DBAPI (pymysql supports connect_timeout).
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": int(os.environ.get("DB_POOL_RECYCLE", "1800")),
+        "connect_args": {
+            "connect_timeout": int(os.environ.get("DB_CONNECT_TIMEOUT", "10"))
+        },
+    }
 
 
 class DevelopmentConfig(Config):
