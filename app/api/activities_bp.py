@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, send_file
+from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
 from app import db
@@ -10,14 +10,10 @@ from app.models.registration import Registration
 from app.services import activity_service
 from app.models import activity_relations
 from app.utils.slug_utils import slugify, generate_unique_slug
-from app.utils.auth_helpers import require_admin, get_user_or_403
-from datetime import datetime, timezone
+from app.utils.auth_helpers import require_admin
 from typing import cast, Iterable
 from app.utils.datetime_utils import parse_datetime_with_timezone
 import traceback
-import io
-import re
-import pandas as pd
 
 activities_bp = Blueprint("activities", __name__, url_prefix="/api/activities")
 
@@ -430,156 +426,6 @@ def delete_activity(activity_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error al eliminar actividad", "error": str(e)}), 500
-
-
-# Obtener asistencias de una actividad
-
-
-@activities_bp.route("/<int:activity_id>/attendances", methods=["GET"])
-@jwt_required()
-def get_activity_attendances(activity_id):
-    try:
-        activity = db.session.get(Activity, activity_id)
-        if not activity:
-            return jsonify({"message": "Actividad no encontrada"}), 404
-
-        # Control de acceso: admin ve todas; estudiante solo ve sus propias asistencias
-        user, user_type, err = get_user_or_403()
-        if err:
-            return err
-
-        from app.schemas import attendances_schema
-
-        if user_type == "admin":
-            attendances = list(cast(Iterable, activity.attendances))
-            return jsonify({"attendances": attendances_schema.dump(attendances)}), 200
-        elif user_type == "student" and user is not None:
-            # filtrar asistencias por student_id
-            attendances = [
-                a
-                for a in list(cast(Iterable, activity.attendances))
-                if a.student_id == user.id
-            ]
-            return jsonify({"attendances": attendances_schema.dump(attendances)}), 200
-        else:
-            return jsonify({"message": "Acceso denegado"}), 403
-
-    except Exception as e:
-        return jsonify(
-            {"message": "Error al obtener asistencias", "error": str(e)}
-        ), 500
-
-
-# Obtener preregistros de una actividad
-@activities_bp.route("/<int:activity_id>/registrations", methods=["GET"])
-@jwt_required()
-def get_activity_registrations(activity_id):
-    try:
-        activity = db.session.get(Activity, activity_id)
-        if not activity:
-            return jsonify({"message": "Actividad no encontrada"}), 404
-
-        # Control de acceso: admin ve todos los preregistros; student solo los suyos
-        user, user_type, err = get_user_or_403()
-        if err:
-            return err
-
-        from app.schemas import registrations_schema
-
-        if user_type == "admin":
-            registrations = list(cast(Iterable, activity.registrations))
-            return jsonify(
-                {"registrations": registrations_schema.dump(registrations)}
-            ), 200
-        elif user_type == "student" and user is not None:
-            registrations = [
-                r
-                for r in list(cast(Iterable, activity.registrations))
-                if r.student_id == user.id
-            ]
-            return jsonify(
-                {"registrations": registrations_schema.dump(registrations)}
-            ), 200
-        else:
-            return jsonify({"message": "Acceso denegado"}), 403
-
-    except Exception as e:
-        return jsonify(
-            {"message": "Error al obtener preregistros", "error": str(e)}
-        ), 500
-
-
-@activities_bp.route("/<int:activity_id>/export_registrations.xlsx", methods=["GET"])
-@jwt_required()
-@require_admin
-def export_activity_registrations_xlsx(activity_id):
-    """Exporta a XLSX los estudiantes preregistrados en una actividad.
-
-    El archivo contiene columnas: control_number, full_name, email, career.
-    Nombre del archivo: <slug(activity_name[:50])>-YYYYmmdd_HHMMSS.xlsx
-    """
-    try:
-        activity = db.session.get(Activity, activity_id)
-        if not activity:
-            return jsonify({"message": "Actividad no encontrada"}), 404
-        # Recolectar preregistros (incluye student relationship si existe)
-        regs = list(cast(Iterable, getattr(activity, "registrations", []) or []))
-
-        rows = []
-        for r in regs:
-            try:
-                s = getattr(r, "student", None)
-                rows.append(
-                    {
-                        "control_number": getattr(s, "control_number", None)
-                        if s
-                        else None,
-                        "full_name": getattr(s, "full_name", None) if s else None,
-                        "email": getattr(s, "email", None) if s else None,
-                        "career": getattr(s, "career", None) if s else None,
-                    }
-                )
-            except Exception:
-                # skip problematic row but continue
-                continue
-
-        # Build DataFrame
-        df = pd.DataFrame(
-            rows, columns=["control_number", "full_name", "email", "career"]
-        )
-
-        # generate filename: slug of activity name (first 50 chars) + timestamp
-        def slugify(text, maxlen=50):
-            if not text:
-                return "activity"
-            t = text.lower()
-            t = re.sub(r"[^a-z0-9]+", "-", t)
-            t = t.strip("-")
-            if len(t) > maxlen:
-                t = t[:maxlen].rstrip("-")
-            return t or "activity"
-
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        slug = slugify(getattr(activity, "name", "")[:50])
-        filename = f"{slug}-{ts}.xlsx"
-
-        # write to BytesIO with openpyxl engine (installed)
-        bio = io.BytesIO()
-        with pd.ExcelWriter(bio, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="registrations")
-        bio.seek(0)
-
-        return send_file(
-            bio,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            as_attachment=True,
-            download_name=filename,
-        )
-    except Exception as e:
-        tb = traceback.format_exc()
-        return jsonify(
-            {"message": "Error generando XLSX", "error": str(e), "trace": tb}
-        ), 500
 
 
 @activities_bp.route("/<int:activity_id>/related", methods=["GET"])

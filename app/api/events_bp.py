@@ -6,7 +6,6 @@ from app.models.event import Event
 from app.models.activity import Activity
 from app.utils.auth_helpers import require_admin
 from sqlalchemy import asc, desc, or_
-from typing import Iterable, cast
 from app.utils.slug_utils import generate_unique_slug, slugify as canonical_slugify
 
 events_bp = Blueprint("events", __name__, url_prefix="/api/events")
@@ -266,35 +265,6 @@ def delete_event(event_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"message": "Error al eliminar evento", "error": str(e)}), 500
-
-
-# Obtener actividades de un evento
-
-
-@events_bp.route("/<int:event_id>/activities", methods=["GET"])
-def get_event_activities(event_id):
-    try:
-        event = db.session.get(Event, event_id)
-        if not event:
-            return jsonify({"message": "Evento no encontrado"}), 404
-
-        # Parámetros de filtrado
-        activity_type = request.args.get("type")
-
-        # event.activities is a relationship; cast to Iterable to satisfy the static analyzer
-        activities = list(cast(Iterable, event.activities))
-
-        if activity_type:
-            activities = [a for a in activities if a.activity_type == activity_type]
-
-        from app.schemas import activities_schema
-
-        return jsonify({"activities": activities_schema.dump(activities)}), 200
-
-    except Exception as e:
-        return jsonify(
-            {"message": "Error al obtener actividades", "error": str(e)}
-        ), 500
 
 
 @events_bp.route("/<int:event_id>/departments", methods=["GET"])

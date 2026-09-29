@@ -15,56 +15,6 @@ from typing import Any, List
 reports_bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
 
-@reports_bp.route("/preregistrations_by_career", methods=["GET"])
-@jwt_required()
-@require_admin
-def preregistrations_by_career():
-    """Devuelve conteos de preregistros agrupados por carrera y generación.
-
-    Query params:
-      - event_id (int, optional)
-      - activity_id (int, optional)
-
-    Generation se deriva del `control_number` tomando los 2 o 4 primeros dígitos según formato.
-    """
-    try:
-        event_id = request.args.get("event_id", type=int)
-        activity_id = request.args.get("activity_id", type=int)
-
-        query = db.session.query(
-            Student.career.label("career"),
-            func.substr(Student.control_number, 1, 4).label("generation"),
-            func.count(Registration.id).label("count"),
-        ).join(Registration, Registration.student_id == Student.id)
-
-        if activity_id:
-            query = query.filter(Registration.activity_id == activity_id)
-        elif event_id:
-            query = query.join(
-                Activity, Activity.id == Registration.activity_id
-            ).filter(Activity.event_id == event_id)
-
-        query = query.group_by("career", "generation")
-
-        results = query.all()
-
-        data = []
-        for row in results:
-            data.append(
-                {
-                    "career": row.career or "Sin Especificar",
-                    "generation": (row.generation or "")[:4],
-                    "count": int(row.count),
-                }
-            )
-
-        return jsonify({"data": data}), 200
-    except Exception as e:
-        return jsonify(
-            {"message": "Error al generar estadísticas", "error": str(e)}
-        ), 500
-
-
 # Ruta HTML imprimible para lista de asistentes (admin)
 @reports_bp.route("/attendance_list", methods=["GET"])
 @jwt_required()
@@ -224,7 +174,7 @@ def participation_matrix():
                 try:
                     gy = int(gen)
                     ingreso_year = 2000 + gy
-                    month = getattr(ref_date, "month", datetime.utcnow().month)
+                    month = getattr(ref_date, "month", datetime.now(timezone.utc).month)
                     # Definimos: semestre 1 = Ago-Dic del año de ingreso; semestre 2 = Ene-Jun siguiente
                     event_sem_offset = 1 if 8 <= month <= 12 else 2
                     years_since = max(0, ref_date.year - ingreso_year)
