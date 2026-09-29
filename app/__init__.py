@@ -12,6 +12,30 @@ jwt = JWTManager()
 ma = Marshmallow()
 
 
+@jwt.token_in_blocklist_loader
+def _check_if_token_revoked(jwt_header, jwt_payload):
+    """Marca como inválidos los JTIs revocados previamente mediante logout."""
+    jti = jwt_payload.get("jti")
+    if not jti:
+        return False
+    try:
+        from app.models.revoked_token import RevokedToken
+
+        return (
+            db.session.query(RevokedToken.id).filter(RevokedToken.jti == jti).first()
+            is not None
+        )
+    except Exception:
+        # Si la tabla aún no existe (migración pendiente), no bloquear requests
+        # para no tumbar la app; se deja constancia para diagnóstico.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "No se pudo verificar la revocación del token", exc_info=True
+        )
+        return False
+
+
 def create_app(config_name=None):
     if config_name is None:
         config_name = os.environ.get("FLASK_CONFIG", "default")
@@ -43,6 +67,7 @@ def create_app(config_name=None):
         Attendance,
         Registration,
         AppSetting,
+        RevokedToken,
     )
 
     # Registrar blueprints

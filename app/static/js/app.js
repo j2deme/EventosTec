@@ -36,6 +36,24 @@ function isAuthenticated() {
 // Función para hacer logout
 function logout() {
   if (confirm("¿Estás seguro de cerrar sesión?")) {
+    // Revocar el token en el servidor (best-effort): se dispara ANTES de
+    // limpiar localStorage (safeFetch toma el token de ahí) y con `keepalive`
+    // para que la petición sobreviva a la redirección inmediata. Si falla,
+    // el token igualmente caduca por su `exp`.
+    try {
+      if (getAuthToken() && typeof window.safeFetch === "function") {
+        Promise.resolve(
+          window.safeFetch("/api/auth/logout", {
+            method: "POST",
+            keepalive: true,
+          }),
+        ).catch(function () {
+          /* el cierre local no depende del servidor */
+        });
+      }
+    } catch (e) {
+      /* ignorar: el logout local siempre continúa */
+    }
     localStorage.removeItem("authToken");
     localStorage.removeItem("userType");
     localStorage.removeItem("studentProfile");

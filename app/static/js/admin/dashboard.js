@@ -531,6 +531,15 @@ function adminDashboard() {
     },
 
     logout() {
+      // Delegar al logout central de app.js, que además revoca el token en
+      // el servidor (POST /api/auth/logout). Sin app.js (tests), limpieza local.
+      if (
+        typeof window !== "undefined" &&
+        typeof window.logout === "function"
+      ) {
+        window.logout();
+        return;
+      }
       if (confirm("¿Estás seguro de cerrar sesión?")) {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userType");

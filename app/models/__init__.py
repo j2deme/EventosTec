@@ -5,6 +5,7 @@ from app.models.user import User  # NUEVO
 from app.models.attendance import Attendance
 from app.models.registration import Registration
 from app.models.app_setting import AppSetting
+from app.models.revoked_token import RevokedToken
 
 # Tabla de relación muchos a muchos para actividades relacionadas
 from app import db
@@ -30,5 +31,6 @@ __all__ = [
     "Attendance",
     "Registration",
     "AppSetting",
+    "RevokedToken",
     "activity_relations",
 ]

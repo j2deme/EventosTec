@@ -1,10 +1,17 @@
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_required
+from flask_jwt_extended import (
+    create_access_token,
+    get_jwt,
+    get_jwt_identity,
+    jwt_required,
+)
+from datetime import datetime, timezone
 import requests
 from app import db
 from app.schemas import user_login_schema
 from app.models.user import User
 from app.models.student import Student
+from app.models.revoked_token import RevokedToken
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -198,5 +205,32 @@ def profile():
 @auth_bp.route("/logout", methods=["POST"])
 @jwt_required()
 def logout():
-    # En JWT el logout es del lado del cliente (eliminar token)
-    return jsonify({"message": "Sesión cerrada correctamente"}), 200
+    """Revoca el token actual registrando su `jti` en la blocklist.
+
+    Cualquier request posterior con este mismo token responde 401 hasta que
+    venza; las filas de tokens ya vencidos se purgan oportunamente.
+    """
+    try:
+        jwt_data = get_jwt()
+        jti = jwt_data.get("jti")
+        exp = jwt_data.get("exp")
+
+        if jti and not RevokedToken.query.filter_by(jti=jti).first():
+            expires_at = (
+                datetime.fromtimestamp(exp, tz=timezone.utc).replace(tzinfo=None)
+                if exp
+                else datetime.now(timezone.utc).replace(tzinfo=None)
+            )
+            db.session.add(RevokedToken(jti=jti, expires_at=expires_at))
+
+        # Purga oportunista: un token vencido ya es inválido por `exp`, su fila
+        # en la blocklist deja de aportar y solo crecería la tabla.
+        RevokedToken.query.filter(
+            RevokedToken.expires_at < datetime.now(timezone.utc).replace(tzinfo=None)
+        ).delete(synchronize_session=False)
+
+        db.session.commit()
+        return jsonify({"message": "Sesión cerrada correctamente"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"message": "Error al cerrar sesión", "error": str(e)}), 500

@@ -51,3 +51,43 @@ def test_student_login_external_api_mock(client, mocker):
     )
 
     assert response.status_code == 200
+
+
+def test_logout_requires_auth(client):
+    """POST /api/auth/logout sin token responde 401."""
+    response = client.post("/api/auth/logout")
+
+    assert response.status_code == 401
+
+
+def test_logout_revokes_token(client, auth_headers):
+    """Tras logout, el mismo token queda en la blocklist y responde 401."""
+    response = client.post("/api/auth/logout", headers=auth_headers)
+    assert response.status_code == 200
+
+    # Reusar el token revocado ya no autentica
+    response = client.get("/api/auth/check", headers=auth_headers)
+    assert response.status_code == 401
+
+
+def test_logout_only_affects_current_token(client, app):
+    """Revocar un token no invalida otros tokens vigentes del mismo usuario."""
+    from flask_jwt_extended import create_access_token
+
+    from app import db
+    from app.models.user import User
+
+    with app.app_context():
+        user = User(username="logoutadmin", email="logout@test.com", role="Admin")
+        user.set_password("pass")
+        db.session.add(user)
+        db.session.commit()
+        token1 = create_access_token(identity=str(user.id))
+        token2 = create_access_token(identity=str(user.id))
+
+    h1 = {"Authorization": f"Bearer {token1}"}
+    h2 = {"Authorization": f"Bearer {token2}"}
+
+    assert client.post("/api/auth/logout", headers=h1).status_code == 200
+    assert client.get("/api/auth/check", headers=h1).status_code == 401
+    assert client.get("/api/auth/check", headers=h2).status_code == 200
