@@ -79,6 +79,11 @@ class TestingConfig(Config):
     DEBUG = True
     # Usar base de datos sqlite en disco para tests para evitar problemas de conexiones
     SQLALCHEMY_DATABASE_URI = "sqlite:///test_eventostec.db"
+    # SQLite no admite `connect_timeout` (argumento propio de pymysql heredado de
+    # Config): opciones de motor propias y compatibles con SQLite para los tests.
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "connect_args": {"check_same_thread": False},
+    }
     WTF_CSRF_ENABLED = False  # Deshabilitar CSRF para tests
 
 
