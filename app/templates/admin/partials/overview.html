@@ -27,7 +27,15 @@
                 ></p>
               </div>
               <button
-                @click="editEvent(event.id)"
+                @click="
+                  setActiveTab('events');
+                  window.dispatchEvent(
+                    new CustomEvent('event:edit-request', {
+                      detail: { id: event.id, event: event },
+                    }),
+                  )
+                "
+                title="Editar evento"
                 class="text-indigo-600 hover:text-indigo-900"
               >
                 <i class="ti ti-edit"></i>

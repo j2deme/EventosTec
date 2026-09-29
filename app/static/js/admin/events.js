@@ -46,6 +46,18 @@ function eventsManager() {
       this.showDeleteModal = false;
       this.eventToDelete = null;
 
+      // El overview (scope de adminDashboard) no puede llamar a openEditModal
+      // porque es otro scope de Alpine: al pulsar "editar" ahí se cambia a esta
+      // pestaña y se emite este evento para abrir el editor desde aquí.
+      window.addEventListener("event:edit-request", (e) => {
+        const detail = (e && e.detail) || {};
+        const target =
+          (this.events || []).find((ev) => ev.id === detail.id) ||
+          detail.event ||
+          null;
+        if (target) this.openEditModal(target);
+      });
+
       this.loadEvents();
     },
 
