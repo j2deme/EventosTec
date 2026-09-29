@@ -20,21 +20,6 @@ from app.utils.datetime_utils import localize_naive_datetime, safe_iso
 students_bp = Blueprint("students", __name__, url_prefix="/api/students")
 
 
-@students_bp.route("/search", methods=["GET"])
-def search_students():
-    q = request.args.get("q", "").strip()
-    if not q or len(q) < 2:
-        return jsonify([])
-    # Realizar búsqueda por nombre cuando la consulta es suficiente
-    results = Student.query.filter(Student.full_name.ilike(f"%{q}%")).limit(10).all()
-    return jsonify(
-        [
-            {"id": s.id, "full_name": s.full_name, "control_number": s.control_number}
-            for s in results
-        ]
-    )
-
-
 @students_bp.route("/", methods=["GET"])
 def get_students():
     try:
@@ -118,98 +103,139 @@ def get_student(student_id):
         return jsonify({"message": "Error al obtener estudiante", "error": str(e)}), 500
 
 
-# Buscar estudiante en sistema externo
+def _fetch_all_external_students(max_pages: int = 50) -> list[dict]:
+    """Descarga la lista completa de estudiantes del sistema externo.
+
+    Sigue la paginación estilo Laravel (`next_page_url`) si el servicio la usa;
+    si responde una lista directa, se detiene tras la primera página.
+    """
+    items: list[dict] = []
+    url: str | None = "http://apps.tecvalles.mx:8091/api/estudiantes?per_page=1000"
+    seen: set[str] = set()
+
+    while url and url not in seen and len(seen) < max_pages:
+        seen.add(url)
+        response = requests.get(url, timeout=30)
+        if response.status_code != 200:
+            raise requests.exceptions.HTTPError(f"HTTP {response.status_code}")
+        payload = response.json()
+
+        if isinstance(payload, list):
+            page_items = payload
+            url = None
+        elif isinstance(payload, dict):
+            page_items = (
+                payload.get("data")
+                or payload.get("estudiantes")
+                or payload.get("students")
+                or []
+            )
+            next_url = payload.get("next_page_url")
+            url = next_url if isinstance(next_url, str) and next_url else None
+        else:
+            page_items = []
+            url = None
+
+        if isinstance(page_items, list):
+            items.extend(page_items)
+
+    return items
 
 
-@students_bp.route("/external-search", methods=["GET"])
-@jwt_required()
-def search_external_student():
-    try:
-        control_number = request.args.get("control_number")
-        if not control_number:
-            return jsonify({"message": "Número de control es requerido"}), 400
-
-        # Consultar sistema externo
-        external_api_url = (
-            f"http://apps.tecvalles.mx:8091/api/estudiantes?search={control_number}"
-        )
-
-        try:
-            response = requests.get(external_api_url, timeout=10)
-            if response.status_code == 200:
-                return jsonify({"student": response.json()}), 200
-            else:
-                return jsonify(
-                    {"message": "Estudiante no encontrado en sistema externo"}
-                ), 404
-        except requests.exceptions.RequestException:
-            return jsonify({"message": "Error de conexión con sistema externo"}), 503
-
-    except Exception as e:
-        return jsonify({"message": "Error en búsqueda externa", "error": str(e)}), 500
-
-
-# Importar estudiante desde sistema externo
-
-
-@students_bp.route("/import-external/<control_number>", methods=["POST"])
+@students_bp.route("/sync-external", methods=["POST"])
 @jwt_required()
 @require_admin
-def import_external_student(control_number):
+def sync_students_from_external():
+    """Sincroniza (upsert) estudiantes del sistema externo hacia la BD local.
+
+    Consulta `GET /api/estudiantes` del servicio externo y crea o actualiza
+    registros locales emparejando por número de control.
+
+    Returns:
+        JSON con `created`, `updated`, `skipped` y `total_received`.
+        503 si el sistema externo no responde correctamente.
+    """
     try:
-        # Consultar sistema externo
-        external_api_url = (
-            f"http://apps.tecvalles.mx:8091/api/estudiantes?search={control_number}"
-        )
-
         try:
-            response = requests.get(external_api_url, timeout=10)
-            if response.status_code == 200:
-                external_data = response.json()
-
-                if external_data and len(external_data) > 0:
-                    student_info = external_data[0]
-
-                    # Verificar si ya existe
-                    student = Student.query.filter_by(
-                        control_number=control_number
-                    ).first()
-                    if not student:
-                        # Crear nuevo estudiante
-                        student = Student()
-                        student.control_number = control_number
-                        student.full_name = student_info.get("nombre", "")
-                        student.career = student_info.get("carrera", "")
-                        student.email = student_info.get("email", "")
-                        db.session.add(student)
-                        db.session.commit()
-
-                        return jsonify(
-                            {
-                                "message": "Estudiante importado exitosamente",
-                                "student": student_schema.dump(student),
-                            }
-                        ), 201
-                    else:
-                        return jsonify(
-                            {
-                                "message": "Estudiante ya existe en el sistema",
-                                "student": student_schema.dump(student),
-                            }
-                        ), 200
-                else:
-                    return jsonify(
-                        {"message": "Estudiante no encontrado en sistema externo"}
-                    ), 404
-            else:
-                return jsonify({"message": "Error al consultar sistema externo"}), 503
+            items = _fetch_all_external_students()
         except requests.exceptions.RequestException:
             return jsonify({"message": "Error de conexión con sistema externo"}), 503
+        except ValueError:
+            return jsonify({"message": "Respuesta inválida del sistema externo"}), 503
+
+        created = 0
+        updated = 0
+        skipped = 0
+
+        for item in items:
+            if not isinstance(item, dict):
+                skipped += 1
+                continue
+
+            # El servicio externo expone el número de control bajo distintas
+            # claves según el endpoint (username, control_number, ...).
+            control = (
+                item.get("username")
+                or item.get("control_number")
+                or item.get("numero_control")
+                or item.get("no_control")
+                or item.get("control")
+                or item.get("matricula")
+            )
+            if not control or not str(control).strip():
+                skipped += 1
+                continue
+            control = str(control).strip()
+
+            full_name = (
+                item.get("nombre") or item.get("name") or item.get("full_name") or ""
+            )
+            career = item.get("carrera") or item.get("career") or ""
+            if isinstance(career, dict):
+                career = career.get("name") or ""
+            email = item.get("email") or ""
+
+            student = Student.query.filter_by(control_number=control).first()
+            if student:
+                changed = False
+                if full_name and student.full_name != full_name:
+                    student.full_name = full_name
+                    changed = True
+                if career and student.career != career:
+                    student.career = career
+                    changed = True
+                if email and student.email != email:
+                    student.email = email
+                    changed = True
+                if changed:
+                    updated += 1
+            else:
+                student = Student()
+                student.control_number = control
+                student.full_name = full_name
+                student.career = career
+                student.email = email
+                db.session.add(student)
+                created += 1
+
+        db.session.commit()
+        return (
+            jsonify(
+                {
+                    "message": "Sincronización completada",
+                    "created": created,
+                    "updated": updated,
+                    "skipped": skipped,
+                    "total_received": len(items),
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         db.session.rollback()
         return jsonify(
-            {"message": "Error al importar estudiante", "error": str(e)}
+            {"message": "Error al sincronizar estudiantes", "error": str(e)}
         ), 500
 
 
@@ -275,48 +301,6 @@ def validate_student_proxy():
         return jsonify({"message": "Estudiante no encontrado"}), 404
     else:
         return jsonify({"message": "Error desde servicio externo"}), 503
-
-
-# Obtener actividades de un estudiante
-
-
-@students_bp.route("/<int:student_id>/activities", methods=["GET"])
-def get_student_activities(student_id):
-    try:
-        student = db.session.get(Student, student_id)
-        if not student:
-            return jsonify({"message": "Estudiante no encontrado"}), 404
-
-        # Obtener actividades a través de asistencias y preregistros
-        from app.models.attendance import Attendance
-        from app.models.registration import Registration
-        from app.models.activity import Activity
-
-        # Actividades con asistencia
-        attendance_activities = (
-            Activity.query.join(Attendance)
-            .filter(Attendance.student_id == student_id)
-            .all()
-        )
-
-        # Actividades con preregistro
-        registration_activities = (
-            Activity.query.join(Registration)
-            .filter(Registration.student_id == student_id)
-            .all()
-        )
-
-        # Combinar y eliminar duplicados
-        all_activities = list(set(attendance_activities + registration_activities))
-
-        from app.schemas import activities_schema
-
-        return jsonify({"activities": activities_schema.dump(all_activities)}), 200
-
-    except Exception as e:
-        return jsonify(
-            {"message": "Error al obtener actividades del estudiante", "error": str(e)}
-        ), 500
 
 
 # Obtener horas acumuladas por evento de un estudiante
