@@ -72,11 +72,11 @@ def init_settings():
             {
                 "key": "public_pause_available_until_after_end_minutes",
                 "value": os.environ.get(
-                    "PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", "5"
+                    "PUBLIC_PAUSE_AVAILABLE_UNTIL_AFTER_END_MINUTES", "60"
                 ),
                 "description": "Minutes after activity end to keep pause view available",
                 "data_type": "integer",
-                "default_value": "5",
+                "default_value": "60",
                 "is_editable": True,
             },
             {

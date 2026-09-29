@@ -366,4 +366,38 @@ describe("activitiesManager (consolidated)", () => {
       spy.mockRestore();
     });
   });
+
+  describe("fetchActivityToken (public links)", () => {
+    beforeEach(() => {
+      global.showToast = jest.fn();
+      global.localStorage.setItem("authToken", "tok");
+    });
+
+    test("builds slug-based public links", async () => {
+      const comp = activitiesManager();
+      comp.activityToView = { id: 7, public_slug: "taller-qa" };
+
+      await comp.fetchActivityToken();
+
+      expect(comp.tokenUrlPublic).toContain("/public/registrations/taller-qa");
+      expect(comp.tokenUrl).toContain("/public/self-register/taller-qa");
+      expect(comp.tokenError).toBe("");
+      expect(comp.tokenLoading).toBe(false);
+    });
+
+    test("falls back to numeric id when slug is missing", async () => {
+      const comp = activitiesManager();
+      comp.activityToView = { id: 7, public_slug: null };
+
+      await comp.fetchActivityToken();
+
+      // El backend acepta slug o ID: el enlace sigue siendo funcional
+      expect(comp.tokenUrlPublic).toContain("/public/registrations/7");
+      expect(comp.tokenUrl).toContain("/public/self-register/7");
+      expect(comp.tokenUrlPause).toContain("/public/pause-attendance/7");
+      expect(comp.tokenUrlStaffWalkin).toContain("/public/staff-walkin/7");
+      expect(comp.tokenError).toContain("Sin slug público");
+      expect(comp.tokenLoading).toBe(false);
+    });
+  });
 });

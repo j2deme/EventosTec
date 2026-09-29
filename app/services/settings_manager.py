@@ -2,7 +2,7 @@
 
 import os
 from typing import Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import current_app
 
 
@@ -107,7 +107,9 @@ class SettingsManager:
         # Update BD
         try:
             setting.value = str(value)
-            setting.updated_at = datetime.utcnow()
+            # naive-UTC: igual que datetime.utcnow() pero sin DeprecationWarning
+            # (pytest.ini convierte en error los warnings de app.*)
+            setting.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             setting.updated_by_user_id = user_id
             db.session.commit()
         except Exception as e:
@@ -126,7 +128,9 @@ class SettingsManager:
     @classmethod
     def _get_from_cache(cls, key: str) -> Optional[Any]:
         """Get value from cache if fresh, else read from BD and cache."""
-        now = datetime.utcnow()
+        # naive-UTC: igual que datetime.utcnow() pero sin DeprecationWarning
+        # (pytest.ini convierte en error los warnings de app.*)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Return cached value if still fresh
         if key in cls._cache:
@@ -267,8 +271,8 @@ class AppSettings:
 
     @staticmethod
     def public_pause_available_until_after_end_minutes() -> int:
-        """Get minutes after activity end to keep pause available (default: 5)."""
-        return SettingsManager.get("public_pause_available_until_after_end_minutes", 5)
+        """Get minutes after activity end to keep pause available (default: 60)."""
+        return SettingsManager.get("public_pause_available_until_after_end_minutes", 60)
 
     @staticmethod
     def public_confirm_window_days() -> int:

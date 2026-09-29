@@ -1,8 +1,15 @@
 from app.utils.slug_utils import slugify, generate_unique_slug
 
 
+class _FakeColumn:
+    """Atributo de columna simulado: solo necesita .like() para los filtros."""
+
+    def like(self, pattern):
+        return pattern
+
+
 class DummyModel:
-    public_slug = None
+    public_slug = _FakeColumn()
 
 
 class DummySession:

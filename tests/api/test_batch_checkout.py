@@ -355,3 +355,114 @@ def test_batch_checkout_default_dry_run_true(client, auth_headers, sample_data, 
     with app.app_context():
         att = db.session.get(Attendance, attendance_id)
         assert att.check_out_time is None
+
+
+def test_batch_checkout_resumes_stuck_paused(client, auth_headers, sample_data, app):
+    """batch-checkout despausa pausas abiertas y no descuenta ese tiempo.
+
+    Regresión del bug: asistencias pausadas y nunca reanudadas quedaban con
+    porcentaje ~0 ('Parcial'/'Ausente') al hacer checkout.
+    """
+    with app.app_context():
+        activity = Activity(
+            event_id=sample_data["event_id"],
+            department="TEST",
+            name="Magistral Pausada",
+            start_datetime=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            duration_hours=2.0,
+            activity_type="Magistral",
+            location="Auditorio",
+            modality="Presencial",
+        )
+        db.session.add(activity)
+        db.session.commit()
+
+        # Asistencia pausada y nunca reanudada (olvido del operador)
+        attendance = Attendance(
+            student_id=sample_data["student_id"],
+            activity_id=activity.id,
+            check_in_time=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            pause_time=datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            is_paused=True,
+            status="Parcial",
+            attendance_percentage=0.0,
+        )
+        db.session.add(attendance)
+        db.session.commit()
+
+        activity_id = activity.id
+        attendance_id = attendance.id
+
+    response = client.post(
+        "/api/attendances/batch-checkout",
+        headers=auth_headers,
+        json={"activity_id": activity_id, "dry_run": False},
+    )
+
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["summary"]["resumed_paused"] == 1
+
+    with app.app_context():
+        att = db.session.get(Attendance, attendance_id)
+        # La pausa abierta se cerró al hacer checkout (duración cero)
+        assert att.is_paused is False
+        assert att.resume_time is not None
+        assert att.check_out_time is not None
+        # Sin descuento de la pausa olvidada: presencia completa -> >= 80%
+        assert att.attendance_percentage >= 80
+        assert att.status == "Asistió"
+
+
+def test_batch_checkout_dry_run_reports_paused_without_changes(
+    client, auth_headers, sample_data, app
+):
+    """dry_run informa resumed_paused sin tocar la BD."""
+    with app.app_context():
+        activity = Activity(
+            event_id=sample_data["event_id"],
+            department="TEST",
+            name="Magistral Pausada Dry",
+            start_datetime=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            duration_hours=2.0,
+            activity_type="Magistral",
+            location="Auditorio",
+            modality="Presencial",
+        )
+        db.session.add(activity)
+        db.session.commit()
+
+        attendance = Attendance(
+            student_id=sample_data["student_id"],
+            activity_id=activity.id,
+            check_in_time=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            pause_time=datetime(2024, 1, 1, 10, 5, 0, tzinfo=timezone.utc),
+            is_paused=True,
+            status="Parcial",
+            attendance_percentage=0.0,
+        )
+        db.session.add(attendance)
+        db.session.commit()
+
+        activity_id = activity.id
+        attendance_id = attendance.id
+
+    response = client.post(
+        "/api/attendances/batch-checkout",
+        headers=auth_headers,
+        json={"activity_id": activity_id, "dry_run": True},
+    )
+
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["summary"]["resumed_paused"] == 1
+
+    # Sin cambios en BD
+    with app.app_context():
+        att = db.session.get(Attendance, attendance_id)
+        assert att.is_paused is True
+        assert att.resume_time is None
+        assert att.check_out_time is None
+        assert att.status == "Parcial"

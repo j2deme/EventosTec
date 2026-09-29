@@ -198,3 +198,15 @@ class TestSettingsManager:
             assert AppSettings.public_pause_available_from_seconds() == 0
             assert AppSettings.public_pause_available_until_after_end_minutes() == 5
             assert AppSettings.public_confirm_window_days() == 30
+
+    def test_pause_window_default_is_60_minutes(self, app):
+        """Sin fila en BD, la ventana de reanudación usa el default 60 min.
+
+        El default subió de 5 a 60 minutos para que el instructor pueda
+        reanudar asistencias pausadas después del fin de la actividad.
+        """
+        with app.app_context():
+            SettingsManager._invalidate_cache(
+                "public_pause_available_until_after_end_minutes"
+            )
+            assert AppSettings.public_pause_available_until_after_end_minutes() == 60

@@ -152,6 +152,10 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
                 "created_at",
                 "updated_at",
                 "knowledge_area",
+                # Necesario para los enlaces públicos: sin él, ningún endpoint
+                # de actividad devolvía public_slug (y public_url nunca se
+                # agregaba en activities_bp).
+                "public_slug",
             ]
             for a in attrs:
                 setattr(result, a, getattr(obj, a, None))

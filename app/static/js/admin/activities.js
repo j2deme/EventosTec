@@ -957,33 +957,45 @@ function activitiesManager() {
       this.tokenUrlPause = "";
       this.tokenUrlStaffWalkin = "";
       try {
-        // Use slug-based URLs instead of tokens
+        // Use slug-based URLs instead of tokens. Fallback al ID numérico:
+        // el backend acepta slug o ID en todas las vistas públicas, así que
+        // las actividades sin slug aún pueden generar enlaces compartibles.
         const activitySlug = this.activityToView.public_slug || "";
+        const activityRef =
+          activitySlug || String(this.activityToView.id || "");
         const origin = window.location.origin || "";
 
-        if (!activitySlug) {
-          this.tokenError = "La actividad no tiene un slug público asignado.";
+        if (!activityRef) {
+          this.tokenError =
+            "La actividad no tiene slug público ni ID asignado.";
           this.tokenLoading = false;
           return;
         }
 
+        if (!activitySlug) {
+          // Aviso no bloqueante: el enlace usa el ID temporalmente
+          this.tokenError =
+            "Sin slug público: el enlace usa el ID de la actividad. " +
+            "Asigna un slug para un enlace estable y amigable.";
+        }
+
         // Self-register URL (slug-based)
         this.tokenUrl =
-          origin + "/public/self-register/" + encodeURIComponent(activitySlug);
+          origin + "/public/self-register/" + encodeURIComponent(activityRef);
 
         // Public registration URL (slug-based) - for managing registrations
         this.tokenUrlPublic =
-          origin + "/public/registrations/" + encodeURIComponent(activitySlug);
+          origin + "/public/registrations/" + encodeURIComponent(activityRef);
 
         // Pause-attendance URL (slug-based) - for Magistral activities only
         this.tokenUrlPause =
           origin +
           "/public/pause-attendance/" +
-          encodeURIComponent(activitySlug);
+          encodeURIComponent(activityRef);
 
         // Staff-walkin URL (slug-based) - for Magistral activities only
         this.tokenUrlStaffWalkin =
-          origin + "/public/staff-walkin/" + encodeURIComponent(activitySlug);
+          origin + "/public/staff-walkin/" + encodeURIComponent(activityRef);
 
         // Optionally also generate token-based URLs as fallback (for backwards compatibility)
         const f =

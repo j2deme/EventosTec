@@ -1,15 +1,14 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timezone
 from marshmallow import ValidationError
 from app.utils.datetime_utils import parse_datetime_with_timezone
 from app import db
-from app.schemas import attendance_schema, attendances_schema
+from app.schemas import attendance_schema
 from app.models.attendance import Attendance
 from app.models.student import Student
 from app.models.activity import Activity
 from app.utils.auth_helpers import require_admin, get_user_or_403
-from app.services.attendance_service import calculate_attendance_percentage
 from app.models.registration import Registration
 import traceback
 
@@ -554,6 +553,45 @@ def register_attendance():
                 registration.confirmation_date = db.func.now()
                 db.session.add(registration)
 
+        # Recalcular porcentaje y estado al hacer checkout. Antes solo se
+        # persistía check_out_time y una asistencia creada como 'Parcial'
+        # (p. ej. self check-in) nunca se actualizaba a 'Asistió'/'Ausente'.
+        # mark_present es un override manual (100%): no se recalcula.
+        if check_out and not mark_present:
+            # El checkout cierra la sesión: si quedó una pausa vigente
+            # (olvido del operador), no debe descontar el tiempo restante.
+            if getattr(attendance, "is_paused", False):
+                attendance.resume_time = attendance.pause_time
+                attendance.is_paused = False
+                db.session.add(attendance)
+            try:
+                db.session.flush()
+            except Exception:
+                pass
+            if getattr(attendance, "check_in_time", None):
+                try:
+                    from app.services.attendance_service import (
+                        calculate_attendance_percentage,
+                    )
+
+                    # El servicio recalcula attendance_percentage y deriva
+                    # status (Asistió >= 80%, Parcial, Ausente) sobre la misma
+                    # instancia de la sesión. Se expira el objeto para que lea
+                    # los valores persistidos (naive en BD): un check_out
+                    # recién parseado (aware, zona UTC) en la misma petición
+                    # provoca un sesgo de zona horaria frente al check_in
+                    # leído de la BD y la ventana de presencia queda invertida.
+                    if attendance.id is not None:
+                        db.session.expire(attendance)
+                    perc = calculate_attendance_percentage(attendance.id)
+                    if perc is not None:
+                        db.session.add(attendance)
+                except Exception:
+                    current_app.logger.exception(
+                        "Error recalculando porcentaje de la asistencia %s",
+                        getattr(attendance, "id", None),
+                    )
+
         # Si la actividad tiene actividades relacionadas, crear las asistencias
         # relacionadas SOLO si la asistencia principal quedó marcada como
         # 'Asistió' (es decir, mark_present=True o cálculo posterior que deje ese estado).
@@ -742,7 +780,13 @@ def batch_checkout():
 
         att_list = query.all()
 
-        summary = {"processed": 0, "updated": 0, "related_created": 0, "details": []}
+        summary = {
+            "processed": 0,
+            "updated": 0,
+            "related_created": 0,
+            "resumed_paused": 0,
+            "details": [],
+        }
 
         for att in att_list:
             summary["processed"] += 1
@@ -768,6 +812,22 @@ def batch_checkout():
                 emulate_check_out = now
             else:
                 emulate_check_out = att.check_out_time
+
+            # Auto-reanudar pausas abiertas antes de calcular: si el instructor
+            # olvidó reanudar (o la ventana pública de resume expiró), el
+            # checkout cierra la sesión y una pausa vigente no debe descontar
+            # el tiempo restante de la asistencia.
+            if getattr(att, "is_paused", False):
+                summary["resumed_paused"] += 1
+                if not dry_run:
+                    # Pausa vigente sin reanudar -> se considera de duración cero
+                    att.resume_time = att.pause_time
+                    att.is_paused = False
+                    db.session.add(att)
+                    try:
+                        db.session.flush()
+                    except Exception:
+                        pass
 
             # Calculate percentage.
             # - If dry_run: compute in-memory without mutating DB/session.
@@ -795,14 +855,21 @@ def batch_checkout():
                     end = _ensure_tz(emulate_check_out)
 
                     total_paused_seconds = 0
-                    if getattr(att, "pause_time", None):
-                        resume_or_now = getattr(att, "resume_time", None) or now
-                        resume_or_now = _ensure_tz(resume_or_now)
-                        pause_time = _ensure_tz(att.pause_time)
-                        if resume_or_now and pause_time:
-                            total_paused_seconds = (
-                                resume_or_now - pause_time
-                            ).total_seconds()
+                    # Solo descontar pausas cerradas (con reanudación
+                    # explícita); una pausa vigente se auto-reanuda con
+                    # duración cero, igual que en el camino real.
+                    if getattr(att, "pause_time", None) and not getattr(
+                        att, "is_paused", False
+                    ):
+                        resume_time = getattr(att, "resume_time", None)
+                        if resume_time:
+                            resume_or_now = _ensure_tz(resume_time)
+                            pause_time = _ensure_tz(att.pause_time)
+                            if resume_or_now and pause_time:
+                                total_paused_seconds = max(
+                                    0,
+                                    (resume_or_now - pause_time).total_seconds(),
+                                )
 
                     if not start or not end:
                         net_duration_seconds = 0

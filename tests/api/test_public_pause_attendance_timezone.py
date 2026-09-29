@@ -7,7 +7,6 @@ from app.models.activity import Activity
 from app.models.event import Event
 from app.models.student import Student
 from app.models.attendance import Attendance
-from app.utils.token_utils import generate_public_token
 
 
 @pytest.fixture
@@ -63,10 +62,10 @@ def test_pause_view_accessible_during_activity(app, client, event):
         db.session.add(activity)
         db.session.commit()
 
-        token = generate_public_token(activity.id)
+        activity_ref = str(activity.id)
 
     # Test the view
-    response = client.get(f"/public/pause-attendance/{token}")
+    response = client.get(f"/public/pause-attendance/{activity_ref}")
 
     assert response.status_code == 200
     data = response.data.decode("utf-8")
@@ -75,22 +74,23 @@ def test_pause_view_accessible_during_activity(app, client, event):
     assert "expirado" not in data.lower() or "token_invalid=True" not in data
     # Should show activity name
     assert "Ongoing Activity" in data
-    # Should include the token in the page
-    assert token in data
+    # Should render the pause control card (real UI, not an error page)
+    assert 'id="pause-attendance-card"' in data
 
 
 @pytest.mark.xfail(reason="Flaky test - timing-dependent behavior with naive datetimes")
 def test_pause_view_shows_expired_after_activity(app, client, event):
     """Test that pause view shows expired message after activity ends."""
     with app.app_context():
-        # Activity ended more than 5 minutes ago (default window)
+        # Activity ended beyond the default 60-minute post-end window
         now = datetime.now()
         activity = Activity(
             event_id=event,
             department="TEST",
             name="Past Activity",
             start_datetime=now - timedelta(hours=2),
-            end_datetime=now - timedelta(hours=1, minutes=10),  # Ended 70 minutes ago
+            end_datetime=now
+            - timedelta(hours=1, minutes=10),  # Ended 70 minutes ago (> 60)
             duration_hours=1.0,
             activity_type="Magistral",
             location="Test",
@@ -99,10 +99,10 @@ def test_pause_view_shows_expired_after_activity(app, client, event):
         db.session.add(activity)
         db.session.commit()
 
-        token = generate_public_token(activity.id)
+        activity_ref = str(activity.id)
 
     # Test the view
-    response = client.get(f"/public/pause-attendance/{token}")
+    response = client.get(f"/public/pause-attendance/{activity_ref}")
 
     assert response.status_code == 200
     data = response.data.decode("utf-8")
@@ -112,9 +112,9 @@ def test_pause_view_shows_expired_after_activity(app, client, event):
 
 
 def test_pause_view_accessible_shortly_after_activity(app, client, event):
-    """Test that pause view is accessible within 5 minutes after activity ends."""
+    """Test that pause view is accessible within the post-end window."""
     with app.app_context():
-        # Activity ended 2 minutes ago (within default 5-minute window)
+        # Activity ended 2 minutes ago (within default 60-minute window)
         now = datetime.now()
         activity = Activity(
             event_id=event,
@@ -130,10 +130,10 @@ def test_pause_view_accessible_shortly_after_activity(app, client, event):
         db.session.add(activity)
         db.session.commit()
 
-        token = generate_public_token(activity.id)
+        activity_ref = str(activity.id)
 
     # Test the view
-    response = client.get(f"/public/pause-attendance/{token}")
+    response = client.get(f"/public/pause-attendance/{activity_ref}")
 
     assert response.status_code == 200
     data = response.data.decode("utf-8")
@@ -179,10 +179,12 @@ def test_api_search_respects_timezone(app, client, event):
         db.session.add(attendance)
         db.session.commit()
 
-        token = generate_public_token(activity.id)
+        activity_id = activity.id
 
     # Test the API search
-    response = client.get(f"/api/public/attendances/search?token={token}&search=Test")
+    response = client.get(
+        f"/api/public/attendances/search?activity_id={activity_id}&search=Test"
+    )
 
     assert response.status_code == 200
     data = response.json
@@ -229,12 +231,13 @@ def test_api_pause_respects_timezone(app, client, event):
         db.session.add(attendance)
         db.session.commit()
 
-        token = generate_public_token(activity.id)
+        activity_id = activity.id
         attendance_id = attendance.id
 
     # Test the API pause
     response = client.post(
-        f"/api/public/attendances/{attendance_id}/pause", json={"token": token}
+        f"/api/public/attendances/{attendance_id}/pause",
+        json={"activity_id": activity_id},
     )
 
     assert response.status_code == 200
