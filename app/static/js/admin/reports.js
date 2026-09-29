@@ -284,6 +284,77 @@ function reportsManager() {
       }
     },
 
+    // Abrir la lista de asistencia (imprimible) de la actividad seleccionada.
+    // La ruta exige header Authorization, así que no basta con abrir la URL en
+    // el navegador: se consume con fetch autenticado y se sirve como blob.
+    async printAttendanceList() {
+      if (!this.filters.activity_id) {
+        window.showToast &&
+          window.showToast("Selecciona una actividad primero", "error");
+        return;
+      }
+
+      // La pestaña se abre de forma síncrona (dentro del gesto del usuario)
+      // para no caer en el bloqueador de popups; si la carga falla, se cierra.
+      const win =
+        typeof window !== "undefined" && typeof window.open === "function"
+          ? window.open("", "_blank")
+          : null;
+      if (!win) {
+        window.showToast &&
+          window.showToast(
+            "No se pudo abrir la pestaña (revisa el bloqueador de ventanas emergentes)",
+            "error",
+          );
+        return;
+      }
+
+      const closeTab = () => {
+        try {
+          win.close();
+        } catch (e) {
+          /* noop */
+        }
+      };
+
+      try {
+        const f =
+          typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+        const res = await f(
+          `/api/reports/attendance_list?activity_id=${encodeURIComponent(
+            this.filters.activity_id,
+          )}`,
+        );
+        if (!res) {
+          closeTab();
+          return;
+        }
+        if (!res.ok) {
+          closeTab();
+          window.showToast &&
+            window.showToast("Error abriendo la lista de asistencia", "error");
+          return;
+        }
+        const html = await res.text();
+        const blob = new Blob([html], { type: "text/html" });
+        const url = window.URL.createObjectURL(blob);
+        win.location.href = url;
+        // Liberar el blob cuando la pestaña ya lo haya cargado
+        setTimeout(() => {
+          try {
+            window.URL.revokeObjectURL(url);
+          } catch (e) {
+            /* noop */
+          }
+        }, 60000);
+      } catch (e) {
+        console.error("Error printing attendance list", e);
+        closeTab();
+        window.showToast &&
+          window.showToast("Error abriendo la lista de asistencia", "error");
+      }
+    },
+
     // Hours compliance methods
     async loadCareers() {
       try {

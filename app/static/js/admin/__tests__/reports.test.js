@@ -798,5 +798,97 @@ describe("reportsManager", () => {
         expect(typeof result).toBe("string");
       });
     });
+
+    describe("printAttendanceList", () => {
+      afterEach(() => {
+        // Restaurar los mocks de blob URL para no afectar otros tests
+        delete global.URL.createObjectURL;
+        delete global.URL.revokeObjectURL;
+      });
+
+      test("requires activity selection before opening a tab", async () => {
+        const openSpy = jest.spyOn(window, "open").mockReturnValue(null);
+        const mgr = reportsManager();
+        mgr.filters.activity_id = "";
+
+        await mgr.printAttendanceList();
+
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("Selecciona una actividad"),
+          "error",
+        );
+        expect(openSpy).not.toHaveBeenCalled();
+        expect(mockFetch).not.toHaveBeenCalled();
+      });
+
+      test("opens tab and serves the HTML as blob for selected activity", async () => {
+        const win = { location: { href: "" }, close: jest.fn() };
+        jest.spyOn(window, "open").mockReturnValue(win);
+        global.URL.createObjectURL = jest.fn(() => "blob:attendance-url");
+        global.URL.revokeObjectURL = jest.fn();
+
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          text: async () => "<html><body>Lista</body></html>",
+        });
+
+        const mgr = reportsManager();
+        mgr.filters.activity_id = "7";
+
+        await mgr.printAttendanceList();
+
+        expect(window.open).toHaveBeenCalledWith("", "_blank");
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/reports/attendance_list?activity_id=7",
+        );
+        expect(global.URL.createObjectURL).toHaveBeenCalled();
+        expect(win.location.href).toBe("blob:attendance-url");
+        expect(win.close).not.toHaveBeenCalled();
+      });
+
+      test("closes the tab and toasts on server error", async () => {
+        const win = { location: { href: "" }, close: jest.fn() };
+        jest.spyOn(window, "open").mockReturnValue(win);
+
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          text: async () => "Actividad no encontrada",
+        });
+
+        const mgr = reportsManager();
+        mgr.filters.activity_id = "999";
+
+        await mgr.printAttendanceList();
+
+        expect(win.close).toHaveBeenCalled();
+        expect(win.location.href).toBe("");
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("Error abriendo la lista"),
+          "error",
+        );
+      });
+
+      test("closes the tab and toasts on network failure", async () => {
+        const win = { location: { href: "" }, close: jest.fn() };
+        jest.spyOn(window, "open").mockReturnValue(win);
+        mockFetch.mockRejectedValueOnce(new Error("network down"));
+        const consoleErrorSpy = jest
+          .spyOn(console, "error")
+          .mockImplementation(() => {});
+
+        const mgr = reportsManager();
+        mgr.filters.activity_id = "3";
+
+        await mgr.printAttendanceList();
+
+        expect(win.close).toHaveBeenCalled();
+        expect(global.showToast).toHaveBeenCalledWith(
+          expect.stringContaining("Error abriendo la lista"),
+          "error",
+        );
+        expect(consoleErrorSpy).toHaveBeenCalled();
+      });
+    });
   });
 });

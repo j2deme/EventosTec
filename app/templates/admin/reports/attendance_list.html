@@ -1,0 +1,107 @@
+{% extends "base.html" %} {% block title %}Lista de preregistrados - {{
+activity.name }}{% endblock %} {% block content %}
+<div class="max-w-5xl mx-auto p-4 print:p-0">
+  <!-- Barra de acciones (oculta al imprimir) -->
+  <div class="flex items-center justify-between mb-4 print:hidden">
+    <button
+      onclick="history.back()"
+      class="flex items-center gap-1 text-gray-600 hover:text-gray-900 text-sm"
+    >
+      <i class="ti ti-arrow-left"></i> Regresar
+    </button>
+    <button
+      onclick="window.print()"
+      class="flex items-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg"
+    >
+      <i class="ti ti-printer"></i> Imprimir
+    </button>
+  </div>
+
+  <div
+    class="bg-white p-6 rounded-lg shadow print:shadow-none print:rounded-none"
+  >
+    <!-- Encabezado del reporte -->
+    <div class="border-b pb-4 mb-4">
+      {% if event %}
+      <p class="text-sm text-gray-500">{{ event.name }}</p>
+      {% endif %}
+      <h1 class="text-xl font-bold text-gray-900">{{ activity.name }}</h1>
+      <div class="text-sm text-gray-600 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        {% if activity.department %}
+        <span><i class="ti ti-building"></i> {{ activity.department }}</span>
+        {% endif %} {% if activity.location %}
+        <span><i class="ti ti-map-pin"></i> {{ activity.location }}</span>
+        {% endif %} {% if activity.start_datetime %}
+        <span>
+          <i class="ti ti-calendar"></i>
+          {{ activity.start_datetime.strftime('%d/%m/%Y %H:%M') }} {% if
+          activity.end_datetime %} — {{ activity.end_datetime.strftime('%d/%m/%Y
+          %H:%M') }}{% endif %}
+        </span>
+        {% endif %}
+      </div>
+      <p class="text-sm text-gray-600 mt-2">
+        <strong>Total de preregistrados:</strong> {{ students|length }}
+      </p>
+    </div>
+
+    <!-- Lista -->
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200 text-sm">
+        <thead class="bg-gray-50">
+          <tr>
+            <th
+              class="px-3 py-2 text-left font-medium text-gray-500 w-10 print:w-10"
+            >
+              #
+            </th>
+            <th class="px-3 py-2 text-left font-medium text-gray-500">
+              No. Control
+            </th>
+            <th class="px-3 py-2 text-left font-medium text-gray-500">
+              Nombre
+            </th>
+            <th class="px-3 py-2 text-left font-medium text-gray-500">
+              Carrera
+            </th>
+            {% if multi_day %} {% for d in dates %} {% if d %}
+            <th
+              class="px-3 py-2 text-center font-medium text-gray-500 whitespace-nowrap"
+            >
+              {{ d.strftime('%d/%m/%Y') }}
+            </th>
+            {% endif %} {% endfor %} {% else %}
+            <th class="px-3 py-2 text-center font-medium text-gray-500">
+              Asistencia
+            </th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          {% for s in students %}
+          <tr>
+            <td class="px-3 py-2 text-gray-500">{{ loop.index }}</td>
+            <td class="px-3 py-2 whitespace-nowrap text-gray-900">
+              {{ s.control_number }}
+            </td>
+            <td class="px-3 py-2 text-gray-900">{{ s.full_name }}</td>
+            <td class="px-3 py-2 text-gray-600">{{ s.career or '' }}</td>
+            {% if multi_day %} {% for d in dates %} {% if d %}
+            <td class="px-3 py-2 h-8"></td>
+            {% endif %} {% endfor %} {% else %}
+            <td class="px-3 py-2 h-8"></td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="10" class="px-3 py-6 text-center text-gray-500">
+              No hay preregistrados para esta actividad.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
