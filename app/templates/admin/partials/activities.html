@@ -552,7 +552,7 @@
                     >
                     <input
                       type="file"
-                      accept=".xlsx,.xls"
+                      accept=".xlsx"
                       @change="onBatchFileChange($event)"
                       class="mt-1"
                     />
@@ -566,6 +566,155 @@
                       >
                     </label>
                   </div>
+
+                  <!-- Descarga de plantilla + estructura esperada -->
+                  <div class="text-sm">
+                    <a
+                      href="/api/activities/batch-template"
+                      download
+                      class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium"
+                    >
+                      <i class="ti ti-download mr-1"></i>
+                      Descargar plantilla .xlsx
+                    </a>
+                  </div>
+
+                  <!-- Espejo de BATCH_COLUMNS en app/services/activity_service.py
+                       (misma fuente que genera la plantilla descargable) -->
+                  <details class="text-sm border rounded-md p-3">
+                    <summary class="cursor-pointer font-medium text-gray-700">
+                      Estructura esperada del archivo
+                    </summary>
+                    <div class="mt-2 overflow-x-auto">
+                      <table class="min-w-full text-xs text-gray-700">
+                        <thead>
+                          <tr class="text-left text-gray-500">
+                            <th class="pr-2 py-1">Columna</th>
+                            <th class="pr-2 py-1">Oblig.</th>
+                            <th class="pr-2 py-1">Restricción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">department</td>
+                            <td class="pr-2 py-1">Sí</td>
+                            <td class="pr-2 py-1">
+                              1–50 car.; usa solo la parte antes de '/' (ej.
+                              IAMB/05 → IAMB). Genera el código DEPT/NN
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">name</td>
+                            <td class="pr-2 py-1">Sí</td>
+                            <td class="pr-2 py-1">Título, máximo 100 caracteres</td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">description</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">Texto libre</td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">start_datetime</td>
+                            <td class="pr-2 py-1">Sí</td>
+                            <td class="pr-2 py-1">
+                              Dentro del rango del evento; celda de fecha de Excel
+                              o ISO 'AAAA-MM-DD HH:MM'
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">end_datetime</td>
+                            <td class="pr-2 py-1">Sí</td>
+                            <td class="pr-2 py-1">
+                              Posterior al inicio y dentro del rango del evento
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">duration_hours</td>
+                            <td class="pr-2 py-1">Sí</td>
+                            <td class="pr-2 py-1">
+                              ≥ 0 y ≤ (fin − inicio), en horas
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">activity_type</td>
+                            <td class="pr-2 py-1">Sí</td>
+                            <td class="pr-2 py-1">
+                              Magistral, Conferencia, Taller, Curso u Otro
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">location</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">1–200 car. (vacío → N/A)</td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">modality</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">
+                              Presencial, Virtual o Híbrido (vacío → Presencial)
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">requirements</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">Texto libre</td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">knowledge_area</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">Máximo 100 caracteres</td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">speakers</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">
+                              JSON o 'grado|nombre|organización' separados con ';'
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">target_general</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">1, true, yes, si o sí</td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">target_careers</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">
+                              Separadas por coma (ej. ISC, IIA)
+                            </td>
+                          </tr>
+                          <tr class="border-t">
+                            <td class="pr-2 py-1 font-mono">max_capacity</td>
+                            <td class="pr-2 py-1">No</td>
+                            <td class="pr-2 py-1">Entero ≥ 0</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <ul
+                        class="mt-2 list-disc list-inside text-xs text-gray-600 space-y-1"
+                      >
+                        <li>
+                          El evento se elige en este formulario (no incluyas
+                          columna <code>event_id</code>); se usa la primera hoja
+                          del libro.
+                        </li>
+                        <li>
+                          Alias en español aceptados: nombre/titulo, descripcion,
+                          fecha_inicio, fecha_fin, duracion, tipo, lugar,
+                          modalidad, ponentes, carreras, capacidad…
+                        </li>
+                        <li>
+                          Columna extra opcional
+                          <code>institution</code>/<code>organizacion</code>:
+                          organización por defecto de los ponentes de la fila.
+                        </li>
+                        <li>
+                          Primero procesa con Dry run y revisa el reporte; una
+                          fila inválida no cancela el resto.
+                        </li>
+                      </ul>
+                    </div>
+                  </details>
 
                   <!-- Inline validation error -->
                   <div

@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required
 from marshmallow import ValidationError
 from app import db
@@ -666,4 +666,26 @@ def batch_upload_activities():
         tb = traceback.format_exc()
         return jsonify(
             {"message": "Error en importación batch", "error": str(e), "trace": tb}
+        ), 500
+
+
+@activities_bp.route("/batch-template", methods=["GET"])
+def download_batch_template():
+    """Descarga una plantilla XLSX con la estructura esperada por POST /batch.
+
+    Sin autenticación a propósito: solo expone encabezados, límites y filas de
+    ejemplo (sin datos reales) para que el enlace <a download> del modal
+    "Importar XLSX" funcione sin cabecera Authorization.
+    """
+    try:
+        buf = activity_service.build_activities_xlsx_template()
+        return send_file(
+            buf,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="plantilla_actividades.xlsx",
+        )
+    except Exception as e:
+        return jsonify(
+            {"message": "Error generando la plantilla", "error": str(e)}
         ), 500

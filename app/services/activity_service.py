@@ -298,11 +298,99 @@ def update_activity(activity_id, activity_data):
     return activity
 
 
+# Estructura esperada del XLSX de importación masiva de actividades.
+# Fuente única de verdad: la usan create_activities_from_xlsx (mapeo de
+# encabezados), build_activities_xlsx_template (plantilla descargable) y la
+# ayuda del modal "Importar XLSX" — si cambia la estructura, cambiar aquí.
+BATCH_COLUMNS = [
+    {
+        "header": "department",
+        "required": True,
+        "help": "1-50 caracteres. Si contiene '/', se usa solo la parte previa "
+        "(ej. 'IAMB/05' -> 'IAMB'). Genera el código automático DEPT/NN.",
+    },
+    {
+        "header": "name",
+        "required": True,
+        "help": "Título de la actividad, máximo 100 caracteres.",
+    },
+    {
+        "header": "description",
+        "required": False,
+        "help": "Descripción, texto libre (sin límite práctico).",
+    },
+    {
+        "header": "start_datetime",
+        "required": True,
+        "help": "Fecha/hora de inicio dentro del rango del evento. Use celda de "
+        "fecha de Excel o formato ISO 'AAAA-MM-DD HH:MM'.",
+    },
+    {
+        "header": "end_datetime",
+        "required": True,
+        "help": "Fecha/hora de fin, posterior al inicio y dentro del rango del evento.",
+    },
+    {
+        "header": "duration_hours",
+        "required": True,
+        "help": "Duración en horas: >= 0 y <= (fin - inicio). Si no la conoce, "
+        "use la diferencia entre fin e inicio.",
+    },
+    {
+        "header": "activity_type",
+        "required": True,
+        "help": "Valor exacto: Magistral, Conferencia, Taller, Curso u Otro.",
+    },
+    {
+        "header": "location",
+        "required": False,
+        "help": "Lugar, 1-200 caracteres. Vacío -> 'N/A'.",
+    },
+    {
+        "header": "modality",
+        "required": False,
+        "help": "Presencial, Virtual o Híbrido. Vacío -> 'Presencial'.",
+    },
+    {
+        "header": "requirements",
+        "required": False,
+        "help": "Requisitos especiales, texto libre.",
+    },
+    {
+        "header": "knowledge_area",
+        "required": False,
+        "help": "Área de conocimiento, máximo 100 caracteres.",
+    },
+    {
+        "header": "speakers",
+        "required": False,
+        "help": 'JSON [{"name":..,"degree":..,"organization":..}] o texto '
+        "'grado|nombre|organización' separando ponentes con ';'. "
+        "Ej: 'Ing.|Juan Pérez|Instituto; Dra.|Ana Ruiz|IPN'.",
+    },
+    {
+        "header": "target_general",
+        "required": False,
+        "help": "Público general: 1, true, yes, si o sí.",
+    },
+    {
+        "header": "target_careers",
+        "required": False,
+        "help": "Carreras objetivo separadas por coma. Ej: 'ISC, IIA'.",
+    },
+    {
+        "header": "max_capacity",
+        "required": False,
+        "help": "Capacidad máxima, entero >= 0.",
+    },
+]
+
+
 def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
     """
     Parse an XLSX (first sheet) and create activities in batch.
 
-    Expected headers (case-insensitive):
+    Expected headers (case-insensitive): ver BATCH_COLUMNS (fuente única):
       department,name,description,start_datetime,end_datetime,duration_hours,
       activity_type,location,modality,requirements,knowledge_area,speakers,
       target_general,target_careers,max_capacity
@@ -401,23 +489,7 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
         "max_capacity_": "max_capacity",
     }
 
-    expected = [
-        "department",
-        "name",
-        "description",
-        "start_datetime",
-        "end_datetime",
-        "duration_hours",
-        "activity_type",
-        "location",
-        "modality",
-        "requirements",
-        "knowledge_area",
-        "speakers",
-        "target_general",
-        "target_careers",
-        "max_capacity",
-    ]
+    expected = [c["header"] for c in BATCH_COLUMNS]
 
     # Build rename mapping
     renames = {}
@@ -1126,3 +1198,121 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
             errors.append({"row": pr["row"], "message": str(e), "data": data})
 
     return {"created": created, "errors": errors, "created_ids": created_ids}
+
+
+def build_activities_xlsx_template():
+    """Genera el XLSX de plantilla para POST /api/activities/batch.
+
+    Hojas:
+      - 'Plantilla': encabezados de BATCH_COLUMNS + 2 filas de ejemplo.
+      - 'Instrucciones': obligatoriedad/límites por columna y notas del flujo.
+
+    Returns:
+        BytesIO listo para Flask.send_file.
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+
+    headers = [c["header"] for c in BATCH_COLUMNS]
+
+    wb = Workbook()
+
+    # ---- Hoja 1: encabezados + filas de ejemplo ----
+    ws = wb.active
+    ws.title = "Plantilla"
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+
+    # Filas de ejemplo: fechas como celdas de fecha nativas (pandas las lee como
+    # Timestamps) y todos los campos obligatorios coherentes para que el dry-run
+    # de importación las acepte sin errores.
+    ejemplos = [
+        {
+            "department": "ISC",
+            "name": "Taller de ejemplo (edite o borre)",
+            "description": "Fila de ejemplo: edite los datos o elimine la fila antes de importar.",
+            "start_datetime": datetime(2026, 10, 7, 9, 0),
+            "end_datetime": datetime(2026, 10, 7, 11, 0),
+            "duration_hours": 2,
+            "activity_type": "Taller",
+            "location": "Aula 1",
+            "modality": "Presencial",
+            "requirements": "",
+            "knowledge_area": "",
+            "speakers": "Ing.|Juan Pérez|Instituto; Dra.|Ana Ruiz|IPN",
+            "target_general": "true",
+            "target_careers": "ISC, IIA",
+            "max_capacity": 30,
+        },
+        {
+            "department": "IAMB",
+            "name": "Conferencia de ejemplo (edite o borre)",
+            "description": "Otra fila de ejemplo con modalidad virtual.",
+            "start_datetime": datetime(2026, 10, 8, 12, 0),
+            "end_datetime": datetime(2026, 10, 8, 13, 30),
+            "duration_hours": 1.5,
+            "activity_type": "Conferencia",
+            "location": "Auditorio / Zoom",
+            "modality": "Virtual",
+            "requirements": "",
+            "knowledge_area": "",
+            "speakers": '[{"name": "Dra. Ana Ruiz", "degree": "Dra.", "organization": "IPN"}]',
+            "target_general": "false",
+            "target_careers": "IIND",
+            "max_capacity": 100,
+        },
+    ]
+    for ej in ejemplos:
+        ws.append([ej.get(h) for h in headers])
+
+    widths = {
+        "department": 12,
+        "name": 40,
+        "description": 50,
+        "start_datetime": 20,
+        "end_datetime": 20,
+        "speakers": 45,
+        "target_careers": 18,
+    }
+    for idx, h in enumerate(headers, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = widths.get(h, 18)
+
+    # ---- Hoja 2: instrucciones ----
+    wi = wb.create_sheet("Instrucciones")
+    wi.append(["Columna", "Obligatorio", "Descripción y límites"])
+    for cell in wi[1]:
+        cell.font = Font(bold=True)
+    for c in BATCH_COLUMNS:
+        wi.append([c["header"], "Sí" if c["required"] else "No", c["help"]])
+
+    wi.append([])
+    for nota in (
+        "La importación usa la PRIMERA hoja del libro; el evento se elige en el "
+        "formulario de carga (no incluya la columna event_id).",
+        "Los encabezados no distinguen mayúsculas ni acentos y se aceptan alias "
+        "en español: nombre/titulo, descripcion, fecha_inicio, fecha_fin, "
+        "duracion, tipo, lugar/ubicacion, modalidad, requisitos, area, "
+        "ponentes, publico_general, carreras, capacidad.",
+        "Fechas: celda de fecha/hora de Excel o texto ISO 'AAAA-MM-DD HH:MM'. "
+        "Evite texto 'dd/mm/aaaa' (puede interpretarse como mes/día).",
+        "Columna extra opcional 'institution'/'organizacion': organización por "
+        "defecto de los ponentes de esa fila.",
+        "Si start_datetime y end_datetime van vacíos, use una columna de fecha "
+        "compuesta (fecha/fechas/horario/fecha_actividad) con formato: "
+        "'[ 07 - OCT - 26 ] MIERCOLES / 09 a 11'.",
+        "Flujo recomendado: primero procese con 'Dry run (validar sin guardar)' "
+        "y revise el reporte de filas inválidas; después desmárquelo y procese.",
+        "Filas duplicadas (mismo evento + nombre + inicio) se omiten; una fila "
+        "inválida no cancela el resto de la importación.",
+    ):
+        wi.append([nota])
+    wi.column_dimensions["A"].width = 24
+    wi.column_dimensions["B"].width = 14
+    wi.column_dimensions["C"].width = 110
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return out

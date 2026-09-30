@@ -65,6 +65,10 @@ Contratos y convenciones JSON importantes
   - Si `student_ids === null`, backend debe interpretar que sincronice todos desde la actividad fuente.
 - `POST /api/attendances/batch-checkout`:
   - Body: `{ activity_id, dry_run: boolean }`.
+- `GET /api/activities/batch-template`:
+  - Devuelve un XLSX (`attachment`) con la estructura esperada por `POST /api/activities/batch`.
+  - **Sin autenticación a propósito**: solo expone encabezados, límites y filas de ejemplo (sin datos reales) para que el `<a download>` del modal funcione sin cabecera Authorization.
+  - Fuente única de la estructura: `BATCH_COLUMNS` en `app/services/activity_service.py` (la usan el importador, el generador de la plantilla y la ayuda del modal).
 
 Pruebas y validación rápida
 
