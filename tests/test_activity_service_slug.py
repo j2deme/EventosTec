@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock
 from app.services.activity_service import create_activity, update_activity
 from app.models.activity import Activity
@@ -18,15 +19,21 @@ def make_activity_payload(name="Test Activity", **kw):
     return data
 
 
-def test_create_generates_slug(monkeypatch):
-    # Monkeypatch DB session generate_unique_slug uses db.session
+def test_create_generates_slug(monkeypatch, sample_data):
+    # Monkeypatch del generador de slugs (usa db.session internamente)
     fake_slug = "test-activity"
     monkeypatch.setattr(
         "app.services.activity_service.generate_unique_slug",
         lambda session, model, value, column="public_slug": fake_slug,
     )
-    # ensure db.session.add/commit do nothing using a dummy activity object creation
-    payload = make_activity_payload()
+    # El servicio espera datetimes parseados (igual que los parsea la ruta)
+    # y un evento real en BD: se usa sample_data (evento 2024-01-01 09:00-17:00).
+    payload = make_activity_payload(
+        event_id=sample_data["event_id"],
+        start_datetime=datetime(2024, 1, 1, 10, 0, 0),
+        end_datetime=datetime(2024, 1, 1, 12, 0, 0),
+        modality="Presencial",
+    )
     act = create_activity(payload)
     assert isinstance(act, Activity)
     assert getattr(act, "public_slug", None) == fake_slug

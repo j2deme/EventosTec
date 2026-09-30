@@ -1,6 +1,7 @@
 from app.models.student import Student
 from app.models.event import Event
 from app.models.user import User
+from app.models.activity import Activity
 from app import create_app, db
 import pytest
 import sys
@@ -96,6 +97,57 @@ def auth_headers(app):
 
 
 # Fixture para datos de muestra, devolviendo IDs para evitar DetachedInstanceError
+
+
+@pytest.fixture
+def db_session(app):
+    """Sesión de BD dentro del contexto de la app (para usar desde factories)."""
+    return db.session
+
+
+@pytest.fixture
+def event_factory(db_session):
+    """Crea eventos mínimos válidos (para tests de vistas públicas por slug)."""
+
+    def _create(name="Evento Factory", **kw):
+        event = Event(
+            name=name,
+            start_date=kw.pop("start_date", datetime(2024, 1, 1, 9, 0, 0)),
+            end_date=kw.pop("end_date", datetime(2024, 1, 1, 17, 0, 0)),
+            **kw,
+        )
+        db.session.add(event)
+        db.session.commit()
+        return event
+
+    return _create
+
+
+@pytest.fixture
+def activity_factory(db_session, event_factory):
+    """Crea actividades mínimas válidas; acepta public_slug/activity_type extra."""
+
+    def _create(event_id=None, name="Actividad Factory", **kw):
+        if event_id is None:
+            event_id = event_factory().id
+        defaults = {
+            "event_id": event_id,
+            "department": "ISC",
+            "name": name,
+            "start_datetime": datetime(2024, 1, 1, 10, 0, 0),
+            "end_datetime": datetime(2024, 1, 1, 12, 0, 0),
+            "duration_hours": 2.0,
+            "activity_type": "Taller",
+            "location": "Salón 1",
+            "modality": "Presencial",
+        }
+        defaults.update(kw)
+        activity = Activity(**defaults)
+        db.session.add(activity)
+        db.session.commit()
+        return activity
+
+    return _create
 
 
 @pytest.fixture

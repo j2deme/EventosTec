@@ -36,8 +36,8 @@ class TestSelfRegisterBySlug:
         """Test that /public/self-register/<slug> renders the form successfully."""
         resp = client.get(f"/public/self-register/{regular_activity.public_slug}")
         assert resp.status_code == 200
-        # Check that the form contains expected content
-        assert b"self_register.html" in resp.data or b"activity_token" in resp.data
+        # El template expone la actividad resuelta por slug en data-activity-id
+        assert b'data-activity-id="test-regular-activity"' in resp.data
 
     def test_self_register_by_slug_passes_activity_token(
         self, client, regular_activity

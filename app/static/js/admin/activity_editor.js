@@ -27,6 +27,7 @@ function activityEditorManager() {
       target_audience_general: false,
       target_audience_careersList: [],
       max_capacity: null,
+      public_slug: "",
     },
 
     init() {
@@ -193,6 +194,7 @@ function activityEditorManager() {
         target_audience_general: false,
         target_audience_careersList: [],
         max_capacity: null,
+        public_slug: "",
       };
       this.errorMessage = "";
     },

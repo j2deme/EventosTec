@@ -3,26 +3,6 @@
 /** @jest-environment jsdom */
 jest.resetModules();
 
-// Mock localStorage before requiring the module
-global.localStorage = {
-  getItem: jest.fn((key) => {
-    if (key === "authToken") {
-      // Return a valid JWT-like token with sub claim
-      const payload = { sub: 123, exp: Math.floor(Date.now() / 1000) + 3600 };
-      const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
-        "base64",
-      );
-      return `header.${encodedPayload}.signature`;
-    }
-    return null;
-  }),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-};
-
-if (typeof window === "undefined") global.window = {};
-window.localStorage = global.localStorage;
-
 const studentHistoryManager = require("../history");
 
 describe("studentHistoryManager", () => {
@@ -54,7 +34,17 @@ describe("studentHistoryManager", () => {
   });
 
   test("getCurrentStudentId decodes JWT token", () => {
+    // Usar el localStorage real de jsdom: el asignador de window.localStorage
+    // no reemplaza al storage nativo y el mock quedaba sin efecto.
+    const payload = { sub: 123, exp: Math.floor(Date.now() / 1000) + 3600 };
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString(
+      "base64",
+    );
+    localStorage.setItem("authToken", `header.${encodedPayload}.signature`);
+
     const studentId = mgr.getCurrentStudentId();
+
+    localStorage.removeItem("authToken");
     expect(studentId).toBe(123);
   });
 

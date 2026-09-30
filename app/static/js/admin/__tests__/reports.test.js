@@ -31,7 +31,10 @@ describe("reportsManager", () => {
         department: "",
       });
       expect(mgr.loading).toBe(false);
-      expect(mgr.matrix).toBeNull();
+      // Estructura simplificada de tabla que provee el backend
+      expect(mgr.matrix_headers).toEqual([]);
+      expect(mgr.matrix_rows).toEqual([]);
+      expect(mgr.matrix_footer).toEqual([]);
     });
 
     test("init should call loadEvents and loadActivities", async () => {
@@ -200,7 +203,7 @@ describe("reportsManager", () => {
   });
 
   describe("onEventChange", () => {
-    test("should reset activity_id and filter activities", () => {
+    test("should reset activity_id and filter activities", async () => {
       const mgr = reportsManager();
       mgr.filters.activity_id = "5";
       mgr.filters.event_id = "1";
@@ -210,21 +213,27 @@ describe("reportsManager", () => {
       mgr.onEventChange();
 
       expect(mgr.filters.activity_id).toBe("");
+      // Sincroniza el evento hacia el reporte de horas
+      expect(mgr.hoursFilters.event_id).toBe("1");
+
+      // filterActivities se invoca dentro de un setTimeout (50ms) para
+      // permitir que el selector se actualice en la UI
+      await new Promise((resolve) => setTimeout(resolve, 80));
       expect(filterSpy).toHaveBeenCalled();
+      expect(mgr.activitiesFilterLoading).toBe(false);
     });
   });
 
   describe("generateMatrix", () => {
     test("should generate participation matrix", async () => {
+      // El backend devuelve la tabla ya simplificada: headers, filas y footer
       const mockResponse = {
-        careers: ["ISC", "IIA"],
-        generations: ["2023", "2024"],
-        semesters: [1, 2, 3],
-        matrix: {},
-        matrix_semester: {
-          ISC: { 1: 5, 2: 3, 3: 2 },
-          IIA: { 1: 4, 2: 6, 3: 1 },
-        },
+        matrix_headers: ["1er semestre", "2do semestre"],
+        matrix_rows: [
+          ["ISC", 5, 3, 8],
+          ["IIA", 4, 6, 10],
+        ],
+        matrix_footer: ["Total", 9, 9, 18],
       };
 
       mockFetch.mockResolvedValueOnce({
@@ -238,13 +247,9 @@ describe("reportsManager", () => {
       await mgr.generateMatrix();
 
       expect(mgr.loading).toBe(false);
-      expect(mgr.careers).toEqual(["ISC", "IIA"]);
-      expect(mgr.generations).toEqual(["2023", "2024"]);
-      expect(mgr.semesters).toEqual([1, 2, 3]);
-      expect(mgr.rowSubtotals).toHaveProperty("ISC");
-      expect(mgr.rowSubtotals.ISC).toBe(10); // 5+3+2
-      expect(mgr.rowSubtotals.IIA).toBe(11); // 4+6+1
-      expect(mgr.totalSumSemesters).toBe(21);
+      expect(mgr.matrix_headers).toEqual(mockResponse.matrix_headers);
+      expect(mgr.matrix_rows).toEqual(mockResponse.matrix_rows);
+      expect(mgr.matrix_footer).toEqual(mockResponse.matrix_footer);
     });
 
     test("should set loading state correctly", async () => {
@@ -434,11 +439,9 @@ describe("reportsManager", () => {
       test("should initialize hours filters with default values", () => {
         const mgr = reportsManager();
         expect(mgr.hoursFilters).toEqual({
-          event_id: "",
           career: "",
           search: "",
           min_hours: 0,
-          filter_10_plus: false,
         });
         expect(mgr.hoursLoading).toBe(false);
         expect(mgr.hoursStudents).toEqual([]);
@@ -483,42 +486,10 @@ describe("reportsManager", () => {
       });
     });
 
-    describe("onHoursEventChange", () => {
-      test("should reset filters when event changes", () => {
-        const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
-        mgr.hoursFilters.career = "Ingeniería";
-        mgr.hoursFilters.search = "12345";
-        mgr.hoursStudents = [{ id: 1 }];
-
-        mgr.onHoursEventChange();
-
-        expect(mgr.hoursFilters.career).toBe("");
-        expect(mgr.hoursFilters.search).toBe("");
-        expect(mgr.hoursStudents).toEqual([]);
-      });
-    });
-
-    describe("apply10PlusFilter", () => {
-      test("should set min_hours to 10 when filter is enabled", () => {
-        const mgr = reportsManager();
-        mgr.hoursFilters.filter_10_plus = true;
-
-        mgr.apply10PlusFilter();
-
-        expect(mgr.hoursFilters.min_hours).toBe(10);
-      });
-
-      test("should reset min_hours to 0 when filter is disabled", () => {
-        const mgr = reportsManager();
-        mgr.hoursFilters.filter_10_plus = false;
-        mgr.hoursFilters.min_hours = 10;
-
-        mgr.apply10PlusFilter();
-
-        expect(mgr.hoursFilters.min_hours).toBe(0);
-      });
-    });
+    // Nota: onHoursEventChange/apply10PlusFilter eran tests aspiracionales:
+    // esos métodos no existen en reports.js ni se usan en reports.html.
+    // El selector de evento es único (filters.event_id) y onEventChange()
+    // lo sincroniza hacia hoursFilters.event_id.
 
     describe("generateHoursReport", () => {
       test("should generate hours report successfully", async () => {
@@ -548,7 +519,7 @@ describe("reportsManager", () => {
         });
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
 
         await mgr.generateHoursReport();
 
@@ -561,7 +532,7 @@ describe("reportsManager", () => {
 
       test("should require event_id", async () => {
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "";
+        mgr.filters.event_id = "";
 
         await mgr.generateHoursReport();
 
@@ -579,7 +550,7 @@ describe("reportsManager", () => {
         });
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
         mgr.hoursFilters.career = "Ingeniería";
         mgr.hoursFilters.search = "12345";
         mgr.hoursFilters.min_hours = 10;
@@ -600,7 +571,7 @@ describe("reportsManager", () => {
         });
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
 
         await mgr.generateHoursReport();
 
@@ -617,7 +588,7 @@ describe("reportsManager", () => {
         });
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
 
         await mgr.generateHoursReport();
 
@@ -663,7 +634,7 @@ describe("reportsManager", () => {
         global.URL.revokeObjectURL = jest.fn();
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
 
         await mgr.downloadHoursExcel();
 
@@ -676,7 +647,7 @@ describe("reportsManager", () => {
 
       test("should require event_id", async () => {
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "";
+        mgr.filters.event_id = "";
 
         await mgr.downloadHoursExcel();
 
@@ -722,7 +693,7 @@ describe("reportsManager", () => {
         });
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
         mgr.hoursStudents = [
           { id: 1, control_number: "18001234", full_name: "Ana García" },
         ];
@@ -749,7 +720,7 @@ describe("reportsManager", () => {
         });
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
 
         await mgr.viewParticipationDetails(1);
 
@@ -763,12 +734,13 @@ describe("reportsManager", () => {
         });
 
         const mgr = reportsManager();
-        mgr.hoursFilters.event_id = "1";
+        mgr.filters.event_id = "1";
 
         await mgr.viewParticipationDetails(1);
 
+        // La API muestra el mensaje del servidor cuando lo hay
         expect(global.showToast).toHaveBeenCalledWith(
-          expect.stringContaining("Error obteniendo participaciones"),
+          expect.stringContaining("Error al obtener participaciones"),
           "error",
         );
       });

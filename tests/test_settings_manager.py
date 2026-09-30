@@ -8,6 +8,22 @@ from app.models.app_setting import AppSetting
 from app.services.settings_manager import SettingsManager, AppSettings
 
 
+@pytest.fixture(autouse=True)
+def _aislar_de_env_local(monkeypatch):
+    """Aísla los tests del APP_TIMEZONE real del .env local.
+
+    SettingsManager da prioridad a ENV sobre BD: sin este aislamiento los
+    tests que asumen valores de BD o escriben vía set_in_db fallan cuando el
+    .env define APP_TIMEZONE. La caché de clase se limpia para que cada test
+    lea su propia BD sin valores residuales de tests anteriores (TTL=10s).
+    """
+    monkeypatch.delenv("APP_TIMEZONE", raising=False)
+    monkeypatch.delenv("APP_APP_TIMEZONE", raising=False)
+    SettingsManager._cache.clear()
+    yield
+    SettingsManager._cache.clear()
+
+
 @pytest.fixture
 def app():
     """Create application for testing."""

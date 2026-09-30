@@ -95,6 +95,8 @@ describe("activitiesManager (consolidated)", () => {
     });
 
     test("getAvailableActivities filters out linked activities", () => {
+      // El test modela estar editando la actividad 1 del evento 2
+      mgr.currentActivity.id = 1;
       mgr.currentActivity.event_id = 2;
       mgr.activityRelations = [
         { id: 1, event_id: 2, related_activities: [{ id: 3 }], linked_by: [] },

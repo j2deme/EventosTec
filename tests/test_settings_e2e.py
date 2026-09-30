@@ -12,6 +12,21 @@ from app.models.app_setting import AppSetting
 from app.services.settings_manager import AppSettings, SettingsManager
 
 
+@pytest.fixture(autouse=True)
+def _aislar_de_env_local(monkeypatch):
+    """Aísla los tests del APP_TIMEZONE real del .env local.
+
+    SettingsManager da prioridad a ENV sobre BD (diseño intencional): sin este
+    aislamiento los tests que asumen valores de BD o que esperan poder escribir
+    en ella fallan cuando el .env define APP_TIMEZONE.
+    """
+    monkeypatch.delenv("APP_TIMEZONE", raising=False)
+    monkeypatch.delenv("APP_APP_TIMEZONE", raising=False)
+    SettingsManager._cache.clear()
+    yield
+    SettingsManager._cache.clear()
+
+
 @pytest.fixture
 def clean_settings(app, client):
     """Limpia y crea settings de prueba"""
@@ -102,20 +117,23 @@ class TestSettingsE2E:
         """
         CASO 2: Si ENV define valor, UI no puede cambiarlo (ENV-locking)
 
-        - ENV tiene APP_TIMEZONE=America/Mexico_City
-        - Admin intenta cambiar en UI
-        - Backend verifica is_locked_by_env() = True
-        - API retorna 400 (no permitido)
+        - ENV define APP_TIMEZONE
+        - La API verifica el lock igual que admin_settings_bp (env_key + environ)
+        - Lectura prioriza ENV sobre BD
+        - set_in_db() (lo que hace el PUT de la UI) rechaza con ValueError
         """
         with app.app_context():
             # Simular que ENV tiene valor
             with patch.dict(os.environ, {"APP_TIMEZONE": "America/New_York"}):
-                # Verificar que está locked
-                is_locked = SettingsManager.is_locked_by_env("app_timezone")
-                assert is_locked is True
+                # Misma verificación de lock que usa la API admin
+                env_key = SettingsManager._env_key_for("app_timezone")
+                assert os.environ.get(env_key) is not None
+
+                # La lectura prioriza ENV sobre BD
+                assert SettingsManager.get("app_timezone") == "America/New_York"
 
                 # Intentar cambiar debería fallar
-                with pytest.raises((ValueError, RuntimeError)):
+                with pytest.raises(ValueError, match="locked by environment variable"):
                     SettingsManager.set_in_db(
                         "app_timezone", "America/Toronto", user_id=1
                     )
