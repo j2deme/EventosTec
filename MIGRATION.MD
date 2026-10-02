@@ -98,3 +98,30 @@ Baseline de limpieza previo a la migración (todo verificado con pruebas)
   - `datetime.utcnow()` (Python 3.14 + `filterwarnings = error::DeprecationWarning:app.*` en pytest.ini) en `settings_manager.py` (2 sitios) y `reports_bp.py` (1) hacía fallar las lecturas de settings en tests: reemplazado por `datetime.now(timezone.utc).replace(tzinfo=None)` (naive-UTC idéntico, patrón ya usado en `revoked_token.py`). Sin este fix, el nuevo default de 60 min se hacía visible como fallo en `test_app_settings_convenience_methods`.
   - Tests reparados (preexistentes, datos/fixtures rotos): `tests/test_activities.py` y `tests/api/test_activities.py` (fechas con offset `-06:00` para superar la validación de rango evento↔actividad con la interpretación naive→APP_TIMEZONE), `tests/test_slug_utils.py` (DummyModel con columna simulada que expone `.like()`), `tests/api/test_public_pause_attendance_timezone.py` (5 tests: `generate_public_token` deprecado → resolución por ID numérico/`activity_id`).
 - Despliegue (producción, 2026-09-29): ✅ `flask db upgrade` ejecutado (`alembic_version` reparado a un solo registro en `20260927_add_revoked_tokens`, head). ✅ Seed de settings en BD (4 filas editables: `app_timezone=America/Mexico_City`, `public_pause_available_from_seconds=0`, `public_pause_available_until_after_end_minutes=60`, `public_confirm_window_days=30`). **Pendiente:** desplegar el código nuevo en el servidor con `./deploy.sh` (paso 3) — hasta entonces producción sigue corriendo el código anterior (el logout con blocklist, los fixes de asistencia, los enlaces públicos y la pausa de 60 min solo surten efecto tras el deploy). Smoke-test posterior: Admin → Settings muestra las 4 filas (pausa = 60), logout con token viejo → 401, login de alumno → modal de pausa.
+
+## Créditos complementarios multi-evento (ronda 2026-10-01)
+
+Commits: `2ece1dd` (servicio unificado de horas), `2b2710e` (event_ids), `07d02e2` (exclusión derivada), + el de esta sección (credit_overrides). Tag `v0.9` = última versión en producción (rollback rápido).
+
+- **Fuente única de horas**: `app/services/hours_service.py` — Registration (`Confirmado`/`Asistió`) + Attendance (`Asistió`, walk-ins), dedup por actividad, `round(total, 2)` antes de comparar umbrales (`CREDIT_MIN_HOURS = 10.0`). Los 6 call sites previos (complementary-credits ×2, hours_compliance ×2, hours-by-event, has_credit del detalle) ahora lo usan; se eliminó ~150 líneas duplicadas.
+- **Lista de créditos con walk-ins**: la lista del 45° Aniversario pasa de **238 → 518** estudiantes (antes solo consultaba Registrations `Asistió`; `hours_compliance` ya contaba los 3023 pares walk-in). Control post-deploy: `GET /api/students/complementary-credits?event_id=1` debe dar ≈518, consistente con `/api/reports/hours_compliance?event_id=1`.
+- **Multi-evento**: `GET /api/students/complementary-credits?event_ids=1,3` (acepta comas y/o repetido; `event_id` simple intacto byte a byte). Respuesta aditiva: `events[]` (orden cronológico), `event: null` en modo multi, `hours_by_event`/`activities_by_event` por estudiante, `excluded_already_credited`, `excluded_by_override`.
+- **Exclusión derivada (earliest-crossing)**: con N eventos seleccionados, solo entra quien cruza las 10 h en el **último** evento cronológico; quien cruzó antes ya está acreditado y se omite. Con un solo evento la regla no cambia nada (cruce en el único evento).
+- **Overrides manuales**: tabla `credit_overrides` (una fila por estudiante: `decision` include/exclude, `reason`, timestamps). API: `GET/POST /api/students/credit-overrides` (upsert) y `DELETE /api/students/credit-overrides/<student_id>` (admin JWT). `include` fuerza la inclusión aunque falle la regla derivada o no alcance 10 h (incluso sin participaciones → fila sintética con 0 h); `exclude` omite siempre.
+- Estado de pruebas: **pytest 236 passed / 0 failed / 0 errors** (+1 xpass preexistente); Jest sin cambios (161 — la UI multi-evento aún no se implementa).
+
+### ⚠️ Paso de despliegue OBLIGATORIO (migración aditiva)
+
+`entrypoint.sh` NO aplica migraciones automáticamente (`AUTO_MIGRATE=false` por defecto). Después de `./deploy.sh`, ejecutar **en el servidor**:
+
+```bash
+docker compose exec web flask db upgrade
+```
+
+- Nueva revisión: `20261001_add_credit_overrides` (down: `20260927_add_revoked_tokens`). **Solo `CREATE TABLE credit_overrides`** — no altera ni toca tablas existentes (sin riesgo de regresión de datos).
+- Mientras no se ejecute, la lista de créditos sigue funcionando: `load_overrides_map()` es defensivo (loguea warning y calcula sin overrides). Los endpoints CRUD de overrides devolverán 500 hasta que la tabla exista — migrar antes de usar esa UI.
+
+### Pendiente documentado (fuera de alcance de esta ronda)
+
+- **Fase 3 (opcional/futura): tabla `credit_grants`** para evitar doble acreditación al re-exportar la lista a la plataforma externa (historial de grants por lote/evento). No implementada a propósito.
+- Los overrides solo afectan la lista de créditos (vista admin); el badge del portal del estudiante (`has_complementary_credit` del detalle de evento) sigue puramente derivado.

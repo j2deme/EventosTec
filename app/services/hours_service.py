@@ -206,3 +206,117 @@ def compute_student_hours(
 
     results.sort(key=lambda x: (x.get("full_name") or "", x.get("control_number") or ""))
     return results
+
+
+def load_overrides_map():
+    """Mapa ``student_id -> decision`` de los overrides manuales.
+
+    Defensivo: si la tabla ``credit_overrides`` aún no existe (migración
+    pendiente en producción), devuelve ``{}`` y registra un warning; la lista
+    de créditos sigue funcionando sin overrides en lugar de fallar.
+    """
+    try:
+        from app.models.credit_override import CreditOverride
+
+        return {o.student_id: o.decision for o in CreditOverride.query.all()}
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        try:
+            from flask import current_app
+
+            current_app.logger.warning(
+                "Tabla credit_overrides no disponible (migracion pendiente?); "
+                "la lista de creditos se calculara sin overrides."
+            )
+        except Exception:
+            pass
+        return {}
+
+
+def compute_credit_rows(
+    event_ids, chronological_ids=None, career=None, overrides=None
+):
+    """Filas de la lista de créditos complementarios (fuente única).
+
+    Pipeline:
+      1. Horas unificadas por evento (sin mínimo: el umbral se aplica en este
+         paso para poder forzar la inclusión vía override).
+      2. Exclusión derivada: si el cruce de 10 h ocurre en un evento anterior
+         al último cronológico → ya acreditado → se omite.
+      3. Umbral: total redondeado >= CREDIT_MIN_HOURS.
+      4. Overrides manuales: 'exclude' omite siempre; 'include' fuerza la
+         inclusión aunque falle (2) o (3), incluso sin participaciones en los
+         eventos seleccionados (fila sintética con 0 h).
+
+    Parámetros:
+      - event_ids: eventos seleccionados (universo de horas).
+      - chronological_ids: orden cronológico para la regla de exclusión
+        (default: el orden de event_ids).
+      - career: subcadena de carrera (misma semántica que compute_student_hours).
+      - overrides: dict {student_id: "include"|"exclude"}.
+
+    Retorna ``(rows, stats)``, donde ``rows`` tiene el mismo formato que
+    compute_student_hours y ``stats`` es
+    ``{"excluded_already_credited": int, "excluded_by_override": int}``.
+    """
+    event_ids = list(event_ids or [])
+    chronological_ids = list(chronological_ids or event_ids)
+    overrides = dict(overrides or {})
+
+    rows = compute_student_hours(event_ids=event_ids, career=career)
+    stats = {"excluded_already_credited": 0, "excluded_by_override": 0}
+    last_event_id = chronological_ids[-1] if chronological_ids else None
+
+    kept = []
+    kept_ids = set()
+    for row in rows:
+        decision = overrides.get(row["id"])
+        if decision == "exclude":
+            stats["excluded_by_override"] += 1
+            continue
+        crossing = earliest_crossing_event(
+            row["hours_by_event"], chronological_ids, CREDIT_MIN_HOURS
+        )
+        derived_excluded = (
+            crossing is not None
+            and last_event_id is not None
+            and crossing != last_event_id
+        )
+        if derived_excluded and decision != "include":
+            stats["excluded_already_credited"] += 1
+            continue
+        if decision != "include" and not meets_credit_threshold(row["total_hours"]):
+            continue
+        kept.append(row)
+        kept_ids.add(row["id"])
+
+    # Overrides 'include' de estudiantes sin participaciones en la selección
+    for sid, decision in overrides.items():
+        if decision != "include" or sid in kept_ids:
+            continue
+        student = db.session.get(Student, sid)
+        if student is None:
+            continue
+        display_career = student.career or "Sin especificar"
+        if career and career.strip().lower() not in display_career.lower():
+            continue
+        kept.append(
+            {
+                "id": sid,
+                "control_number": student.control_number,
+                "full_name": student.full_name,
+                "career": student.career,
+                "email": student.email,
+                "total_hours": 0.0,
+                "activities_count": 0,
+                "hours_by_event": {},
+                "activities_by_event": {},
+            }
+        )
+        kept_ids.add(sid)
+
+    kept.sort(key=lambda x: (x.get("full_name") or "", x.get("control_number") or ""))
+    return kept, stats

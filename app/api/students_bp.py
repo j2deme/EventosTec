@@ -718,9 +718,12 @@ def get_students_with_complementary_credits():
     Exclusión derivada de ya acreditados (earliest-crossing): los eventos se
     ordenan cronológicamente y se acumulan; el estudiante solo aparece si la
     suma cruza las 10 h en el ÚLTIMO evento seleccionado. Si cruzó en uno
-    anterior ya quedó acreditado y se omite (la fase de overrides manuales
-    podrá forzar inclusión/exclusión). Con un solo evento la regla no cambia
-    nada: el cruce siempre ocurre en el único evento.
+    anterior ya quedó acreditado y se omite.
+
+    Overrides manuales (tabla credit_overrides): decision 'exclude' omite al
+    estudiante de la lista; decision 'include' lo fuerza en la lista aunque
+    falle la regla derivada o no alcance el umbral (incluso sin
+    participaciones). Se gestionan con GET/POST/DELETE /credit-overrides.
 
     Respuesta (aditiva, no se quitan campos):
       - event: payload del evento solicitado vía event_id
@@ -729,6 +732,7 @@ def get_students_with_complementary_credits():
       - students: cada estudiante incluye hours_by_event/activities_by_event.
       - total_students: cantidad de estudiantes.
       - excluded_already_credited: cuántos se omitieron por la regla derivada.
+      - excluded_by_override: cuántos se omitieron por override manual.
     """
     try:
         event_id = request.args.get("event_id", type=int)
@@ -761,11 +765,7 @@ def get_students_with_complementary_credits():
             return jsonify({"message": "event_id es requerido"}), 400
 
         from app.models.event import Event
-        from app.services.hours_service import (
-            CREDIT_MIN_HOURS,
-            compute_student_hours,
-            earliest_crossing_event,
-        )
+        from app.services.hours_service import compute_credit_rows, load_overrides_map
 
         # Los eventos deben existir (misma respuesta 404 que antes)
         events = Event.query.filter(Event.id.in_(unique_ids)).all()
@@ -775,29 +775,16 @@ def get_students_with_complementary_credits():
         events.sort(key=lambda e: (e.start_date is None, e.start_date, e.id))
         chronological_ids = [ev.id for ev in events]
 
-        # Cálculo unificado (fuente única): Registration (Confirmado/Asistió)
-        # + Attendance (Asistió), dedup por actividad, redondeo a 2 decimales.
-        results = compute_student_hours(
+        # Lista de créditos (fuente única): horas unificadas + exclusión
+        # derivada (earliest-crossing) + overrides manuales (credit_overrides).
+        results, stats = compute_credit_rows(
             event_ids=unique_ids,
+            chronological_ids=chronological_ids,
             career=career or None,
-            min_hours=CREDIT_MIN_HOURS,
+            overrides=load_overrides_map(),
         )
-
-        # Exclusión derivada (earliest-crossing): si la suma acumulada cruzó
-        # las 10 h en un evento ANTERIOR al último seleccionado, el estudiante
-        # ya quedó acreditado y se omite de la lista.
-        last_event_id = chronological_ids[-1]
-        excluded_already_credited = 0
-        kept_results = []
-        for row in results:
-            crossing = earliest_crossing_event(
-                row["hours_by_event"], chronological_ids, CREDIT_MIN_HOURS
-            )
-            if crossing is not None and crossing != last_event_id:
-                excluded_already_credited += 1
-                continue
-            kept_results.append(row)
-        results = kept_results
+        excluded_already_credited = stats["excluded_already_credited"]
+        excluded_by_override = stats["excluded_by_override"]
 
         students_list = []
         for row in results:
@@ -833,6 +820,7 @@ def get_students_with_complementary_credits():
                 "students": students_list,
                 "total_students": len(students_list),
                 "excluded_already_credited": excluded_already_credited,
+                "excluded_by_override": excluded_by_override,
             }
         ), 200
 
@@ -990,3 +978,123 @@ def export_complementary_credits():
 
     except Exception as e:
         return jsonify({"message": "Error al exportar datos", "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Overrides manuales de crédito complementario (tabla credit_overrides)
+# ---------------------------------------------------------------------------
+
+
+@students_bp.route("/credit-overrides", methods=["GET"])
+@jwt_required()
+@require_admin
+def list_credit_overrides():
+    """Lista los overrides manuales de crédito complementario."""
+    try:
+        from app.models.credit_override import CreditOverride
+
+        overrides = CreditOverride.query.order_by(CreditOverride.student_id).all()
+        items = []
+        for o in overrides:
+            student = db.session.get(Student, o.student_id)
+            items.append(
+                {
+                    "student_id": o.student_id,
+                    "control_number": student.control_number if student else None,
+                    "full_name": student.full_name if student else None,
+                    "career": student.career if student else None,
+                    "decision": o.decision,
+                    "reason": o.reason,
+                    "created_at": safe_iso(o.created_at) if o.created_at else None,
+                    "updated_at": safe_iso(o.updated_at) if o.updated_at else None,
+                }
+            )
+        return jsonify({"overrides": items, "total": len(items)}), 200
+    except Exception as e:
+        return jsonify({"message": "Error al obtener overrides", "error": str(e)}), 500
+
+
+@students_bp.route("/credit-overrides", methods=["POST"])
+@jwt_required()
+@require_admin
+def upsert_credit_override():
+    """Crea o actualiza el override de crédito de un estudiante.
+
+    Body JSON: {student_id: int, decision: "include"|"exclude", reason?: str}
+    """
+    try:
+        from app.models.credit_override import CreditOverride
+
+        data = request.get_json(silent=True) or {}
+
+        try:
+            student_id = int(data.get("student_id"))
+        except (TypeError, ValueError):
+            return (
+                jsonify({"message": "student_id es requerido y debe ser numérico"}),
+                400,
+            )
+
+        decision = data.get("decision")
+        if decision not in CreditOverride.VALID_DECISIONS:
+            return (
+                jsonify(
+                    {
+                        "message": "decision debe ser 'include' o 'exclude'",
+                        "valid": list(CreditOverride.VALID_DECISIONS),
+                    }
+                ),
+                400,
+            )
+
+        reason = data.get("reason")
+        if reason is not None:
+            reason = str(reason).strip() or None
+            if reason and len(reason) > 255:
+                return jsonify({"message": "reason máximo 255 caracteres"}), 400
+
+        student = db.session.get(Student, student_id)
+        if not student:
+            return jsonify({"message": "Estudiante no encontrado"}), 404
+
+        override = CreditOverride.query.filter_by(student_id=student_id).first()
+        if override:
+            override.decision = decision
+            override.reason = reason
+        else:
+            override = CreditOverride(
+                student_id=student_id, decision=decision, reason=reason
+            )
+            db.session.add(override)
+        db.session.commit()
+
+        return (
+            jsonify(
+                {
+                    "message": "Override guardado",
+                    "override": override.to_dict(),
+                }
+            ),
+            200,
+        )
+    except Exception as e:
+        return jsonify({"message": "Error al guardar override", "error": str(e)}), 500
+
+
+@students_bp.route("/credit-overrides/<int:student_id>", methods=["DELETE"])
+@jwt_required()
+@require_admin
+def delete_credit_override(student_id):
+    """Elimina el override de crédito de un estudiante."""
+    try:
+        from app.models.credit_override import CreditOverride
+
+        override = CreditOverride.query.filter_by(student_id=student_id).first()
+        if not override:
+            return jsonify({"message": "Override no encontrado"}), 404
+
+        db.session.delete(override)
+        db.session.commit()
+        return jsonify({"message": "Override eliminado"}), 200
+    except Exception as e:
+        return jsonify({"message": "Error al eliminar override", "error": str(e)}), 500
