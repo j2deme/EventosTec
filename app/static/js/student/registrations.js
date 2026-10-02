@@ -80,7 +80,7 @@ function studentRegistrationsManager() {
       this.errorMessage = "";
 
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -185,7 +185,7 @@ function studentRegistrationsManager() {
       if (!this.registrationToCancel) return;
 
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -223,7 +223,7 @@ function studentRegistrationsManager() {
 
     async reRegisterForActivity(registration) {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -557,7 +557,7 @@ function studentRegistrationsManager() {
 
     getCurrentStudentId() {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) return null;
 
         const payload = JSON.parse(atob(token.split(".")[1]));

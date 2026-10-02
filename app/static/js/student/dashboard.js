@@ -300,7 +300,7 @@ function studentDashboard() {
     // Cargar perfil del estudiante
     async loadStudentProfile() {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -347,7 +347,7 @@ function studentDashboard() {
 
       // Cargar actividades del evento
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;

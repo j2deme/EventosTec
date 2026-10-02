@@ -245,6 +245,15 @@ function studentsAdmin() {
       this.studentEventsHours = [];
     },
 
+    // Pedir impersonación: el modal compartido (admin/base.html) escucha el
+    // evento 'impersonate:request' y realiza el POST + apertura de pestaña.
+    requestImpersonation(student) {
+      if (!student || !student.id) return;
+      window.dispatchEvent(
+        new CustomEvent("impersonate:request", { detail: { student } }),
+      );
+    },
+
     // Ver detalle de evento específico
     async viewEventDetail(eventData) {
       if (!this.currentStudent) return;

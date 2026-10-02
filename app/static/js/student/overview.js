@@ -58,7 +58,7 @@ function studentOverviewManager() {
     // Cargar perfil del estudiante
     async loadStudentProfile() {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -85,7 +85,7 @@ function studentOverviewManager() {
     // Cargar estadísticas
     async loadStats() {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -156,7 +156,7 @@ function studentOverviewManager() {
     async loadUpcomingEvents() {
       this.loadingUpcoming = true;
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -192,7 +192,7 @@ function studentOverviewManager() {
     async loadRecentRegistrations() {
       this.loadingRegistrations = true;
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -231,7 +231,7 @@ function studentOverviewManager() {
     // Obtener el ID del estudiante actual
     getCurrentStudentId() {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) return null;
 
         // Decodificar el token JWT para obtener el ID del usuario

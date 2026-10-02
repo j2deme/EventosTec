@@ -212,6 +212,14 @@
                   <i class="ti ti-eye mr-1"></i>
                   Ver Detalle
                 </button>
+                <button
+                  @click="requestImpersonation(student)"
+                  class="text-violet-600 hover:text-violet-900 ml-3"
+                  title="Abrir la sesión de este estudiante en una pestaña nueva"
+                >
+                  <i class="ti ti-user-circle mr-1"></i>
+                  Impersonar
+                </button>
               </td>
             </tr>
           </template>
@@ -259,6 +267,13 @@
             >
               <i class="ti ti-eye mr-1"></i>
               Ver Detalle
+            </button>
+            <button
+              @click="requestImpersonation(student)"
+              class="w-full mt-2 px-3 py-2 text-sm font-medium text-violet-600 bg-violet-50 rounded-md hover:bg-violet-100"
+            >
+              <i class="ti ti-user-circle mr-1"></i>
+              Impersonar
             </button>
           </div>
         </div>

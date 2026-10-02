@@ -83,6 +83,7 @@ def create_app(config_name=None):
     from app.api.public_registrations_bp import public_registrations_bp
     from app.api.public_event_bp import public_event_bp
     from app.api.admin_settings_bp import admin_settings_bp
+    from app.api.admin_bp import admin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(events_bp)
@@ -96,6 +97,7 @@ def create_app(config_name=None):
     app.register_blueprint(public_registrations_bp)
     app.register_blueprint(public_event_bp)
     app.register_blueprint(admin_settings_bp)
+    app.register_blueprint(admin_bp)
 
     # Registrar filtros Jinja útiles
     try:

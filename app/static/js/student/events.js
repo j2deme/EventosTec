@@ -40,7 +40,7 @@ function studentEventsManager() {
       this.errorMessage = "";
 
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -156,7 +156,7 @@ function studentEventsManager() {
 
       // Cargar un resumen de tipos de actividades del evento
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;

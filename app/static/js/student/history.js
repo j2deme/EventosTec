@@ -182,7 +182,7 @@ function studentHistoryManager() {
         }
 
         // 2) Intentar decodificar el token JWT (fallback)
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) return null;
 
         const payload = JSON.parse(atob(token.split(".")[1]));

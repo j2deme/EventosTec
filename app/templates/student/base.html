@@ -296,7 +296,33 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
       {% block student_content %}{% endblock %}
     </main>
   </div>
+
+  <!-- Banner de impersonación: solo visible si esta pestaña tiene un token
+       de impersonación en sessionStorage (nunca afecta a otras pestañas) -->
+  <div
+    x-data="impersonationBanner()"
+    x-init="init()"
+    x-show="active"
+    x-cloak
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 bg-violet-700 text-white shadow-lg rounded-full pl-4 pr-2 py-2 text-sm max-w-[95vw]"
+  >
+    <span class="flex items-center gap-2 min-w-0">
+      <i class="ti ti-eye"></i>
+      <span class="hidden sm:inline">Viendo como</span>
+      <b class="truncate" x-text="studentName || 'estudiante…'"></b>
+      <span class="hidden md:inline opacity-80"
+        >· <span x-text="studentControl"></span> · impersonación</span
+      >
+    </span>
+    <button
+      @click="exit()"
+      class="bg-white text-violet-700 font-semibold rounded-full px-3 py-1 hover:bg-violet-50 whitespace-nowrap"
+    >
+      Salir
+    </button>
+  </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/impersonation.js') }}"></script>
 <script src="{{ url_for('static', filename='js/student/dashboard.js') }}"></script>
 {% endblock %}

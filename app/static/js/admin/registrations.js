@@ -597,6 +597,26 @@ function registrationsManager() {
       return transitions[currentStatus] || [];
     },
 
+    // Pedir impersonación del estudiante de este registro: el modal
+    // compartido (admin/base.html) escucha 'impersonate:request' y hace el
+    // POST + apertura de la pestaña del estudiante.
+    requestImpersonation(registration) {
+      const student = (registration && registration.student) || {};
+      const id = student.id || (registration && registration.student_id);
+      if (!id) return;
+      window.dispatchEvent(
+        new CustomEvent("impersonate:request", {
+          detail: {
+            student: {
+              id: id,
+              full_name: student.full_name || student.name || "",
+              control_number: student.control_number || "",
+            },
+          },
+        }),
+      );
+    },
+
     // Modal de eliminación
     openDeleteModal(registration) {
       this.registrationToDelete = registration;

@@ -137,7 +137,7 @@ function studentEventActivitiesManager() {
       this.errorMessage = "";
 
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -179,7 +179,7 @@ function studentEventActivitiesManager() {
       this.errorMessage = "";
 
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -259,7 +259,7 @@ function studentEventActivitiesManager() {
 
     async loadStudentRegistrations() {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) return;
 
         const studentId = this.getCurrentStudentId();
@@ -344,7 +344,7 @@ function studentEventActivitiesManager() {
           }
         }
 
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -628,7 +628,7 @@ function studentEventActivitiesManager() {
     // Obtener el ID del estudiante actual
     getCurrentStudentId() {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
         if (!token) return null;
 
         // Decodificar el token JWT para obtener el ID del usuario

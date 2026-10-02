@@ -36,8 +36,11 @@ def login():
 
         # Validar contraseña
         if user and user.check_password(password):
-            # Generar token JWT
-            access_token = create_access_token(identity=str(user.id))
+            # Generar token JWT (claim 'type' desambigua User vs Student en
+            # get_current_user; ver app/utils/auth_helpers.py)
+            access_token = create_access_token(
+                identity=str(user.id), additional_claims={"type": "admin"}
+            )
             return jsonify(
                 {
                     "access_token": access_token,
@@ -122,8 +125,11 @@ def student_login():
 
                     db.session.commit()
 
-                    # Generar token para estudiante
-                    access_token = create_access_token(identity=str(student.id))
+                    # Generar token para estudiante (claim 'type' para
+                    # desambiguar frente a User en get_current_user)
+                    access_token = create_access_token(
+                        identity=str(student.id), additional_claims={"type": "student"}
+                    )
                     return jsonify(
                         {
                             "access_token": access_token,

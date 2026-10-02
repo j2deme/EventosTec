@@ -91,8 +91,12 @@ def auth_headers(app):
 
         from flask_jwt_extended import create_access_token
 
-        # Convertir ID a string para JWT
-        token = create_access_token(identity=str(user.id))
+        # Convertir ID a string para JWT; claim 'type' = camino canónico actual
+        # (los tokens legacy sin claim quedan cubiertos por
+        # tests/api/test_auth_type_claim.py)
+        token = create_access_token(
+            identity=str(user.id), additional_claims={"type": "admin"}
+        )
         return {"Authorization": f"Bearer {token}"}
 
 

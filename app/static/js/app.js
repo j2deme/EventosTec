@@ -1,17 +1,50 @@
 // static/js/app.js
 
+// --- Impersonación (vista de estudiante abierta por un admin) ---
+// El token impersonado vive en sessionStorage (exclusivo de la pestaña) para
+// que la sesión admin de localStorage quede intacta en las demás pestañas.
+
+function getImpersonationToken() {
+  try {
+    return sessionStorage.getItem("impersonationToken");
+  } catch (e) {
+    return null;
+  }
+}
+
+function isImpersonating() {
+  return !!getImpersonationToken();
+}
+
 // Función para obtener token de autenticación
 function getAuthToken() {
   try {
+    const imp = sessionStorage.getItem("impersonationToken");
+    if (imp) return imp;
     return localStorage.getItem("authToken");
   } catch (e) {
     return null;
   }
 }
 
+// Limpia el token activo SOLO del storage que lo contiene: al impersonar se
+// limpia sessionStorage sin tocar la sesión del admin en localStorage.
+function clearAuthToken() {
+  try {
+    if (sessionStorage.getItem("impersonationToken")) {
+      sessionStorage.removeItem("impersonationToken");
+      return;
+    }
+  } catch (e) {
+    /* sin sessionStorage: continuar con localStorage */
+  }
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("userType");
+}
+
 // Función para verificar si el usuario está autenticado (versión completa con verificación de expiración)
 function isAuthenticated() {
-  const token = localStorage.getItem("authToken");
+  const token = getAuthToken();
   if (!token) return false;
 
   // Verificar si el token ha expirado
@@ -19,22 +52,55 @@ function isAuthenticated() {
     const payload = JSON.parse(atob(token.split(".")[1]));
     const isExpired = payload.exp <= Date.now() / 1000;
     if (isExpired) {
-      // Si el token expiró, limpiar localStorage
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("userType");
+      // Si el token expiró, limpiar el storage que lo contiene
+      clearAuthToken();
       return false;
     }
     return true;
   } catch (e) {
     // Si hay error al parsear, el token es inválido
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userType");
+    clearAuthToken();
     return false;
   }
 }
 
+// Función para hacer logout de una impersonación sin tocar la sesión admin
+function logoutImpersonation() {
+  if (
+    !confirm("¿Salir de la vista del estudiante y volver al panel de administración?")
+  ) {
+    return;
+  }
+  // Revocar el token impersonado en el servidor (best-effort, ver logout())
+  try {
+    if (typeof window.safeFetch === "function") {
+      Promise.resolve(
+        window.safeFetch("/api/auth/logout", {
+          method: "POST",
+          keepalive: true,
+        }),
+      ).catch(function () {
+        /* la salida local no depende del servidor */
+      });
+    }
+  } catch (e) {
+    /* ignorar */
+  }
+  try {
+    sessionStorage.removeItem("impersonationToken");
+  } catch (e) {
+    /* ignorar */
+  }
+  // OJO: no se limpia localStorage — ahí vive la sesión del admin.
+  window.location.href = "/dashboard/admin";
+}
+
 // Función para hacer logout
 function logout() {
+  if (isImpersonating()) {
+    logoutImpersonation();
+    return;
+  }
   if (confirm("¿Estás seguro de cerrar sesión?")) {
     // Revocar el token en el servidor (best-effort): se dispara ANTES de
     // limpiar localStorage (safeFetch toma el token de ahí) y con `keepalive`
@@ -69,10 +135,13 @@ window.logout = logout;
 // Exponer funciones de autenticación para tests y otros módulos
 window.getAuthToken = getAuthToken;
 window.isAuthenticated = isAuthenticated;
+window.getImpersonationToken = getImpersonationToken;
+window.isImpersonating = isImpersonating;
+window.logoutImpersonation = logoutImpersonation;
 
 // Función para obtener headers con autorización
 function getAuthHeaders(additionalHeaders = {}) {
-  const token = localStorage.getItem("authToken");
+  const token = getAuthToken();
   const baseHeaders = {
     "Content-Type": "application/json",
   };
@@ -96,6 +165,9 @@ window.getAuthHeaders = getAuthHeaders;
 
 // Función para obtener el tipo de usuario
 function getUserType() {
+  // Durante una impersonación el rol efectivo es student, sin importar
+  // qué diga el localStorage del admin.
+  if (isImpersonating()) return "student";
   return localStorage.getItem("userType") || "student";
 }
 
