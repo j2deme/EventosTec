@@ -12,29 +12,31 @@ block student_content %}
   </div>
 
   <!-- Content area -->
+  <!-- x-cloak en cada wrapper: en red lenta (Alpine CDN tarda) TODAS las
+       pestañas quedan visibles y apiladas en el scroll -->
   <div id="student-main-content">
     <!-- Default content - overview -->
-    <div x-show="activeTab === 'overview'">
+    <div x-show="activeTab === 'overview'" x-cloak>
       {% include 'student/partials/overview.html' %}
     </div>
 
-    <div x-show="activeTab === 'events'">
+    <div x-show="activeTab === 'events'" x-cloak>
       {% include 'student/partials/events.html' %}
     </div>
 
-    <div x-show="activeTab === 'event_activities'">
+    <div x-show="activeTab === 'event_activities'" x-cloak>
       {% include 'student/partials/event_activities.html' %}
     </div>
 
-    <div x-show="activeTab === 'registrations'">
+    <div x-show="activeTab === 'registrations'" x-cloak>
       {% include 'student/partials/registrations.html' %}
     </div>
 
-    <div x-show="activeTab === 'history'">
+    <div x-show="activeTab === 'history'" x-cloak>
       {% include 'student/partials/history.html' %}
     </div>
 
-    <div x-show="activeTab === 'profile'">
+    <div x-show="activeTab === 'profile'" x-cloak>
       {% include 'student/partials/profile.html' %}
     </div>
   </div>

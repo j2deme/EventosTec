@@ -41,6 +41,7 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
 
           <div
             x-show="open"
+            x-cloak
             @click.away="open = false"
             x-transition:enter="transition ease-out duration-100"
             x-transition:enter-start="transform opacity-0 scale-95"
@@ -124,6 +125,7 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
 
           <div
             x-show="open"
+            x-cloak
             @click.away="open = false"
             x-transition:enter="transition ease-out duration-100"
             x-transition:enter-start="transform opacity-0 scale-95"
@@ -170,6 +172,7 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
   <!-- Sidebar Mobile -->
   <div
     x-show="sidebarOpen"
+    x-cloak
     class="md:hidden fixed inset-0 z-40"
     x-transition:enter="transition-opacity ease-linear duration-300"
     x-transition:enter-start="opacity-0"

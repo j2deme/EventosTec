@@ -31,39 +31,41 @@ admin_content %}
   </div>
 
   <!-- Tab Content -->
-  <div x-show="activeTab === 'overview'">
+  <!-- x-cloak en cada wrapper: sin él, en red lenta (Alpine CDN tarda en
+       cargar) TODAS las pestañas quedan visibles y apiladas en el scroll -->
+  <div x-show="activeTab === 'overview'" x-cloak>
     {% include 'admin/partials/overview.html' %}
   </div>
 
-  <div x-show="activeTab === 'events'">
+  <div x-show="activeTab === 'events'" x-cloak>
     {% include 'admin/partials/events.html' %}
   </div>
 
-  <div x-show="activeTab === 'calendar'">
+  <div x-show="activeTab === 'calendar'" x-cloak>
     {% include 'admin/partials/calendar.html' %}
   </div>
 
-  <div x-show="activeTab === 'activities'">
+  <div x-show="activeTab === 'activities'" x-cloak>
     {% include 'admin/partials/activities.html' %}
   </div>
 
-  <div x-show="activeTab === 'registrations'">
+  <div x-show="activeTab === 'registrations'" x-cloak>
     {% include 'admin/partials/registrations.html' %}
   </div>
 
-  <div x-show="activeTab === 'attendances'">
+  <div x-show="activeTab === 'attendances'" x-cloak>
     {% include 'admin/partials/attendances.html' %}
   </div>
 
-  <div x-show="activeTab === 'students'">
+  <div x-show="activeTab === 'students'" x-cloak>
     {% include 'admin/partials/students.html' %}
   </div>
 
-  <div x-show="activeTab === 'reports' || activeTab === 'report'">
+  <div x-show="activeTab === 'reports' || activeTab === 'report'" x-cloak>
     {% include 'admin/partials/reports.html' %}
   </div>
 
-  <div x-show="activeTab === 'settings'">
+  <div x-show="activeTab === 'settings'" x-cloak>
     {% include 'admin/partials/settings.html' %}
   </div>
 </div>
