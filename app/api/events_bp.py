@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
+from datetime import timedelta
 from app import db
 from app.schemas import event_schema, events_schema
 from app.models.event import Event
 from app.models.activity import Activity
+from app.models.registration import Registration
 from app.utils.auth_helpers import require_admin
 from sqlalchemy import asc, desc, or_
 from app.utils.slug_utils import generate_unique_slug, slugify as canonical_slugify
@@ -166,6 +168,105 @@ def get_event(event_id):
 
     except Exception as e:
         return jsonify({"message": "Error al obtener evento", "error": str(e)}), 500
+
+
+# Vista calendario del evento (días definidos + actividades con horario)
+
+
+@events_bp.route("/<int:event_id>/calendar", methods=["GET"])
+@jwt_required()
+def get_event_calendar(event_id):
+    """Distribución de las actividades del evento por día y horario.
+
+    Contrato nuevo y aditivo (no modifica endpoints existentes):
+    {
+      "event": {"id", "name", "start_date", "end_date"},  # fechas %Y-%m-%d
+      "days": ["2026-10-06", ...],                        # ventana del evento
+      "activities": [ ...to_dict() + day/starts_at/ends_at/registered_count ],
+      "total_activities": int
+    }
+
+    `day`/`starts_at`/`ends_at` se derivan del almacenamiento naive local
+    (hora de pared, convención de docs/TIMEZONE_FIX.md): sin conversiones tz.
+    `registered_count` usa la misma semántica de cupo que
+    `is_registration_allowed` (status == "Registrado"), en una sola consulta.
+    """
+    try:
+        event = db.session.get(Event, event_id)
+        if not event:
+            return jsonify({"message": "Evento no encontrado"}), 404
+
+        # Días de la ventana del evento (fechas locales, sin hora)
+        first_day = event.start_date.date()
+        last_day = event.end_date.date()
+        if last_day < first_day:
+            last_day = first_day
+        days = []
+        cursor = first_day
+        while cursor <= last_day:
+            days.append(cursor.strftime("%Y-%m-%d"))
+            cursor += timedelta(days=1)
+
+        activities = (
+            Activity.query.filter_by(event_id=event_id)
+            .order_by(Activity.start_datetime.asc())
+            .all()
+        )
+
+        # Conteos de cupo en una sola consulta agrupada
+        counts = {}
+        if activities:
+            rows = (
+                db.session.query(
+                    Registration.activity_id, db.func.count(Registration.id)
+                )
+                .filter(
+                    Registration.activity_id.in_([a.id for a in activities]),
+                    Registration.status == "Registrado",
+                )
+                .group_by(Registration.activity_id)
+                .all()
+            )
+            counts = {activity_id: total for activity_id, total in rows}
+
+        items = []
+        for activity in activities:
+            payload = activity.to_dict()
+            if activity.start_datetime:
+                payload["day"] = activity.start_datetime.strftime("%Y-%m-%d")
+                payload["starts_at"] = activity.start_datetime.strftime("%H:%M")
+            else:
+                payload["day"] = None
+                payload["starts_at"] = None
+            payload["ends_at"] = (
+                activity.end_datetime.strftime("%H:%M") if activity.end_datetime else None
+            )
+            payload["registered_count"] = counts.get(activity.id, 0)
+            items.append(payload)
+
+        return (
+            jsonify(
+                {
+                    "event": {
+                        "id": event.id,
+                        "name": event.name,
+                        "start_date": event.start_date.strftime("%Y-%m-%d"),
+                        "end_date": event.end_date.strftime("%Y-%m-%d"),
+                        "is_active": event.is_active,
+                    },
+                    "days": days,
+                    "activities": items,
+                    "total_activities": len(items),
+                }
+            ),
+            200,
+        )
+
+    except Exception as e:
+        return (
+            jsonify({"message": "Error al construir el calendario", "error": str(e)}),
+            500,
+        )
 
 
 @events_bp.route("/<int:event_id>/public-token", methods=["GET"])

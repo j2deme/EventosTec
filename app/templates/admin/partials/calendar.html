@@ -1,0 +1,288 @@
+<!-- app/templates/admin/partials/calendar.html -->
+<div x-data="calendarAdmin()" x-init="init()">
+  <!-- Encabezado: título + selector de evento -->
+  <div
+    class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6"
+  >
+    <div>
+      <h1 class="text-xl font-semibold text-gray-900">
+        Calendario de actividades
+      </h1>
+      <p class="text-sm text-gray-500">
+        Distribución por día y horario de las actividades del evento.
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      <label for="calendar-event" class="text-sm text-gray-600"
+        >Evento:</label
+      >
+      <select
+        id="calendar-event"
+        x-model="selectedEventId"
+        @change="onEventChange()"
+        class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      >
+        <template x-for="ev in events" :key="ev.id">
+          <option :value="String(ev.id)" x-text="ev.name"></option>
+        </template>
+      </select>
+      <button
+        @click="loadCalendar(selectedEventId)"
+        class="p-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+        title="Recargar calendario"
+      >
+        <i class="ti ti-refresh"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div
+    x-show="errorMessage"
+    x-cloak
+    class="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 px-4 py-3 text-sm"
+    x-text="errorMessage"
+  ></div>
+
+  <!-- Cargando -->
+  <div
+    x-show="loading"
+    x-cloak
+    class="py-12 text-center text-gray-500"
+  >
+    <i class="ti ti-spinner ti-spin text-2xl"></i>
+    <div class="mt-2 text-sm">Cargando calendario…</div>
+  </div>
+
+  <!-- Sin eventos -->
+  <div
+    x-show="!loading && !errorMessage && events.length === 0"
+    x-cloak
+    class="py-12 text-center text-gray-500 text-sm"
+  >
+    No hay eventos disponibles.
+  </div>
+
+  <!-- Grid de días -->
+  <div x-show="!loading && calendar" x-cloak>
+    <!-- Resumen del evento -->
+    <div class="mb-3 text-sm text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span class="font-medium text-gray-800" x-text="calendar.event.name"></span>
+      <span class="text-gray-400">·</span>
+      <span><i class="ti ti-calendar mr-1"></i><span x-text="calendar.event.start_date"></span> → <span x-text="calendar.event.end_date"></span></span>
+      <span class="text-gray-400">·</span>
+      <span><span x-text="calendar.total_activities"></span> actividades en <span x-text="calendar.days.length"></span> días</span>
+      <span
+        x-show="!calendar.event.is_active"
+        class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600"
+        >Inactivo</span
+      >
+    </div>
+
+    <div class="overflow-x-auto pb-2">
+      <div class="grid gap-3" :style="gridStyle()">
+        <template x-for="day in calendar.days" :key="day">
+          <div
+            class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col min-h-[160px]"
+          >
+            <!-- Encabezado del día -->
+            <div
+              class="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2"
+            >
+              <span
+                class="text-sm font-semibold text-gray-800 capitalize"
+                x-text="dayLabel(day)"
+              ></span>
+              <span
+                class="text-[11px] text-gray-400 whitespace-nowrap"
+                x-text="dayCount(day) + ' act.'"
+              ></span>
+            </div>
+            <!-- Actividades del día -->
+            <div class="p-2 space-y-2 flex-1">
+              <template x-for="a in dayActivities(day)" :key="a.id">
+                <button
+                  @click="openDetail(a)"
+                  :class="typeColor(a.activity_type)"
+                  class="w-full text-left border-l-4 rounded-lg px-2.5 py-2 hover:shadow-md transition-shadow"
+                >
+                  <div
+                    class="text-xs font-semibold text-gray-600"
+                    x-text="(a.starts_at || '—') + ' – ' + (a.ends_at || '—')"
+                  ></div>
+                  <div
+                    class="text-sm font-medium leading-snug mt-0.5 text-gray-900"
+                    x-text="a.name"
+                  ></div>
+                  <div
+                    class="mt-1 flex items-center justify-between gap-2 text-[11px] text-gray-500"
+                  >
+                    <span class="truncate" x-text="a.location || '—'"></span>
+                    <span
+                      x-show="a.max_capacity != null"
+                      class="whitespace-nowrap"
+                      x-text="cupoLabel(a)"
+                    ></span>
+                  </div>
+                </button>
+              </template>
+              <div
+                x-show="dayCount(day) === 0"
+                class="text-xs text-gray-400 text-center py-6"
+              >
+                Sin actividades
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Actividades fuera de la ventana del evento -->
+    <div
+      x-show="outsideActivities().length > 0"
+      x-cloak
+      class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4"
+    >
+      <div class="text-sm font-semibold text-amber-800 mb-2">
+        <i class="ti ti-alert-triangle mr-1"></i
+        >Actividades fuera de la ventana del evento (<span
+          x-text="outsideActivities().length"
+        ></span
+        >)
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <template x-for="a in outsideActivities()" :key="'out-' + a.id">
+          <button
+            @click="openDetail(a)"
+            class="text-xs bg-white border border-amber-300 rounded-lg px-2 py-1 hover:bg-amber-100 text-gray-700"
+          >
+            <span
+              x-text="(a.day || 'sin fecha') + (a.starts_at ? ' ' + a.starts_at : '')"
+            ></span
+            > · <span x-text="a.name"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de detalle de actividad (patrón de events.html) -->
+  <div
+    x-show="showDetail"
+    x-cloak
+    class="fixed inset-0 z-50 overflow-y-auto"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="calendar-activity-title"
+  >
+    <div
+      class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+    >
+      <div
+        class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+        @click="closeDetail()"
+      ></div>
+
+      <div
+        class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+      >
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <span
+                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                :class="typeColor(selectedActivity && selectedActivity.activity_type)"
+                x-text="selectedActivity && selectedActivity.activity_type"
+              ></span>
+              <h3
+                class="mt-2 text-lg leading-6 font-bold text-gray-900"
+                id="calendar-activity-title"
+                x-text="selectedActivity && selectedActivity.name"
+              ></h3>
+            </div>
+            <button
+              @click="closeDetail()"
+              class="text-gray-400 hover:text-gray-600"
+              title="Cerrar"
+            >
+              <i class="ti ti-x text-xl"></i>
+            </button>
+          </div>
+
+          <div
+            x-show="selectedActivity"
+            class="mt-4 space-y-3 text-sm text-gray-700"
+          >
+            <div>
+              <span class="text-xs text-gray-500">Horario:</span>
+              <div class="mt-0.5">
+                <i class="ti ti-calendar-event mr-1"></i>
+                <span
+                  x-text="selectedActivity && (selectedActivity.day ? dayLabel(selectedActivity.day) : 'sin fecha')"
+                ></span
+                >·
+                <span
+                  x-text="selectedActivity && ((selectedActivity.starts_at || '—') + ' – ' + (selectedActivity.ends_at || '—'))"
+                ></span>
+                <span
+                  x-show="selectedActivity && selectedActivity.duration_hours != null"
+                  class="text-gray-500"
+                  >(<span
+                    x-text="selectedActivity && selectedActivity.duration_hours"
+                  ></span
+                  >h)</span
+                >
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <span class="text-xs text-gray-500">Ubicación:</span>
+                <div x-text="(selectedActivity && selectedActivity.location) || '—'"></div>
+              </div>
+              <div>
+                <span class="text-xs text-gray-500">Modalidad:</span>
+                <div x-text="(selectedActivity && selectedActivity.modality) || '—'"></div>
+              </div>
+              <div>
+                <span class="text-xs text-gray-500">Departamento:</span>
+                <div x-text="(selectedActivity && selectedActivity.department) || '—'"></div>
+              </div>
+              <div>
+                <span class="text-xs text-gray-500">Cupo:</span>
+                <div>
+                  <span
+                    x-show="selectedActivity && selectedActivity.max_capacity != null"
+                    x-text="selectedActivity && (cupoLabel(selectedActivity) + ' registrado(s)')"
+                  ></span>
+                  <span x-show="!selectedActivity || selectedActivity.max_capacity == null"
+                    >Sin cupo definido</span
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div x-show="selectedActivity && selectedActivity.description">
+              <span class="text-xs text-gray-500">Descripción:</span>
+              <div
+                class="mt-0.5 whitespace-preline"
+                x-text="selectedActivity && selectedActivity.description"
+              ></div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"
+        >
+          <button
+            @click="closeDetail()"
+            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

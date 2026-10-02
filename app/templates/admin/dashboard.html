@@ -39,6 +39,10 @@ admin_content %}
     {% include 'admin/partials/events.html' %}
   </div>
 
+  <div x-show="activeTab === 'calendar'">
+    {% include 'admin/partials/calendar.html' %}
+  </div>
+
   <div x-show="activeTab === 'activities'">
     {% include 'admin/partials/activities.html' %}
   </div>

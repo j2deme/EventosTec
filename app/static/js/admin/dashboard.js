@@ -46,6 +46,7 @@ function adminDashboard() {
     menuItems: [
       { id: "overview", name: "Resumen", icon: "ti ti-layout-dashboard" },
       { id: "events", name: "Eventos", icon: "ti ti-calendar-event" },
+      { id: "calendar", name: "Calendario", icon: "ti ti-calendar-month" },
       { id: "activities", name: "Actividades", icon: "ti ti-book" },
       { id: "registrations", name: "Registros", icon: "ti ti-clipboard-list" },
       { id: "attendances", name: "Asistencias", icon: "ti ti-check" },
