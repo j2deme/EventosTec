@@ -679,3 +679,204 @@ def test_event_details_total_and_flag_include_walkins(
     assert data["total_confirmed_hours"] == 11.0
     assert data["has_complementary_credit"] is True
     assert len(data["activities"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Fase 2: acumulación multi-evento (event_ids)
+# ---------------------------------------------------------------------------
+
+
+def _create_credits_event(app, name):
+    """Crea un evento devolviendo su id."""
+    from app.models.event import Event
+    from app import db
+
+    with app.app_context():
+        event = Event(
+            name=name,
+            description="Test multi-evento",
+            start_date=datetime.now(),
+            end_date=datetime.now() + timedelta(days=7),
+            is_active=True,
+        )
+        db.session.add(event)
+        db.session.commit()
+        return event.id
+
+
+def _create_student_with_hours(app, event_hours, control, name):
+    """Crea un estudiante con una actividad de X horas (status 'Asistió') por
+    cada par (event_id, hours). Devuelve el student_id."""
+    from app.models.student import Student
+    from app.models.activity import Activity
+    from app.models.registration import Registration
+    from app import db
+
+    with app.app_context():
+        student = Student(
+            control_number=control,
+            full_name=name,
+            career="Ingeniería en Sistemas",
+            email=f"{control.lower()}@test.com",
+        )
+        db.session.add(student)
+        db.session.flush()
+
+        for idx, (ev_id, hours) in enumerate(event_hours):
+            activity = Activity(
+                event_id=ev_id,
+                department="TEST",
+                name=f"{name} Act {idx}",
+                description="Test",
+                start_datetime=datetime.now(),
+                end_datetime=datetime.now() + timedelta(hours=hours),
+                duration_hours=hours,
+                activity_type="Conferencia",
+                location="Test",
+                modality="Presencial",
+            )
+            db.session.add(activity)
+            db.session.flush()
+            db.session.add(
+                Registration(
+                    student_id=student.id, activity_id=activity.id, status="Asistió"
+                )
+            )
+
+        db.session.commit()
+        return student.id
+
+
+def test_complementary_credits_event_ids_accumulates_across_events(
+    app, client, auth_headers
+):
+    """event_ids acumula horas entre eventos hacia el umbral de 10."""
+    ev1 = _create_credits_event(app, "Aniversario 45")
+    ev2 = _create_credits_event(app, "Aniversario 46")
+    _create_student_with_hours(app, [(ev1, 6.0), (ev2, 4.0)], "MULT01", "Alumno Combo")
+    _create_student_with_hours(
+        app, [(ev1, 8.0)], "MULT02", "Alumno Insuficiente"
+    )
+
+    resp = client.get(
+        f"/api/students/complementary-credits?event_ids={ev1},{ev2}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+
+    # Solo el combo 6h + 4h = 10h alcanza el crédito
+    assert data["total_students"] == 1
+    student = data["students"][0]
+    assert student["control_number"] == "MULT01"
+    assert student["total_hours"] == 10.0
+    assert student["hours_by_event"] == {str(ev1): 6.0, str(ev2): 4.0}
+    assert student["activities_by_event"] == {str(ev1): 1, str(ev2): 1}
+    assert student["has_complementary_credit"] is True
+
+    # events incluye ambos (orden cronológico) y event es null (sin event_id)
+    assert [e["id"] for e in data["events"]] == [ev1, ev2]
+    assert data["event"] is None
+
+
+def test_complementary_credits_event_ids_accepts_repeated_param(
+    app, client, auth_headers
+):
+    """event_ids también acepta el parámetro repetido (?a=1&a=3)."""
+    ev1 = _create_credits_event(app, "Evento Repetido A")
+    ev2 = _create_credits_event(app, "Evento Repetido B")
+    _create_student_with_hours(
+        app, [(ev1, 5.0), (ev2, 5.0)], "REP01", "Alumno Repetido"
+    )
+
+    resp = client.get(
+        f"/api/students/complementary-credits?event_ids={ev1}&event_ids={ev2}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["total_students"] == 1
+    assert data["students"][0]["total_hours"] == 10.0
+
+
+def test_complementary_credits_merges_event_id_and_event_ids(
+    app, client, auth_headers
+):
+    """Enviar event_id y event_ids juntos produce la unión de ambos."""
+    ev1 = _create_credits_event(app, "Evento Union A")
+    ev2 = _create_credits_event(app, "Evento Union B")
+    _create_student_with_hours(
+        app, [(ev1, 7.0), (ev2, 3.0)], "UNI01", "Alumno Union"
+    )
+
+    resp = client.get(
+        f"/api/students/complementary-credits?event_id={ev1}&event_ids={ev2}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+
+    # Contrato original: 'event' sigue siendo el payload del event_id
+    assert data["event"] is not None
+    assert data["event"]["id"] == ev1
+    assert "name" in data["event"]
+    assert "start_date" in data["event"]
+    assert "end_date" in data["event"]
+    # Aditivo: 'events' trae la unión
+    assert [e["id"] for e in data["events"]] == [ev1, ev2]
+    assert data["total_students"] == 1
+    assert data["students"][0]["total_hours"] == 10.0
+
+
+def test_complementary_credits_single_event_keeps_original_contract(
+    app, client, auth_headers
+):
+    """El modo original (solo event_id) conserva su respuesta e incluye
+    events con un único elemento."""
+    ev = _create_credits_event(app, "Evento Original")
+    _create_student_with_hours(app, [(ev, 12.0)], "OLD01", "Alumno Viejo")
+
+    resp = client.get(
+        f"/api/students/complementary-credits?event_id={ev}", headers=auth_headers
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+
+    assert data["event"]["id"] == ev
+    assert data["event"]["name"] == "Evento Original"
+    assert data["event"]["start_date"] is not None
+    assert data["event"]["end_date"] is not None
+    assert len(data["events"]) == 1
+    assert data["events"][0]["id"] == ev
+    assert data["total_students"] == 1
+    assert data["students"][0]["control_number"] == "OLD01"
+    # hours_by_event también está disponible en modo single (aditivo)
+    assert data["students"][0]["hours_by_event"] == {str(ev): 12.0}
+
+
+def test_complementary_credits_event_ids_validation(client, auth_headers):
+    """Validaciones del nuevo parámetro."""
+    # Sin parámetros: mensaje original intacto
+    resp = client.get("/api/students/complementary-credits", headers=auth_headers)
+    assert resp.status_code == 400
+    assert "event_id" in resp.get_json()["message"].lower()
+
+    # IDs no numéricos
+    resp = client.get(
+        "/api/students/complementary-credits?event_ids=abc", headers=auth_headers
+    )
+    assert resp.status_code == 400
+    assert "numéricos" in resp.get_json()["message"]
+
+    # Evento inexistente: mismo 404 de siempre
+    resp = client.get(
+        "/api/students/complementary-credits?event_ids=99999", headers=auth_headers
+    )
+    assert resp.status_code == 404
+    assert resp.get_json()["message"] == "Evento no encontrado"
+
+    # Mezcla válida + inválida también rechaza
+    resp = client.get(
+        "/api/students/complementary-credits?event_ids=1,xyz", headers=auth_headers
+    )
+    assert resp.status_code == 400

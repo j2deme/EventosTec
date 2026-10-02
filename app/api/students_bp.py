@@ -673,34 +673,99 @@ def get_student_event_details(student_id, event_id):
         ), 500
 
 
+def _serialize_credit_event(ev):
+    """Serializa un evento para la respuesta de créditos (fechas localizadas)."""
+    try:
+        app_tz = AppSettings.app_timezone()
+        ev_s = (
+            localize_naive_datetime(ev.start_date, app_tz)
+            if getattr(ev, "start_date", None) is not None
+            else None
+        )
+    except Exception:
+        ev_s = None
+    try:
+        ev_e = (
+            localize_naive_datetime(ev.end_date, app_tz)
+            if getattr(ev, "end_date", None) is not None
+            else None
+        )
+    except Exception:
+        ev_e = None
+    return {
+        "id": ev.id,
+        "name": ev.name,
+        "start_date": safe_iso(ev_s) if ev_s else None,
+        "end_date": safe_iso(ev_e) if ev_e else None,
+    }
+
+
 # Obtener estudiantes con 10+ horas filtrados por evento y carrera
 @students_bp.route("/complementary-credits", methods=["GET"])
 @jwt_required()
 @require_admin
 def get_students_with_complementary_credits():
     """
-    Obtiene estudiantes que han acumulado 10+ horas en un evento específico,
-    opcionalmente filtrados por carrera.
+    Obtiene estudiantes que han acumulado 10+ horas, opcionalmente filtrados
+    por carrera.
+
+    Query params:
+      - event_id (int): evento único (comportamiento original, sin cambios).
+      - event_ids (str): uno o varios eventos para acumular horas entre ellos.
+        Acepta separado por comas (?event_ids=1,3) y/o repetido
+        (?event_ids=1&event_ids=3). Si se envían ambos params, se unen.
+
+    Respuesta (aditiva, no se quitan campos):
+      - event: payload del evento solicitado vía event_id
+        (null cuando solo se usó event_ids).
+      - events: payloads de todos los eventos considerados (orden cronológico).
+      - students: cada estudiante incluye hours_by_event/activities_by_event.
+      - total_students: cantidad de estudiantes.
     """
     try:
         event_id = request.args.get("event_id", type=int)
         career = request.args.get("career", "")
 
-        if not event_id:
+        # Parsear event_ids: acepta comas y parámetros repetidos
+        requested_ids = []
+        for raw in request.args.getlist("event_ids"):
+            for token in raw.split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                if not token.isdigit():
+                    return (
+                        jsonify(
+                            {
+                                "message": "event_ids debe contener IDs numéricos",
+                                "invalid": token,
+                            }
+                        ),
+                        400,
+                    )
+                requested_ids.append(int(token))
+        if event_id:
+            requested_ids.append(event_id)
+        # Dedup preservando el orden
+        unique_ids = list(dict.fromkeys(requested_ids))
+
+        if not unique_ids:
             return jsonify({"message": "event_id es requerido"}), 400
 
         from app.models.event import Event
         from app.services.hours_service import CREDIT_MIN_HOURS, compute_student_hours
 
-        # Evento debe existir (misma respuesta 404 que antes)
-        event = db.session.get(Event, event_id)
-        if not event:
+        # Los eventos deben existir (misma respuesta 404 que antes)
+        events = Event.query.filter(Event.id.in_(unique_ids)).all()
+        if len(events) != len(unique_ids):
             return jsonify({"message": "Evento no encontrado"}), 404
+        # Orden cronológico para el desglose por evento
+        events.sort(key=lambda e: (e.start_date is None, e.start_date))
 
         # Cálculo unificado (fuente única): Registration (Confirmado/Asistió)
         # + Attendance (Asistió), dedup por actividad, redondeo a 2 decimales.
         results = compute_student_hours(
-            event_ids=[event_id],
+            event_ids=unique_ids,
             career=career or None,
             min_hours=CREDIT_MIN_HOURS,
         )
@@ -717,36 +782,25 @@ def get_students_with_complementary_credits():
                     "total_hours": float(row["total_hours"] or 0),
                     "activities_count": row["activities_count"],
                     "has_complementary_credit": True,  # Ya filtrados por >= 10 horas
+                    # Desglose por evento (solo eventos solicitados)
+                    "hours_by_event": dict(row["hours_by_event"]),
+                    "activities_by_event": dict(row["activities_by_event"]),
                 }
             )
 
-        # Localizar fechas del evento de forma consistente antes de serializar
-        try:
-            app_tz = AppSettings.app_timezone()
-            ev_s = (
-                localize_naive_datetime(event.start_date, app_tz)
-                if getattr(event, "start_date", None) is not None
-                else None
+        events_payload = [_serialize_credit_event(ev) for ev in events]
+        # 'event' conserva el contrato original: payload del event_id simple
+        # (null cuando solo se usó event_ids).
+        event_payload = None
+        if event_id:
+            event_payload = next(
+                (p for p in events_payload if p["id"] == event_id), None
             )
-        except Exception:
-            ev_s = None
-        try:
-            ev_e = (
-                localize_naive_datetime(event.end_date, app_tz)
-                if getattr(event, "end_date", None) is not None
-                else None
-            )
-        except Exception:
-            ev_e = None
 
         return jsonify(
             {
-                "event": {
-                    "id": event.id,
-                    "name": event.name,
-                    "start_date": safe_iso(ev_s) if ev_s else None,
-                    "end_date": safe_iso(ev_e) if ev_e else None,
-                },
+                "event": event_payload,
+                "events": events_payload,
                 "students": students_list,
                 "total_students": len(students_list),
             }
