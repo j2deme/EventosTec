@@ -44,4 +44,4 @@ RUN chmod +x /entrypoint.sh
 
 # Use entrypoint to run migrations then start gunicorn
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "run:app"]
+CMD ["gunicorn", "-w", "4", "-k", "gevent", "--timeout", "120", "-b", "0.0.0.0:8000", "run:app"]
