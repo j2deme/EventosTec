@@ -304,16 +304,7 @@ function studentOverviewManager() {
       }
     },
 
-    // Formatear fecha para mostrar
-    formatDate(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      const date = new Date(dateTimeString);
-      return date.toLocaleDateString("es-ES", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    },
+    // (formatDate vive más arriba: delega a window.formatDate — canónico)
 
     // Cerrar sesión
     logout() {

@@ -200,8 +200,8 @@ function activitiesManager() {
           } catch (e) {
             act.speakersString = "";
           }
-          // Compute a human-friendly dates string with AM/PM using dayjs
-          // - Single-day: DD/MM/YY h:mm A - h:mm A
+          // Compute a human-friendly dates string using dayjs (24 h, es-MX)
+          // - Single-day: DD/MM/YY HH:mm - HH:mm
           try {
             const hasDayjs = typeof dayjs !== "undefined";
             if (hasDayjs && typeof dayjs.locale === "function")
@@ -218,18 +218,18 @@ function activitiesManager() {
               const sameDay = s.isSame(e, "day");
               if (sameDay) {
                 act.datesString = `${s.format("DD/MM/YY")} ${s.format(
-                  "h:mm A",
-                )} - ${e.format("h:mm A")}`;
+                  "HH:mm",
+                )} - ${e.format("HH:mm")}`;
               } else {
                 // Mostrar rango de días y mes abreviado en español (MMM)
                 act.datesString = `${s.format("D")} - ${e.format(
                   "D",
-                )} / ${s.format("MMM/YY")} ${s.format("h:mm A")} - ${e.format(
-                  "h:mm A",
+                )} / ${s.format("MMM/YY")} ${s.format("HH:mm")} - ${e.format(
+                  "HH:mm",
                 )}`;
               }
             } else if (hasDayjs && s && s.isValid()) {
-              act.datesString = `${s.format("DD/MM/YY")} ${s.format("h:mm A")}`;
+              act.datesString = `${s.format("DD/MM/YY")} ${s.format("HH:mm")}`;
             } else if (!hasDayjs) {
               // Fallback a la implementación previa si dayjs no está disponible
               const sd = activity.start_datetime
@@ -242,14 +242,13 @@ function activitiesManager() {
               const day = (d) => pad(d.getDate());
               const month = (d) => pad(d.getMonth() + 1);
               const year2 = (d) => String(d.getFullYear()).slice(-2);
-              const time12 = (d) =>
-                d
-                  .toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                  })
-                  .replace(/\u200E/g, "");
+              // Hora 24 h canónica (es-MX): "09:00"
+              const time24 = (d) =>
+                d.toLocaleTimeString("es-MX", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hourCycle: "h23",
+                });
 
               if (sd && !isNaN(sd) && ed && !isNaN(ed)) {
                 const sameDay =
@@ -259,16 +258,16 @@ function activitiesManager() {
                 if (sameDay) {
                   act.datesString = `${day(sd)}/${month(sd)}/${year2(
                     sd,
-                  )} ${time12(sd)} - ${time12(ed)}`;
+                  )} ${time24(sd)} - ${time24(ed)}`;
                 } else {
                   act.datesString = `${day(sd)} - ${day(ed)} / ${month(
                     sd,
-                  )}/${year2(sd)} ${time12(sd)} - ${time12(ed)}`;
+                  )}/${year2(sd)} ${time24(sd)} - ${time24(ed)}`;
                 }
               } else if (sd && !isNaN(sd)) {
                 act.datesString = `${day(sd)}/${month(sd)}/${year2(
                   sd,
-                )} ${time12(sd)}`;
+                )} ${time24(sd)}`;
               } else {
                 act.datesString = "Sin fecha";
               }

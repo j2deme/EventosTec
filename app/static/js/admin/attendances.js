@@ -407,9 +407,19 @@ function attendancesAdmin() {
       }
     },
 
-    // Helper to format dates with AM/PM for use in table and modal
-    formatDateAMPM(dateStr) {
+    // Helper para fechas de tabla/modal — formateo canónico numérico
+    // 24 h ("08/10/2026, 09:00"). Antes: "08/10/2026 9:00 AM" manual.
+    formatStamp(dateStr) {
       if (!dateStr) return "";
+      if (dateStr === "—") return dateStr;
+      try {
+        if (window.formatShortDate) {
+          const out = window.formatShortDate(dateStr);
+          if (out && out !== "Sin fecha") return out;
+        }
+      } catch (e) {
+        // fallback abajo
+      }
       try {
         let d = new Date(dateStr);
         if (isNaN(d) && typeof dateStr === "string") {
@@ -417,14 +427,9 @@ function attendancesAdmin() {
         }
         if (isNaN(d)) return String(dateStr);
         const pad = (n) => String(n).padStart(2, "0");
-        let hours = d.getHours();
-        const minutes = pad(d.getMinutes());
-        const ampm = hours >= 12 ? "PM" : "AM";
-        hours = hours % 12;
-        hours = hours ? hours : 12;
         return `${pad(d.getDate())}/${pad(
           d.getMonth() + 1,
-        )}/${d.getFullYear()} ${hours}:${minutes} ${ampm}`;
+        )}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
       } catch (e) {
         return String(dateStr);
       }

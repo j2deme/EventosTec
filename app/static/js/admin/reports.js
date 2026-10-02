@@ -531,14 +531,26 @@ function reportsManager() {
 
     formatDateTime(isoString) {
       if (!isoString) return "";
+      // Canónico: "1 oct 2024, 09:00" (24 h, es-MX)
+      try {
+        const dh = window.dateHelpers;
+        if (dh && typeof dh.formatDateTimeShort === "function") {
+          const out = dh.formatDateTimeShort(isoString);
+          if (out && out !== "Sin fecha") return out;
+        }
+      } catch (e) {
+        // fallback manual abajo
+      }
       try {
         const date = new Date(isoString);
+        if (isNaN(date)) return String(isoString);
         return date.toLocaleString("es-MX", {
           year: "numeric",
           month: "short",
           day: "numeric",
           hour: "2-digit",
           minute: "2-digit",
+          hourCycle: "h23",
         });
       } catch (e) {
         return isoString;

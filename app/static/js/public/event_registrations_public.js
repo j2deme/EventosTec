@@ -606,8 +606,19 @@ function eventRegistrationsPublic() {
 
     formatDeadline(iso) {
       try {
+        // Fecha pura: ya viene como "YYYY-MM-DD", mostrarla tal cual
+        // (new Date() la parsea como UTC y correría el día en América)
+        if (/^\d{4}-\d{2}-\d{2}$/.test(String(iso))) return String(iso);
         if (window.dayjs) return window.dayjs(iso).format("YYYY-MM-DD HH:mm");
-        return new Date(iso).toLocaleString();
+        // Canónico: es-MX, 24 h ("08/10/2026, 09:00")
+        return new Date(iso).toLocaleString("es-MX", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+        });
       } catch (e) {
         return iso;
       }

@@ -342,27 +342,48 @@ function studentsAdmin() {
       this.eventActivities = [];
     },
 
-    // Formatear fecha
+    // Formatear fecha (canónico corto: "15 ene 2024")
     formatDate(dateString) {
       if (!dateString) return "Sin fecha";
+      try {
+        const dh = window.dateHelpers;
+        if (dh && typeof dh.formatDateShort === "function") {
+          const out = dh.formatDateShort(dateString);
+          if (out && out !== "Sin fecha") return out;
+        }
+      } catch (e) {
+        // fallback manual abajo
+      }
       const date = new Date(dateString);
-      return date.toLocaleDateString("es-ES", {
+      if (isNaN(date)) return "Sin fecha";
+      return date.toLocaleDateString("es-MX", {
         year: "numeric",
         month: "short",
         day: "numeric",
       });
     },
 
-    // Formatear fecha y hora
+    // Formatear fecha y hora (canónico corto, 24 h)
     formatDateTime(dateString) {
       if (!dateString) return "Sin fecha";
+      try {
+        const dh = window.dateHelpers;
+        if (dh && typeof dh.formatDateTimeShort === "function") {
+          const out = dh.formatDateTimeShort(dateString);
+          if (out && out !== "Sin fecha") return out;
+        }
+      } catch (e) {
+        // fallback manual abajo
+      }
       const date = new Date(dateString);
-      return date.toLocaleString("es-ES", {
+      if (isNaN(date)) return "Sin fecha";
+      return date.toLocaleString("es-MX", {
         year: "numeric",
         month: "short",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
       });
     },
 

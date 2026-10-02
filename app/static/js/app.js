@@ -331,6 +331,17 @@ window.checkAuthAndRedirect = checkAuthAndRedirect;
 // Otherwise we delegate to window.dateHelpers.* and provide small
 // sensible fallbacks used by tests.
 (function exposeGlobalDateFunctions() {
+  // Parse local de fechas puras "YYYY-MM-DD" (new Date() las toma como
+  // medianoche UTC y retrocede al día anterior en América).
+  function parseDateInput(d) {
+    const s = String(d).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, day] = s.split("-").map(Number);
+      return new Date(y, m - 1, day);
+    }
+    return new Date(s);
+  }
+
   function delegate(name, fallback) {
     if (typeof window[name] === "function") return;
     window[name] = function (...args) {
@@ -361,7 +372,17 @@ window.checkAuthAndRedirect = checkAuthAndRedirect;
     return String(d).split("T")[0] || String(d);
   });
 
+  delegate("formatDateShort", function (d) {
+    if (!d) return "Sin fecha";
+    return String(d);
+  });
+
   delegate("formatDateTime", function (d) {
+    if (!d) return "Sin fecha";
+    return String(d);
+  });
+
+  delegate("formatDateTimeShort", function (d) {
     if (!d) return "Sin fecha";
     return String(d);
   });
@@ -370,7 +391,7 @@ window.checkAuthAndRedirect = checkAuthAndRedirect;
     if (!d) return "";
     // Try to produce a YYYY-MM-DDTHH:MM fallback
     try {
-      const dt = new Date(d);
+      const dt = parseDateInput(d);
       if (isNaN(dt.getTime())) return "";
       const pad = (n) => String(n).padStart(2, "0");
       const y = dt.getFullYear();
@@ -387,10 +408,24 @@ window.checkAuthAndRedirect = checkAuthAndRedirect;
   delegate("formatTime", function (d) {
     if (!d) return "";
     try {
-      const dt = new Date(d);
+      const dt = parseDateInput(d);
       if (isNaN(dt.getTime())) return "";
       const pad = (n) => String(n).padStart(2, "0");
       return `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    } catch (e) {
+      return "";
+    }
+  });
+
+  delegate("dateKey", function (d) {
+    if (!d) return "";
+    try {
+      const dt = parseDateInput(d);
+      if (isNaN(dt.getTime())) return "";
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(
+        dt.getDate(),
+      )}`;
     } catch (e) {
       return "";
     }
@@ -401,9 +436,12 @@ window.checkAuthAndRedirect = checkAuthAndRedirect;
     module.exports.formatDate = window.formatDate;
     module.exports.formatShortDate = window.formatShortDate;
     module.exports.formatOnlyDate = window.formatOnlyDate;
+    module.exports.formatDateShort = window.formatDateShort;
     module.exports.formatDateTime = window.formatDateTime;
+    module.exports.formatDateTimeShort = window.formatDateTimeShort;
     module.exports.formatDateTimeForInput = window.formatDateTimeForInput;
     module.exports.formatTime = window.formatTime;
+    module.exports.dateKey = window.dateKey;
   }
 })();
 

@@ -435,14 +435,6 @@ function adminDashboard() {
               start_date_formatted:
                 (dh && dh.formatDateTime && dh.formatDateTime(startIso)) ||
                 (startIso ? String(startIso) : "Sin fecha"),
-              start_date_for_input:
-                (dh &&
-                  dh.formatDateTimeForInput &&
-                  dh.formatDateTimeForInput(startIso)) ||
-                (startIso ? String(startIso).slice(0, 16) : ""),
-              start_time_formatted:
-                (dh && dh.formatTime && dh.formatTime(startIso)) ||
-                (startIso ? new Date(startIso).toLocaleTimeString() : ""),
               created_at_formatted:
                 (dh && dh.formatDateTime && dh.formatDateTime(createdIso)) ||
                 (createdIso ? String(createdIso) : ""),
@@ -498,9 +490,6 @@ function adminDashboard() {
               created_at_formatted:
                 (dh && dh.formatDateTime && dh.formatDateTime(createdIso)) ||
                 (createdIso ? String(createdIso) : "Sin fecha"),
-              created_time_formatted:
-                (dh && dh.formatTime && dh.formatTime(createdIso)) ||
-                (createdIso ? new Date(createdIso).toLocaleTimeString() : ""),
             };
           });
         }
@@ -563,9 +552,11 @@ function adminDashboard() {
 
       if (!dateString) return "--:--";
       const dt = new Date(dateString);
-      return dt.toLocaleTimeString("es-ES", {
+      if (isNaN(dt)) return "--:--";
+      return dt.toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
       });
     },
 

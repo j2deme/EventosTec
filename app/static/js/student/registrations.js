@@ -139,8 +139,6 @@ function studentRegistrationsManager() {
             end_datetime: this.formatDateTimeForInput(
               registration.activity?.end_datetime,
             ),
-            total_days: this.getTotalDays(registration.activity),
-            day_in_series: this.getDayInSeries(registration.activity),
           },
         }));
 
@@ -289,46 +287,16 @@ function studentRegistrationsManager() {
     },
 
     formatTime(dateTimeString) {
+      // Canónico: "09:00" (24 h, es-MX)
       if (!dateTimeString) return "--:--";
-      if (window.formatDateTime) {
-        const dt = new Date(dateTimeString);
-        return dt.toLocaleTimeString("es-ES", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-      }
+      if (window.formatTime) return window.formatTime(dateTimeString);
       const date = new Date(dateTimeString);
-      return date.toLocaleTimeString("es-ES", {
+      if (isNaN(date)) return "--:--";
+      return date.toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
       });
-    },
-
-    // Devuelve fecha corta sin hora: DD mon YYYY (ej: 08 oct 2025)
-    formatShortDateOnly(dateTimeString) {
-      if (!dateTimeString) return "Sin fecha";
-      try {
-        const d = new Date(dateTimeString);
-        if (isNaN(d.getTime())) return "Sin fecha";
-        const pad = (n) => String(n).padStart(2, "0");
-        const months = [
-          "Ene",
-          "Feb",
-          "Mar",
-          "Abr",
-          "May",
-          "Jun",
-          "Jul",
-          "Ago",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dic",
-        ];
-        return `${pad(d.getDate())}/${months[d.getMonth()]}/${d.getFullYear()}`;
-      } catch (e) {
-        return "Sin fecha";
-      }
     },
 
     formatActivityDateShort(activity) {
@@ -596,52 +564,6 @@ function studentRegistrationsManager() {
       } catch (e) {
         console.error("Error al verificar si es actividad multídias:", e);
         return false;
-      }
-    },
-
-    getTotalDays(activity) {
-      if (!activity?.start_datetime || !activity?.end_datetime) return 1;
-      try {
-        const startDate = new Date(activity.start_datetime);
-        const endDate = new Date(activity.end_datetime);
-        const startDay = new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          startDate.getDate(),
-        );
-        const endDay = new Date(
-          endDate.getFullYear(),
-          endDate.getMonth(),
-          endDate.getDate(),
-        );
-        const timeDiff = endDay.getTime() - startDay.getTime();
-        return Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-      } catch (e) {
-        console.error("Error calculating total days:", e);
-        return 1;
-      }
-    },
-
-    getDayInSeries(activity) {
-      if (!activity?.start_datetime || !activity?.end_datetime) return 1;
-      try {
-        const startDate = new Date(activity.start_datetime);
-        const currentDate = new Date(activity.start_datetime);
-        const startDay = new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          startDate.getDate(),
-        );
-        const currentDay = new Date(
-          currentDate.getFullYear(),
-          currentDate.getMonth(),
-          currentDate.getDate(),
-        );
-        const timeDiff = currentDay.getTime() - startDay.getTime();
-        return Math.floor(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-      } catch (e) {
-        console.error("Error calculating day in series:", e);
-        return 1;
       }
     },
   };

@@ -19,6 +19,22 @@ describe("attendancesAdmin helpers", () => {
     expect(a.parseAttendancesPayload(undefined)).toEqual([]);
   });
 
+  // Formato canónico: numérico 24 h ("08/10/2026, 09:05"), sin AM/PM
+  test("formatStamp formatea date_display en 24 h sin AM/PM", () => {
+    const a = attendancesAdmin();
+    const out = a.formatStamp("2026-10-08 09:05");
+    expect(out).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+    expect(out).toMatch(/09:05/);
+    expect(out).not.toMatch(/\bAM\b|\bPM\b|a\. m\.|p\. m\./i);
+  });
+
+  test("formatStamp preserva '—' y devuelve cadena para entradas no parseables", () => {
+    const a = attendancesAdmin();
+    expect(a.formatStamp("—")).toBe("—");
+    expect(a.formatStamp("")).toBe("");
+    expect(a.formatStamp(null)).toBe("");
+  });
+
   test("sf uses window.safeFetch when available", async () => {
     const a = attendancesAdmin();
     global.safeFetch = jest.fn(() => Promise.resolve("ok"));

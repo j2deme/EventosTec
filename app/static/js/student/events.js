@@ -322,11 +322,15 @@ function studentEventsManager() {
     },
 
     formatTime(dateTimeString) {
+      // Canónico: "09:00" (24 h, es-MX)
       if (!dateTimeString) return "--:--";
+      if (window.formatTime) return window.formatTime(dateTimeString);
       const dt = new Date(dateTimeString);
-      return dt.toLocaleTimeString("es-ES", {
+      if (isNaN(dt)) return "--:--";
+      return dt.toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
       });
     },
 

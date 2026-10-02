@@ -306,30 +306,6 @@ function studentEventActivitiesManager() {
       }
     },
 
-    // ✨ Agrupar actividades por día
-    groupActivitiesByDay() {
-      const grouped = {};
-
-      this.activities.forEach((activity) => {
-        const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
-        if (!grouped[dateKey]) {
-          grouped[dateKey] = [];
-        }
-        grouped[dateKey].push(activity);
-      });
-
-      // Convertir a array y ordenar por fecha
-      this.activitiesByDay = Object.keys(grouped)
-        .sort()
-        .map((date) => ({
-          date: date,
-          activities: grouped[date].sort((a, b) => {
-            // Ordenar actividades dentro del día por hora de inicio
-            return new Date(a.start_datetime) - new Date(b.start_datetime);
-          }),
-        }));
-    },
-
     // Cambiar página
     changePage(page) {
       if (page >= 1 && page <= this.pagination.last_page) {
@@ -539,7 +515,12 @@ function studentEventActivitiesManager() {
           const datesInBetween = this.getDatesBetween(startDate, endDate);
 
           datesInBetween.forEach((dateObj) => {
-            const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
+            // Clave de día LOCAL ("YYYY-MM-DD"). dateKey() evita el
+            // corrimiento de toISOString() (día UTC) al este de UTC.
+            const dateStr =
+              window.dateHelpers && typeof window.dateHelpers.dateKey === "function"
+                ? window.dateHelpers.dateKey(dateObj)
+                : dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
 
             if (!grouped[dateStr]) {
               grouped[dateStr] = [];
@@ -564,8 +545,11 @@ function studentEventActivitiesManager() {
             grouped[dateStr].push(dailyActivityView);
           });
         } else {
-          // Actividad normal (un solo día)
-          const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
+          // Actividad normal (un solo día) — clave vía dateKey (local)
+          const dateKey =
+            window.dateHelpers && typeof window.dateHelpers.dateKey === "function"
+              ? window.dateHelpers.dateKey(activity.start_datetime)
+              : activity.start_datetime.split("T")[0]; // YYYY-MM-DD
           if (!grouped[dateKey]) {
             grouped[dateKey] = [];
           }
@@ -588,10 +572,11 @@ function studentEventActivitiesManager() {
         });
       });
 
-      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
-      const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
-        return new Date(a) - new Date(b);
-      });
+      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE) — comparación de strings
+      // "YYYY-MM-DD": orden lexicográfico = orden cronológico, sin parsear.
+      const sortedDateKeys = Object.keys(grouped).sort((a, b) =>
+        String(a).localeCompare(String(b)),
+      );
 
       // Reorganizar el objeto agrupado con los días ordenados
       const sortedGrouped = {};
@@ -746,21 +731,6 @@ function studentEventActivitiesManager() {
         : "";
     },
 
-    formatOnlyDate(dateTimeString) {
-      return window.formatOnlyDate
-        ? window.formatOnlyDate(dateTimeString)
-        : "Sin fecha";
-    },
-
-    formatTime(dateTimeString) {
-      if (!dateTimeString) return "--:--";
-      const dt = new Date(dateTimeString);
-      return dt.toLocaleTimeString("es-ES", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    },
-
     // Redirigir al login
     redirectToLogin() {
       localStorage.removeItem("authToken");
@@ -827,76 +797,6 @@ function studentEventActivitiesManager() {
       }
     },
 
-    // ✨ Agrupar actividades por día para el cronograma
-    groupActivitiesByDayForTimeline(activities) {
-      if (!activities || activities.length === 0) return {};
-
-      const grouped = {};
-
-      activities.forEach((activity) => {
-        const startDate = new Date(activity.start_datetime);
-        const endDate = new Date(activity.end_datetime);
-
-        // ✨ Para actividades multídias: crear entradas para cada día
-        if (this.isMultiDayActivity(activity)) {
-          // Generar fechas para cada día
-          const datesInBetween = this.getDatesBetween(startDate, endDate);
-
-          datesInBetween.forEach((dateStr) => {
-            if (!grouped[dateStr]) {
-              grouped[dateStr] = [];
-            }
-
-            // Crear una "vista" de la actividad para este día específico
-            const dailyActivityView = {
-              ...activity,
-              _expanded_for_date: dateStr,
-              // ✨ Añadir información sobre el día actual dentro de la actividad multidia
-              day_in_series: this.getDayInSeries(startDate, endDate, dateStr),
-              total_days: this.getTotalDays(startDate, endDate),
-            };
-
-            grouped[dateStr].push(dailyActivityView);
-          });
-        } else {
-          // Actividad normal (un solo día)
-          const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
-          if (!grouped[dateKey]) {
-            grouped[dateKey] = [];
-          }
-
-          grouped[dateKey].push(activity);
-        }
-      });
-
-      // Ordenar actividades dentro de cada grupo por hora de inicio (ASCENDENTE)
-      Object.keys(grouped).forEach((date) => {
-        grouped[date].sort((a, b) => {
-          // ✨ Comparar solo las horas de inicio (ignorando la fecha)
-          const timeA =
-            new Date(a.start_datetime).getHours() * 60 +
-            new Date(a.start_datetime).getMinutes();
-          const timeB =
-            new Date(b.start_datetime).getHours() * 60 +
-            new Date(b.start_datetime).getMinutes();
-          return timeA - timeB;
-        });
-      });
-
-      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
-      const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
-        return new Date(a) - new Date(b); // Orden ascendente por fecha
-      });
-
-      // Reorganizar el objeto agrupado con los días ordenados
-      const sortedGrouped = {};
-      sortedDateKeys.forEach((dateKey) => {
-        sortedGrouped[dateKey] = grouped[dateKey];
-      });
-
-      return sortedGrouped;
-    },
-
     // ✨ Obtener todas las fechas entre dos fechas (inclusive)
     getDatesBetween(startDate, endDate) {
       const dates = [];
@@ -914,98 +814,24 @@ function studentEventActivitiesManager() {
       return dates;
     },
 
-    // ✨ Obtener el número del día actual dentro de la serie multidia (1/3, 2/3, etc.)
-    getDayInSeries(startDate, endDate, currentDay) {
-      const startDay = new Date(
-        startDate.getFullYear(),
-        startDate.getMonth(),
-        startDate.getDate(),
-      );
-      const endDay = new Date(
-        endDate.getFullYear(),
-        endDate.getMonth(),
-        endDate.getDate(),
-      );
-      const currentDayDate = new Date(currentDay);
-
-      // Calcular el número de días desde el inicio
-      const daysFromStart =
-        Math.floor((currentDayDate - startDay) / (1000 * 60 * 60 * 24)) + 1;
-
-      return daysFromStart;
-    },
-
-    // ✨ Obtener el rango de horas diario para una actividad multídias en un día específico
-    getDailyRangeForMultiDayActivity(
-      activityStart,
-      activityEnd,
-      targetDateStr,
-    ) {
-      const activityStartDate = new Date(activityStart);
-      const activityEndDate = new Date(activityEnd);
-      const targetDate = new Date(targetDateStr);
-
-      // Normalizar fechas a medianoche para comparación
-      const targetDay = new Date(
-        targetDate.getFullYear(),
-        targetDate.getMonth(),
-        targetDate.getDate(),
-      );
-      const activityStartDay = new Date(
-        activityStartDate.getFullYear(),
-        activityStartDate.getMonth(),
-        activityStartDate.getDate(),
-      );
-      const activityEndDay = new Date(
-        activityEndDate.getFullYear(),
-        activityEndDate.getMonth(),
-        activityEndDate.getDate(),
-      );
-
-      // Extraer horas y minutos del rango original
-      const startTime = {
-        hours: activityStartDate.getHours(),
-        minutes: activityStartDate.getMinutes(),
-      };
-      const endTime = {
-        hours: activityEndDate.getHours(),
-        minutes: activityEndDate.getMinutes(),
-      };
-
-      let dailyStart, dailyEnd;
-
-      // Crear fechas diarias con las horas del rango original
-      if (targetDay.getTime() === activityStartDay.getTime()) {
-        // Primer día: usar hora de inicio original
-        dailyStart = new Date(targetDay);
-        dailyStart.setHours(startTime.hours, startTime.minutes, 0, 0);
-      } else {
-        // Días intermedios: usar hora de inicio del rango
-        dailyStart = new Date(targetDay);
-        dailyStart.setHours(startTime.hours, startTime.minutes, 0, 0);
+    // Fecha pura "YYYY-MM-DD" como fecha LOCAL: new Date() la toma como
+    // medianoche UTC y en UTC-6 retrocede al día anterior, lo que hacía que
+    // el primer día de la serie calculara day_in_series = 0 (y el resto,
+    // desfasados: 1, 2... en vez de 1, 2, 3).
+    parseDateOnlyLocal(value) {
+      const s = String(value);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const [y, m, d] = s.split("-").map(Number);
+        return new Date(y, m - 1, d);
       }
-
-      if (targetDay.getTime() === activityEndDay.getTime()) {
-        // Último día: usar hora de fin original
-        dailyEnd = new Date(targetDay);
-        dailyEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
-      } else {
-        // Días intermedios: usar hora de fin del rango
-        dailyEnd = new Date(targetDay);
-        dailyEnd.setHours(endTime.hours, endTime.minutes, 0, 0);
-      }
-
-      return {
-        start: dailyStart,
-        end: dailyEnd,
-      };
+      return new Date(s);
     },
 
     // ✨ Obtener el número del día actual dentro de la serie multidia (1/3, 2/3, etc.)
     getDayInSeries(activityStart, activityEnd, currentDateStr) {
       const activityStartDate = new Date(activityStart);
       const activityEndDate = new Date(activityEnd);
-      const currentDate = new Date(currentDateStr);
+      const currentDate = this.parseDateOnlyLocal(currentDateStr);
 
       const activityStartDay = new Date(
         activityStartDate.getFullYear(),
@@ -1053,112 +879,6 @@ function studentEventActivitiesManager() {
       return totalDays;
     },
 
-    // ✨ Obtener actividades ordenadas por hora (para eventos de un solo día)
-    getSortedActivitiesByTime(activities) {
-      if (!activities || activities.length === 0) return [];
-
-      return [...activities].sort((a, b) => {
-        return new Date(a.start_datetime) - new Date(b.start_datetime); // Orden ascendente
-      });
-    },
-
-    // ✨ Agrupar actividades por día (con manejo de actividades multídias como bloques diarios)
-    groupActivitiesByDay() {
-      if (!this.activities || this.activities.length === 0) {
-        this.activitiesByDay = [];
-        return;
-      }
-
-      const grouped = {};
-
-      this.activities.forEach((activity) => {
-        const startDate = new Date(activity.start_datetime);
-        const endDate = new Date(activity.end_datetime);
-
-        // ✨ Para actividades multídias: crear entradas para cada día con bloques diarios
-        if (this.isMultiDayActivity(activity)) {
-          // Generar fechas para cada día
-          const datesInBetween = this.getDatesBetween(startDate, endDate);
-
-          datesInBetween.forEach((dateObj) => {
-            const dateStr = dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
-
-            if (!grouped[dateStr]) {
-              grouped[dateStr] = [];
-            }
-
-            // Obtener el rango diario para esta actividad en este día específico
-            const dailyRange = this.getDailyRangeForMultiDayActivity(
-              activity.start_datetime,
-              activity.end_datetime,
-              dateStr,
-            );
-
-            // Crear una "vista" de la actividad para este día específico con bloques diarios
-            const dailyActivityView = {
-              ...activity,
-              _expanded_for_date: dateStr,
-              // ✨ Usar el rango diario en lugar del rango general
-              start_datetime: dailyRange.start.toISOString(),
-              end_datetime: dailyRange.end.toISOString(),
-              // ✨ Añadir información sobre el día actual dentro de la actividad multidia
-              day_in_series: this.getDayInSeries(
-                activity.start_datetime,
-                activity.end_datetime,
-                dateStr,
-              ),
-              total_days: this.getTotalDays(
-                activity.start_datetime,
-                activity.end_datetime,
-              ),
-              is_expanded_multiday: true,
-            };
-
-            grouped[dateStr].push(dailyActivityView);
-          });
-        } else {
-          // Actividad normal (un solo día)
-          const dateKey = activity.start_datetime.split("T")[0]; // YYYY-MM-DD
-          if (!grouped[dateKey]) {
-            grouped[dateKey] = [];
-          }
-
-          grouped[dateKey].push(activity);
-        }
-      });
-
-      // Ordenar actividades dentro de cada grupo por hora de inicio (ASCENDENTE)
-      Object.keys(grouped).forEach((date) => {
-        grouped[date].sort((a, b) => {
-          // ✨ Comparar solo las horas de inicio (ignorando la fecha)
-          const timeA =
-            new Date(a.start_datetime).getHours() * 60 +
-            new Date(a.start_datetime).getMinutes();
-          const timeB =
-            new Date(b.start_datetime).getHours() * 60 +
-            new Date(b.start_datetime).getMinutes();
-          return timeA - timeB;
-        });
-      });
-
-      // ✨ ORDENAR LOS DÍAS POR FECHA (ASCENDENTE)
-      const sortedDateKeys = Object.keys(grouped).sort((a, b) => {
-        return new Date(a) - new Date(b);
-      });
-
-      // Reorganizar el objeto agrupado con los días ordenados
-      const sortedGrouped = {};
-      sortedDateKeys.forEach((dateKey) => {
-        sortedGrouped[dateKey] = grouped[dateKey];
-      });
-
-      // Convertir a array para el template
-      this.activitiesByDay = Object.keys(sortedGrouped).map((date) => ({
-        date: date,
-        activities: sortedGrouped[date],
-      }));
-    },
-
     async refreshCurrentEventActivities() {
       if (!this.currentEvent || !this.currentEvent.id) {
         return false;
@@ -1173,25 +893,39 @@ function studentEventActivitiesManager() {
       }
     },
 
-    // ✨ Formatear solo fecha para mostrar
+    // ✨ Formatear solo fecha para mostrar (canónico; el weekday largo se
+    // omitía ya en la práctica: la plantilla prefiere window.dateHelpers)
     formatOnlyDate(dateTimeString) {
       if (!dateTimeString) return "Sin fecha";
+      if (window.formatOnlyDate) return window.formatOnlyDate(dateTimeString);
+      try {
+        const dh = window.dateHelpers;
+        if (dh && typeof dh.formatOnlyDate === "function") {
+          const out = dh.formatOnlyDate(dateTimeString);
+          if (out && out !== "Sin fecha") return out;
+        }
+      } catch (e) {
+        // fallback abajo
+      }
       const date = new Date(dateTimeString);
-      return date.toLocaleDateString("es-ES", {
-        weekday: "long",
+      if (isNaN(date)) return "Sin fecha";
+      return date.toLocaleDateString("es-MX", {
         year: "numeric",
         month: "long",
         day: "numeric",
       });
     },
 
-    // ✨ Formatear solo hora para mostrar
+    // ✨ Formatear solo hora para mostrar (canónico: "09:00", 24 h)
     formatTime(dateTimeString) {
       if (!dateTimeString) return "--:--";
+      if (window.formatTime) return window.formatTime(dateTimeString);
       const date = new Date(dateTimeString);
-      return date.toLocaleTimeString("es-ES", {
+      if (isNaN(date)) return "--:--";
+      return date.toLocaleTimeString("es-MX", {
         hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
       });
     },
   };
