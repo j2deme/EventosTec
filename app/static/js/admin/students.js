@@ -42,15 +42,27 @@ function studentsAdmin() {
     eventActivities: [],
     loadingEventDetail: false,
 
-    // Modal de exportación de créditos complementarios
+    // Modal de exportación de créditos complementarios (multi-evento)
     showExportModal: false,
     exportFilters: {
-      event_id: null,
+      event_ids: [],
       career: "",
     },
     exportData: [],
     loadingExport: false,
     exportError: "",
+    // Metadatos de la última búsqueda (desglose por evento + omitidos)
+    exportStats: {
+      events: [],
+      excluded_already_credited: 0,
+      excluded_by_override: 0,
+    },
+    // Overrides manuales de crédito (tabla credit_overrides)
+    creditOverrides: [],
+    overrideSearch: "",
+    overrideSearchResult: null,
+    overrideSearchError: "",
+    searchingOverride: false,
     // Sincronización desde API externa
     syncingStudents: false,
 
@@ -354,15 +366,18 @@ function studentsAdmin() {
       return classes[status] || "bg-gray-100 text-gray-800";
     },
 
-    // Abrir modal de exportación de créditos
-    openExportModal() {
+    // Abrir modal de exportación de créditos (multi-evento)
+    async openExportModal() {
       this.showExportModal = true;
       this.exportFilters = {
-        event_id: this.filters.event_id || null,
+        event_ids: this.filters.event_id ? [this.filters.event_id] : [],
         career: this.filters.career || "",
       };
-      this.exportData = [];
-      this.exportError = "";
+      this.resetExportResults();
+      this.overrideSearch = "";
+      this.overrideSearchResult = null;
+      this.overrideSearchError = "";
+      await this.loadCreditOverrides();
     },
 
     // Cerrar modal de exportación
@@ -370,12 +385,54 @@ function studentsAdmin() {
       this.showExportModal = false;
       this.exportData = [];
       this.exportError = "";
+      this.exportStats = {
+        events: [],
+        excluded_already_credited: 0,
+        excluded_by_override: 0,
+      };
+      this.creditOverrides = [];
     },
 
-    // Cargar estudiantes con crédito complementario
+    // Limpiar resultados de la búsqueda actual
+    resetExportResults() {
+      this.exportData = [];
+      this.exportError = "";
+      this.exportStats = {
+        events: [],
+        excluded_already_credited: 0,
+        excluded_by_override: 0,
+      };
+    },
+
+    // Agregar/quitar un evento de la selección multi-evento
+    toggleExportEvent(eventId) {
+      const ids = this.exportFilters.event_ids || [];
+      const idx = ids.indexOf(eventId);
+      if (idx >= 0) {
+        ids.splice(idx, 1);
+      } else {
+        ids.push(eventId);
+      }
+      this.exportFilters.event_ids = ids;
+      this.resetExportResults();
+    },
+
+    // Horas de un estudiante en un evento del desglose (para la tabla)
+    hoursInEvent(student, eventId) {
+      const hours =
+        student && student.hours_by_event
+          ? student.hours_by_event[eventId]
+          : null;
+      return (hours || 0).toFixed(1);
+    },
+
+    // Cargar estudiantes con crédito complementario (horas combinadas)
     async loadComplementaryCredits() {
-      if (!this.exportFilters.event_id) {
-        this.exportError = "Debe seleccionar un evento";
+      if (
+        !this.exportFilters.event_ids ||
+        this.exportFilters.event_ids.length === 0
+      ) {
+        this.exportError = "Debe seleccionar al menos un evento";
         return;
       }
 
@@ -383,9 +440,8 @@ function studentsAdmin() {
       this.exportError = "";
 
       try {
-        const params = new URLSearchParams({
-          event_id: this.exportFilters.event_id,
-        });
+        const params = new URLSearchParams();
+        params.append("event_ids", this.exportFilters.event_ids.join(","));
 
         if (this.exportFilters.career) {
           params.append("career", this.exportFilters.career);
@@ -408,6 +464,11 @@ function studentsAdmin() {
 
         const data = await response.json();
         this.exportData = data.students || [];
+        this.exportStats = {
+          events: data.events || [],
+          excluded_already_credited: data.excluded_already_credited || 0,
+          excluded_by_override: data.excluded_by_override || 0,
+        };
       } catch (error) {
         console.error("Error loading complementary credits:", error);
         this.exportError = "Error al cargar estudiantes con créditos";
@@ -417,18 +478,20 @@ function studentsAdmin() {
       }
     },
 
-    // Exportar a Excel
+    // Exportar a Excel (mismos filtros multi-evento que la lista)
     async exportToExcel() {
-      if (!this.exportFilters.event_id) {
+      if (
+        !this.exportFilters.event_ids ||
+        this.exportFilters.event_ids.length === 0
+      ) {
         window.showToast &&
-          window.showToast("Debe seleccionar un evento", "error");
+          window.showToast("Debe seleccionar al menos un evento", "error");
         return;
       }
 
       try {
-        const params = new URLSearchParams({
-          event_id: this.exportFilters.event_id,
-        });
+        const params = new URLSearchParams();
+        params.append("event_ids", this.exportFilters.event_ids.join(","));
 
         if (this.exportFilters.career) {
           params.append("career", this.exportFilters.career);
@@ -445,6 +508,138 @@ function studentsAdmin() {
         console.error("Error exporting to Excel:", error);
         window.showToast && window.showToast("Error al exportar", "error");
       }
+    },
+
+    // ---- Overrides manuales de crédito (credit_overrides) ----
+
+    // Cargar overrides existentes (no bloquea el modal si la tabla no existe)
+    async loadCreditOverrides() {
+      try {
+        const response = await fetch("/api/students/credit-overrides", {
+          headers: window.getAuthHeaders(),
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+          throw new Error(`Error: ${response.status}`);
+        }
+        const data = await response.json();
+        this.creditOverrides = data.overrides || [];
+      } catch (error) {
+        // Puede fallar si la migración 20261001 aún no corrió: el modal
+        // sigue funcionando sin overrides en lugar de bloquearse.
+        console.warn("Overrides no disponibles:", error);
+        this.creditOverrides = [];
+      }
+    },
+
+    // ¿El estudiante tiene override manual?
+    hasCreditOverride(studentId) {
+      return (this.creditOverrides || []).some(
+        (o) => o.student_id === studentId,
+      );
+    },
+
+    // Crear/actualizar override (include|exclude) y refrescar lista + overrides
+    async setCreditOverride(studentId, decision) {
+      try {
+        const response = await fetch("/api/students/credit-overrides", {
+          method: "POST",
+          headers: window.getAuthHeaders(),
+          body: JSON.stringify({ student_id: studentId, decision }),
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+          throw new Error(`Error: ${response.status}`);
+        }
+        window.showToast && window.showToast("Override guardado", "success");
+        await this.loadCreditOverrides();
+        await this.loadComplementaryCredits();
+      } catch (error) {
+        console.error("Error saving override:", error);
+        window.showToast &&
+          window.showToast("Error al guardar override", "error");
+      }
+    },
+
+    // Eliminar override y refrescar lista + overrides
+    async removeCreditOverride(studentId) {
+      try {
+        const response = await fetch(
+          `/api/students/credit-overrides/${studentId}`,
+          { method: "DELETE", headers: window.getAuthHeaders() },
+        );
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+          throw new Error(`Error: ${response.status}`);
+        }
+        window.showToast && window.showToast("Override eliminado", "success");
+        await this.loadCreditOverrides();
+        await this.loadComplementaryCredits();
+      } catch (error) {
+        console.error("Error deleting override:", error);
+        window.showToast &&
+          window.showToast("Error al eliminar override", "error");
+      }
+    },
+
+    // Buscar estudiante (por control o nombre) para forzar su inclusión
+    async searchOverrideStudent() {
+      const query = (this.overrideSearch || "").trim();
+      if (!query) {
+        this.overrideSearchError = "Escribe un número de control o nombre";
+        return;
+      }
+      this.searchingOverride = true;
+      this.overrideSearchError = "";
+      this.overrideSearchResult = null;
+      try {
+        const params = new URLSearchParams({ search: query, per_page: 10 });
+        const response = await fetch(`/api/students?${params}`, {
+          headers: window.getAuthHeaders(),
+        });
+        if (!response.ok) {
+          if (response.status === 401) {
+            this.redirectToLogin();
+            return;
+          }
+          throw new Error(`Error: ${response.status}`);
+        }
+        const data = await response.json();
+        const list = data.students || [];
+        if (list.length === 0) {
+          this.overrideSearchError = "Sin resultados";
+          return;
+        }
+        // Preferir coincidencia exacta de número de control
+        const exact = list.find(
+          (s) => String(s.control_number).toLowerCase() === query.toLowerCase(),
+        );
+        this.overrideSearchResult = exact || list[0];
+      } catch (error) {
+        console.error("Error searching student:", error);
+        this.overrideSearchError = "Error al buscar estudiante";
+        window.showToast && window.showToast(this.overrideSearchError, "error");
+      } finally {
+        this.searchingOverride = false;
+      }
+    },
+
+    // Forzar inclusión del estudiante encontrado en la búsqueda
+    async includeOverrideFromSearch() {
+      if (!this.overrideSearchResult) return;
+      const studentId = this.overrideSearchResult.id;
+      this.overrideSearch = "";
+      this.overrideSearchResult = null;
+      await this.setCreditOverride(studentId, "include");
     },
 
     // Redireccionar al login

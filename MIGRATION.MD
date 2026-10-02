@@ -108,7 +108,7 @@ Commits: `2ece1dd` (servicio unificado de horas), `2b2710e` (event_ids), `07d02e
 - **Multi-evento**: `GET /api/students/complementary-credits?event_ids=1,3` (acepta comas y/o repetido; `event_id` simple intacto byte a byte). Respuesta aditiva: `events[]` (orden cronológico), `event: null` en modo multi, `hours_by_event`/`activities_by_event` por estudiante, `excluded_already_credited`, `excluded_by_override`.
 - **Exclusión derivada (earliest-crossing)**: con N eventos seleccionados, solo entra quien cruza las 10 h en el **último** evento cronológico; quien cruzó antes ya está acreditado y se omite. Con un solo evento la regla no cambia nada (cruce en el único evento).
 - **Overrides manuales**: tabla `credit_overrides` (una fila por estudiante: `decision` include/exclude, `reason`, timestamps). API: `GET/POST /api/students/credit-overrides` (upsert) y `DELETE /api/students/credit-overrides/<student_id>` (admin JWT). `include` fuerza la inclusión aunque falle la regla derivada o no alcance 10 h (incluso sin participaciones → fila sintética con 0 h); `exclude` omite siempre.
-- Estado de pruebas: **pytest 236 passed / 0 failed / 0 errors** (+1 xpass preexistente); Jest sin cambios (161 — la UI multi-evento aún no se implementa).
+- Estado de pruebas: **pytest 239 passed / 0 failed / 0 errors** (+1 xpass preexistente); **Jest 173 passed / 15 suites** (UI multi-evento + overrides: selector de eventos con checkboxes, columnas de desglose por evento, badges de omitidos, acciones de override por fila, sección de overrides aplicados y forzar inclusión por búsqueda de control).
 
 ### ⚠️ Paso de despliegue OBLIGATORIO (migración aditiva)
 

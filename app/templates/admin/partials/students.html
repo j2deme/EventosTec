@@ -655,8 +655,10 @@
                 Exportar Estudiantes con Crédito Complementario
               </h3>
               <p class="mt-2 text-sm text-gray-600">
-                Filtra y exporta estudiantes que han acumulado 10+ horas
-                confirmadas en un evento específico.
+                Filtra y exporta estudiantes que han acumulado 10+ horas.
+                Selecciona uno o varios eventos para combinar horas: los
+                estudiantes ya acreditados en eventos anteriores se omiten
+                automáticamente.
               </p>
             </div>
             <button
@@ -670,21 +672,33 @@
           <!-- Filtros -->
           <div class="mt-6 border-t border-gray-200 pt-4">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- Evento (requerido) -->
-              <div>
+              <!-- Eventos (requerido, multi-selección) -->
+              <div class="md:col-span-2">
                 <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Evento <span class="text-red-500">*</span>
+                  Eventos <span class="text-red-500">*</span>
+                  <span class="text-gray-400 font-normal">
+                    — las horas se combinan entre los seleccionados
+                  </span>
                 </label>
-                <select
-                  x-model="exportFilters.event_id"
-                  @change="exportData = []; exportError = ''"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                <div
+                  class="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-3 space-y-1.5"
                 >
-                  <option value="">Seleccionar evento...</option>
                   <template x-for="event in events" :key="event.id">
-                    <option :value="event.id" x-text="event.name"></option>
+                    <label class="flex items-center space-x-2 text-sm">
+                      <input
+                        type="checkbox"
+                        :value="event.id"
+                        :checked="exportFilters.event_ids.includes(event.id)"
+                        @change="toggleExportEvent(event.id)"
+                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span class="text-gray-800" x-text="event.name"></span>
+                    </label>
                   </template>
-                </select>
+                  <p x-show="events.length === 0" class="text-sm text-gray-500">
+                    No hay eventos disponibles
+                  </p>
+                </div>
               </div>
 
               <!-- Carrera (opcional) -->
@@ -695,7 +709,7 @@
                 <input
                   type="text"
                   x-model="exportFilters.career"
-                  @input="exportData = []; exportError = ''"
+                  @input="resetExportResults()"
                   placeholder="Filtrar por carrera..."
                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
@@ -706,7 +720,7 @@
             <div class="mt-4">
               <button
                 @click="loadComplementaryCredits()"
-                :disabled="!exportFilters.event_id || loadingExport"
+                :disabled="exportFilters.event_ids.length === 0 || loadingExport"
                 class="w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span x-show="!loadingExport">
@@ -727,6 +741,39 @@
             class="mt-4 bg-red-50 border border-red-200 rounded-lg p-3"
           >
             <p class="text-sm text-red-800" x-text="exportError"></p>
+          </div>
+
+          <!-- Badges: alcance de la búsqueda y omitidos -->
+          <div
+            x-show="exportStats.events.length > 0"
+            class="mt-4 flex flex-wrap items-center gap-2 text-xs"
+          >
+            <span
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-800"
+            >
+              <i class="ti ti-calendar-event mr-1"></i>
+              <span
+                x-text="exportStats.events
+                  .map((e) => e.name)
+                  .join(' + ')"
+              ></span>
+            </span>
+            <span
+              x-show="exportStats.excluded_already_credited > 0"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800"
+            >
+              <i class="ti ti-shield-x mr-1"></i>
+              <span x-text="exportStats.excluded_already_credited"></span>
+              &nbsp;ya acreditados en eventos anteriores (omitidos)
+            </span>
+            <span
+              x-show="exportStats.excluded_by_override > 0"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-red-100 text-red-800"
+            >
+              <i class="ti ti-ban mr-1"></i>
+              <span x-text="exportStats.excluded_by_override"></span>
+              &nbsp;omitidos por override manual
+            </span>
           </div>
 
           <!-- Resultados -->
@@ -775,15 +822,30 @@
                     >
                       Carrera
                     </th>
+                    <!-- Una columna de horas por evento seleccionado -->
+                    <template
+                      x-for="ev in exportStats.events"
+                      :key="'th-' + ev.id"
+                    >
+                      <th
+                        class="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase"
+                        x-text="ev.name"
+                      ></th>
+                    </template>
                     <th
                       class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
                     >
-                      Horas
+                      Total
                     </th>
                     <th
                       class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
                     >
                       Actividades
+                    </th>
+                    <th
+                      class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase"
+                    >
+                      Acciones
                     </th>
                   </tr>
                 </thead>
@@ -809,6 +871,16 @@
                         class="px-4 py-3 text-sm text-gray-600"
                         x-text="student.career"
                       ></td>
+                      <!-- Horas por evento (desglose) -->
+                      <template
+                        x-for="ev in exportStats.events"
+                        :key="'td-' + student.id + '-' + ev.id"
+                      >
+                        <td
+                          class="px-2 py-3 text-sm text-center text-gray-900"
+                          x-text="hoursInEvent(student, ev.id)"
+                        ></td>
+                      </template>
                       <td class="px-4 py-3 text-sm text-center">
                         <span
                           class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
@@ -823,6 +895,29 @@
                         class="px-4 py-3 text-sm text-center text-gray-900"
                         x-text="student.activities_count"
                       ></td>
+                      <!-- Acciones: override manual por estudiante -->
+                      <td
+                        class="px-4 py-3 text-sm text-center whitespace-nowrap"
+                      >
+                        <template x-if="!hasCreditOverride(student.id)">
+                          <button
+                            @click="setCreditOverride(student.id, 'exclude')"
+                            class="text-xs px-2 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50"
+                            title="Omitir de la lista (override manual)"
+                          >
+                            <i class="ti ti-user-x"></i> Omitir
+                          </button>
+                        </template>
+                        <template x-if="hasCreditOverride(student.id)">
+                          <button
+                            @click="removeCreditOverride(student.id)"
+                            class="text-xs px-2 py-1 rounded border border-amber-300 text-amber-700 hover:bg-amber-50"
+                            title="Quitar override manual"
+                          >
+                            <i class="ti ti-refresh"></i> Quitar override
+                          </button>
+                        </template>
+                      </td>
                     </tr>
                   </template>
                 </tbody>
@@ -832,7 +927,7 @@
 
           <!-- Estado vacío -->
           <div
-            x-show="!loadingExport && exportData.length === 0 && exportFilters.event_id"
+            x-show="!loadingExport && exportData.length === 0 && exportStats.events.length > 0"
             class="mt-6 text-center py-8 text-gray-500"
           >
             <i class="ti ti-users-off text-4xl mb-2"></i>
@@ -840,6 +935,117 @@
               No se encontraron estudiantes con 10+ horas para los filtros
               seleccionados
             </p>
+          </div>
+
+          <!-- Overrides manuales aplicados -->
+          <div
+            x-show="creditOverrides.length > 0"
+            class="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-3"
+          >
+            <h4
+              class="text-sm font-medium text-amber-900 flex items-center mb-2"
+            >
+              <i class="ti ti-edit-circle mr-1"></i>
+              Overrides manuales aplicados
+            </h4>
+            <ul class="space-y-1">
+              <template x-for="ov in creditOverrides" :key="ov.student_id">
+                <li
+                  class="flex items-center justify-between gap-2 text-sm py-1"
+                >
+                  <span class="text-amber-900">
+                    <b
+                      x-text="ov.full_name ||
+                        ('Estudiante #' + ov.student_id)"
+                    ></b>
+                    <span
+                      class="text-amber-700"
+                      x-text="'(' + (ov.control_number || 's/n') + ')'"
+                    ></span>
+                    <span
+                      class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                      :class="ov.decision === 'include'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'"
+                      x-text="ov.decision === 'include'
+                        ? 'Forzado: incluir'
+                        : 'Forzado: excluir'"
+                    ></span>
+                    <span
+                      class="text-xs text-amber-700"
+                      x-show="ov.reason"
+                      x-text="ov.reason ? '— ' + ov.reason : ''"
+                    ></span>
+                  </span>
+                  <button
+                    @click="removeCreditOverride(ov.student_id)"
+                    class="text-xs px-2 py-1 rounded border border-amber-300 text-amber-800 hover:bg-amber-100 whitespace-nowrap"
+                  >
+                    <i class="ti ti-trash"></i> Quitar
+                  </button>
+                </li>
+              </template>
+            </ul>
+          </div>
+
+          <!-- Forzar inclusión de un estudiante no listado -->
+          <div class="mt-4 border border-gray-200 rounded-lg p-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+              Forzar inclusión de un estudiante
+            </label>
+            <p class="text-xs text-gray-500 mb-2">
+              Busca por número de control a un estudiante omitido (ya
+              acreditado en un evento anterior o sin horas suficientes) para
+              incluirlo con un override manual.
+            </p>
+            <div class="flex gap-2">
+              <input
+                type="text"
+                x-model="overrideSearch"
+                @keyup.enter="searchOverrideStudent()"
+                placeholder="Número de control o nombre..."
+                class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                @click="searchOverrideStudent()"
+                :disabled="!overrideSearch.trim() || searchingOverride"
+                class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <span x-show="!searchingOverride">Buscar</span>
+                <span x-show="searchingOverride">
+                  <i class="ti ti-loader animate-spin"></i>
+                </span>
+              </button>
+            </div>
+            <p
+              class="text-sm text-red-600 mt-1"
+              x-show="overrideSearchError"
+              x-text="overrideSearchError"
+            ></p>
+            <div
+              x-show="overrideSearchResult"
+              class="mt-2 flex items-center justify-between bg-gray-50 border border-gray-200 rounded p-2"
+            >
+              <span class="text-sm text-gray-900">
+                <b
+                  x-text="overrideSearchResult
+                    ? overrideSearchResult.full_name
+                    : ''"
+                ></b>
+                <span
+                  class="text-gray-500"
+                  x-text="overrideSearchResult
+                    ? '(' + overrideSearchResult.control_number + ')'
+                    : ''"
+                ></span>
+              </span>
+              <button
+                @click="includeOverrideFromSearch()"
+                class="text-xs px-3 py-1.5 font-medium text-white bg-green-600 rounded-md hover:bg-green-700 whitespace-nowrap"
+              >
+                <i class="ti ti-user-check"></i> Forzar inclusión
+              </button>
+            </div>
           </div>
         </div>
       </div>
