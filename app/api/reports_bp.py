@@ -514,115 +514,26 @@ def hours_compliance():
         search = request.args.get("search", type=str)
         min_hours = request.args.get("min_hours", type=float, default=0)
 
-        # Construir listado de participaciones por actividad evitando doble conteo
-        # Queremos contar una actividad por estudiante si existe either:
-        # - un Registration con status Confirmado/Asistió, o
-        # - una Attendance con status 'Asistió'
-        # Para evitar duplicados cuando ambos existen, guardamos activity_ids ya contadas por estudiante.
-        from app.models.attendance import Attendance
+        # Cálculo unificado de horas (fuente única de verdad):
+        # Registration (Confirmado/Asistió) + Attendance (Asistió), con dedup
+        # por actividad y redondeo a 2 decimales antes de comparar umbrales.
+        from app.services.hours_service import compute_student_hours
 
-        # 1) Consultar participaciones desde Registration (por actividad)
-        reg_rows = (
-            db.session.query(
-                Student.id.label("sid"),
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Activity.id.label("aid"),
-                Activity.duration_hours.label("dur"),
+        students = [
+            {
+                "id": s["id"],
+                "control_number": s["control_number"],
+                "full_name": s["full_name"],
+                "career": s["career"] or "Sin especificar",
+                "total_hours": s["total_hours"],
+            }
+            for s in compute_student_hours(
+                event_ids=[event_id],
+                career=career,
+                search=search,
+                min_hours=min_hours,
             )
-            .join(Registration, Registration.student_id == Student.id)
-            .join(Activity, Activity.id == Registration.activity_id)
-            .filter(
-                Activity.event_id == event_id,
-                Registration.status.in_(["Confirmado", "Asistió"]),
-            )
-            .all()
-        )
-
-        # 2) Consultar participaciones desde Attendance (walk-ins)
-        att_rows = (
-            db.session.query(
-                Attendance.student_id.label("sid"),
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Activity.id.label("aid"),
-                Activity.duration_hours.label("dur"),
-            )
-            .join(Activity, Activity.id == Attendance.activity_id)
-            .join(Student, Student.id == Attendance.student_id)
-            .filter(
-                Activity.event_id == event_id,
-                Attendance.status == "Asistió",
-            )
-            .all()
-        )
-
-        # Mapear por estudiante: { sid: { activities: Set[aids], total_hours: float, full data... } }
-        students_map = {}
-
-        def ensure_student(sid, control_number, full_name, career):
-            if sid not in students_map:
-                students_map[sid] = {
-                    "id": sid,
-                    "control_number": control_number,
-                    "full_name": full_name,
-                    "career": career or "Sin especificar",
-                    "activities": set(),
-                    "total_hours": 0.0,
-                }
-
-        # Procesar registros (preregistrados/confirmados)
-        for r in reg_rows:
-            sid = getattr(r, "sid", None)
-            aid = getattr(r, "aid", None)
-            dur = float(getattr(r, "dur", 0) or 0)
-            ensure_student(sid, r.control_number, r.full_name, r.career)
-            if aid is not None and aid not in students_map[sid]["activities"]:
-                students_map[sid]["activities"].add(aid)
-                students_map[sid]["total_hours"] += dur
-
-        # Procesar asistencias (walk-ins), solo agregar actividades no contabilizadas aún
-        for a in att_rows:
-            sid = getattr(a, "sid", None)
-            aid = getattr(a, "aid", None)
-            dur = float(getattr(a, "dur", 0) or 0)
-            ensure_student(sid, a.control_number, a.full_name, a.career)
-            if aid is not None and aid not in students_map[sid]["activities"]:
-                students_map[sid]["activities"].add(aid)
-                students_map[sid]["total_hours"] += dur
-
-        # Aplicar filtros de búsqueda y min_hours
-        students_list = []
-        for sid, info in students_map.items():
-            # Filtros por career
-            if career and info.get("career") != career:
-                continue
-            # Filtros por search (control_number o full_name)
-            if search:
-                st = search.lower()
-                if not (
-                    (info.get("control_number") or "").lower().find(st) >= 0
-                    or (info.get("full_name") or "").lower().find(st) >= 0
-                ):
-                    continue
-            total = round(float(info["total_hours"] or 0), 2)
-            if total >= (min_hours or 0):
-                students_list.append(
-                    {
-                        "id": info["id"],
-                        "control_number": info["control_number"],
-                        "full_name": info["full_name"],
-                        "career": info["career"],
-                        "total_hours": total,
-                    }
-                )
-
-        # Ordenar por nombre
-        students_list.sort(key=lambda x: (x.get("full_name") or ""))
-
-        students = students_list
+        ]
 
         return jsonify(
             {"students": students, "event": {"id": event.id, "name": event.name}}
@@ -665,105 +576,23 @@ def hours_compliance_excel():
         search = request.args.get("search", type=str)
         min_hours = request.args.get("min_hours", type=float, default=0)
 
-        # Construir el agregado combinando Registrations y Attendances (walk-ins)
-        # para evitar doble conteo por actividad por estudiante.
-        from app.models.attendance import Attendance
+        # Cálculo unificado de horas (misma fuente que /hours_compliance)
+        from app.services.hours_service import compute_student_hours
 
-        # 1) Consultar participaciones desde Registration (por actividad)
-        reg_rows = (
-            db.session.query(
-                Student.id.label("sid"),
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Activity.id.label("aid"),
-                Activity.duration_hours.label("dur"),
+        results = [
+            {
+                "control_number": s["control_number"],
+                "full_name": s["full_name"],
+                "career": s["career"] or "Sin especificar",
+                "total_hours": s["total_hours"],
+            }
+            for s in compute_student_hours(
+                event_ids=[event_id],
+                career=career,
+                search=search,
+                min_hours=min_hours,
             )
-            .join(Registration, Registration.student_id == Student.id)
-            .join(Activity, Activity.id == Registration.activity_id)
-            .filter(
-                Activity.event_id == event_id,
-                Registration.status.in_(["Confirmado", "Asistió"]),
-            )
-            .all()
-        )
-
-        # 2) Consultar participaciones desde Attendance (walk-ins)
-        att_rows = (
-            db.session.query(
-                Attendance.student_id.label("sid"),
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Activity.id.label("aid"),
-                Activity.duration_hours.label("dur"),
-            )
-            .join(Activity, Activity.id == Attendance.activity_id)
-            .join(Student, Student.id == Attendance.student_id)
-            .filter(
-                Activity.event_id == event_id,
-                Attendance.status == "Asistió",
-            )
-            .all()
-        )
-
-        # Mapear por estudiante: { sid: { activities: Set[aids], total_hours: float, control_number, full_name, career } }
-        students_map = {}
-
-        def ensure_student(sid, control_number, full_name, career):
-            if sid not in students_map:
-                students_map[sid] = {
-                    "id": sid,
-                    "control_number": control_number,
-                    "full_name": full_name,
-                    "career": career or "Sin especificar",
-                    "activities": set(),
-                    "total_hours": 0.0,
-                }
-
-        for r in reg_rows:
-            sid = getattr(r, "sid", None)
-            aid = getattr(r, "aid", None)
-            dur = float(getattr(r, "dur", 0) or 0)
-            ensure_student(sid, r.control_number, r.full_name, r.career)
-            if aid is not None and aid not in students_map[sid]["activities"]:
-                students_map[sid]["activities"].add(aid)
-                students_map[sid]["total_hours"] += dur
-
-        for a in att_rows:
-            sid = getattr(a, "sid", None)
-            aid = getattr(a, "aid", None)
-            dur = float(getattr(a, "dur", 0) or 0)
-            ensure_student(sid, a.control_number, a.full_name, a.career)
-            if aid is not None and aid not in students_map[sid]["activities"]:
-                students_map[sid]["activities"].add(aid)
-                students_map[sid]["total_hours"] += dur
-
-        # Aplicar filtros y construir resultados ordenados
-        results = []
-        for sid, info in students_map.items():
-            if career and info.get("career") != career:
-                continue
-            if search:
-                st = search.lower()
-                if not (
-                    (info.get("control_number") or "").lower().find(st) >= 0
-                    or (info.get("full_name") or "").lower().find(st) >= 0
-                ):
-                    continue
-            total = round(float(info["total_hours"] or 0), 2)
-            if total >= (min_hours or 0):
-                results.append(
-                    {
-                        "control_number": info["control_number"],
-                        "full_name": info["full_name"],
-                        "career": info["career"],
-                        "total_hours": total,
-                    }
-                )
-
-        # Ordenar por nombre
-        results.sort(key=lambda x: (x.get("full_name") or ""))
+        ]
 
         # Crear workbook
         wb = Workbook()

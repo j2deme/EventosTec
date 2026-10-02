@@ -308,111 +308,58 @@ def validate_student_proxy():
 def get_student_hours_by_event(student_id):
     """
     Calcula las horas confirmadas de un estudiante agrupadas por evento.
-    Solo cuenta registros con status='Asistió'.
+    Fuente única: Registration (Confirmado/Asistió) + Attendance (Asistió),
+    con dedup por actividad (inluye walk-ins).
     """
     try:
         student = db.session.get(Student, student_id)
         if not student:
             return jsonify({"message": "Estudiante no encontrado"}), 404
 
-        from app.models.registration import Registration
-        from app.models.activity import Activity
         from app.models.event import Event
-        from sqlalchemy import func
-
-        # Query: agrupar por evento, sumar horas de actividades donde status='Asistió'
-        results = (
-            db.session.query(
-                Event.id.label("event_id"),
-                Event.name.label("event_name"),
-                Event.start_date.label("event_start_date"),
-                Event.end_date.label("event_end_date"),
-                func.sum(Activity.duration_hours).label("total_hours"),
-                func.count(Activity.id).label("activities_count"),
-            )
-            .join(Activity, Activity.event_id == Event.id)
-            .join(Registration, Registration.activity_id == Activity.id)
-            .filter(
-                Registration.student_id == student_id, Registration.status == "Asistió"
-            )
-            .group_by(Event.id, Event.name, Event.start_date, Event.end_date)
-            .order_by(Event.start_date.desc())
-            .all()
+        from app.services.hours_service import (
+            compute_student_hours,
+            meets_credit_threshold,
         )
+
+        # Cálculo unificado por evento (fuente única): Registration
+        # (Confirmado/Asistió) + Attendance (Asistió), dedup por actividad.
+        # Reemplaza el fallback parcial anterior, que ignoraba los walk-ins
+        # cuando existía al menos un Registration.
+        rows = compute_student_hours(student_id=student_id)
+        hours_by_event = {}
+        activities_by_event = {}
+        if rows:
+            hours_by_event = {
+                eid: hours
+                for eid, hours in rows[0]["hours_by_event"].items()
+                if eid is not None
+            }
+            activities_by_event = dict(rows[0]["activities_by_event"])
+
         events_hours = []
         app_tz = AppSettings.app_timezone()
-        for row in results:
-            total_hours = float(row.total_hours or 0)
-            has_credit = total_hours >= 10.0
-            try:
-                es = (
-                    localize_naive_datetime(row.event_start_date, app_tz)
-                    if getattr(row, "event_start_date", None) is not None
-                    else None
-                )
-            except Exception:
-                es = None
-            try:
-                ee = (
-                    localize_naive_datetime(row.event_end_date, app_tz)
-                    if getattr(row, "event_end_date", None) is not None
-                    else None
-                )
-            except Exception:
-                ee = None
-
-            events_hours.append(
-                {
-                    "event_id": row.event_id,
-                    "event_name": row.event_name,
-                    "event_start_date": safe_iso(es) if es else None,
-                    "event_end_date": safe_iso(ee) if ee else None,
-                    "total_hours": total_hours,
-                    "activities_count": row.activities_count,
-                    "has_complementary_credit": has_credit,
-                }
-            )
-        # Si no se encontraron resultados por Registration (p. ej. se registró
-        # asistencia directamente en la tabla attendances), hacer un fallback
-        # que calcule horas sumando las actividades relacionadas a partir de
-        # la tabla Attendance.
-        if len(events_hours) == 0:
-            from app.models.attendance import Attendance
-
-            attendance_results = (
-                db.session.query(
-                    Event.id.label("event_id"),
-                    Event.name.label("event_name"),
-                    Event.start_date.label("event_start_date"),
-                    Event.end_date.label("event_end_date"),
-                    func.sum(Activity.duration_hours).label("total_hours"),
-                    func.count(Activity.id).label("activities_count"),
-                )
-                .join(Activity, Activity.event_id == Event.id)
-                .join(Attendance, Attendance.activity_id == Activity.id)
-                .filter(
-                    Attendance.student_id == student_id, Attendance.status == "Asistió"
-                )
-                .group_by(Event.id, Event.name, Event.start_date, Event.end_date)
+        if hours_by_event:
+            events = (
+                Event.query.filter(Event.id.in_(list(hours_by_event.keys())))
                 .order_by(Event.start_date.desc())
                 .all()
             )
-
-            for row in attendance_results:
-                total_hours = float(row.total_hours or 0)
-                has_credit = total_hours >= 10.0
+            for ev in events:
+                total_hours = float(hours_by_event.get(ev.id, 0) or 0)
+                has_credit = meets_credit_threshold(total_hours)
                 try:
                     es = (
-                        localize_naive_datetime(row.event_start_date, app_tz)
-                        if getattr(row, "event_start_date", None) is not None
+                        localize_naive_datetime(ev.start_date, app_tz)
+                        if getattr(ev, "start_date", None) is not None
                         else None
                     )
                 except Exception:
                     es = None
                 try:
                     ee = (
-                        localize_naive_datetime(row.event_end_date, app_tz)
-                        if getattr(row, "event_end_date", None) is not None
+                        localize_naive_datetime(ev.end_date, app_tz)
+                        if getattr(ev, "end_date", None) is not None
                         else None
                     )
                 except Exception:
@@ -420,12 +367,12 @@ def get_student_hours_by_event(student_id):
 
                 events_hours.append(
                     {
-                        "event_id": row.event_id,
-                        "event_name": row.event_name,
+                        "event_id": ev.id,
+                        "event_name": ev.name,
                         "event_start_date": safe_iso(es) if es else None,
                         "event_end_date": safe_iso(ee) if ee else None,
                         "total_hours": total_hours,
-                        "activities_count": row.activities_count,
+                        "activities_count": activities_by_event.get(ev.id, 0),
                         "has_complementary_credit": has_credit,
                     }
                 )
@@ -460,6 +407,10 @@ def get_student_event_details(student_id, event_id):
 
         from app.models.registration import Registration
         from app.models.activity import Activity
+        from app.services.hours_service import (
+            compute_student_hours,
+            meets_credit_threshold,
+        )
 
         # Obtener todas las registraciones del estudiante para este evento
         registrations = (
@@ -473,7 +424,6 @@ def get_student_event_details(student_id, event_id):
         )
 
         activities_detail = []
-        total_confirmed_hours = 0.0
 
         for reg in registrations:
             # Avoid direct attribute access that some static analyzers flag.
@@ -490,9 +440,6 @@ def get_student_event_details(student_id, event_id):
             if not activity:
                 continue
             hours = float(activity.duration_hours or 0)
-
-            if reg.status == "Asistió":
-                total_confirmed_hours += hours
 
             try:
                 sdt = (
@@ -557,8 +504,6 @@ def get_student_event_details(student_id, event_id):
                 }
             )
 
-        has_credit = total_confirmed_hours >= 10.0
-
         # ---- Integrar registros desde Attendance (walk-ins o asistencias directas) ----
         try:
             from app.models.attendance import Attendance
@@ -599,7 +544,6 @@ def get_student_event_details(student_id, event_id):
                     # actualizar el estado y sumar las horas al total confirmado.
                     if att.status == "Asistió" and existing.get("status") != "Asistió":
                         existing["status"] = "Asistió"
-                        total_confirmed_hours += hours
                     # Añadir metadatos de attendance si procede
                     existing["attendance_id"] = att.id
                     existing["attendance_percentage"] = getattr(
@@ -668,8 +612,6 @@ def get_student_event_details(student_id, event_id):
                         else None,
                     }
                     activities_detail.append(att_entry)
-                    if att.status == "Asistió":
-                        total_confirmed_hours += hours
 
             # Reordenar activities_detail por start_datetime asc
             try:
@@ -679,6 +621,13 @@ def get_student_event_details(student_id, event_id):
         except Exception:
             # No bloquear en caso de error de fallback
             pass
+
+        # Total unificado (fuente única): Registration (Confirmado/Asistió) +
+        # Attendance (Asistió) con dedup por actividad. El flag se calcula SOBRE
+        # el total final (antes se calculaba antes de integrar walk-ins).
+        total_rows = compute_student_hours(event_ids=[event_id], student_id=student_id)
+        total_confirmed_hours = total_rows[0]["total_hours"] if total_rows else 0.0
+        has_credit = meets_credit_threshold(total_confirmed_hours)
 
         try:
             ev_s = (
@@ -740,62 +689,33 @@ def get_students_with_complementary_credits():
         if not event_id:
             return jsonify({"message": "event_id es requerido"}), 400
 
-        from app.models.registration import Registration
-        from app.models.activity import Activity
         from app.models.event import Event
-        from sqlalchemy import func
+        from app.services.hours_service import CREDIT_MIN_HOURS, compute_student_hours
 
-        # Query base: estudiantes con sus horas por evento
-        query = (
-            db.session.query(
-                Student.id,
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Student.email,
-                func.sum(Activity.duration_hours).label("total_hours"),
-                func.count(Activity.id).label("activities_count"),
-            )
-            .join(Registration, Registration.student_id == Student.id)
-            .join(Activity, Activity.id == Registration.activity_id)
-            .filter(Activity.event_id == event_id, Registration.status == "Asistió")
-        )
-
-        # Filtro opcional por carrera
-        if career:
-            query = query.filter(Student.career.ilike(f"%{career}%"))
-
-        # Agrupar por estudiante y filtrar por horas >= 10
-        query = (
-            query.group_by(
-                Student.id,
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Student.email,
-            )
-            .having(func.sum(Activity.duration_hours) >= 10.0)
-            .order_by(Student.full_name)
-        )
-
-        results = query.all()
-
-        # Obtener información del evento
+        # Evento debe existir (misma respuesta 404 que antes)
         event = db.session.get(Event, event_id)
         if not event:
             return jsonify({"message": "Evento no encontrado"}), 404
+
+        # Cálculo unificado (fuente única): Registration (Confirmado/Asistió)
+        # + Attendance (Asistió), dedup por actividad, redondeo a 2 decimales.
+        results = compute_student_hours(
+            event_ids=[event_id],
+            career=career or None,
+            min_hours=CREDIT_MIN_HOURS,
+        )
 
         students_list = []
         for row in results:
             students_list.append(
                 {
-                    "id": row.id,
-                    "control_number": row.control_number,
-                    "full_name": row.full_name,
-                    "career": row.career or "Sin carrera",
-                    "email": row.email or "Sin email",
-                    "total_hours": float(row.total_hours or 0),
-                    "activities_count": row.activities_count,
+                    "id": row["id"],
+                    "control_number": row["control_number"],
+                    "full_name": row["full_name"],
+                    "career": row["career"] or "Sin carrera",
+                    "email": row["email"] or "Sin email",
+                    "total_hours": float(row["total_hours"] or 0),
+                    "activities_count": row["activities_count"],
                     "has_complementary_credit": True,  # Ya filtrados por >= 10 horas
                 }
             )
@@ -853,43 +773,15 @@ def export_complementary_credits():
         if not event_id:
             return jsonify({"message": "event_id es requerido"}), 400
 
-        from app.models.registration import Registration
-        from app.models.activity import Activity
         from app.models.event import Event
-        from sqlalchemy import func
+        from app.services.hours_service import CREDIT_MIN_HOURS, compute_student_hours
 
-        # Obtener datos (misma lógica que el endpoint anterior)
-        query = (
-            db.session.query(
-                Student.id,
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Student.email,
-                func.sum(Activity.duration_hours).label("total_hours"),
-                func.count(Activity.id).label("activities_count"),
-            )
-            .join(Registration, Registration.student_id == Student.id)
-            .join(Activity, Activity.id == Registration.activity_id)
-            .filter(Activity.event_id == event_id, Registration.status == "Asistió")
+        # Obtener datos (misma lógica que el endpoint anterior, fuente única)
+        results = compute_student_hours(
+            event_ids=[event_id],
+            career=career or None,
+            min_hours=CREDIT_MIN_HOURS,
         )
-
-        if career:
-            query = query.filter(Student.career.ilike(f"%{career}%"))
-
-        query = (
-            query.group_by(
-                Student.id,
-                Student.control_number,
-                Student.full_name,
-                Student.career,
-                Student.email,
-            )
-            .having(func.sum(Activity.duration_hours) >= 10.0)
-            .order_by(Student.full_name)
-        )
-
-        results = query.all()
 
         # Obtener información del evento
         event = db.session.get(Event, event_id)
@@ -953,12 +845,12 @@ def export_complementary_credits():
         for idx, row in enumerate(results, 1):
             data_row = header_row + idx
             ws.cell(row=data_row, column=1, value=idx)
-            ws.cell(row=data_row, column=2, value=row.control_number)
-            ws.cell(row=data_row, column=3, value=row.full_name)
-            ws.cell(row=data_row, column=4, value=row.career or "Sin carrera")
-            ws.cell(row=data_row, column=5, value=row.email or "Sin email")
-            ws.cell(row=data_row, column=6, value=float(row.total_hours or 0))
-            ws.cell(row=data_row, column=7, value=row.activities_count)
+            ws.cell(row=data_row, column=2, value=row["control_number"])
+            ws.cell(row=data_row, column=3, value=row["full_name"])
+            ws.cell(row=data_row, column=4, value=row["career"] or "Sin carrera")
+            ws.cell(row=data_row, column=5, value=row["email"] or "Sin email")
+            ws.cell(row=data_row, column=6, value=float(row["total_hours"] or 0))
+            ws.cell(row=data_row, column=7, value=row["activities_count"])
 
         # Ajustar ancho de columnas
         ws.column_dimensions["A"].width = 8
