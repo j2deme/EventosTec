@@ -45,7 +45,7 @@ def test_calendar_unknown_event_returns_404(client, auth_headers):
 
 
 def test_calendar_days_and_activities(client, auth_headers, db_session):
-    """Ventana de 3 días, actividades dentro y fuera, horas locales de pared."""
+    """Ventana de 3 días: solo días CON actividades; horas locales de pared."""
     event = _make_event(
         db_session,
         datetime(2026, 10, 6, 9, 0),
@@ -82,7 +82,9 @@ def test_calendar_days_and_activities(client, auth_headers, db_session):
     assert data["event"]["id"] == event.id
     assert data["event"]["start_date"] == "2026-10-06"
     assert data["event"]["end_date"] == "2026-10-08"
-    assert data["days"] == ["2026-10-06", "2026-10-07", "2026-10-08"]
+    # Solo el día 2026-10-07 tiene actividades: 10-06 y 10-08 (vacíos) se
+    # omiten del grid; 10-20 queda fuera de la ventana y no genera columna
+    assert data["days"] == ["2026-10-07"]
 
     # Actividades: todas incluidas, ordenadas por hora de inicio
     assert data["total_activities"] == 3
@@ -99,6 +101,9 @@ def test_calendar_days_and_activities(client, auth_headers, db_session):
     assert autocad["starts_at"] == "13:00"
     assert autocad["ends_at"] == "14:00"
     assert autocad["registered_count"] == 0
+    # Sesión única (actividad de un solo día): 1/1
+    assert autocad["session_index"] == 1
+    assert autocad["session_total"] == 1
 
     # La actividad fuera de la ventana conserva su fecha real (la UI la lista
     # en el bloque de "fuera de ventana")
@@ -147,7 +152,7 @@ def test_calendar_registered_count_uses_registrado_status(
 
 
 def test_calendar_without_activities(client, auth_headers, db_session):
-    """Evento sin actividades: días calculados, listas vacías."""
+    """Evento sin actividades: no hay días con actividades (days == [])."""
     event = _make_event(
         db_session,
         datetime(2026, 10, 6, 9, 0),
@@ -158,6 +163,62 @@ def test_calendar_without_activities(client, auth_headers, db_session):
     assert response.status_code == 200
     data = json.loads(response.data)
 
-    assert data["days"] == ["2026-10-06", "2026-10-07"]
+    assert data["days"] == []
     assert data["activities"] == []
     assert data["total_activities"] == 0
+    # El rango del evento sigue disponible para el encabezado
+    assert data["event"]["start_date"] == "2026-10-06"
+    assert data["event"]["end_date"] == "2026-10-07"
+
+
+def test_calendar_multi_day_activity_expands_sessions(client, auth_headers, db_session):
+    """Actividad multídía → una entrada por día (sesión) con el mismo
+    horario fijo; `days` incluye todos los días ocupados; `total_activities`
+    cuenta actividades únicas, no sesiones."""
+    event = _make_event(
+        db_session,
+        datetime(2026, 10, 5, 9, 0),
+        datetime(2026, 10, 9, 17, 0),
+        name="Evento multisesión",
+    )
+    # Multidía: 7 oct 08:00 → 9 oct 16:00 (una sesión diaria 08:00-16:00)
+    multi = _make_activity(
+        db_session,
+        event.id,
+        "Hackathon 3 días",
+        datetime(2026, 10, 7, 8, 0),
+        datetime(2026, 10, 9, 16, 0),
+    )
+    # Día intermedio sin más actividades: sigue existiendo por la sesión
+    _make_activity(
+        db_session,
+        event.id,
+        "Charla única",
+        datetime(2026, 10, 7, 10, 0),
+        datetime(2026, 10, 7, 11, 0),
+    )
+
+    response = client.get(f"/api/events/{event.id}/calendar", headers=auth_headers)
+    assert response.status_code == 200
+    data = json.loads(response.data)
+
+    # Días vacíos (10-05, 10-06) omitidos: solo quedan los días con sesiones
+    assert data["days"] == ["2026-10-07", "2026-10-08", "2026-10-09"]
+
+    # Actividad única contada una vez (no 3 sesiones)
+    assert data["total_activities"] == 2
+    assert len(data["activities"]) == 4  # 3 sesiones + 1 charla
+
+    sessions = [a for a in data["activities"] if a["id"] == multi.id]
+    assert [s["day"] for s in sessions] == ["2026-10-07", "2026-10-08", "2026-10-09"]
+    # Mismo horario fijo en cada sesión (estrategia de la vista student)
+    assert all(s["starts_at"] == "08:00" for s in sessions)
+    assert all(s["ends_at"] == "16:00" for s in sessions)
+    # Índices de sesión 1..n y metadatos heredados de la actividad
+    assert [s["session_index"] for s in sessions] == [1, 2, 3]
+    assert all(s["session_total"] == 3 for s in sessions)
+    assert all(s["location"] == "Salón 1" for s in sessions)
+    # La charla única también expone 1/1
+    charla = next(a for a in data["activities"] if a["name"] == "Charla única")
+    assert charla["session_index"] == 1
+    assert charla["session_total"] == 1

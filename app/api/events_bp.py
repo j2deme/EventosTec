@@ -7,6 +7,7 @@ from app.models.event import Event
 from app.models.activity import Activity
 from app.models.registration import Registration
 from app.utils.auth_helpers import require_admin
+from app.services.registration_service import _get_daily_sessions
 from sqlalchemy import asc, desc, or_
 from app.utils.slug_utils import generate_unique_slug, slugify as canonical_slugify
 
@@ -178,16 +179,24 @@ def get_event(event_id):
 def get_event_calendar(event_id):
     """Distribución de las actividades del evento por día y horario.
 
-    Contrato nuevo y aditivo (no modifica endpoints existentes):
+    Contrato (aditivo/backward-compatible, no modifica endpoints existentes):
     {
       "event": {"id", "name", "start_date", "end_date"},  # fechas %Y-%m-%d
-      "days": ["2026-10-06", ...],                        # ventana del evento
-      "activities": [ ...to_dict() + day/starts_at/ends_at/registered_count ],
-      "total_activities": int
+      "days": ["2026-10-07", ...],   # días CON actividades (sesiones) dentro
+                                      # de la ventana del evento; los días
+                                      # vacíos se omiten
+      "activities": [ ...to_dict() + day/starts_at/ends_at/registered_count
+                      + session_index/session_total ],
+                                      # UNA entrada por sesión: las
+                                      # actividades multídía generan una
+                      # entrada por día (sesión diaria con horario fijo)
+      "total_activities": int         # actividades únicas (no sesiones)
     }
 
     `day`/`starts_at`/`ends_at` se derivan del almacenamiento naive local
     (hora de pared, convención de docs/TIMEZONE_FIX.md): sin conversiones tz.
+    Las sesiones usan `_get_daily_sessions` (misma estrategia que la vista
+    de estudiantes: una sesión por día con horario fijo entre start y end).
     `registered_count` usa la misma semántica de cupo que
     `is_registration_allowed` (status == "Registrado"), en una sola consulta.
     """
@@ -196,15 +205,16 @@ def get_event_calendar(event_id):
         if not event:
             return jsonify({"message": "Evento no encontrado"}), 404
 
-        # Días de la ventana del evento (fechas locales, sin hora)
+        # Ventana del evento (fechas locales, sin hora): solo se usará para
+        # filtrar qué días con actividades se muestran en el grid
         first_day = event.start_date.date()
         last_day = event.end_date.date()
         if last_day < first_day:
             last_day = first_day
-        days = []
+        window_days = set()
         cursor = first_day
         while cursor <= last_day:
-            days.append(cursor.strftime("%Y-%m-%d"))
+            window_days.add(cursor.strftime("%Y-%m-%d"))
             cursor += timedelta(days=1)
 
         activities = (
@@ -231,18 +241,56 @@ def get_event_calendar(event_id):
 
         items = []
         for activity in activities:
-            payload = activity.to_dict()
-            if activity.start_datetime:
-                payload["day"] = activity.start_datetime.strftime("%Y-%m-%d")
-                payload["starts_at"] = activity.start_datetime.strftime("%H:%M")
-            else:
-                payload["day"] = None
-                payload["starts_at"] = None
-            payload["ends_at"] = (
-                activity.end_datetime.strftime("%H:%M") if activity.end_datetime else None
-            )
-            payload["registered_count"] = counts.get(activity.id, 0)
-            items.append(payload)
+            payload_base = activity.to_dict()
+            payload_base["registered_count"] = counts.get(activity.id, 0)
+
+            # Sin fecha de inicio: entrada única sin día (bloque externo)
+            if not activity.start_datetime:
+                items.append(
+                    {
+                        **payload_base,
+                        "day": None,
+                        "starts_at": None,
+                        "ends_at": None,
+                        "session_index": None,
+                        "session_total": None,
+                    }
+                )
+                continue
+
+            # Sesiones: una entrada por día con horario fijo (misma
+            # estrategia que la vista de estudiantes). Fallback a entrada
+            # única si faltan fechas o si end < start (datos inválidos).
+            sessions = []
+            if activity.end_datetime:
+                sessions = _get_daily_sessions(activity)
+            if not sessions:
+                sessions = [(activity.start_datetime, activity.end_datetime)]
+
+            session_total = len(sessions)
+            for session_index, (session_start, session_end) in enumerate(
+                sessions, start=1
+            ):
+                items.append(
+                    {
+                        **payload_base,
+                        "day": session_start.strftime("%Y-%m-%d"),
+                        "starts_at": session_start.strftime("%H:%M"),
+                        "ends_at": (
+                            session_end.strftime("%H:%M") if session_end else None
+                        ),
+                        "session_index": session_index,
+                        "session_total": session_total,
+                    }
+                )
+
+        # Días con ≥1 sesión DENTRO de la ventana del evento: solo esos
+        # días generan columna en el grid (los vacíos se omiten). Las
+        # sesiones fuera de la ventana quedan en el bloque "fuera" del
+        # frontend (day no pertenece a days).
+        days = sorted(
+            {item["day"] for item in items if item["day"] and item["day"] in window_days}
+        )
 
         return (
             jsonify(
@@ -256,7 +304,9 @@ def get_event_calendar(event_id):
                     },
                     "days": days,
                     "activities": items,
-                    "total_activities": len(items),
+                    # Actividades únicas (no sesiones: items puede tener
+                    # varias entradas por actividad multídía)
+                    "total_activities": len(activities),
                 }
             ),
             200,
