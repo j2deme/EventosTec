@@ -836,29 +836,68 @@ def get_students_with_complementary_credits():
 @require_admin
 def export_complementary_credits():
     """
-    Exporta a Excel la lista de estudiantes con 10+ horas en un evento.
+    Exporta a Excel la lista de estudiantes con crédito complementario.
+
+    Query params (misma semántica que GET /complementary-credits):
+      - event_id (int): evento único (comportamiento original).
+      - event_ids (str): comas y/o parámetro repetido para acumular eventos;
+        si se envían ambos params, se unen.
+      - career (str): filtro por carrera.
+
+    Aplica la misma regla que la lista: horas unificadas + exclusión
+    derivada (earliest-crossing) + overrides manuales. El Excel incluye una
+    columna de horas por evento seleccionado, más "Horas Totales" y
+    "Actividades".
     """
     try:
         event_id = request.args.get("event_id", type=int)
         career = request.args.get("career", "")
 
-        if not event_id:
+        # Parsear event_ids: acepta comas y parámetros repetidos
+        # (misma lógica que el endpoint de lista)
+        requested_ids = []
+        for raw in request.args.getlist("event_ids"):
+            for token in raw.split(","):
+                token = token.strip()
+                if not token:
+                    continue
+                if not token.isdigit():
+                    return (
+                        jsonify(
+                            {
+                                "message": "event_ids debe contener IDs numéricos",
+                                "invalid": token,
+                            }
+                        ),
+                        400,
+                    )
+                requested_ids.append(int(token))
+        if event_id:
+            requested_ids.append(event_id)
+        unique_ids = list(dict.fromkeys(requested_ids))
+
+        if not unique_ids:
             return jsonify({"message": "event_id es requerido"}), 400
 
+        from openpyxl.utils import get_column_letter
+
         from app.models.event import Event
-        from app.services.hours_service import CREDIT_MIN_HOURS, compute_student_hours
+        from app.services.hours_service import compute_credit_rows, load_overrides_map
 
-        # Obtener datos (misma lógica que el endpoint anterior, fuente única)
-        results = compute_student_hours(
-            event_ids=[event_id],
-            career=career or None,
-            min_hours=CREDIT_MIN_HOURS,
-        )
-
-        # Obtener información del evento
-        event = db.session.get(Event, event_id)
-        if not event:
+        # Los eventos deben existir (misma respuesta 404 que antes)
+        events = Event.query.filter(Event.id.in_(unique_ids)).all()
+        if len(events) != len(unique_ids):
             return jsonify({"message": "Evento no encontrado"}), 404
+        events.sort(key=lambda e: (e.start_date is None, e.start_date, e.id))
+        chronological_ids = [ev.id for ev in events]
+
+        # Misma regla que la lista (fuente única + exclusion + overrides)
+        results, _stats = compute_credit_rows(
+            event_ids=unique_ids,
+            chronological_ids=chronological_ids,
+            career=career or None,
+            overrides=load_overrides_map(),
+        )
 
         # Crear archivo Excel
         wb: Workbook = Workbook()
@@ -872,15 +911,28 @@ def export_complementary_credits():
         header_font = Font(color="FFFFFF", bold=True, size=12)
         header_alignment = Alignment(horizontal="center", vertical="center")
 
-        # Título
-        ws.merge_cells("A1:G1")
+        # Columnas: base + una por evento + totales
+        base_headers = [
+            "No.",
+            "Número de Control",
+            "Nombre Completo",
+            "Carrera",
+            "Email",
+        ]
+        event_headers = [ev.name for ev in events]
+        all_headers = base_headers + event_headers + ["Horas Totales", "Actividades"]
+        last_col_letter = get_column_letter(len(all_headers))
+
+        # Título (un evento: nombre; varios: unión de nombres)
+        scope = " + ".join(ev.name for ev in events)
+        ws.merge_cells(f"A1:{last_col_letter}1")
         title_cell = ws["A1"]
-        title_cell.value = f"Estudiantes con Crédito Complementario - {event.name}"
+        title_cell.value = f"Estudiantes con Crédito Complementario - {scope}"
         title_cell.font = Font(bold=True, size=14)
         title_cell.alignment = Alignment(horizontal="center", vertical="center")
 
         # Información adicional
-        ws.merge_cells("A2:G2")
+        ws.merge_cells(f"A2:{last_col_letter}2")
         info_cell = ws["A2"]
         info_cell.value = (
             f"Generado el: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M')}"
@@ -888,7 +940,7 @@ def export_complementary_credits():
         info_cell.alignment = Alignment(horizontal="center")
 
         if career:
-            ws.merge_cells("A3:G3")
+            ws.merge_cells(f"A3:{last_col_letter}3")
             career_cell = ws["A3"]
             career_cell.value = f"Filtrado por carrera: {career}"
             career_cell.alignment = Alignment(horizontal="center")
@@ -897,45 +949,41 @@ def export_complementary_credits():
             header_row = 4
 
         # Encabezados
-        headers = [
-            "No.",
-            "Número de Control",
-            "Nombre Completo",
-            "Carrera",
-            "Email",
-            "Horas Confirmadas",
-            "Actividades",
-        ]
-        for col_num, header in enumerate(headers, 1):
+        for col_num, header in enumerate(all_headers, 1):
             cell: Any = ws.cell(row=header_row, column=col_num)
             cell.value = header
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = header_alignment
 
-        # Datos
+        # Datos: horas por evento (desglose) + total + actividades
         for idx, row in enumerate(results, 1):
             data_row = header_row + idx
-            ws.cell(row=data_row, column=1, value=idx)
-            ws.cell(row=data_row, column=2, value=row["control_number"])
-            ws.cell(row=data_row, column=3, value=row["full_name"])
-            ws.cell(row=data_row, column=4, value=row["career"] or "Sin carrera")
-            ws.cell(row=data_row, column=5, value=row["email"] or "Sin email")
-            ws.cell(row=data_row, column=6, value=float(row["total_hours"] or 0))
-            ws.cell(row=data_row, column=7, value=row["activities_count"])
+            values: list[Any] = [
+                idx,
+                row["control_number"],
+                row["full_name"],
+                row["career"] or "Sin carrera",
+                row["email"] or "Sin email",
+            ]
+            values.extend(
+                float(row["hours_by_event"].get(ev.id, 0) or 0) for ev in events
+            )
+            values.append(float(row["total_hours"] or 0))
+            values.append(row["activities_count"])
+            for col_num, value in enumerate(values, 1):
+                ws.cell(row=data_row, column=col_num, value=value)
 
         # Ajustar ancho de columnas
-        ws.column_dimensions["A"].width = 8
-        ws.column_dimensions["B"].width = 20
-        ws.column_dimensions["C"].width = 35
-        ws.column_dimensions["D"].width = 40
-        ws.column_dimensions["E"].width = 30
-        ws.column_dimensions["F"].width = 18
-        ws.column_dimensions["G"].width = 15
+        widths = [8, 20, 35, 40, 30]
+        widths.extend(max(15, min(35, len(ev.name) + 4)) for ev in events)
+        widths.extend([16, 13])
+        for col_num, width in enumerate(widths, 1):
+            ws.column_dimensions[get_column_letter(col_num)].width = width
 
         # Resumen al final
         summary_row = header_row + len(results) + 2
-        ws.merge_cells(f"A{summary_row}:E{summary_row}")
+        ws.merge_cells(f"A{summary_row}:{last_col_letter}{summary_row}")
         summary_cell: Any = ws.cell(row=summary_row, column=1)
         summary_cell.value = f"Total de estudiantes: {len(results)}"
         summary_cell.font = Font(bold=True)
@@ -947,28 +995,13 @@ def export_complementary_credits():
         output.seek(0)
 
         # Generar nombre de archivo
-        filename = f"creditos_complementarios_{event.name.replace(' ', '_')}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.xlsx"
+        scope_slug = (
+            events[0].name.replace(" ", "_")
+            if len(events) == 1
+            else f"multi_{len(events)}_eventos"
+        )
+        filename = f"creditos_complementarios_{scope_slug}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.xlsx"
 
-        # Localizar fechas del evento antes de devolver metadatos en la exportación
-        try:
-            app_tz = AppSettings.app_timezone()
-            (
-                localize_naive_datetime(event.start_date, app_tz)
-                if getattr(event, "start_date", None) is not None
-                else None
-            )
-        except Exception:
-            pass
-        try:
-            (
-                localize_naive_datetime(event.end_date, app_tz)
-                if getattr(event, "end_date", None) is not None
-                else None
-            )
-        except Exception:
-            pass
-
-        # (filename ya fue generado arriba con UTC now)
         return send_file(
             output,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

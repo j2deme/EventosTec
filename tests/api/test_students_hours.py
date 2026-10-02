@@ -844,6 +844,99 @@ def test_crossing_at_intermediate_event_excluded_last_included(
     assert data["excluded_already_credited"] == 1
 
 
+def test_export_event_ids_multi_event_columns(app, client, auth_headers):
+    """El Excel multi-evento incluye una columna de horas por evento +
+    'Horas Totales' + 'Actividades', con la misma regla que la lista."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    ev1 = _create_credits_event(app, "Export Ev A")
+    ev2 = _create_credits_event(app, "Export Ev B")
+    _create_student_with_hours(
+        app, [(ev1, 6.0), (ev2, 4.0)], "EXPM01", "Alumno Export Multi"
+    )
+
+    resp = client.get(
+        f"/api/students/complementary-credits/export?event_ids={ev1},{ev2}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert (
+        resp.content_type
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    wb = load_workbook(BytesIO(resp.data))
+    ws = wb.active
+    headers = [cell.value for cell in ws[4]]
+    assert headers == [
+        "No.",
+        "Número de Control",
+        "Nombre Completo",
+        "Carrera",
+        "Email",
+        "Export Ev A",
+        "Export Ev B",
+        "Horas Totales",
+        "Actividades",
+    ]
+    row = [cell.value for cell in ws[5]]
+    assert row[1] == "EXPM01"
+    assert row[5] == 6.0  # horas en ev1
+    assert row[6] == 4.0  # horas en ev2
+    assert row[7] == 10.0  # total combinado
+    assert row[8] == 2  # actividades
+    # Solo un estudiante: la siguiente fila de datos está vacía
+    assert ws.cell(row=6, column=2).value is None
+
+
+def test_export_applies_derived_exclusion(app, client, auth_headers):
+    """El Excel respeta la exclusión derivada (cruce en evento anterior)."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    ev1 = _create_credits_event(app, "Export Crono 1")
+    ev2 = _create_credits_event(app, "Export Crono 2")
+    _create_student_with_hours(
+        app, [(ev1, 12.0), (ev2, 3.0)], "EXPR01", "Alumno Ya Acreditado"
+    )
+
+    resp = client.get(
+        f"/api/students/complementary-credits/export?event_ids={ev1},{ev2}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+
+    wb = load_workbook(BytesIO(resp.data))
+    ws = wb.active
+    # Encabezado presente, pero ninguna fila de datos (excluido por la regla)
+    assert ws.cell(row=4, column=1).value == "No."
+    assert ws.cell(row=5, column=2).value is None
+
+
+def test_export_missing_event_ids_validation(client, auth_headers):
+    """El export valida los mismos parámetros que la lista."""
+    resp = client.get(
+        "/api/students/complementary-credits/export", headers=auth_headers
+    )
+    assert resp.status_code == 400
+    assert "event_id" in resp.get_json()["message"].lower()
+
+    resp = client.get(
+        "/api/students/complementary-credits/export?event_ids=abc",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 400
+
+    resp = client.get(
+        "/api/students/complementary-credits/export?event_ids=99999",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 404
+
+
 def test_complementary_credits_event_ids_accepts_repeated_param(
     app, client, auth_headers
 ):
