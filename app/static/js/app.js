@@ -376,7 +376,7 @@ function showToast(message, type = "success", duration = 3000) {
       background: backgroundColor,
       borderRadius: "0.5rem",
       padding: "1rem",
-      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+      fontFamily: "Google Sans, ui-sans-serif, system-ui, sans-serif",
       fontWeight: "500",
       fontSize: "0.875rem",
       lineHeight: "1.25rem",
