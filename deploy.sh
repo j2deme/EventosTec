@@ -16,4 +16,7 @@ docker compose build --pull --no-cache web
 echo "🔄 Reiniciando servicio..."
 docker compose up -d --force-recreate --no-deps web
 
+echo "🧹 Limpiando imágenes huérfanas/viejas..."
+docker image prune -f
+
 echo "✅ Despliegue completado."
