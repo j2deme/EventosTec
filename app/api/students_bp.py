@@ -715,12 +715,20 @@ def get_students_with_complementary_credits():
         Acepta separado por comas (?event_ids=1,3) y/o repetido
         (?event_ids=1&event_ids=3). Si se envían ambos params, se unen.
 
+    Exclusión derivada de ya acreditados (earliest-crossing): los eventos se
+    ordenan cronológicamente y se acumulan; el estudiante solo aparece si la
+    suma cruza las 10 h en el ÚLTIMO evento seleccionado. Si cruzó en uno
+    anterior ya quedó acreditado y se omite (la fase de overrides manuales
+    podrá forzar inclusión/exclusión). Con un solo evento la regla no cambia
+    nada: el cruce siempre ocurre en el único evento.
+
     Respuesta (aditiva, no se quitan campos):
       - event: payload del evento solicitado vía event_id
         (null cuando solo se usó event_ids).
       - events: payloads de todos los eventos considerados (orden cronológico).
       - students: cada estudiante incluye hours_by_event/activities_by_event.
       - total_students: cantidad de estudiantes.
+      - excluded_already_credited: cuántos se omitieron por la regla derivada.
     """
     try:
         event_id = request.args.get("event_id", type=int)
@@ -753,14 +761,19 @@ def get_students_with_complementary_credits():
             return jsonify({"message": "event_id es requerido"}), 400
 
         from app.models.event import Event
-        from app.services.hours_service import CREDIT_MIN_HOURS, compute_student_hours
+        from app.services.hours_service import (
+            CREDIT_MIN_HOURS,
+            compute_student_hours,
+            earliest_crossing_event,
+        )
 
         # Los eventos deben existir (misma respuesta 404 que antes)
         events = Event.query.filter(Event.id.in_(unique_ids)).all()
         if len(events) != len(unique_ids):
             return jsonify({"message": "Evento no encontrado"}), 404
-        # Orden cronológico para el desglose por evento
-        events.sort(key=lambda e: (e.start_date is None, e.start_date))
+        # Orden cronológico: rige el desglose y la regla de exclusión
+        events.sort(key=lambda e: (e.start_date is None, e.start_date, e.id))
+        chronological_ids = [ev.id for ev in events]
 
         # Cálculo unificado (fuente única): Registration (Confirmado/Asistió)
         # + Attendance (Asistió), dedup por actividad, redondeo a 2 decimales.
@@ -769,6 +782,22 @@ def get_students_with_complementary_credits():
             career=career or None,
             min_hours=CREDIT_MIN_HOURS,
         )
+
+        # Exclusión derivada (earliest-crossing): si la suma acumulada cruzó
+        # las 10 h en un evento ANTERIOR al último seleccionado, el estudiante
+        # ya quedó acreditado y se omite de la lista.
+        last_event_id = chronological_ids[-1]
+        excluded_already_credited = 0
+        kept_results = []
+        for row in results:
+            crossing = earliest_crossing_event(
+                row["hours_by_event"], chronological_ids, CREDIT_MIN_HOURS
+            )
+            if crossing is not None and crossing != last_event_id:
+                excluded_already_credited += 1
+                continue
+            kept_results.append(row)
+        results = kept_results
 
         students_list = []
         for row in results:
@@ -803,6 +832,7 @@ def get_students_with_complementary_credits():
                 "events": events_payload,
                 "students": students_list,
                 "total_students": len(students_list),
+                "excluded_already_credited": excluded_already_credited,
             }
         ), 200
 

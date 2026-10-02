@@ -777,6 +777,71 @@ def test_complementary_credits_event_ids_accumulates_across_events(
     # events incluye ambos (orden cronológico) y event es null (sin event_id)
     assert [e["id"] for e in data["events"]] == [ev1, ev2]
     assert data["event"] is None
+    # Nadie queda excluido: el cruce 6+4 ocurre en el último evento
+    assert data["excluded_already_credited"] == 0
+
+
+def test_already_credited_in_earlier_event_is_excluded(
+    app, client, auth_headers
+):
+    """Exclusión derivada (earliest-crossing): si la suma cruza 10h en un
+    evento ANTERIOR al último seleccionado, el estudiante ya acreditado se
+    omite de la lista combinada."""
+    ev1 = _create_credits_event(app, "Crono Temprano")
+    ev2 = _create_credits_event(app, "Crono Tardio")
+    _create_student_with_hours(
+        app, [(ev1, 12.0), (ev2, 3.0)], "CRON01", "Acreditado Temprano"
+    )
+
+    # Selección combinada: cruzó en ev1 (≠ último) → excluido
+    resp = client.get(
+        f"/api/students/complementary-credits?event_ids={ev1},{ev2}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["total_students"] == 0
+    assert data["excluded_already_credited"] == 1
+
+    # Selección solo ev1: el cruce ocurre en el único/último evento → listado
+    resp = client.get(
+        f"/api/students/complementary-credits?event_id={ev1}", headers=auth_headers
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["total_students"] == 1
+    assert data["students"][0]["control_number"] == "CRON01"
+    assert data["excluded_already_credited"] == 0
+
+
+def test_crossing_at_intermediate_event_excluded_last_included(
+    app, client, auth_headers
+):
+    """Con 3 eventos: el que cruza en el intermedio se excluye; el que cruza
+    en el último (ejemplo del plan 4+4+2) entra."""
+    ev1 = _create_credits_event(app, "Crono 1")
+    ev2 = _create_credits_event(app, "Crono 2")
+    ev3 = _create_credits_event(app, "Crono 3")
+    # Cruza en ev2 (intermedio): 6 -> 10 -> 15
+    _create_student_with_hours(
+        app, [(ev1, 6.0), (ev2, 4.0), (ev3, 5.0)], "CRON02", "Cruce Intermedio"
+    )
+    # Cruza en ev3 (último): 4 -> 8 -> 10
+    _create_student_with_hours(
+        app, [(ev1, 4.0), (ev2, 4.0), (ev3, 2.0)], "CRON03", "Cruce Final"
+    )
+
+    resp = client.get(
+        f"/api/students/complementary-credits?event_ids={ev1},{ev2},{ev3}",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+
+    assert data["total_students"] == 1
+    assert data["students"][0]["control_number"] == "CRON03"
+    assert data["students"][0]["total_hours"] == 10.0
+    assert data["excluded_already_credited"] == 1
 
 
 def test_complementary_credits_event_ids_accepts_repeated_param(

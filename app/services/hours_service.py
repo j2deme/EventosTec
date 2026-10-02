@@ -36,6 +36,25 @@ def meets_credit_threshold(total_hours, threshold=CREDIT_MIN_HOURS) -> bool:
     return total >= float(threshold)
 
 
+def earliest_crossing_event(
+    hours_by_event, chronological_event_ids, threshold=CREDIT_MIN_HOURS
+):
+    """Evento (según el orden cronológico dado) en el que la suma acumulada
+    alcanza por primera vez el umbral.
+
+    Devuelve el ``event_id`` del cruce, o ``None`` si nunca se alcanza.
+    Se usa para la exclusión derivada de estudiantes ya acreditados: si el
+    cruce ocurre en un evento ANTERIOR al último evaluado, el estudiante ya
+    quedó acreditado antes.
+    """
+    total = 0.0
+    for eid in chronological_event_ids:
+        total += float(hours_by_event.get(eid, 0) or 0)
+        if meets_credit_threshold(total, threshold):
+            return eid
+    return None
+
+
 def compute_student_hours(
     event_ids=None,
     student_id=None,

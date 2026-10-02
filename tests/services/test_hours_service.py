@@ -116,6 +116,32 @@ def test_credit_min_hours_constant():
 
 
 # ---------------------------------------------------------------------------
+# regla earliest-crossing (exclusión derivada de ya acreditados)
+# ---------------------------------------------------------------------------
+
+
+def test_earliest_crossing_event_variants():
+    from app.services.hours_service import earliest_crossing_event
+
+    # Cruza en el primer evento (ya acreditado antes del último)
+    assert earliest_crossing_event({1: 12.0, 2: 3.0}, [1, 2]) == 1
+    # Cruza en el último evento (entra en la lista combinada)
+    assert earliest_crossing_event({1: 8.0, 2: 3.0}, [1, 2]) == 2
+    # Nunca cruza el umbral
+    assert earliest_crossing_event({1: 4.0, 2: 5.0}, [1, 2]) is None
+    # Cruza en un evento intermedio de tres (excluido)
+    assert earliest_crossing_event({1: 6.0, 2: 4.0, 3: 5.0}, [1, 2, 3]) == 2
+    # Ejemplo del plan: 4 + 4 + 2 cruza en el tercero (último)
+    assert earliest_crossing_event({1: 4.0, 2: 4.0, 3: 2.0}, [1, 2, 3]) == 3
+    # Suma con ruido de punto flotante: 4.4 + 5.6 cruza con redondeo
+    assert earliest_crossing_event({1: 4.4, 2: 5.6}, [1, 2]) == 2
+    # Eventos intermedios sin horas del estudiante
+    assert earliest_crossing_event({1: 0.0, 3: 10.0}, [1, 2, 3]) == 3
+    # Un solo evento: el cruce siempre ocurre en el único evento
+    assert earliest_crossing_event({7: 11.0}, [7]) == 7
+
+
+# ---------------------------------------------------------------------------
 # semántica de conteo
 # ---------------------------------------------------------------------------
 
