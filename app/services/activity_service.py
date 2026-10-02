@@ -1,4 +1,8 @@
-from app.utils.datetime_utils import localize_naive_datetime, safe_iso
+from app.utils.datetime_utils import (
+    iso_for_write,
+    localize_naive_datetime,
+    safe_iso,
+)
 from app import db
 from app.models.activity import Activity
 from app.models.event import Event
@@ -815,11 +819,14 @@ def create_activities_from_xlsx(file_stream, event_id=None, dry_run=True):
                     sd = parsed_sd or sd
                     ed = parsed_ed or ed
 
-            # If sd/ed are datetime-like, convert to ISO strings so Marshmallow DateTime loader parses them reliably.
-            # use centralized safe_iso from app.utils.datetime_utils
-
-            activity_data["start_datetime"] = safe_iso(sd)
-            activity_data["end_datetime"] = safe_iso(ed)
+            # If sd/ed are datetime-like, convert to ISO strings so Marshmallow
+            # DateTime loader parses them reliably. Se usa iso_for_write (y NO
+            # safe_iso): safe_iso es un helper de lectura que convertiría la
+            # hora local del Excel a UTC y create_activity() la persistiría
+            # desplazada (+6 h con America/Mexico_City), mostrándose mal en la
+            # UI mientras que la creación manual la guardaba bien.
+            activity_data["start_datetime"] = iso_for_write(sd)
+            activity_data["end_datetime"] = iso_for_write(ed)
 
             dur_val = rowdict.get("duration_hours")
             if dur_val not in (None, ""):

@@ -88,6 +88,10 @@ def safe_iso(dt):
       - If dt is an aware datetime -> convert to UTC and isoformat
       - For strings, try to parse with fromisoformat and treat accordingly; otherwise return the original string trimmed
       - On unexpected errors, return None
+
+    .. warning:: Solo para lectura/serialización de salida. Para construir
+        payloads que luego se persisten (schema.load) usar iso_for_write():
+        aquí un naive se convierte a UTC y, al guardarlo, quedaría desplazado.
     """
     if not dt:
         return None
@@ -138,3 +142,31 @@ def safe_iso(dt):
             return None
     except Exception:
         return None
+
+
+def iso_for_write(dt):
+    """Serializa un datetime-like a ISO 8601 para payloads de ESCRITURA.
+
+    A diferencia de safe_iso() —helper de LECTURA que interpreta los naive como
+    hora local y los convierte a UTC—, esta función preserva el wall time: un
+    datetime naive se publica "fingido como UTC" (misma convención que
+    parse_datetime_with_timezone() en el endpoint manual de creación) para que
+    create_activity() lo persista como hora local naive en MySQL.
+
+    Usar safe_iso() para construir un payload que se persiste desplaza las
+    horas al guardar (+6 h con America/Mexico_City): fue el bug de la
+    importación batch de actividades del 46° aniversario.
+
+    Args:
+        dt: datetime naive/aware, string ISO o valor ausente.
+
+    Returns:
+        str ISO 8601 conservando la hora local, el resultado de safe_iso()
+        como mejor esfuerzo si el valor no se puede parsear, o None.
+    """
+    if not dt:
+        return None
+    try:
+        return parse_datetime_with_timezone(dt).isoformat()
+    except ValidationError:
+        return safe_iso(dt)
