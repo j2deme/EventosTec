@@ -460,6 +460,50 @@ function showToast(message, type = "success", duration = 3000) {
 // Hacer la función globalmente disponible
 window.showToast = showToast;
 
+// Lazy-init de pestañas (Fase D): si la raíz del dashboard activó
+// `window.__LAZY_TABS__`, las cargas de datos iniciales de cada parcial se
+// difieren hasta que su pestaña se activa por primera vez (evento
+// 'tab:activated' que despachan setActiveTab/initDashboard/handleLocationChange).
+// Si el flag no está activo (tests, páginas públicas), el arranque es
+// inmediato y síncrono, conservando el comportamiento previo.
+// `tabs`: id de pestaña o array de ids válidos; `boot`: función de arranque
+// (debe ser idempotente: se invoca como máximo una vez).
+// Devuelve una promesa que resuelve cuando el arranque terminó (o queda
+// pendiente hasta que la pestaña se active, en modo lazy).
+function tabLazyBoot(tabs, boot) {
+  const list = Array.isArray(tabs) ? tabs : [tabs];
+
+  if (!window.__LAZY_TABS__) {
+    // Arranque inmediato (compatibilidad con el comportamiento anterior)
+    try {
+      return Promise.resolve(boot());
+    } catch (err) {
+      console.error("[tabLazyBoot] error en arranque inmediato:", err);
+      return Promise.resolve();
+    }
+  }
+
+  return new Promise((resolve) => {
+    const onTabActivated = (e) => {
+      const tab = e && e.detail ? e.detail.tab : null;
+      if (tab && list.indexOf(tab) !== -1) {
+        window.removeEventListener("tab:activated", onTabActivated);
+        try {
+          Promise.resolve(boot()).then(resolve, (err) => {
+            console.error("[tabLazyBoot] error en arranque diferido:", err);
+            resolve();
+          });
+        } catch (err) {
+          console.error("[tabLazyBoot] error en arranque diferido:", err);
+          resolve();
+        }
+      }
+    };
+    window.addEventListener("tab:activated", onTabActivated);
+  });
+}
+window.tabLazyBoot = tabLazyBoot;
+
 // Manager de estado de sesión JWT para indicador visual
 function sessionStatusManager() {
   return {

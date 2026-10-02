@@ -68,9 +68,12 @@ function studentsAdmin() {
 
     // Inicialización
     async init() {
-      await this.loadEvents();
-      await this.loadAllActivities();
-      await this.loadStudents(1);
+      // Lazy-init (Fase D): diferir cargas hasta la pestaña "students"
+      await window.tabLazyBoot("students", async () => {
+        await this.loadEvents();
+        await this.loadAllActivities();
+        await this.loadStudents(1);
+      });
     },
 
     // Cargar estudiantes con filtros

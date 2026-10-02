@@ -41,16 +41,27 @@ function eventsManager() {
     eventToDelete: null,
 
     // Inicialización
-    init() {
+    async init() {
       this.showModal = false;
       this.showDeleteModal = false;
       this.eventToDelete = null;
 
+      // Arranque de datos (idempotente): inmediato sin lazy-init, o en la
+      // primera activación de la pestaña "events" (Fase D).
+      const boot = () => {
+        if (this._bootPromise) return this._bootPromise;
+        this._booted = true;
+        this._bootPromise = Promise.resolve(this.loadEvents());
+        return this._bootPromise;
+      };
+
       // El overview (scope de adminDashboard) no puede llamar a openEditModal
       // porque es otro scope de Alpine: al pulsar "editar" ahí se cambia a esta
       // pestaña y se emite este evento para abrir el editor desde aquí.
-      window.addEventListener("event:edit-request", (e) => {
+      window.addEventListener("event:edit-request", async (e) => {
         const detail = (e && e.detail) || {};
+        // Lazy-init: si la lista aún no cargó, forzar su arranque y esperar
+        if (!this._booted) await boot();
         const target =
           (this.events || []).find((ev) => ev.id === detail.id) ||
           detail.event ||
@@ -58,7 +69,8 @@ function eventsManager() {
         if (target) this.openEditModal(target);
       });
 
-      this.loadEvents();
+      // Lazy-init (Fase D): diferir la carga hasta activar la pestaña
+      await window.tabLazyBoot("events", boot);
     },
 
     // Cargar eventos

@@ -1,5 +1,10 @@
 // app/static/js/admin/__tests__/reports.test.js
 
+// app.js define window.tabLazyBoot (lazy-init de pestañas, Fase D); se
+// require una sola vez fuera de resetModules para no re-capturar el
+// interceptor de fetch.
+require("../../app.js");
+
 describe("reportsManager", () => {
   let mockFetch, reportsManager;
 

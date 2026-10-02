@@ -93,15 +93,15 @@ function activitiesManager() {
     activityToDelete: null,
 
     // Inicialización
-    init() {
+    async init() {
       // Debug: indicar que el manager se inicializó
       // initialization
-      this.loadEvents();
-      this.loadActivities();
-      this.loadActivityRelations();
+
       // Escuchar eventos de guardado/creación/actualización para mantener lista sincronizada
       try {
         window.addEventListener("activity-saved", (e) => {
+          // Lazy-init: si la pestaña nunca se abrió no hay lista que sincronizar
+          if (!this._booted) return;
           const detail = e && e.detail ? e.detail : {};
           // Si la actividad guardada es la misma que la que está abierta, recargarla
           if (
@@ -116,10 +116,12 @@ function activitiesManager() {
         });
 
         window.addEventListener("activity-created", (e) => {
+          if (!this._booted) return;
           this.loadActivities(1);
         });
 
         window.addEventListener("activity-updated", (e) => {
+          if (!this._booted) return;
           const detail = e && e.detail ? e.detail : {};
           if (
             detail.id &&
@@ -133,6 +135,14 @@ function activitiesManager() {
       } catch (err) {
         // ambiente sin DOM (tests)
       }
+
+      // Lazy-init (Fase D): diferir cargas hasta la pestaña "activities"
+      await window.tabLazyBoot("activities", () => {
+        this._booted = true;
+        this.loadEvents();
+        this.loadActivities();
+        this.loadActivityRelations();
+      });
     },
 
     // Cargar actividades

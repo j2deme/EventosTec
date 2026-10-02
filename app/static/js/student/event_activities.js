@@ -61,20 +61,29 @@ function studentEventActivitiesManager() {
 
       this._loadActivitiesListener = loadActivitiesListener;
 
-      // Manejar la inicialización desde URL (por si se recarga la página)
-      const urlParams = new URLSearchParams(
-        window.location.hash.split("?")[1] || "",
-      );
-      const eventId = urlParams.get("event_id");
+      // Lazy-init (Fase D): diferir la carga hasta la pestaña
+      // "event_activities". Si el listener anterior ya cargó un evento
+      // (flujo "ver actividades" desde la pestaña de eventos), no repetir.
+      await window.tabLazyBoot("event_activities", async () => {
+        // currentEvent se inicializa como {}: validar id real (el listener
+        // load-event-activities lo rellena antes si ya cargó un evento)
+        if (this.currentEvent && this.currentEvent.id) return;
 
-      if (eventId) {
-        await this.loadEvent(eventId);
-        // Cargar todas las actividades en una sola carga
-        await this.loadActivities();
-        // loadActivities ya invoca loadStudentRegistrations()
-      } else {
-        this.goBack();
-      }
+        // Manejar la inicialización desde URL (por si se recarga la página)
+        const urlParams = new URLSearchParams(
+          window.location.hash.split("?")[1] || "",
+        );
+        const eventId = urlParams.get("event_id");
+
+        if (eventId) {
+          await this.loadEvent(eventId);
+          // Cargar todas las actividades en una sola carga
+          await this.loadActivities();
+          // loadActivities ya invoca loadStudentRegistrations()
+        } else {
+          this.goBack();
+        }
+      });
     },
 
     goToEvents() {

@@ -22,8 +22,6 @@ function studentRegistrationsManager() {
     },
 
     init() {
-      this.loadRegistrations();
-
       // Auto-refresh when a registration is created elsewhere (other module or tab)
       // - CustomEvent: `window.dispatchEvent(new CustomEvent('registration-created'))`
       // - localStorage: `localStorage.setItem('registrationCreated', Date.now())` (triggers storage event in other tabs)
@@ -32,6 +30,9 @@ function studentRegistrationsManager() {
       this._refreshTimeout = null;
 
       this._onRegistrationCreated = () => {
+        // Lazy-init: si la pestaña nunca se abrió no hay lista que refrescar
+        // (la primera visita carga datos frescos)
+        if (!this._booted) return;
         if (this._refreshTimeout) clearTimeout(this._refreshTimeout);
         this._refreshTimeout = setTimeout(() => this.loadRegistrations(), 300);
       };
@@ -72,6 +73,12 @@ function studentRegistrationsManager() {
           window.removeEventListener("storage", this._onStorage);
           if (this._bc) this._bc.close();
         } catch (e) {}
+      });
+
+      // Lazy-init (Fase D): diferir carga hasta la pestaña "registrations"
+      window.tabLazyBoot("registrations", () => {
+        this._booted = true;
+        this.loadRegistrations();
       });
     },
 

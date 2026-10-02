@@ -31,7 +31,8 @@ function studentEventsManager() {
     // Inicialización
     init() {
       // initialization without verbose logging
-      this.loadEvents();
+      // Lazy-init (Fase D): diferir carga hasta la pestaña "events"
+      window.tabLazyBoot("events", () => this.loadEvents());
     },
 
     // Cargar eventos

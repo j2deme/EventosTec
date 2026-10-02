@@ -12,10 +12,12 @@ function calendarAdmin() {
     selectedActivity: null,
 
     // Inicialización
-    init() {
+    async init() {
       this.showDetail = false;
       this.selectedActivity = null;
-      this.loadEvents();
+
+      // Lazy-init (Fase D): diferir la carga hasta la pestaña "calendar"
+      await window.tabLazyBoot("calendar", () => this.loadEvents());
     },
 
     // Cargar lista de eventos (selector) y auto-seleccionar el primero

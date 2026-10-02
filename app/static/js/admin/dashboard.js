@@ -134,6 +134,9 @@ function adminDashboard() {
           this.activeTab = "overview";
         }
       }
+
+      // Lazy-init: avisar al parcial de la pestaña resultante
+      this.dispatchTabActivated();
     },
 
     // Obtener pestaña de la URL
@@ -147,6 +150,7 @@ function adminDashboard() {
       return [
         "overview",
         "events",
+        "calendar",
         "activities",
         "registrations",
         "reports",
@@ -211,6 +215,11 @@ function adminDashboard() {
       const previousTab = this.activeTab;
       this.activeTab = tabId;
 
+      // Lazy-init: avisar al parcial de esta pestaña para que cargue sus datos
+      // (si aún no lo hizo). Antes de updateLocationAndStorage para que los
+      // boots puedan leer el hash con query si existe.
+      this.dispatchTabActivated(tabId);
+
       // Actualizar URL y localStorage
       this.updateLocationAndStorage(tabId);
 
@@ -251,7 +260,36 @@ function adminDashboard() {
 
     // Métodos de inicialización
     async initDashboard() {
+      // Lazy-init de pestañas (Fase D): los parciales (x-init="init()") se
+      // inicializan DESPUÉS que esta raíz; el flag les dice que difieran sus
+      // cargas iniciales hasta recibir 'tab:activated'. La pestaña activa se
+      // despacha en un microtask, cuando todos los parciales ya registraron
+      // sus listeners (Alpine inicializa el árbol completo en una tarea).
+      window.__LAZY_TABS__ = true;
+      const dispatchInitial = () => this.dispatchTabActivated();
+      if (typeof queueMicrotask === "function") {
+        queueMicrotask(dispatchInitial);
+      } else {
+        Promise.resolve().then(dispatchInitial);
+      }
       await this.loadDashboardData();
+    },
+
+    // Avisar a la pestaña activa que debe cargar sus datos (lazy-init)
+    dispatchTabActivated(tabId) {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("tab:activated", {
+            detail: { tab: tabId || this.activeTab },
+          }),
+        );
+      } catch (e) {
+        try {
+          window.dispatchEvent(new Event("tab:activated"));
+        } catch (err) {
+          // entorno sin DOM (tests)
+        }
+      }
     },
 
     async loadDashboardData() {

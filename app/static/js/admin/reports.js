@@ -33,10 +33,14 @@ function reportsManager() {
     participationDetailsLoading: false,
     totalParticipationHours: 0,
 
-    init() {
-      this.loadEvents();
-      this.loadActivities();
-      this.loadCareers();
+    async init() {
+      // Lazy-init (Fase D): el menú usa "reports" y el wrapper acepta también
+      // el id legado "report"
+      await window.tabLazyBoot(["reports", "report"], () => {
+        this.loadEvents();
+        this.loadActivities();
+        this.loadCareers();
+      });
     },
 
     departments: [],

@@ -35,6 +35,15 @@ function studentHistoryManager() {
           this._initAttempts,
         );
 
+      // Lazy-init (Fase D): diferir carga y reintentos hasta la pestaña
+      // "history"
+      await window.tabLazyBoot("history", () => this._bootHistory());
+    },
+
+    // Carga inicial de datos (con reintentos si aún no hay studentId)
+    async _bootHistory() {
+      this.studentId = this.getCurrentStudentId();
+
       if (this.studentId) {
         await this.loadHistory();
         return;
@@ -45,7 +54,7 @@ function studentHistoryManager() {
       // de mostrar error para cubrir el flujo asíncrono de carga.
       this._initAttempts += 1;
       if (this._initAttempts <= 5) {
-        setTimeout(() => this.init(), 300);
+        setTimeout(() => this._bootHistory(), 300);
         return;
       }
 

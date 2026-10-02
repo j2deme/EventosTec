@@ -19,7 +19,8 @@ function studentProfileManager() {
 
     // Inicialización
     init() {
-      this.loadProfile();
+      // Lazy-init (Fase D): diferir carga hasta la pestaña "profile"
+      window.tabLazyBoot("profile", () => this.loadProfile());
     },
 
     // Cargar perfil del estudiante

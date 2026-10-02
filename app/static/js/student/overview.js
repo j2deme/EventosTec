@@ -49,10 +49,13 @@ function studentOverviewManager() {
 
     // Inicialización
     init() {
-      this.loadStudentProfile();
-      this.loadStats();
-      this.loadUpcomingEvents();
-      this.loadRecentRegistrations();
+      // Lazy-init (Fase D): diferir cargas hasta la pestaña "overview"
+      window.tabLazyBoot("overview", () => {
+        this.loadStudentProfile();
+        this.loadStats();
+        this.loadUpcomingEvents();
+        this.loadRecentRegistrations();
+      });
     },
 
     // Cargar perfil del estudiante

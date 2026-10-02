@@ -309,17 +309,20 @@ function attendancesAdmin() {
     },
 
     async init() {
-      // Load basic lists used by filters
-      await this.loadEvents();
-      await this.loadActivities();
-      // derive activityTypes from activities (API uses `activity_type`)
-      this.activityTypes = Array.from(
-        new Set(
-          this.activities.map((a) => a.activity_type || a.type).filter(Boolean),
-        ),
-      );
-      // initial refresh of attendances
-      await this.refresh();
+      // Lazy-init (Fase D): diferir cargas hasta la pestaña "attendances"
+      await window.tabLazyBoot("attendances", async () => {
+        // Load basic lists used by filters
+        await this.loadEvents();
+        await this.loadActivities();
+        // derive activityTypes from activities (API uses `activity_type`)
+        this.activityTypes = Array.from(
+          new Set(
+            this.activities.map((a) => a.activity_type || a.type).filter(Boolean),
+          ),
+        );
+        // initial refresh of attendances
+        await this.refresh();
+      });
     },
 
     // Listen for dispatch to open the sync modal (from template)

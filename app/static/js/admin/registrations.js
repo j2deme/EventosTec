@@ -51,15 +51,12 @@ function registrationsManager() {
     },
 
     // Inicialización
-    init() {
-      this.loadRegistrations();
-      this.loadEvents();
-      this.loadActivities();
-      this.loadStudents();
-      this.loadStats();
+    async init() {
       // Escuchar cambios en asistencias para mantener la UI sincronizada
       try {
         window.addEventListener("attendance:changed", (e) => {
+          // Lazy-init: si la pestaña nunca se abrió no hay lista que refrescar
+          if (!this._booted) return;
           // Si el detalle viene con activity_id o student_id, recargar la lista
           try {
             const d = e && e.detail ? e.detail : {};
@@ -84,6 +81,16 @@ function registrationsManager() {
       } catch (e) {
         // ambiente sin DOM (tests)
       }
+
+      // Lazy-init (Fase D): diferir cargas hasta la pestaña "registrations"
+      await window.tabLazyBoot("registrations", () => {
+        this._booted = true;
+        this.loadRegistrations();
+        this.loadEvents();
+        this.loadActivities();
+        this.loadStudents();
+        this.loadStats();
+      });
     },
 
     // Cargar registros

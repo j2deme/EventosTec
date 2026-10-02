@@ -34,6 +34,10 @@ function studentDashboard() {
     init() {
       // initialization (verbose logs removed)
 
+      // Lazy-init de pestañas (Fase D): flag antes de que los parciales
+      // (x-init="init()") se inicialicen; ver admin/dashboard.js.
+      window.__LAZY_TABS__ = true;
+
       // Verificar autenticación
       if (!window.checkAuthAndRedirect()) {
         // Auth helper handles redirection; suppress verbose log
@@ -48,6 +52,32 @@ function studentDashboard() {
 
       // Cargar perfil del estudiante
       this.loadStudentProfile();
+
+      // Lazy-init: despachar la pestaña activa cuando todos los parciales
+      // hayan registrado sus listeners (microtask tras la tarea de init)
+      const dispatchInitial = () => this.dispatchTabActivated();
+      if (typeof queueMicrotask === "function") {
+        queueMicrotask(dispatchInitial);
+      } else {
+        Promise.resolve().then(dispatchInitial);
+      }
+    },
+
+    // Avisar a la pestaña activa que debe cargar sus datos (lazy-init)
+    dispatchTabActivated(tabId) {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("tab:activated", {
+            detail: { tab: tabId || this.activeTab },
+          }),
+        );
+      } catch (e) {
+        try {
+          window.dispatchEvent(new Event("tab:activated"));
+        } catch (err) {
+          // entorno sin DOM (tests)
+        }
+      }
     },
 
     setupEventListeners() {
@@ -98,6 +128,9 @@ function studentDashboard() {
           // using default tab: overview
         }
       }
+
+      // Lazy-init: avisar al parcial de la pestaña resultante
+      this.dispatchTabActivated();
     },
 
     // ✨ Corregida función para obtener pestaña de la URL
@@ -194,6 +227,10 @@ function studentDashboard() {
 
       const previousTab = this.activeTab;
       this.activeTab = tabId;
+
+      // Lazy-init: avisar al parcial de esta pestaña para que cargue sus
+      // datos (si aún no lo hizo)
+      this.dispatchTabActivated(tabId);
 
       // ✨ Refrescar contenido automáticamente cuando se cambia a ciertas pestañas
       this.refreshTabContent(tabId, previousTab);

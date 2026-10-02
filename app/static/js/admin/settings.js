@@ -18,7 +18,8 @@ function settingsManager() {
      * Initialize: Load all settings
      */
     async init() {
-      await this.loadSettings();
+      // Lazy-init (Fase D): diferir carga hasta la pestaña "settings"
+      await window.tabLazyBoot("settings", () => this.loadSettings());
     },
 
     /**
