@@ -20,12 +20,13 @@ ser hasta 4x el configurado). Por eso ``global`` es 10/min por worker
 from __future__ import annotations
 
 import re
-import threading
-import time
-from collections import deque
 
 import requests
 from flask import current_app
+
+# Re-exportado para mantener compatibilidad con los tests existentes
+# (tests/api/test_forgot_password.py usa password_recovery_service.SlidingWindowLimiter).
+from app.services.rate_limit import SlidingWindowLimiter
 
 # Endpoint externo que envía el correo de recuperación.
 EXTERNAL_FORGOT_URL = "http://apps.tecvalles.mx:8091/api/password/forgot"
@@ -65,52 +66,6 @@ LIMITS: dict[str, tuple[int, int]] = {
     # Por worker (8091 da 60/min por la IP del servidor): 10/min.
     "global": (10, 60),
 }
-
-
-class SlidingWindowLimiter:
-    """Contador deslizante por clave, en memoria y por proceso."""
-
-    def __init__(self, max_keys: int = 10_000):
-        self._lock = threading.Lock()
-        self._hits: dict[str, dict] = {}
-        self._max_keys = max_keys
-
-    def allow(self, key: str, limit: int, window: int) -> bool:
-        """Suma un intento para `key`; False si ya alcanzó `limit` en `window`."""
-        now = time.monotonic()
-        with self._lock:
-            entry = self._hits.get(key)
-            if entry is None:
-                if len(self._hits) >= self._max_keys:
-                    self._evict_locked(now)
-                entry = {"window": window, "times": deque()}
-                self._hits[key] = entry
-            times = entry["times"]
-            cutoff = now - entry["window"]
-            while times and times[0] <= cutoff:
-                times.popleft()
-            if len(times) >= limit:
-                return False
-            times.append(now)
-            return True
-
-    def _evict_locked(self, now: float) -> None:
-        """Suelta claves cuyos intentos ya vencieron para no crecer sin límite."""
-        expired = [
-            key
-            for key, entry in self._hits.items()
-            if not entry["times"] or now - entry["times"][-1] > entry["window"]
-        ]
-        for key in expired:
-            del self._hits[key]
-        # Caso límite (claves activas todas): se limpia todo antes que fallar.
-        if len(self._hits) >= self._max_keys:
-            self._hits.clear()
-
-    def reset(self) -> None:
-        """Vacía todos los contadores (principalmente para tests)."""
-        with self._lock:
-            self._hits.clear()
 
 
 _limiter = SlidingWindowLimiter()
