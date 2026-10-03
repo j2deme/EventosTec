@@ -12,6 +12,7 @@ from app.schemas import user_login_schema
 from app.models.user import User
 from app.models.student import Student
 from app.models.revoked_token import RevokedToken
+from app.services.password_recovery_service import request_recovery
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -170,6 +171,40 @@ def student_login():
         return jsonify(
             {"message": "Error en el login de estudiante", "error": str(e)}
         ), 400
+
+
+# Solicitud de recuperación de contraseña (fuente de verdad: plataforma MAB)
+
+
+def _client_ip() -> str:
+    """IP del visitante, considerando proxies inversos si reportan X-Forwarded-For."""
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        # Primera IP de la cadena: la que agregó el proxy más cercano.
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    """Pide enviar por correo el enlace de recuperación de un estudiante.
+
+    Body: ``{ "control_number": "25690999" }``.
+
+    Proxy del ``POST /api/password/forgot`` de la plataforma MAB (8091), que es
+    la fuente de verdad de las credenciales de los estudiantes. Respuestas:
+    200 (mensaje genérico, no revela si el número existe), 400 (datos
+    inválidos), 429 (rate-limit local o de 8091) y 503 (8091 no disponible).
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        if not isinstance(payload, dict):
+            payload = {}
+        status, body = request_recovery(payload.get("control_number"), _client_ip())
+        return jsonify(body), status
+    except Exception:
+        current_app.logger.exception("Error in /api/auth/forgot-password")
+        return jsonify({"message": "Error al solicitar la recuperación"}), 500
 
 
 # Perfil del usuario actual

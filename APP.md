@@ -32,6 +32,8 @@ Nota: lista basada en los blueprints en app/api.
   - Login administradores. Body: { username, password } -> devuelve access_token y user.
 - POST /api/auth/student-login
   - Login estudiantes. Valida contra servicio externo; crea/actualiza Student y devuelve access_token + student.
+- POST /api/auth/forgot-password
+  - Público (sin JWT). Body: { control_number } -> proxy del POST /api/password/forgot de la plataforma MAB (8091, fuente de verdad de credenciales de estudiantes). Respuestas: 200 con mensaje genérico (no revela si el número existe), 400 (datos inválidos), 429 (rate-limit local o de 8091) y 503 (8091 no disponible). Rate-limit local por IP (5/10min), por número de control (2/h) y global (10/min/worker) en app/services/password_recovery_service.py.
 - GET /api/auth/profile?type=student|admin
   - Perfil del usuario actual (JWT required). Para student devuelve student, para admin devuelve user.
 - POST /api/auth/logout (JWT required)

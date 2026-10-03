@@ -139,7 +139,7 @@
     <div class="mt-5 text-center text-xs text-gray-600">
       <a
         href="#"
-        @click.prevent="showForgotModal = true"
+        @click.prevent="openForgotModal()"
         class="text-indigo-600 hover:text-indigo-500 font-medium"
       >
         ¿Olvidaste tu contraseña?
@@ -186,14 +186,72 @@
               >mab.tecvalles.mx</a
             >).
           </p>
-          <p class="mt-2">
-            Si tampoco recuerdas tu contraseña, solicita tu recuperación de
-            acceso en la plataforma MAB desde este enlace:
+
+          <!-- Solicitud de enlace de recuperación (solo estudiantes) -->
+          <template x-if="userType === 'student'">
+            <form @submit.prevent="requestRecovery()" class="mt-3">
+              <label
+                for="forgot-control"
+                class="block text-xs font-medium text-gray-700 mb-1"
+              >
+                Número de control
+              </label>
+              <input
+                id="forgot-control"
+                type="text"
+                x-model="forgotControl"
+                required
+                maxlength="20"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                placeholder="Ej: 12345678"
+              />
+              <button
+                type="submit"
+                :disabled="forgotLoading"
+                class="mt-3 w-full bg-indigo-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <template x-if="!forgotLoading">
+                  <span
+                    ><i class="ti ti-mail-forward mr-2"></i> Enviar enlace de
+                    recuperación</span
+                  >
+                </template>
+                <template x-if="forgotLoading">
+                  <span>Enviando...</span>
+                </template>
+              </button>
+            </form>
+          </template>
+
+          <template x-if="userType === 'admin'">
+            <p class="mt-3">
+              Si olvidaste la contraseña de un usuario administrador, contacta
+              al responsable de la plataforma para restablecerla.
+            </p>
+          </template>
+
+          <!-- Resultado de la solicitud -->
+          <div
+            x-show="forgotMessage"
+            x-cloak
+            x-transition
+            class="mt-3 text-xs p-3 rounded-lg"
+            :class="
+              forgotError
+                ? 'text-red-600 bg-red-50'
+                : 'text-green-700 bg-green-50'
+            "
+          >
+            <span x-text="forgotMessage"></span>
+          </div>
+
+          <p class="mt-3 text-xs text-gray-500">
+            También puedes solicitarlo directamente en
             <a
               href="http://apps.tecvalles.mx:8091/forgot-password"
               target="_blank"
               rel="noopener noreferrer"
-              class="text-indigo-600 hover:underline font-medium break-all"
+              class="text-indigo-600 hover:underline break-all"
               >http://apps.tecvalles.mx:8091/forgot-password</a
             >. La contraseña que restablezcas allí será la misma que te dará
             acceso al sistema de eventos.
@@ -225,6 +283,66 @@
       },
       isLoading: false,
       errorMessage: "",
+      forgotControl: "",
+      forgotLoading: false,
+      forgotMessage: "",
+      forgotError: false,
+
+      openForgotModal() {
+        this.forgotMessage = "";
+        this.forgotError = false;
+        this.showForgotModal = true;
+      },
+
+      async requestRecovery() {
+        const control = this.forgotControl.trim();
+        if (!control) {
+          this.forgotError = true;
+          this.forgotMessage = "Ingresa tu número de control.";
+          return;
+        }
+
+        this.forgotLoading = true;
+        this.forgotMessage = "";
+        this.forgotError = false;
+
+        try {
+          const response = await fetch("/api/auth/forgot-password", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ control_number: control }),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (response.ok) {
+            // Mensaje genérico: no revela si el número de control existe.
+            this.forgotMessage =
+              data.message ||
+              "Si el número de control corresponde a un estudiante, se envió un enlace de recuperación al correo registrado.";
+            this.forgotControl = "";
+            showToast("Solicitud de recuperación enviada", "success");
+          } else {
+            this.forgotError = true;
+            this.forgotMessage =
+              data.message ||
+              (response.status === 429
+                ? "Demasiadas solicitudes. Espera unos minutos y vuelve a intentarlo."
+                : "No fue posible procesar la solicitud. Intenta de nuevo.");
+            showToast(this.forgotMessage, "error");
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          this.forgotError = true;
+          this.forgotMessage =
+            "Error de conexión. Por favor intenta de nuevo.";
+          showToast(this.forgotMessage, "error");
+        } finally {
+          this.forgotLoading = false;
+        }
+      },
 
       async performLogin() {
         this.isLoading = true;
