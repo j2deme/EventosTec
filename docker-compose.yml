@@ -22,3 +22,8 @@ services:
       - DB_NAME=${DB_NAME}
       - DATABASE_URL=${DATABASE_URL}
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m" # Máximo 10 MB por archivo de log
+        max-file: "3" # Conservar solo los últimos 3 archivos
