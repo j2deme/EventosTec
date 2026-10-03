@@ -7,6 +7,7 @@ from app.models.registration import Registration
 from app.models.app_setting import AppSetting
 from app.models.revoked_token import RevokedToken
 from app.models.credit_override import CreditOverride
+from app.models.credit_grant import CreditGrant
 
 # Tabla de relación muchos a muchos para actividades relacionadas
 from app import db
@@ -34,5 +35,6 @@ __all__ = [
     "AppSetting",
     "RevokedToken",
     "CreditOverride",
+    "CreditGrant",
     "activity_relations",
 ]

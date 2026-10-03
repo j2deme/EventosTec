@@ -134,7 +134,9 @@ def compute_student_hours(
             }
         return students_map[sid]
 
-    def add_participation(sid, control_number, full_name, career_val, email, aid, eid, dur):
+    def add_participation(
+        sid, control_number, full_name, career_val, email, aid, eid, dur
+    ):
         if aid is None:
             return
         info = ensure_student(sid, control_number, full_name, career_val, email)
@@ -204,7 +206,9 @@ def compute_student_hours(
             }
         )
 
-    results.sort(key=lambda x: (x.get("full_name") or "", x.get("control_number") or ""))
+    results.sort(
+        key=lambda x: (x.get("full_name") or "", x.get("control_number") or "")
+    )
     return results
 
 
@@ -236,19 +240,91 @@ def load_overrides_map():
         return {}
 
 
+def load_grants_map(event_ids=None):
+    """Mapa ``student_id -> set(event_id)`` de eventos ya gastados.
+
+    Son los eventos cuyas horas ya se usaron para acreditar un crédito
+    complementario (tabla ``credit_grants``). Solo aporta los eventos
+    ``event_ids`` pedidos (si se pasa), para no traer historia fuera de la
+    selección.
+
+    Defensivo, igual que ``load_overrides_map``: si la tabla aún no existe
+    (migración pendiente en producción) devuelve ``{}`` con un warning y la
+    lista de créditos sigue funcionando sin exclusión por otorgamiento.
+    """
+    try:
+        from app.models.credit_grant import CreditGrant
+
+        query = CreditGrant.query
+        if event_ids:
+            query = query.filter(CreditGrant.event_id.in_(list(event_ids)))
+
+        grants = {}
+        for grant in query.all():
+            grants.setdefault(grant.student_id, set()).add(grant.event_id)
+        return grants
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        try:
+            from flask import current_app
+
+            current_app.logger.warning(
+                "Tabla credit_grants no disponible (migracion pendiente?); "
+                "la lista de creditos se calculara sin excluir a los ya "
+                "otorgados."
+            )
+        except Exception:
+            pass
+        return {}
+
+
+def credit_grants_available() -> bool:
+    """¿Existe la tabla ``credit_grants``? (migración 20261002 aplicada).
+
+    Se expone en la lista para que el frontend pueda bloquear el botón de
+    otorgamiento: si la tabla no existe, descargar el Excel funciona pero el
+    registro fallaría y el archivo quedaría "en la wild" sin quedar constancia
+    del acreditado.
+    """
+    try:
+        from app.models.credit_grant import CreditGrant
+
+        CreditGrant.query.limit(1).all()
+        return True
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return False
+
+
 def compute_credit_rows(
-    event_ids, chronological_ids=None, career=None, overrides=None
+    event_ids,
+    chronological_ids=None,
+    career=None,
+    overrides=None,
+    grants=None,
+    include_granted=False,
 ):
     """Filas de la lista de créditos complementarios (fuente única).
 
     Pipeline:
       1. Horas unificadas por evento (sin mínimo: el umbral se aplica en este
          paso para poder forzar la inclusión vía override).
-      2. Exclusión derivada: si el cruce de 10 h ocurre en un evento anterior
+      2. Exclusión por otorgamiento (Fase 3): los eventos ya gastados en
+         ``credit_grants`` se retiran del cálculo; el umbral y el cruce se
+         evalúan sobre las horas NO gastadas. Así, un estudiante que ya
+         acreditó en A y B necesita 10 h frescas de otros eventos para un
+         segundo crédito, y re-exportar A ya no lo vuelve a acreditar.
+      3. Exclusión derivada: si el cruce de 10 h ocurre en un evento anterior
          al último cronológico → ya acreditado → se omite.
-      3. Umbral: total redondeado >= CREDIT_MIN_HOURS.
-      4. Overrides manuales: 'exclude' omite siempre; 'include' fuerza la
-         inclusión aunque falle (2) o (3), incluso sin participaciones en los
+      4. Umbral: total no gastado redondeado >= CREDIT_MIN_HOURS.
+      5. Overrides manuales: 'exclude' omite siempre; 'include' fuerza la
+         inclusión aunque falle (3) o (4), incluso sin participaciones en los
          eventos seleccionados (fila sintética con 0 h).
 
     Parámetros:
@@ -257,41 +333,116 @@ def compute_credit_rows(
         (default: el orden de event_ids).
       - career: subcadena de carrera (misma semántica que compute_student_hours).
       - overrides: dict {student_id: "include"|"exclude"}.
+      - grants: dict {student_id: set(event_id)} de eventos ya gastados
+        (``load_grants_map``). Vacío = sin otorgamientos registrados.
+      - include_granted: si es True, los estudiantes excluidos por tener
+        eventos gastados se devuelven además de los pendientes, con
+        ``already_granted=True`` (solo para auditar en pantalla; el Excel y
+        el otorgamiento jamás lo activan).
 
     Retorna ``(rows, stats)``, donde ``rows`` tiene el mismo formato que
-    compute_student_hours y ``stats`` es
-    ``{"excluded_already_credited": int, "excluded_by_override": int}``.
+    compute_student_hours más ``hours_consumed``, ``hours_available``,
+    ``crossing_event_id``, ``grant_event_ids``, ``granted_event_ids`` y
+    ``already_granted``; y ``stats`` es
+    ``{"excluded_already_credited", "excluded_by_override",
+    "excluded_already_granted"}``.
     """
     event_ids = list(event_ids or [])
     chronological_ids = list(chronological_ids or event_ids)
     overrides = dict(overrides or {})
+    grants = dict(grants or {})
+    selection = set(event_ids)
+    order_index = {eid: idx for idx, eid in enumerate(chronological_ids)}
 
     rows = compute_student_hours(event_ids=event_ids, career=career)
-    stats = {"excluded_already_credited": 0, "excluded_by_override": 0}
+    stats = {
+        "excluded_already_credited": 0,
+        "excluded_by_override": 0,
+        "excluded_already_granted": 0,
+    }
     last_event_id = chronological_ids[-1] if chronological_ids else None
+
+    def annotate(row, consumed):
+        """Anota en la fila las horas gastadas/disponibles y qué se acreditaría.
+
+        Los eventos a gastar son los que aportan horas NO gastadas desde el
+        inicio hasta el cruce (inclusive); lo que viene después del cruce
+        queda intacto para un próximo crédito. Sin cruce (fila forzada por
+        override) se gastan todos los que aportan horas: son los que
+        justifican la acreditación forzada.
+        """
+        unconsumed = {
+            eid: hours
+            for eid, hours in row["hours_by_event"].items()
+            if eid not in consumed
+        }
+        crossing = earliest_crossing_event(
+            unconsumed, chronological_ids, CREDIT_MIN_HOURS
+        )
+        with_hours = [
+            eid
+            for eid in chronological_ids
+            if order_index.get(eid) is not None
+            and float(unconsumed.get(eid, 0) or 0) > 0
+        ]
+        if crossing is None:
+            grant_ids = list(with_hours)
+        else:
+            cut = order_index.get(crossing)
+            grant_ids = [
+                eid for eid in with_hours if cut is not None and order_index[eid] <= cut
+            ]
+        row["hours_consumed"] = round(
+            sum(float(row["hours_by_event"].get(eid, 0) or 0) for eid in consumed), 2
+        )
+        row["hours_available"] = round(sum(unconsumed.values()), 2)
+        row["crossing_event_id"] = crossing
+        row["grant_event_ids"] = grant_ids
+        row["granted_event_ids"] = sorted(consumed)
+        row["already_granted"] = False
+        return crossing
 
     kept = []
     kept_ids = set()
     for row in rows:
-        decision = overrides.get(row["id"])
+        sid = row["id"]
+        decision = overrides.get(sid)
         if decision == "exclude":
             stats["excluded_by_override"] += 1
             continue
-        crossing = earliest_crossing_event(
-            row["hours_by_event"], chronological_ids, CREDIT_MIN_HOURS
-        )
+
+        # Eventos de la selección que este estudiante ya gastó (Fase 3)
+        consumed = grants.get(sid, set()) & selection
+        crossing = annotate(row, consumed)
+        unconsumed_total = row["hours_available"]
         derived_excluded = (
             crossing is not None
             and last_event_id is not None
             and crossing != last_event_id
         )
+
         if derived_excluded and decision != "include":
-            stats["excluded_already_credited"] += 1
+            if consumed:
+                stats["excluded_already_granted"] += 1
+                if include_granted:
+                    row["already_granted"] = True
+                    kept.append(row)
+                    kept_ids.add(sid)
+            else:
+                stats["excluded_already_credited"] += 1
             continue
-        if decision != "include" and not meets_credit_threshold(row["total_hours"]):
+
+        if decision != "include" and not meets_credit_threshold(unconsumed_total):
+            if consumed:
+                stats["excluded_already_granted"] += 1
+                if include_granted:
+                    row["already_granted"] = True
+                    kept.append(row)
+                    kept_ids.add(sid)
             continue
+
         kept.append(row)
-        kept_ids.add(row["id"])
+        kept_ids.add(sid)
 
     # Overrides 'include' de estudiantes sin participaciones en la selección
     for sid, decision in overrides.items():
@@ -314,6 +465,14 @@ def compute_credit_rows(
                 "activities_count": 0,
                 "hours_by_event": {},
                 "activities_by_event": {},
+                # Sin participaciones no hay horas que descontar; solo se
+                # refleja la historia de otorgamientos por si sirve a la UI.
+                "hours_consumed": 0.0,
+                "hours_available": 0.0,
+                "crossing_event_id": None,
+                "grant_event_ids": [],
+                "granted_event_ids": sorted(grants.get(sid, set()) & selection),
+                "already_granted": False,
             }
         )
         kept_ids.add(sid)

@@ -56,7 +56,17 @@ function studentsAdmin() {
       events: [],
       excluded_already_credited: 0,
       excluded_by_override: 0,
+      excluded_already_granted: 0,
     },
+    // Vista: añade a la lista a los excluidos por ya tener eventos gastados
+    // (marca already_granted). Solo afecta a la vista previa en pantalla:
+    // el Excel y el otorgamiento nunca lo activan.
+    includeGranted: false,
+    granting: false,
+    exportingExcel: false,
+    // false = migración 20261002_add_credit_grants pendiente: no se puede
+    // registrar un otorgamiento, así que el botón queda bloqueado.
+    creditGrantsAvailable: true,
     // Overrides manuales de crédito (tabla credit_overrides)
     creditOverrides: [],
     overrideSearch: "",
@@ -422,7 +432,9 @@ function studentsAdmin() {
         events: [],
         excluded_already_credited: 0,
         excluded_by_override: 0,
+        excluded_already_granted: 0,
       };
+      this.includeGranted = false;
       this.creditOverrides = [];
     },
 
@@ -434,7 +446,19 @@ function studentsAdmin() {
         events: [],
         excluded_already_credited: 0,
         excluded_by_override: 0,
+        excluded_already_granted: 0,
       };
+    },
+
+    // Alternar la vista de ya otorgados (auditoría) y volver a buscar
+    async toggleIncludeGranted() {
+      await this.loadComplementaryCredits();
+    },
+
+    // Pendientes de otorgar: excluye a los que ya están acreditados cuando
+    // la vista de auditoría los añade a la tabla.
+    pendingGrantCount() {
+      return (this.exportData || []).filter((s) => !s.already_granted).length;
     },
 
     // Agregar/quitar un evento de la selección multi-evento
@@ -479,6 +503,9 @@ function studentsAdmin() {
         if (this.exportFilters.career) {
           params.append("career", this.exportFilters.career);
         }
+        if (this.includeGranted) {
+          params.append("include_granted", "1");
+        }
 
         const response = await fetch(
           `/api/students/complementary-credits?${params}`,
@@ -497,10 +524,12 @@ function studentsAdmin() {
 
         const data = await response.json();
         this.exportData = data.students || [];
+        this.creditGrantsAvailable = data.credit_grants_available !== false;
         this.exportStats = {
           events: data.events || [],
           excluded_already_credited: data.excluded_already_credited || 0,
           excluded_by_override: data.excluded_by_override || 0,
+          excluded_already_granted: data.excluded_already_granted || 0,
         };
       } catch (error) {
         console.error("Error loading complementary credits:", error);
@@ -509,6 +538,47 @@ function studentsAdmin() {
       } finally {
         this.loadingExport = false;
       }
+    },
+
+    // Parámetros de la última búsqueda (lista, Excel y otorgamiento
+    // comparten el mismo set de filtros para que calculen lo mismo)
+    buildCreditsParams() {
+      const params = new URLSearchParams();
+      params.append("event_ids", this.exportFilters.event_ids.join(","));
+      if (this.exportFilters.career) {
+        params.append("career", this.exportFilters.career);
+      }
+      return params;
+    },
+
+    // Descarga el XLSX de créditos. La ruta exige header Authorization, así
+    // que no basta window.open (la pestaña abriría la URL sin token y el
+    // backend responde 401): se consume con fetch autenticado y se sirve
+    // como blob, mismo patrón que reports.js.
+    async downloadCreditsExcel(params) {
+      const f =
+        typeof window.safeFetch === "function" ? window.safeFetch : fetch;
+      const res = await f(
+        `/api/students/complementary-credits/export?${params}`,
+      );
+      if (!res) {
+        throw new Error("sin respuesta del servidor");
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `Error: ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?(.*?)"?$/);
+      a.download = m && m[1] ? m[1] : `creditos_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
     },
 
     // Exportar a Excel (mismos filtros multi-evento que la lista)
@@ -522,24 +592,104 @@ function studentsAdmin() {
         return;
       }
 
+      this.exportingExcel = true;
       try {
-        const params = new URLSearchParams();
-        params.append("event_ids", this.exportFilters.event_ids.join(","));
-
-        if (this.exportFilters.career) {
-          params.append("career", this.exportFilters.career);
-        }
-
-        // Abrir en nueva pestaña para descargar
-        window.open(
-          `/api/students/complementary-credits/export?${params}`,
-          "_blank",
-        );
-
-        window.showToast && window.showToast("Exportación iniciada", "success");
+        await this.downloadCreditsExcel(this.buildCreditsParams());
+        window.showToast && window.showToast("Descarga iniciada", "success");
       } catch (error) {
         console.error("Error exporting to Excel:", error);
-        window.showToast && window.showToast("Error al exportar", "error");
+        window.showToast &&
+          window.showToast(error.message || "Error al exportar", "error");
+      } finally {
+        this.exportingExcel = false;
+      }
+    },
+
+    // Otorga el crédito complementario (Fase 3, tabla credit_grants).
+    // Orden deliberado: primero el archivo, después el registro. Si el
+    // registro falla no se gastó ningún evento y se puede reintentar sin
+    // doble acreditación; al revés, el crédito quedaría gastado sin archivo.
+    async grantCredits() {
+      if (this.creditGrantsAvailable === false) {
+        window.showToast &&
+          window.showToast(
+            "No se puede otorgar: falta aplicar la migración " +
+              "20261002_add_credit_grants (flask db upgrade)",
+            "error",
+          );
+        return;
+      }
+
+      if (
+        !this.exportFilters.event_ids ||
+        this.exportFilters.event_ids.length === 0
+      ) {
+        window.showToast &&
+          window.showToast("Debe seleccionar al menos un evento", "error");
+        return;
+      }
+
+      const pending = (this.exportData || []).filter(
+        (s) => !s.already_granted,
+      ).length;
+      if (pending === 0) {
+        window.showToast &&
+          window.showToast(
+            "No hay estudiantes pendientes de acreditación",
+            "error",
+          );
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `¿Otorgar el crédito complementario a ${pending} estudiante(s)?\n\n` +
+          "Se descargará el Excel para subirlo a la plataforma externa y los " +
+          "eventos usados quedarán marcados como acreditados: ya no podrán " +
+          "volver a usarse para acumular horas en una acreditación futura.",
+      );
+      if (!confirmed) return;
+
+      this.granting = true;
+      let downloaded = false;
+      try {
+        // 1) Archivo primero: si falla aquí no se registró nada.
+        await this.downloadCreditsExcel(this.buildCreditsParams());
+        downloaded = true;
+
+        // 2) Registrar el lote con los mismos parámetros.
+        const res = await fetch("/api/students/credit-grants", {
+          method: "POST",
+          headers: window.getAuthHeaders(),
+          body: JSON.stringify({
+            event_ids: this.exportFilters.event_ids,
+            career: this.exportFilters.career || "",
+            confirm: true,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.message || `Error: ${res.status}`);
+        }
+
+        window.showToast &&
+          window.showToast(
+            `Crédito otorgado a ${data.granted_students} estudiante(s): ` +
+              `${data.granted_events} evento(s) marcados como acreditados`,
+            "success",
+          );
+      } catch (error) {
+        console.error("Error granting credits:", error);
+        const detail = downloaded
+          ? `El archivo se descargó pero no se registró el otorgamiento ` +
+            `(${error.message}). Reintenta: nadie quedó acreditado dos veces.`
+          : `No se descargó el archivo (${error.message}); no se registró ` +
+            `nada. Reintenta.`;
+        window.showToast && window.showToast(detail, "error");
+      } finally {
+        this.granting = false;
+        // Refresca la lista: si el registro salió bien, los acreditados
+        // pasan a "ya otorgados" y desaparecen de los pendientes.
+        await this.loadComplementaryCredits();
       }
     },
 

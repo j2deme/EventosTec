@@ -104,6 +104,9 @@ When clicked, a modal opens with:
 ✅ **10+ Hours Only**: Automatically filters to students with complementary credit
 ✅ **Real-time Validation**: Ensures event is selected before searching
 ✅ **Responsive Modal**: Works on desktop and mobile devices
+✅ **Multi-event accumulation**: Hours add up across every selected event
+✅ **Grant tracking**: Recording a grant marks its events as consumed so the
+   student cannot be exported twice (see *Credit granting* below)
 
 ## Usage Workflow
 
@@ -113,9 +116,34 @@ When clicked, a modal opens with:
 4. Selects an event from dropdown (required)
 5. Optionally enters career name to filter
 6. Clicks "Buscar Estudiantes"
-7. Reviews the list in the preview table
-8. Clicks "Descargar Excel" to download the file
+7. Reviews the list in the preview table (students already granted credit are
+   excluded; tick **Ver ya otorgados** to see them marked, for auditing only)
+8. Chooses one of:
+   - **Otorgar crédito (N)**: confirms the prompt, downloads the XLSX of the
+     pending students and records the grant in `credit_grants`.
+   - **Descargar sin otorgar**: downloads the XLSX without recording anything.
 9. Excel file downloads with formatted data ready for institutional processing
+
+## Credit granting (credit_grants)
+
+The XLSX is uploaded by hand to the external platform, so downloading the same
+list twice would credit the same student twice. `credit_grants` prevents that:
+
+- A **grant** stores one row per `student + event` that was *consumed*: every
+  event that contributed **unspent** hours from the start up to the moment the
+  10 h threshold was crossed. Events after the crossing stay untouched and can
+  feed a **second** credit later.
+- On the next search those events are removed from the calculation, so the
+  student only reappears when they accumulate 10 **fresh** hours in other
+  events. The response reports them in `excluded_already_granted`.
+- The Excel **never** includes an already-granted student (its summary row
+  says how many were omitted). The `include_granted=1` flag only exists on the
+  list endpoint, for on-screen auditing.
+- Order of operations in the UI: download first, record afterwards. If the
+  recording fails, nothing was consumed and retrying is safe.
+
+Endpoints: `POST /api/students/credit-grants` (requires `confirm: true`) and
+`GET /api/students/credit-grants` (history grouped by batch).
 
 ## Technical Details
 

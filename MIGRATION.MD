@@ -119,12 +119,13 @@ docker compose exec web flask db upgrade
 ```
 
 - Nueva revisión: `20261001_add_credit_overrides` (down: `20260927_add_revoked_tokens`). **Solo `CREATE TABLE credit_overrides`** — no altera ni toca tablas existentes (sin riesgo de regresión de datos).
+- Revisión encadenada: `20261002_add_credit_grants` (down: `20261001_add_credit_overrides`). Igual de aditiva: **solo `CREATE TABLE credit_grants`** + 3 índices. Mientras no exista, `load_grants_map()` devuelve `{}` y `credit_grants_available()` devuelve `False`: la lista se calcula sin exclusión por otorgamiento y el botón *Otorgar crédito* aparece bloqueado en la UI (la descarga del Excel sigue funcionando). **No usar *Otorgar crédito* antes de migrar**: el Excel se descargaría pero el registro fallaría y el archivo quedaría sin constancia.
 - Mientras no se ejecute, la lista de créditos sigue funcionando: `load_overrides_map()` es defensivo (loguea warning y calcula sin overrides). Los endpoints CRUD de overrides devolverán 500 hasta que la tabla exista — migrar antes de usar esa UI.
-- **Estado (verificado 2026-10-02): ⏳ AÚN PENDIENTE en producción** — `alembic_version` = `20260927_add_revoked_tokens` y la tabla `credit_overrides` no existe. Los botones *Omitir / Forzar inclusión* de la UI de créditos responderán 500 hasta correr el `flask db upgrade` en el servidor.
+- **Estado (verificado 2026-10-02): ⏳ AÚN PENDIENTE en producción** — `alembic_version` = `20260927_add_revoked_tokens` y la tabla `credit_overrides` no existe. Los botones *Omitir / Forzar inclusión* de la UI de créditos responderán 500 hasta correr el `flask db upgrade` en el servidor. `credit_grants` también queda pendiente (va encadenada).
 
 ### Pendiente documentado (fuera de alcance de esta ronda)
 
-- **Fase 3 (opcional/futura): tabla `credit_grants`** para evitar doble acreditación al re-exportar la lista a la plataforma externa (historial de grants por lote/evento). No implementada a propósito.
+- **Fase 3: tabla `credit_grants`** para evitar doble acreditación al re-exportar la lista a la plataforma externa (historial de grants por lote/evento) → **implementada en la ronda 2026-10-02**, ver la sección *Fase 3: credit_grants* al final de este documento.
 - Los overrides solo afectan la lista de créditos (vista admin); el badge del portal del estudiante (`has_complementary_credit` del detalle de evento) sigue puramente derivado.
 
 ## Fix de zona horaria en importación batch (ronda 2026-10-02)
@@ -138,3 +139,31 @@ Commit: `2602845` · Desplegado y verificado en producción el 2026-10-02.
 - **Verificación post-deploy (2026-10-02)**: 41/41 filas == Excel (start y end), 45 filas en event 3 sin duplicados, round-trip UI muestra la hora del Excel en todas.
 - **Tests**: **pytest 240 passed / 0 failed** (+`tests/services/test_activities_import_timezone.py`: celda datetime y celda texto ISO se guardan como hora local naive). Ruff limpio.
 - **Idempotencia de re-importación**: con el fix desplegado, volver a subir el mismo Excel debe reportar `created=0` y 41 errores "Duplicada: actividad ya existe (omitir)". No re-importar con el código anterior desplegado (crearía duplicados +6 h).
+
+## Fase 3: credit_grants — historial de otorgamientos (ronda 2026-10-02)
+
+Objetivo: evitar que al re-exportar la lista a la plataforma externa se acredite dos veces al mismo estudiante y, a la vez, permitir que un estudiante libere **otro** crédito cuando junta 10 h frescas en otros eventos.
+
+### Modelo
+
+- Tabla `credit_grants` (migración `20261002_add_credit_grants`, 100% aditiva, down `20261001_add_credit_overrides`): una fila por `student_id + event_id` **gastado** (unicidad como red de seguridad), con `batch_id` (lote de la confirmación), `granted_by`, `granted_at` y `note`.
+- **El evento es la unidad que se gasta**: al acreditar se registran los eventos que aportan horas NO gastadas desde el inicio hasta el cruce de 10 h; los posteriores al cruce quedan intactos para un crédito futuro.
+- `compute_credit_rows()` (fuente única en `app/services/hours_service.py`) evalúa umbral y cruce sobre las horas **no gastadas** y añade a cada fila `hours_consumed`, `hours_available`, `crossing_event_id`, `grant_event_ids`, `granted_event_ids` y `already_granted`. Con `grants={}` (migración pendiente) el comportamiento es idéntico al anterior: cero regresiones.
+
+### Flujo del admin (confirmación explícita)
+
+1. Modal *Exportar Créditos* → *Buscar Estudiantes* → lista de **pendientes** (los ya otorgados quedan fuera y se cuentan en `excluded_already_granted`).
+2. **Otorgar crédito (N)** → confirmación en pantalla → (a) descarga el XLSX de los pendientes y (b) `POST /api/students/credit-grants` con los mismos filtros y `confirm: true`. El orden es deliberado: si el POST falla, no se gastó nada y se reintenta sin doble acreditación.
+3. **Descargar sin otorgar** solo genera el archivo (revisar / re-auditar).
+
+### Decisiones de diseño
+
+- El **Excel nunca incluye** a los ya otorgados: es el archivo que se sube al externo. El toggle *Ver ya otorgados* solo afecta a la vista previa en pantalla y marca la fila con `already_granted`.
+- El endpoint de lista acepta `include_granted=1` para auditar; el de export y el de otorgamiento **nunca** lo activan.
+- `credit_grants_available` en la respuesta de la lista habilita/deshabilita el botón de otorgamiento según exista la tabla (evita descargar un archivo que no se puede registrar).
+- Corrección incluida: la descarga del Excel usaba `window.open()` contra una ruta con `@jwt_required` (sin header `Authorization`) y abría una pestaña con 401; ahora baja con `fetch` autenticado + blob, igual que el resto de exportes.
+
+### Despliegue
+
+- `flask db upgrade` aplica `20261001` y `20261002` en cadena. Ver el estado en *Paso de despliegue OBLIGATORIO*.
+- Tests: `tests/api/test_credit_grants.py` — auth, validaciones del POST, acreditación + exclusión de la lista, segundo crédito con horas frescas, no repetibilidad, fila forzada por override, Excel sin acreditados e historial por lote.

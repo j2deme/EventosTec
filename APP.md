@@ -83,6 +83,11 @@ Nota: lista basada en los blueprints en app/api.
 8. Estudiantes (Blueprint: /api/students)
 
 - Endpoints para CRUD estudiantes, búsquedas, y utilidades (export, estadísticas relacionadas).
+- GET /api/students/complementary-credits (JWT + admin) -> lista de estudiantes con crédito complementario. Params: `event_id` **o** `event_ids` (comas y/o repetido), `career`, `include_granted=1`. Respuesta: `{ event, events, students, total_students, excluded_already_credited, excluded_by_override, excluded_already_granted, include_granted, credit_grants_available }`. Cada `student` incluye además `hours_by_event`, `hours_consumed`, `hours_available`, `crossing_event_id`, `grant_event_ids`, `granted_event_ids` y `already_granted`.
+- GET /api/students/complementary-credits/export (JWT + admin) -> XLSX con la misma regla que la lista. **Nunca incluye a los ya otorgados** (el resumen del sheet cuántos se omitieron); exige header `Authorization`, así que el frontend lo baja con `fetch` autenticado y blob (`window.open` recibiría 401).
+- POST /api/students/credit-grants (JWT + admin) -> registra un otorgamiento y gasta sus eventos (Fase 3). Body `{ event_ids, career?, confirm: true (obligatorio), note? }`. Responde `{ batch_id, granted_students, granted_events, message }` o 400 si no hay pendientes. Los eventos gastados son los que aportan horas NO gastadas desde el inicio hasta el cruce de 10 h; los posteriores al cruce quedan para un crédito futuro. Flujo del frontend: primero el GET del Excel y **después** este POST, para que un fallo deje todo como estaba (reintentable sin doble acreditación).
+- GET /api/students/credit-grants (JWT + admin) -> historial de otorgamientos agrupado por lote: `{ batches: [{ batch_id, granted_at, granted_by, note, event_ids, event_names, student_ids, student_count }], total }`.
+- GET/POST /api/students/credit-overrides (upsert) y DELETE /api/students/credit-overrides/<student_id> (JWT + admin) -> `decision` `include`/`exclude` por estudiante, para forzar u omitir de la lista a mano.
 
 9. Reportes (Blueprint: /api/reports)
 

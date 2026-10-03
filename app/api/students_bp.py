@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, send_file, current_app
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 import requests
+import uuid
 from app import db
 from app.schemas import student_schema, students_schema
 from app.models.student import Student
@@ -765,7 +766,12 @@ def get_students_with_complementary_credits():
             return jsonify({"message": "event_id es requerido"}), 400
 
         from app.models.event import Event
-        from app.services.hours_service import compute_credit_rows, load_overrides_map
+        from app.services.hours_service import (
+            compute_credit_rows,
+            credit_grants_available,
+            load_grants_map,
+            load_overrides_map,
+        )
 
         # Los eventos deben existir (misma respuesta 404 que antes)
         events = Event.query.filter(Event.id.in_(unique_ids)).all()
@@ -775,16 +781,29 @@ def get_students_with_complementary_credits():
         events.sort(key=lambda e: (e.start_date is None, e.start_date, e.id))
         chronological_ids = [ev.id for ev in events]
 
-        # Lista de créditos (fuente única): horas unificadas + exclusión
-        # derivada (earliest-crossing) + overrides manuales (credit_overrides).
+        # Solo para auditar en pantalla: añade a la lista a los excluidos por
+        # ya tener eventos gastados (marca already_granted). El Excel y el
+        # otorgamiento NUNCA lo activan, para no re-acreditar a nadie.
+        include_granted = request.args.get("include_granted", "") in (
+            "1",
+            "true",
+            "True",
+        )
+
+        # Lista de créditos (fuente única): horas unificadas + eventos ya
+        # gastados (credit_grants) + exclusión derivada (earliest-crossing) +
+        # overrides manuales (credit_overrides).
         results, stats = compute_credit_rows(
             event_ids=unique_ids,
             chronological_ids=chronological_ids,
             career=career or None,
             overrides=load_overrides_map(),
+            grants=load_grants_map(chronological_ids),
+            include_granted=include_granted,
         )
         excluded_already_credited = stats["excluded_already_credited"]
         excluded_by_override = stats["excluded_by_override"]
+        excluded_already_granted = stats["excluded_already_granted"]
 
         students_list = []
         for row in results:
@@ -801,6 +820,16 @@ def get_students_with_complementary_credits():
                     # Desglose por evento (solo eventos solicitados)
                     "hours_by_event": dict(row["hours_by_event"]),
                     "activities_by_event": dict(row["activities_by_event"]),
+                    # Fase 3: horas ya gastadas en otorgamientos previos y las
+                    # que quedan disponibles para un nuevo crédito.
+                    "hours_consumed": float(row["hours_consumed"] or 0),
+                    "hours_available": float(row["hours_available"] or 0),
+                    "crossing_event_id": row["crossing_event_id"],
+                    # Eventos que se gastarían al otorgar (hasta el cruce) y
+                    # los que ya quedaron gastados en lotes anteriores.
+                    "grant_event_ids": list(row["grant_event_ids"]),
+                    "granted_event_ids": list(row["granted_event_ids"]),
+                    "already_granted": bool(row["already_granted"]),
                 }
             )
 
@@ -821,6 +850,11 @@ def get_students_with_complementary_credits():
                 "total_students": len(students_list),
                 "excluded_already_credited": excluded_already_credited,
                 "excluded_by_override": excluded_by_override,
+                "excluded_already_granted": excluded_already_granted,
+                "include_granted": include_granted,
+                # false = migración 20261002 pendiente: el frontend bloquea
+                # el botón de otorgamiento (el Excel no podría registrarse).
+                "credit_grants_available": credit_grants_available(),
             }
         ), 200
 
@@ -882,7 +916,11 @@ def export_complementary_credits():
         from openpyxl.utils import get_column_letter
 
         from app.models.event import Event
-        from app.services.hours_service import compute_credit_rows, load_overrides_map
+        from app.services.hours_service import (
+            compute_credit_rows,
+            load_grants_map,
+            load_overrides_map,
+        )
 
         # Los eventos deben existir (misma respuesta 404 que antes)
         events = Event.query.filter(Event.id.in_(unique_ids)).all()
@@ -891,12 +929,17 @@ def export_complementary_credits():
         events.sort(key=lambda e: (e.start_date is None, e.start_date, e.id))
         chronological_ids = [ev.id for ev in events]
 
-        # Misma regla que la lista (fuente única + exclusion + overrides)
-        results, _stats = compute_credit_rows(
+        # Misma regla que la lista (horas + eventos ya gastados + exclusion
+        # derivada + overrides). El Excel excluye SIEMPRE a los ya otorgados:
+        # es el archivo que se sube a la plataforma externa y un estudiante
+        # acreditado dos veces ahí no se puede deshacer. Por eso nunca se pasa
+        # include_granted.
+        results, stats = compute_credit_rows(
             event_ids=unique_ids,
             chronological_ids=chronological_ids,
             career=career or None,
             overrides=load_overrides_map(),
+            grants=load_grants_map(chronological_ids),
         )
 
         # Crear archivo Excel
@@ -985,7 +1028,18 @@ def export_complementary_credits():
         summary_row = header_row + len(results) + 2
         ws.merge_cells(f"A{summary_row}:{last_col_letter}{summary_row}")
         summary_cell: Any = ws.cell(row=summary_row, column=1)
+        omitted = []
+        if stats.get("excluded_already_granted"):
+            omitted.append(f"{stats['excluded_already_granted']} ya otorgados")
+        if stats.get("excluded_already_credited"):
+            omitted.append(
+                f"{stats['excluded_already_credited']} en eventos anteriores"
+            )
+        if stats.get("excluded_by_override"):
+            omitted.append(f"{stats['excluded_by_override']} por override")
         summary_cell.value = f"Total de estudiantes: {len(results)}"
+        if omitted:
+            summary_cell.value += f" (omitidos: {', '.join(omitted)})"
         summary_cell.font = Font(bold=True)
         summary_cell.alignment = Alignment(horizontal="right")
 
@@ -1131,3 +1185,204 @@ def delete_credit_override(student_id):
         return jsonify({"message": "Override eliminado"}), 200
     except Exception as e:
         return jsonify({"message": "Error al eliminar override", "error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Otorgamiento de crédito complementario (tabla credit_grants, Fase 3)
+# ---------------------------------------------------------------------------
+
+
+@students_bp.route("/credit-grants", methods=["GET"])
+@jwt_required()
+@require_admin
+def list_credit_grants():
+    """Historial de otorgamientos agrupado por lote (batch_id).
+
+    Cada lote corresponde a una confirmación del admin y guarda qué
+    estudiantes y qué eventos se acreditaron en esa acción.
+    """
+    try:
+        from app.models.credit_grant import CreditGrant
+        from app.models.event import Event
+
+        grants = CreditGrant.query.order_by(CreditGrant.granted_at.desc()).all()
+        batches = {}
+        for grant in grants:
+            batch = batches.setdefault(
+                grant.batch_id,
+                {
+                    "batch_id": grant.batch_id,
+                    "granted_at": safe_iso(grant.granted_at)
+                    if grant.granted_at
+                    else None,
+                    "granted_by": grant.granted_by,
+                    "note": grant.note,
+                    "student_ids": set(),
+                    "event_ids": set(),
+                },
+            )
+            batch["student_ids"].add(grant.student_id)
+            batch["event_ids"].add(grant.event_id)
+
+        items = []
+        for batch in batches.values():
+            event_ids = sorted(batch.pop("event_ids"))
+            student_ids = sorted(batch.pop("student_ids"))
+            batch["event_ids"] = event_ids
+            batch["event_names"] = [
+                ev.name if (ev := db.session.get(Event, eid)) else str(eid)
+                for eid in event_ids
+            ]
+            batch["student_ids"] = student_ids
+            batch["student_count"] = len(student_ids)
+            items.append(batch)
+
+        return jsonify({"batches": items, "total": len(items)}), 200
+    except Exception as e:
+        return jsonify(
+            {"message": "Error al obtener otorgamientos", "error": str(e)}
+        ), 500
+
+
+@students_bp.route("/credit-grants", methods=["POST"])
+@jwt_required()
+@require_admin
+def grant_complementary_credits():
+    """Registra un otorgamiento de crédito y gasta sus eventos (Fase 3).
+
+    Body JSON:
+      - event_ids: [int] (requerido) — mismos eventos que se pasaron al
+        export; se usa para reconstruir la misma lista pendiente.
+      - career: str (opcional) — mismo filtro de carrera del export.
+      - confirm: true (requerido) — el frontend lo envía tras confirmar en
+        pantalla. Sin él la operación no se ejecuta.
+      - note: str (opcional, <=255) — nota del lote.
+
+    Registra una fila en ``credit_grants`` por cada estudiante y evento que
+    se acredita, con los eventos que aportan horas NO gastadas desde el
+    inicio hasta el cruce de 10 h (los posteriores al cruce quedan intactos
+    para un próximo crédito).
+
+    Respuesta: ``{batch_id, granted_students, granted_events, message}``.
+
+    Nota de flujo: el frontend descarga primero el Excel (GET
+    /complementary-credits/export, que excluye a los ya otorgados) y luego
+    llama a este endpoint con los mismos parámetros. Si este falla, no se
+    gastó nada y se puede reintentar sin doble acreditación.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+
+        if not data.get("confirm"):
+            return (
+                jsonify({"message": "Se requiere confirm=true para otorgar crédito"}),
+                400,
+            )
+
+        raw_ids = data.get("event_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return jsonify({"message": "event_ids debe ser una lista no vacía"}), 400
+        try:
+            unique_ids = list(dict.fromkeys(int(i) for i in raw_ids))
+        except (TypeError, ValueError):
+            return jsonify({"message": "event_ids debe contener IDs numéricos"}), 400
+
+        career = data.get("career") or ""
+        note = data.get("note")
+        if note is not None:
+            note = str(note).strip() or None
+            if note and len(note) > 255:
+                return jsonify({"message": "note máximo 255 caracteres"}), 400
+
+        from app.models.credit_grant import CreditGrant
+        from app.models.event import Event
+        from app.services.hours_service import (
+            compute_credit_rows,
+            load_grants_map,
+            load_overrides_map,
+        )
+
+        events = Event.query.filter(Event.id.in_(unique_ids)).all()
+        if len(events) != len(unique_ids):
+            return jsonify({"message": "Evento no encontrado"}), 404
+        events.sort(key=lambda e: (e.start_date is None, e.start_date, e.id))
+        chronological_ids = [ev.id for ev in events]
+
+        # Misma regla que la lista y que el Excel: pendientes únicamente
+        # (include_granted nunca se activa).
+        results, _stats = compute_credit_rows(
+            event_ids=unique_ids,
+            chronological_ids=chronological_ids,
+            career=career or None,
+            overrides=load_overrides_map(),
+            grants=load_grants_map(chronological_ids),
+        )
+
+        if not results:
+            return (
+                jsonify(
+                    {
+                        "message": "No hay estudiantes pendientes de acreditación",
+                        "granted_students": 0,
+                        "granted_events": 0,
+                    }
+                ),
+                400,
+            )
+
+        try:
+            granted_by = int(get_jwt_identity())
+        except (TypeError, ValueError):
+            granted_by = None
+
+        # Red de seguridad ante una carrera: no insertar eventos ya gastados
+        # (la tabla tiene unicidad en student_id + event_id).
+        existing = {
+            (g.student_id, g.event_id)
+            for g in CreditGrant.query.filter(
+                CreditGrant.event_id.in_(chronological_ids)
+            ).all()
+        }
+
+        batch_id = uuid.uuid4().hex
+        granted_events = 0
+        for row in results:
+            for event_id in row["grant_event_ids"]:
+                if (row["id"], event_id) in existing:
+                    continue
+                db.session.add(
+                    CreditGrant(
+                        student_id=row["id"],
+                        event_id=event_id,
+                        batch_id=batch_id,
+                        granted_by=granted_by,
+                        note=note,
+                    )
+                )
+                existing.add((row["id"], event_id))
+                granted_events += 1
+
+        # Solo puede quedar 0 si todas las filas vienen de overrides
+        # 'include' sin horas: no hay nada que gastar (caso rarísimo).
+        if granted_events:
+            db.session.commit()
+        else:
+            batch_id = None
+
+        return (
+            jsonify(
+                {
+                    "message": "Crédito otorgado",
+                    "batch_id": batch_id,
+                    "granted_students": len(results),
+                    "granted_events": granted_events,
+                }
+            ),
+            200,
+        )
+    except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return jsonify({"message": "Error al otorgar crédito", "error": str(e)}), 500

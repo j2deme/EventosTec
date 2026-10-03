@@ -789,26 +789,102 @@
               <span x-text="exportStats.excluded_by_override"></span>
               &nbsp;omitidos por override manual
             </span>
+            <span
+              x-show="exportStats.excluded_already_granted > 0"
+              class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800"
+            >
+              <i class="ti ti-certificate mr-1"></i>
+              <span x-text="exportStats.excluded_already_granted"></span>
+              &nbsp;<span x-show="!includeGranted">ya otorgados (omitidos)</span
+              ><span x-show="includeGranted">ya otorgados (visibles)</span>
+            </span>
           </div>
+
+          <!-- Auditoría: ver a los ya otorgados (solo en pantalla; el Excel
+               y el otorgamiento nunca los incluyen) -->
+          <label
+            x-show="exportStats.excluded_already_granted > 0"
+            x-cloak
+            class="mt-2 flex items-center gap-2 text-xs text-gray-600 w-fit cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              x-model="includeGranted"
+              @change="toggleIncludeGranted()"
+              class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <i class="ti ti-eye"></i>
+            Ver ya otorgados (auditoría; no se vuelven a acreditar)
+          </label>
 
           <!-- Resultados -->
           <div
             x-show="exportData.length > 0"
             class="mt-6 border-t border-gray-200 pt-4"
           >
-            <div class="mb-4 flex items-center justify-between">
+            <div class="mb-4 flex items-center justify-between gap-3">
               <h4 class="text-sm font-medium text-gray-900">
                 Estudiantes encontrados:
                 <span class="text-indigo-600" x-text="exportData.length"></span>
+                <span x-show="includeGranted" class="font-normal text-gray-500"
+                  >(<span x-text="pendingGrantCount()"></span> pendientes de
+                  otorgar)</span
+                >
               </h4>
-              <button
-                @click="exportToExcel()"
-                class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
-              >
-                <i class="ti ti-download mr-1"></i>
-                Descargar Excel
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="exportToExcel()"
+                  :disabled="exportingExcel || granting"
+                  class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span x-show="!exportingExcel"
+                    ><i class="ti ti-download mr-1"></i>Descargar sin
+                    otorgar</span
+                  >
+                  <span x-show="exportingExcel"
+                    ><i class="ti ti-loader animate-spin mr-1"></i
+                    >Descargando...</span
+                  >
+                </button>
+                <button
+                  @click="grantCredits()"
+                  :disabled="granting || exportingExcel || !creditGrantsAvailable"
+                  class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :title="creditGrantsAvailable
+                    ? 'Descarga el Excel y registra el otorgamiento de los eventos'
+                    : 'Requiere aplicar la migración 20261002_add_credit_grants'"
+                >
+                  <span x-show="!granting"
+                    ><i class="ti ti-certificate mr-1"></i> Otorgar crédito
+                    (<span x-text="pendingGrantCount()"></span>)</span
+                  >
+                  <span x-show="granting"
+                    ><i class="ti ti-loader animate-spin mr-1"></i>
+                    Otorgando...</span
+                  >
+                </button>
+              </div>
             </div>
+
+            <p class="mb-3 text-xs text-gray-500">
+              <i class="ti ti-info-circle mr-1"></i>"Otorgar crédito" descarga
+              el Excel y marca los eventos usados como acreditados (ya no sirven
+              para un crédito futuro). "Descargar sin otorgar" solo genera el
+              archivo.
+            </p>
+
+            <!-- Migración pendiente: el otorgamiento queda bloqueado -->
+            <p
+              x-show="exportStats.events.length > 0 && !creditGrantsAvailable"
+              x-cloak
+              class="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800"
+            >
+              <i class="ti ti-alert-triangle mr-1"></i>
+              La tabla <code>credit_grants</code> aún no existe en el servidor
+              (ejecuta <code>flask db upgrade</code>): el otorgamiento está
+              bloqueado porque no se podría registrar. La descarga sigue
+              disponible.
+            </p>
 
             <!-- Tabla de vista previa -->
             <div
@@ -878,10 +954,17 @@
                         class="px-4 py-3 text-sm font-medium text-gray-900"
                         x-text="student.control_number"
                       ></td>
-                      <td
-                        class="px-4 py-3 text-sm text-gray-900"
-                        x-text="student.full_name"
-                      ></td>
+                      <td class="px-4 py-3 text-sm font-medium text-gray-900">
+                        <span x-text="student.full_name"></span>
+                        <span
+                          x-show="student.already_granted"
+                          x-cloak
+                          class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-100 text-purple-800"
+                          title="Evento(s) ya usado(s) para acreditar; solo visible con la vista de auditoría"
+                        >
+                          <i class="ti ti-certificate mr-1"></i>Ya otorgado
+                        </span>
+                      </td>
                       <td
                         class="px-4 py-3 text-sm text-gray-600"
                         x-text="student.career"

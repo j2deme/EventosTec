@@ -364,18 +364,216 @@ describe("studentsAdmin", () => {
     expect(window.showToast).not.toHaveBeenCalled();
   });
 
-  test("exportToExcel opens export URL with event_ids", async () => {
+  // ---------------------------------------------------------------------
+  // Descarga autenticada del Excel y otorgamiento de crédito (Fase 3)
+  // ---------------------------------------------------------------------
+
+  // Prepara el <a> temporal que downloadCreditsExcel pulsa al final
+  function mockDownloadDom() {
+    const mockClick = jest.fn();
+    const mockRemove = jest.fn();
+    const createElement = jest
+      .spyOn(document, "createElement")
+      .mockReturnValue({
+        href: "",
+        download: "",
+        click: mockClick,
+        remove: mockRemove,
+      });
+    const appendChild = jest
+      .spyOn(document.body, "appendChild")
+      .mockImplementation(() => {});
+    global.URL.createObjectURL = jest.fn(() => "blob:mock-url");
+    global.URL.revokeObjectURL = jest.fn();
+    return {
+      mockClick,
+      restore() {
+        createElement.mockRestore();
+        appendChild.mockRestore();
+        delete global.URL.createObjectURL;
+        delete global.URL.revokeObjectURL;
+      },
+    };
+  }
+
+  // Respuesta binaria del endpoint /complementary-credits/export
+  function blobResponse(filename) {
+    return {
+      ok: true,
+      blob: async () => new Blob(["xlsx"]),
+      headers: {
+        get: (name) =>
+          name === "Content-Disposition" && filename
+            ? `attachment; filename="${filename}"`
+            : null,
+      },
+    };
+  }
+
+  test("exportToExcel descarga con fetch autenticado, no window.open", async () => {
     window.open = jest.fn();
     mgr.exportFilters = { event_ids: [2, 4], career: "Ing" };
+    fetchMock.mockResolvedValueOnce(blobResponse("creditos.xlsx"));
+    const dom = mockDownloadDom();
 
-    await mgr.exportToExcel();
+    try {
+      await mgr.exportToExcel();
 
-    expect(window.open).toHaveBeenCalledTimes(1);
-    const url = window.open.mock.calls[0][0];
-    expect(url).toContain("/api/students/complementary-credits/export?");
-    expect(url).toContain("event_ids=");
-    expect(url).toContain("career=Ing");
-    expect(window.open.mock.calls[0][1]).toBe("_blank");
+      // La ruta exige header Authorization: window.open abriría la URL sin
+      // token y el backend respondería 401 en la pestaña nueva.
+      expect(window.open).not.toHaveBeenCalled();
+      const url = fetchMock.mock.calls[0][0];
+      expect(url).toContain("/api/students/complementary-credits/export?");
+      expect(url).toContain("event_ids=2%2C4");
+      expect(url).toContain("career=Ing");
+      expect(dom.mockClick).toHaveBeenCalled();
+      expect(mgr.exportingExcel).toBe(false);
+    } finally {
+      dom.restore();
+    }
+  });
+
+  test("loadComplementaryCredits envía include_granted y guarda el contador", async () => {
+    mgr.exportFilters = { event_ids: [1], career: "" };
+    mgr.includeGranted = true;
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        students: [{ id: 9, already_granted: true }],
+        events: [{ id: 1, name: "Ev 1" }],
+        excluded_already_granted: 3,
+        credit_grants_available: true,
+      }),
+    });
+
+    await mgr.loadComplementaryCredits();
+
+    expect(fetchMock.mock.calls[0][0]).toContain("include_granted=1");
+    expect(mgr.exportStats.excluded_already_granted).toBe(3);
+    expect(mgr.creditGrantsAvailable).toBe(true);
+    // La única fila está acreditada → 0 pendientes de otorgar
+    expect(mgr.pendingGrantCount()).toBe(0);
+  });
+
+  test("grantCredits descarga primero y después registra el lote", async () => {
+    mgr.exportFilters = { event_ids: [5], career: "" };
+    mgr.exportData = [{ id: 9, already_granted: false }];
+    window.confirm = jest.fn(() => true);
+
+    fetchMock
+      .mockResolvedValueOnce(blobResponse("creditos.xlsx"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          batch_id: "b1",
+          granted_students: 1,
+          granted_events: 1,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          students: [],
+          events: [],
+          excluded_already_credited: 0,
+          excluded_by_override: 0,
+          excluded_already_granted: 1,
+          credit_grants_available: true,
+        }),
+      });
+    const dom = mockDownloadDom();
+
+    try {
+      await mgr.grantCredits();
+
+      expect(window.confirm).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+
+      // 1) el archivo va primero: si falla, no se registró nada
+      expect(fetchMock.mock.calls[0][0]).toContain(
+        "/api/students/complementary-credits/export?",
+      );
+      // 2) solo después se registra el otorgamiento
+      expect(fetchMock.mock.calls[1][0]).toBe("/api/students/credit-grants");
+      expect(fetchMock.mock.calls[1][1]).toEqual(
+        expect.objectContaining({ method: "POST" }),
+      );
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+        event_ids: [5],
+        career: "",
+        confirm: true,
+      });
+      expect(window.showToast).toHaveBeenCalledWith(
+        expect.stringContaining("Crédito otorgado"),
+        "success",
+      );
+      // 3) la lista se refresca: los acreditados salen de pendientes
+      expect(mgr.exportStats.excluded_already_granted).toBe(1);
+      expect(mgr.granting).toBe(false);
+    } finally {
+      dom.restore();
+    }
+  });
+
+  test("grantCredits no hace nada si el usuario cancela la confirmación", async () => {
+    mgr.exportFilters = { event_ids: [5], career: "" };
+    mgr.exportData = [{ id: 9, already_granted: false }];
+    window.confirm = jest.fn(() => false);
+
+    await mgr.grantCredits();
+
+    expect(window.confirm).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mgr.granting).toBe(false);
+  });
+
+  test("grantCredits se bloquea sin la migración credit_grants", async () => {
+    mgr.creditGrantsAvailable = false;
+    mgr.exportFilters = { event_ids: [5], career: "" };
+    mgr.exportData = [{ id: 9, already_granted: false }];
+    window.confirm = jest.fn(() => true);
+
+    await mgr.grantCredits();
+
+    // Ni confirmar ni descargar: el archivo no podría registrarse
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalledWith(
+      expect.stringContaining("migración"),
+      "error",
+    );
+  });
+
+  test("grantCredits avisa si el registro falla tras descargar", async () => {
+    mgr.exportFilters = { event_ids: [5], career: "" };
+    mgr.exportData = [{ id: 9, already_granted: false }];
+    window.confirm = jest.fn(() => true);
+
+    fetchMock
+      .mockResolvedValueOnce(blobResponse("creditos.xlsx"))
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({ message: "Tabla credit_grants no existe" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ students: [], events: [] }),
+      });
+    const dom = mockDownloadDom();
+
+    try {
+      await mgr.grantCredits();
+
+      expect(window.showToast).toHaveBeenCalledWith(
+        expect.stringContaining("no se registró"),
+        "error",
+      );
+      expect(mgr.granting).toBe(false);
+    } finally {
+      dom.restore();
+    }
   });
 
   test("searchOverrideStudent prefers exact control number match", async () => {
