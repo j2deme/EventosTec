@@ -13,6 +13,8 @@ from app.models.user import User
 from app.models.student import Student
 from app.models.revoked_token import RevokedToken
 from app.services.password_recovery_service import request_recovery
+from app.services.rate_limit import SlidingWindowLimiter
+from app.utils.auth_helpers import require_admin
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -205,6 +207,107 @@ def forgot_password():
     except Exception:
         current_app.logger.exception("Error in /api/auth/forgot-password")
         return jsonify({"message": "Error al solicitar la recuperación"}), 500
+
+
+# Cambio de contraseña del administrador (vive en la BD local, no en MAB)
+
+CHANGE_PASSWORD_MIN_LENGTH = 8
+
+# (intentos, ventana_en_segundos) por usuario autenticado.
+CHANGE_PASSWORD_LIMITS: dict[str, tuple[int, int]] = {"attempts": (5, 900)}
+
+_change_password_limiter = SlidingWindowLimiter()
+
+
+def reset_change_password_limits() -> None:
+    """Reinicia los contadores de cambio de contraseña (uso en tests)."""
+    _change_password_limiter.reset()
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+@jwt_required()
+@require_admin
+def change_password():
+    """Cambia la contraseña del administrador autenticado.
+
+    Body: ``{ "current_password", "new_password", "confirm_password" }``.
+
+    La contraseña de los administradores vive en la tabla local ``users``
+    (hash werkzeug), así que este flujo **no** pasa por la plataforma MAB
+    (8091), que solo gestiona las credenciales de los estudiantes.
+
+    Respuestas: 200, 400 (datos inválidos o contraseña actual incorrecta),
+    403 (rol distinto de admin, desde ``require_admin``), 404 (usuario) y
+    429 (demasiados intentos).
+
+    La contraseña actual incorrecta responde **400 y no 401**: el interceptor
+    global de ``fetch`` (``app/static/js/app.js``) cierra la sesión y redirige
+    al login ante cualquier 401, y aquí la sesión sigue siendo válida.
+    """
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    current_password = payload.get("current_password")
+    new_password = payload.get("new_password")
+    confirm_password = payload.get("confirm_password")
+
+    if not all(
+        isinstance(value, str) and value
+        for value in (current_password, new_password, confirm_password)
+    ):
+        return jsonify({"message": "Los tres campos son requeridos"}), 400
+
+    identity = get_jwt_identity()
+    limit, window = CHANGE_PASSWORD_LIMITS["attempts"]
+    if not _change_password_limiter.allow(f"change-password:{identity}", limit, window):
+        current_app.logger.info("change-password limitado (%s)", identity)
+        return jsonify(
+            {
+                "message": "Demasiados intentos. Espera unos minutos y vuelve a intentarlo."
+            }
+        ), 429
+
+    if new_password != confirm_password:
+        return jsonify(
+            {"message": "La confirmación no coincide con la nueva contraseña."}
+        ), 400
+
+    if len(new_password) < CHANGE_PASSWORD_MIN_LENGTH:
+        return jsonify(
+            {
+                "message": f"La nueva contraseña debe tener al menos {CHANGE_PASSWORD_MIN_LENGTH} caracteres."
+            }
+        ), 400
+
+    try:
+        user = db.session.get(User, int(identity))
+    except (ValueError, TypeError):
+        user = None
+
+    if not user or not user.is_active:
+        return jsonify({"message": "Usuario no encontrado"}), 404
+
+    if not user.check_password(current_password):
+        return jsonify({"message": "La contraseña actual es incorrecta."}), 400
+
+    if new_password == current_password:
+        return jsonify(
+            {"message": "La nueva contraseña debe ser distinta de la actual."}
+        ), 400
+
+    try:
+        user.set_password(new_password)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Error in /api/auth/change-password")
+        return jsonify({"message": "No se pudo actualizar la contraseña"}), 500
+
+    current_app.logger.info(
+        "Contraseña cambiada para el administrador %s", user.username
+    )
+    return jsonify({"message": "Contraseña actualizada correctamente."}), 200
 
 
 # Perfil del usuario actual
