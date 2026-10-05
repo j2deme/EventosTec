@@ -26,6 +26,8 @@ Archivos y rutas clave
 - `app/static/js/app.js` — interceptor global de `fetch`, helpers `getAuthToken()`, `getAuthHeaders()`, `isAuthenticated()`.
 - `app/static/js/admin/attendances.js` — factory `attendancesAdmin()` con la UI admin (modales, sync, batch, openRegistrationModal).
 - `app/templates/admin/partials/attendances.html` — plantilla Jinja2 que usa la factory Alpine y contiene modales mencionados.
+- `app/static/js/helpers/dateHelpers.js` — única fuente de formateo de fechas (expone `window.dateHelpers`).
+- `app/static/js/helpers/activityTypeHelpers.js` — única fuente de presentación por TIPO de actividad (paleta, iconos y duración por sesión; expone `window.activityTypeHelpers`). La usan el calendario de admin, la lista de actividades, la vista pública de Jefes de Carrera y la vista del estudiante: al cambiarla, todos los roles cambian juntos.
 - `app/services/` — lugar recomendado para extraer lógica reutilizable del backend (por ejemplo `synth` extraction).
 - `tests/` — tests backend (pytest) organizados por módulos; `app/static/js/admin/__tests__` contiene tests Jest para frontend.
 
