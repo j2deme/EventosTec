@@ -140,43 +140,13 @@ endblock %} {% block content %}
                           ></span>
                         </div>
                         <div class="flex-shrink-0">
-                          <template x-if="a.activity_type === 'Magistral'">
-                            <i
-                              class="ti ti-school text-indigo-600"
-                              :title="a.activity_type"
-                              aria-hidden="true"
-                            ></i>
-                          </template>
-                          <template x-if="a.activity_type === 'Conferencia'">
-                            <i
-                              class="ti ti-presentation text-green-600"
-                              :title="a.activity_type"
-                              aria-hidden="true"
-                            ></i>
-                          </template>
-                          <template x-if="a.activity_type === 'Taller'">
-                            <i
-                              class="ti ti-tools text-yellow-600"
-                              :title="a.activity_type"
-                              aria-hidden="true"
-                            ></i>
-                          </template>
-                          <template x-if="a.activity_type === 'Curso'">
-                            <i
-                              class="ti ti-device-laptop text-orange-600"
-                              :title="a.activity_type"
-                              aria-hidden="true"
-                            ></i>
-                          </template>
-                          <template
-                            x-if="!a.activity_type || a.activity_type === 'Otro'"
-                          >
-                            <i
-                              class="ti ti-tag text-gray-600"
-                              :title="a.activity_type || 'Otro'"
-                              aria-hidden="true"
-                            ></i>
-                          </template>
+                          <!-- Icono por tipo, con la paleta canónica del helper
+                               compartido (antes: 5 <template> con colores propios) -->
+                          <i
+                            x-bind:class="typeIconFull(a.activity_type)"
+                            :title="a.activity_type || 'Otro'"
+                            aria-hidden="true"
+                          ></i>
                         </div>
                       </div>
                     </td>
@@ -186,13 +156,7 @@ endblock %} {% block content %}
                     ></td>
                     <td class="p-2 text-sm hidden md:table-cell">
                       <span
-                        x-bind:class="{
-                      'bg-indigo-100 text-indigo-800': a.activity_type === 'Magistral',
-                      'bg-green-100 text-green-800': a.activity_type === 'Conferencia',
-                      'bg-yellow-100 text-yellow-800': a.activity_type === 'Taller',
-                      'bg-orange-100 text-orange-800': a.activity_type === 'Curso',
-                      'bg-gray-100 text-gray-800': a.activity_type === 'Otro'
-                    }"
+                        x-bind:class="typeTag(a.activity_type)"
                         class="inline-flex items-center px-2 py-0.5 rounded-full text-xs leading-5 font-semibold md:max-w-none truncate justify-center whitespace-nowrap overflow-hidden"
                         :title="a.activity_type || '-'"
                       >

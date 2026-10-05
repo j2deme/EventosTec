@@ -1109,6 +1109,17 @@ function activitiesManager() {
       }
     },
 
+    // Píldora de tipo: delegada al helper compartido para que la lista de
+    // actividades use la MISMA paleta que el calendario (admin) y el estudiante.
+    typeTag(type) {
+      const helpers =
+        typeof window !== "undefined" ? window.activityTypeHelpers : null;
+      if (helpers && typeof helpers.tag === "function")
+        return helpers.tag(type);
+      // Fallback neutro: nunca rompe el layout
+      return "bg-gray-100 text-gray-800";
+    },
+
     // Consultar actividades relacionadas
     async getRelatedActivities(activityId) {
       const f =

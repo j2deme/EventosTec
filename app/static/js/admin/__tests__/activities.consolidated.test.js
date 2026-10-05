@@ -18,6 +18,27 @@ describe("activitiesManager (consolidated)", () => {
       expect(mgr.calculatedDuration).toBeCloseTo(2.5);
     });
 
+    // Paleta de tipo: la píldora de la tabla debe usar la MISMA fuente única
+    // que el calendario de admin y la vista del estudiante.
+    test("typeTag delega en activityTypeHelpers", () => {
+      require("../../helpers/activityTypeHelpers");
+      expect(mgr.typeTag("Magistral")).toBe("bg-indigo-100 text-indigo-800");
+      expect(mgr.typeTag("Conferencia")).toBe("bg-yellow-100 text-yellow-800");
+      expect(mgr.typeTag("Taller")).toBe("bg-green-100 text-green-800");
+      expect(mgr.typeTag("Curso")).toBe("bg-blue-100 text-blue-800");
+      expect(mgr.typeTag("Otro")).toBe("bg-gray-100 text-gray-800");
+    });
+
+    test("typeTag degrada a neutro si el helper no cargó", () => {
+      const original = window.activityTypeHelpers;
+      try {
+        delete window.activityTypeHelpers;
+        expect(mgr.typeTag("Taller")).toBe("bg-gray-100 text-gray-800");
+      } finally {
+        if (original) window.activityTypeHelpers = original;
+      }
+    });
+
     test("updateCalculatedDuration sets 0 when invalid", () => {
       mgr.currentActivity.start_datetime = "";
       mgr.currentActivity.end_datetime = "";

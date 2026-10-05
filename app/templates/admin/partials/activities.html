@@ -1058,13 +1058,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
                   <span
-                    x-bind:class="{
-                      'bg-indigo-100 text-indigo-800': activity.activity_type === 'Magistral',
-                      'bg-green-100 text-green-800': activity.activity_type === 'Conferencia',
-                      'bg-yellow-100 text-yellow-800': activity.activity_type === 'Taller',
-                      'bg-orange-100 text-orange-800': activity.activity_type === 'Curso',
-                      'bg-gray-100 text-gray-800': activity.activity_type === 'Otro'
-                    }"
+                    x-bind:class="typeTag(activity.activity_type)"
                     class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
                   >
                     <span x-text="activity.activity_type"></span>

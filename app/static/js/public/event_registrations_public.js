@@ -604,6 +604,29 @@ function eventRegistrationsPublic() {
       this.fetchActivities();
     },
 
+    // --- Presentación por tipo (delegada al helper compartido con admin y
+    //     estudiante: window.activityTypeHelpers) ---
+
+    typeHelpers() {
+      return (
+        (typeof window !== "undefined" && window.activityTypeHelpers) || null
+      );
+    },
+
+    // Icono suelto con su color: "ti ti-presentation text-yellow-600"
+    typeIconFull(type) {
+      const h = this.typeHelpers();
+      if (h && typeof h.iconFull === "function") return h.iconFull(type);
+      return "ti ti-tag text-gray-600";
+    },
+
+    // Píldora de tipo en la tabla: "bg-yellow-100 text-yellow-800"
+    typeTag(type) {
+      const h = this.typeHelpers();
+      if (h && typeof h.tag === "function") return h.tag(type);
+      return "bg-gray-100 text-gray-800";
+    },
+
     formatDeadline(iso) {
       try {
         // Fecha pura: ya viene como "YYYY-MM-DD", mostrarla tal cual
