@@ -11,3 +11,6 @@ node_modules/
 # Coverage reports
 coverage/
 scripts/references/
+# Muestras HTML generadas localmente para revisión (desechables: no se
+# commitean aunque se vuelvan a generar)
+/samples/
