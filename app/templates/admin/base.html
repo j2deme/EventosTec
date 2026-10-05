@@ -169,7 +169,10 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 p-4 md:p-6 overflow-y-auto">
+    <!-- ⚠️ Sin clases overflow-*: convertirían a <main> en scrollport y el
+         position:sticky del índice de días se pegaría a main (que nunca
+         scrollea) en lugar de al viewport, es decir: no se pegaría nunca. -->
+    <main class="flex-1 p-4 md:p-6">
       {% block admin_content %}{% endblock %}
     </main>
   </div>
