@@ -13,9 +13,7 @@
       </p>
     </div>
     <div class="flex items-center gap-2">
-      <label for="calendar-event" class="text-sm text-gray-600"
-        >Evento:</label
-      >
+      <label for="calendar-event" class="text-sm text-gray-600">Evento:</label>
       <select
         id="calendar-event"
         x-model="selectedEventId"
@@ -45,11 +43,7 @@
   ></div>
 
   <!-- Cargando -->
-  <div
-    x-show="loading"
-    x-cloak
-    class="py-12 text-center text-gray-500"
-  >
+  <div x-show="loading" x-cloak class="py-12 text-center text-gray-500">
     <i class="ti ti-spinner ti-spin text-2xl"></i>
     <div class="mt-2 text-sm">Cargando calendario…</div>
   </div>
@@ -66,17 +60,63 @@
   <!-- Grid de días -->
   <div x-show="!loading && calendar" x-cloak>
     <!-- Resumen del evento -->
-    <div class="mb-3 text-sm text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-1">
-      <span class="font-medium text-gray-800" x-text="calendar.event.name"></span>
+    <div
+      class="mb-3 text-sm text-gray-600 flex flex-wrap items-center gap-x-2 gap-y-1"
+    >
+      <span
+        class="font-medium text-gray-800"
+        x-text="calendar.event.name"
+      ></span>
       <span class="text-gray-400">·</span>
-      <span><i class="ti ti-calendar mr-1"></i><span x-text="calendar.event.start_date"></span> → <span x-text="calendar.event.end_date"></span></span>
+      <span
+        ><i class="ti ti-calendar mr-1"></i
+        ><span x-text="calendar.event.start_date"></span> →
+        <span x-text="calendar.event.end_date"></span
+      ></span>
       <span class="text-gray-400">·</span>
-      <span><span x-text="calendar.total_activities"></span> actividades en <span x-text="calendar.days.length"></span> días</span>
+      <span
+        ><span x-text="calendar.total_activities"></span> actividades en
+        <span x-text="calendar.days.length"></span> días</span
+      >
       <span
         x-show="!calendar.event.is_active"
         class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600"
         >Inactivo</span
       >
+    </div>
+
+    <!-- Selector de vista: rango de días (por defecto) o horario de un día -->
+    <div
+      x-show="calendar.days && calendar.days.length > 0"
+      x-cloak
+      class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2"
+    >
+      <div
+        class="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm"
+        role="group"
+        aria-label="Vista del calendario"
+      >
+        <button
+          @click="setView('range')"
+          :aria-pressed="viewMode === 'range'"
+          :class="viewMode === 'range' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-indigo-700'"
+          class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+        >
+          <i class="ti ti-layout-grid"></i> Rango de días
+        </button>
+        <button
+          @click="setView('day')"
+          :aria-pressed="viewMode === 'day'"
+          :class="viewMode === 'day' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:text-indigo-700'"
+          class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+        >
+          <i class="ti ti-clock-hour-4"></i> Horario del día
+        </button>
+      </div>
+      <p x-show="viewMode === 'day'" x-cloak class="text-[11px] text-gray-500">
+        <i class="ti ti-info-circle mr-1"></i>Las actividades que coinciden en
+        hora se dibujan en carriles paralelos.
+      </p>
     </div>
 
     <!-- Sin días con actividades (solo días vacíos o sin horario) -->
@@ -88,15 +128,58 @@
       El evento no tiene actividades con horario asignado.
     </div>
 
+    <!-- Índice de días sticky: navegación rápida que funciona igual en
+         móvil (columnas con scroll horizontal) que en escritorio. En móvil
+         la píldora del día cuya columna está a la vista se pinta de indigo. -->
     <div
-      x-show="calendar.days && calendar.days.length > 0"
+      x-show="calendar.days && calendar.days.length > 1"
       x-cloak
+      class="sticky top-[60px] md:top-0 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2 bg-gray-50 border-b border-gray-200"
+    >
+      <div class="flex items-center gap-2 overflow-x-auto">
+        <span
+          class="flex-shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-400"
+          >Días</span
+        >
+        <template x-for="day in calendar.days" :key="'idx-' + day">
+          <button
+            @click="onDayPillClick(day)"
+            :title="dayLabel(day) + ' · ' + dayCount(day) + ' actividades'"
+            :aria-current="isDayActive(day) ? 'date' : null"
+            class="flex-shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors"
+            :class="isDayActive(day) ? 'border border-indigo-600 bg-indigo-600 text-white shadow-sm' : 'border border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:text-indigo-700 hover:shadow-sm'"
+          >
+            <i
+              class="ti ti-calendar-event"
+              :class="isDayActive(day) ? 'text-white' : 'text-gray-400'"
+            ></i>
+            <span x-text="dayLabel(day)"></span>
+            <span
+              class="rounded-full px-1.5 text-[10px]"
+              :class="isDayActive(day) ? 'bg-white text-indigo-700' : 'bg-gray-100 text-gray-600'"
+              x-text="dayCount(day)"
+            ></span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Grid de días: UNA columna por día, cada una apilada desde el tope.
+         (Se probó alinearlas por (hora, carril) para que las sesiones de una
+         multisesión quedaran a la misma altura, pero así los días con pocas
+         actividades —p. ej. el 07 oct— enterraban sus chips a media altura
+         de la página. Ver samples/LEEME.md) -->
+    <div
+      x-show="viewMode === 'range' && calendar.days && calendar.days.length > 0"
+      x-cloak
+      data-cal-scroll
       class="overflow-x-auto pb-2"
     >
       <div class="grid gap-3" :style="gridStyle()">
         <template x-for="day in calendar.days" :key="day">
           <div
-            class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col min-h-[160px]"
+            :id="'cal-day-' + day"
+            class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col min-h-[160px] scroll-mt-[110px] md:scroll-mt-20"
           >
             <!-- Encabezado del día -->
             <div
@@ -106,10 +189,20 @@
                 class="text-sm font-semibold text-gray-800 capitalize"
                 x-text="dayLabel(day)"
               ></span>
-              <span
-                class="text-[11px] text-gray-400 whitespace-nowrap"
-                x-text="dayCount(day) + ' act.'"
-              ></span>
+              <span class="flex items-center gap-1.5">
+                <span
+                  class="text-[11px] text-gray-400 whitespace-nowrap"
+                  x-text="dayCount(day) + ' act.'"
+                ></span>
+                <!-- Abre la vista de horario de ESTE día -->
+                <button
+                  @click="setView('day', day)"
+                  class="text-gray-400 hover:text-indigo-600 transition-colors"
+                  :title="'Ver el horario del ' + dayLabel(day)"
+                >
+                  <i class="ti ti-clock-hour-4 text-base"></i>
+                </button>
+              </span>
             </div>
             <!-- Actividades del día -->
             <div class="p-2 space-y-2 flex-1">
@@ -119,36 +212,69 @@
                   :class="typeColor(a.activity_type)"
                   class="w-full text-left border-l-4 rounded-lg px-2.5 py-2 hover:shadow-md transition-shadow"
                 >
-                  <div class="flex items-center justify-between gap-2">
-                    <div
-                      class="text-xs font-semibold text-gray-600"
+                  <!-- Fila 1: icono del tipo + horario de la sesión + badge -->
+                  <div class="flex items-center gap-1.5">
+                    <span
+                      class="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full"
+                      :class="typeSoft(a.activity_type)"
+                      aria-hidden="true"
+                    >
+                      <i
+                        class="ti text-xs"
+                        :class="typeIcon(a.activity_type)"
+                      ></i>
+                    </span>
+                    <span
+                      class="text-xs font-semibold whitespace-nowrap"
                       x-text="(a.starts_at || '—') + ' – ' + (a.ends_at || '—')"
-                    ></div>
+                    ></span>
                     <!-- Actividad multisesión: aparece repartida en varias
                          columnas (una por día) con este badge -->
                     <span
                       x-show="(a.session_total || 1) > 1"
                       x-cloak
-                      class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 whitespace-nowrap"
+                      class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 whitespace-nowrap"
                       >Sesión
-                      <span x-text="a.session_index" class="mx-0.5"></span>/<span
-                        x-text="a.session_total"
-                      ></span
+                      <span x-text="a.session_index" class="mx-0.5"></span
+                      >/<span x-text="a.session_total"></span
                     ></span>
                   </div>
+                  <!-- Fila 2: nombre -->
                   <div
-                    class="text-sm font-medium leading-snug mt-0.5 text-gray-900"
+                    class="text-sm font-medium leading-snug mt-1 text-gray-900"
                     x-text="a.name"
                   ></div>
+                  <!-- Fila 3: duración de ESTA sesión · cupo · ubicación -->
                   <div
-                    class="mt-1 flex items-center justify-between gap-2 text-[11px] text-gray-500"
+                    class="mt-1.5 flex items-center gap-2 text-[11px] text-gray-500 min-w-0"
                   >
-                    <span class="truncate" x-text="a.location || '—'"></span>
                     <span
-                      x-show="a.max_capacity != null"
-                      class="whitespace-nowrap"
-                      x-text="cupoLabel(a)"
-                    ></span>
+                      class="inline-flex items-center gap-1 whitespace-nowrap"
+                      x-show="sessionDuration(a)"
+                      x-cloak
+                    >
+                      <i class="ti ti-hourglass"></i>
+                      <span x-text="sessionDuration(a)"></span>
+                    </span>
+                    <span
+                      class="inline-flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold"
+                      :class="{
+                        'bg-indigo-100 text-indigo-700': cupoLevel(a) === 'ok',
+                        'bg-amber-100 text-amber-700': cupoLevel(a) === 'high',
+                        'bg-red-100 text-red-700': cupoLevel(a) === 'full',
+                        'bg-gray-100 text-gray-500': cupoLevel(a) === 'none'
+                      }"
+                      :title="a.max_capacity != null ? 'Registrados / cupo' : 'Sin cupo definido'"
+                    >
+                      <i class="ti ti-users"></i>
+                      <span
+                        x-text="a.max_capacity != null ? cupoLabel(a) : '∞'"
+                      ></span>
+                    </span>
+                    <span class="flex items-center gap-1 min-w-0">
+                      <i class="ti ti-map-pin flex-shrink-0"></i>
+                      <span class="truncate" x-text="a.location || '—'"></span>
+                    </span>
                   </div>
                 </button>
               </template>
@@ -164,6 +290,347 @@
       </div>
     </div>
 
+    <!-- Vista de horario de UN día (tipo Google Calendar): la columna de la
+         izquierda marca las horas y las actividades que coinciden en el mismo
+         tramo se dibujan en carriles paralelos. -->
+    <div x-show="viewMode === 'day' && selectedDay" x-cloak>
+      <div
+        class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden"
+      >
+        <!-- Cabecera: día mostrado + botón para volver al rango -->
+        <div
+          class="px-3 py-2 border-b border-gray-100 flex items-center justify-between gap-2"
+        >
+          <span class="flex items-center gap-2 min-w-0">
+            <span
+              class="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-700"
+            >
+              <i class="ti ti-calendar-event text-sm"></i>
+            </span>
+            <span
+              class="text-sm font-semibold text-gray-800 capitalize truncate"
+              x-text="dayLabel(selectedDay)"
+            ></span>
+            <span
+              class="text-[11px] text-gray-400 whitespace-nowrap"
+              x-text="dayCount(selectedDay) + ' act.'"
+            ></span>
+            <span
+              x-show="daySchedule(selectedDay).maxLanes > 1"
+              x-cloak
+              class="text-[11px] text-gray-400 whitespace-nowrap"
+              >· <span x-text="daySchedule(selectedDay).maxLanes"></span> en
+              paralelo</span
+            >
+          </span>
+          <button
+            @click="setView('range')"
+            class="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md border border-gray-200 px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-indigo-300 hover:text-indigo-700"
+          >
+            <i class="ti ti-arrow-left"></i> Rango de días
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <!-- min-width dinámico: suelo de CAL_MIN_PX y, a partir de ahí,
+               CANAL_HORAS + carriles * LANE_MIN_PX, para que un día con 19
+               paralelas no acabe con carriles de 33 px (una sola columna de
+               texto). Sigue siendo un min-width: el lienzo crece hasta
+               llenar el panel cuando el panel es más ancho. -->
+          <div
+            class="relative flex"
+            :style="
+              'min-width:' +
+              schedMinWidth() +
+              'px;height:' +
+              daySchedule(selectedDay).height +
+              'px'
+            "
+          >
+            <!-- Canal de horas -->
+            <div
+              class="relative w-14 flex-shrink-0 border-r border-gray-100 bg-gray-50"
+            >
+              <template
+                x-for="h in daySchedule(selectedDay).hours"
+                :key="'h' + h"
+              >
+                <span
+                  class="absolute left-0 right-0 pr-2 pt-1 text-right text-[11px] leading-none text-gray-400"
+                  :style="'top:' + hourTop(h) + 'px'"
+                  x-text="hourLabel(h)"
+                ></span>
+              </template>
+            </div>
+
+            <!-- Lienzo: líneas horarias + actividades posicionadas -->
+            <div class="relative flex-1">
+              <template
+                x-for="h in daySchedule(selectedDay).hours"
+                :key="'line' + h"
+              >
+                <div
+                  class="absolute left-0 right-0 border-t border-gray-100"
+                  :style="'top:' + hourTop(h) + 'px'"
+                ></div>
+              </template>
+
+              <!-- Actividades posicionadas en su carril. Con 6 o más carriles
+                   paralelos la tarjeta es demasiado angosta para el título en
+                   horizontal, así que el texto se gira y se lee de abajo
+                   hacia arriba usando el ALTO de la tarjeta. Al pasar el
+                   cursor la tarjeta se ensancha y muestra su contenido
+                   horizontal completo por encima de los vecinos. -->
+              <template
+                x-for="ev in daySchedule(selectedDay).items"
+                :key="'ev' + ev.id"
+              >
+                <button
+                  @click="openDetail(ev.activity)"
+                  @mouseenter="hoverOn(ev)"
+                  @mouseleave="hoverOff(ev)"
+                  :class="typeColor(ev.activity.activity_type)"
+                  class="absolute flex flex-col overflow-hidden rounded-lg border-l-4 text-left shadow-sm transition-shadow hover:shadow-md"
+                  :style="cardStyle(ev)"
+                  :aria-label="ev.activity.name"
+                  :title="isNarrow(ev) ? null : ev.activity.name"
+                >
+                  <!-- Ficha horizontal: la tarjeta ancha de por sí, y también
+                       la que se muestra al pasar el cursor sobre una angosta.
+                       El título va SIN cortar (envuelve tantas líneas como
+                       haga falta); los bloques de abajo solo se pintan si la
+                       tarjeta tiene sitio, porque su alto lo fija el eje de
+                       horas y no puede crecer. -->
+                  <template x-if="showWide(ev)">
+                    <div class="flex flex-col px-2 py-1.5">
+                      <!-- Cabecera: tipo · horario · sesión ... cupo -->
+                      <div
+                        class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                      >
+                        <span
+                          class="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full"
+                          :class="typeSoft(ev.activity.activity_type)"
+                          aria-hidden="true"
+                        >
+                          <i
+                            class="ti text-[10px]"
+                            :class="typeIcon(ev.activity.activity_type)"
+                          ></i>
+                        </span>
+                        <span
+                          class="text-[11px] leading-4 font-semibold whitespace-nowrap"
+                          x-text="(ev.activity.starts_at || '—') + ' – ' + (ev.activity.ends_at || '—')"
+                        ></span>
+                        <span
+                          x-show="(ev.activity.session_total || 1) > 1"
+                          x-cloak
+                          class="rounded bg-indigo-100 px-1 leading-4 text-[10px] font-medium text-indigo-700 whitespace-nowrap"
+                          x-text="'Sesión ' + ev.activity.session_index + '/' + ev.activity.session_total"
+                        ></span>
+                        <!-- Cupo de primera vista, mismo color que en la vista
+                             por rango -->
+                        <span
+                          class="ml-auto inline-flex shrink-0 items-center rounded px-1 leading-4 text-[11px] font-semibold"
+                          :class="{
+                            'bg-indigo-100 text-indigo-700':
+                              cupoLevel(ev.activity) === 'ok',
+                            'bg-amber-100 text-amber-700':
+                              cupoLevel(ev.activity) === 'high',
+                            'bg-red-100 text-red-700':
+                              cupoLevel(ev.activity) === 'full',
+                            'bg-gray-100 text-gray-500':
+                              cupoLevel(ev.activity) === 'none',
+                          }"
+                          :title="
+                            ev.activity.max_capacity != null
+                              ? 'Registrados / cupo'
+                              : 'Sin cupo definido'
+                          "
+                          x-text="
+                            ev.activity.max_capacity != null
+                              ? cupoLabel(ev.activity)
+                              : '∞'
+                          "
+                        ></span>
+                      </div>
+
+                      <!-- TÍTULO: completo y envuelto. Antes truncate, que en
+                           240 px dejaba «Black Screen, Full Power: Domina
+                           Linu...» con 300 px de tarjeta vacíos debajo. Por
+                           debajo de 2 h se limita a 3 líneas: es el único caso
+                           en el que un título de 4 no cabría entero. -->
+                      <div
+                        class="mt-1 text-sm leading-tight font-semibold text-gray-900"
+                        :class="showLocRow(ev) ? '' : 'line-clamp-3'"
+                        x-text="ev.activity.name"
+                      ></div>
+
+                      <!-- ≥2 h: duración de ESTA sesión · ubicación · modalidad -->
+                      <template x-if="showLocRow(ev)">
+                        <div
+                          class="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500"
+                        >
+                          <span
+                            class="inline-flex items-center gap-1 whitespace-nowrap"
+                            x-show="sessionDuration(ev.activity)"
+                            x-cloak
+                          >
+                            <i class="ti ti-hourglass shrink-0"></i>
+                            <span x-text="sessionDuration(ev.activity)"></span>
+                          </span>
+                          <span
+                            class="inline-flex min-w-0 items-center gap-1"
+                            :title="ev.activity.location"
+                          >
+                            <i class="ti ti-map-pin shrink-0"></i>
+                            <span
+                              class="truncate"
+                              x-text="ev.activity.location || '—'"
+                            ></span>
+                          </span>
+                          <span
+                            class="inline-flex items-center gap-1"
+                            x-show="ev.activity.modality"
+                            x-cloak
+                            x-text="ev.activity.modality"
+                          ></span>
+                        </div>
+                      </template>
+
+                      <!-- ≥3 h: departamento, ponentes y descripción -->
+                      <template
+                        x-if="
+                          showDeepRow(ev) &&
+                          (ev.activity.department ||
+                            speakersLine(ev) ||
+                            ev.activity.description)
+                        "
+                      >
+                        <div class="mt-1 flex flex-col gap-1 text-[11px]">
+                          <span
+                            class="inline-flex items-center gap-1 text-gray-500"
+                            x-show="ev.activity.department"
+                            x-cloak
+                          >
+                            <i class="ti ti-building shrink-0"></i>
+                            <span x-text="ev.activity.department"></span>
+                          </span>
+                          <span
+                            class="inline-flex min-w-0 items-start gap-1 text-gray-500"
+                            x-show="speakersLine(ev)"
+                            x-cloak
+                          >
+                            <i class="ti ti-microphone shrink-0"></i>
+                            <span
+                              class="min-w-0"
+                              x-text="speakersLine(ev)"
+                            ></span>
+                          </span>
+                          <span
+                            class="line-clamp-6 text-gray-600"
+                            x-show="ev.activity.description"
+                            x-cloak
+                            x-text="ev.activity.description"
+                          ></span>
+                        </div>
+                      </template>
+
+                      <!-- ≥4 h: requisitos. Es la tercera capa: en las tarjetas
+                           bajas no cabería sin cortarse por la mitad. -->
+                      <template
+                        x-if="showReqRow(ev) && ev.activity.requirements"
+                      >
+                        <span
+                          class="mt-1 flex items-start gap-1 text-[11px] text-gray-500"
+                        >
+                          <i class="ti ti-clipboard-list shrink-0"></i>
+                          <span
+                            class="line-clamp-3 min-w-0 text-gray-600"
+                            x-text="ev.activity.requirements"
+                          ></span>
+                        </span>
+                      </template>
+                    </div>
+                  </template>
+
+                  <!-- Tarjeta angosta: icono y bloque de texto girado. Sin
+                       fila de cabecera: esos 28 px eran el 32 % de una
+                       tarjeta de 1 h. -->
+                  <template x-if="showNarrow(ev)">
+                    <div class="flex min-h-0 flex-1 flex-col px-1 py-1">
+                      <!-- vertical-rl pone la primera línea a la derecha y el
+                           giro de 180° la deja a la izquierda: se lee de
+                           abajo hacia arriba, columna a columna. -->
+                      <div
+                        class="min-h-0 flex-1 overflow-hidden"
+                        style="
+                          writing-mode: vertical-rl;
+                          transform: rotate(180deg);
+                        "
+                      >
+                        <!-- El icono va DENTRO de la tira, no en una fila
+                             aparte. Hereda el vertical-rl pero con
+                             writing-mode horizontal-tb sus glifos no rotan,
+                             y su propio rotate(180°) cancela el del
+                             contenedor: sale recto, en el punto de partida
+                             de la lectura (abajo a la izquierda), y solo
+                             cuesta sus 14 px de alto en vez de 28. -->
+                        <span
+                          class="mb-0.5 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full align-middle"
+                          :class="typeSoft(ev.activity.activity_type)"
+                          style="
+                            writing-mode: horizontal-tb;
+                            transform: rotate(180deg);
+                          "
+                          aria-hidden="true"
+                        >
+                          <i
+                            class="ti text-[10px]"
+                            :class="typeIcon(ev.activity.activity_type)"
+                          ></i>
+                        </span>
+                        <span
+                          class="text-[11px] font-semibold leading-[14px]"
+                          x-text="schedText(ev)"
+                        ></span>
+                      </div>
+                    </div>
+                  </template>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sesiones de ese día sin hora de inicio parseable -->
+        <div
+          x-show="daySchedule(selectedDay).unscheduled.length > 0"
+          x-cloak
+          class="border-t border-gray-100 px-3 py-2"
+        >
+          <div
+            class="text-[11px] font-semibold uppercase tracking-wide text-gray-400"
+          >
+            Sin hora de inicio
+          </div>
+          <div class="mt-1 flex flex-wrap gap-2">
+            <template
+              x-for="a in daySchedule(selectedDay).unscheduled"
+              :key="'u' + a.id"
+            >
+              <button
+                @click="openDetail(a)"
+                :class="typeColor(a.activity_type)"
+                class="border-l-4 rounded-lg px-2 py-1 text-left text-xs"
+              >
+                <span x-text="a.name"></span>
+              </button>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Actividades fuera de la ventana del evento -->
     <div
       x-show="outsideActivities().length > 0"
@@ -171,11 +638,8 @@
       class="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4"
     >
       <div class="text-sm font-semibold text-amber-800 mb-2">
-        <i class="ti ti-alert-triangle mr-1"></i
-        >Actividades fuera de la ventana del evento (<span
-          x-text="outsideActivities().length"
-        ></span
-        >)
+        <i class="ti ti-alert-triangle mr-1"></i>Actividades fuera de la ventana
+        del evento (<span x-text="outsideActivities().length"></span>)
       </div>
       <div class="flex flex-wrap gap-2">
         <template x-for="a in outsideActivities()" :key="'out-' + a.id">
@@ -185,8 +649,8 @@
           >
             <span
               x-text="(a.day ? dayLabel(a.day) : 'sin fecha') + (a.starts_at ? ' ' + a.starts_at : '')"
-            ></span
-            > · <span x-text="a.name"></span>
+            ></span>
+            · <span x-text="a.name"></span>
           </button>
         </template>
       </div>
@@ -251,13 +715,18 @@
                 <span
                   x-text="selectedActivity && ((selectedActivity.starts_at || '—') + ' – ' + (selectedActivity.ends_at || '—'))"
                 ></span>
+                <!-- Duración de ESTA sesión (misma base que el horario de arriba) -->
                 <span
-                  x-show="selectedActivity && selectedActivity.duration_hours != null"
+                  x-show="selectedActivity && sessionDuration(selectedActivity)"
                   class="text-gray-500"
-                  >(<span
-                    x-text="selectedActivity && selectedActivity.duration_hours"
-                  ></span
-                  >h)</span
+                  >· <span x-text="sessionDuration(selectedActivity)"></span
+                ></span>
+                <!-- Multisesión: además, el total de la actividad -->
+                <span
+                  x-show="selectedActivity && selectedActivity.duration_hours != null && (selectedActivity.session_total || 1) > 1"
+                  class="text-gray-500"
+                  >· <span x-text="selectedActivity.duration_hours"></span> h en
+                  total</span
                 >
                 <!-- Multisesión: en qué sesión de la serie estamos -->
                 <span
@@ -279,15 +748,21 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <span class="text-xs text-gray-500">Ubicación:</span>
-                <div x-text="(selectedActivity && selectedActivity.location) || '—'"></div>
+                <div
+                  x-text="(selectedActivity && selectedActivity.location) || '—'"
+                ></div>
               </div>
               <div>
                 <span class="text-xs text-gray-500">Modalidad:</span>
-                <div x-text="(selectedActivity && selectedActivity.modality) || '—'"></div>
+                <div
+                  x-text="(selectedActivity && selectedActivity.modality) || '—'"
+                ></div>
               </div>
               <div>
                 <span class="text-xs text-gray-500">Departamento:</span>
-                <div x-text="(selectedActivity && selectedActivity.department) || '—'"></div>
+                <div
+                  x-text="(selectedActivity && selectedActivity.department) || '—'"
+                ></div>
               </div>
               <div>
                 <span class="text-xs text-gray-500">Cupo:</span>
@@ -296,7 +771,8 @@
                     x-show="selectedActivity && selectedActivity.max_capacity != null"
                     x-text="selectedActivity && (cupoLabel(selectedActivity) + ' registrado(s)')"
                   ></span>
-                  <span x-show="!selectedActivity || selectedActivity.max_capacity == null"
+                  <span
+                    x-show="!selectedActivity || selectedActivity.max_capacity == null"
                     >Sin cupo definido</span
                   >
                 </div>
@@ -312,9 +788,7 @@
             </div>
           </div>
         </div>
-        <div
-          class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse"
-        >
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
           <button
             @click="closeDetail()"
             class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 sm:ml-3 sm:w-auto sm:text-sm"
