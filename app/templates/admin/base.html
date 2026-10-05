@@ -191,7 +191,9 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
   aria-modal="true"
   aria-labelledby="impersonate-title"
 >
-  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+  <div
+    class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
+  >
     <div
       class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
       @click="close()"
@@ -201,16 +203,24 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
     >
       <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
         <div class="flex items-start gap-3">
-          <div class="flex-shrink-0 h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center">
+          <div
+            class="flex-shrink-0 h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center"
+          >
             <i class="ti ti-user-circle text-violet-600 text-xl"></i>
           </div>
           <div class="min-w-0">
-            <h3 class="text-lg leading-6 font-bold text-gray-900" id="impersonate-title">
+            <h3
+              class="text-lg leading-6 font-bold text-gray-900"
+              id="impersonate-title"
+            >
               Impersonar estudiante
             </h3>
             <p class="mt-1 text-sm text-gray-600">
               Se abrirá una pestaña con la sesión de
-              <b class="text-gray-900" x-text="(target && target.full_name) || 'este estudiante'"></b>
+              <b
+                class="text-gray-900"
+                x-text="(target && target.full_name) || 'este estudiante'"
+              ></b>
               <span
                 class="text-gray-500"
                 x-text="target && target.control_number ? '(' + target.control_number + ')' : ''"
@@ -219,13 +229,17 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
             </p>
           </div>
         </div>
-        <ul class="mt-4 space-y-1.5 text-sm text-gray-600 list-disc list-inside">
+        <ul
+          class="mt-4 space-y-1.5 text-sm text-gray-600 list-disc list-inside"
+        >
           <li>
             Mientras dure, verás un banner inferior
             <span class="text-violet-700 font-medium">"Viendo como…"</span> con
             el botón <b>Salir</b> para volver al panel.
           </li>
-          <li>El acceso caduca en <b>30 minutos</b> y queda registrado en logs.</li>
+          <li>
+            El acceso caduca en <b>30 minutos</b> y queda registrado en logs.
+          </li>
         </ul>
       </div>
       <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
