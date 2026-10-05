@@ -84,6 +84,9 @@ function studentEventActivitiesManager() {
           this.goBack();
         }
       });
+
+      // Resaltar el día activo en el índice de días sticky
+      this.initDaySpy();
     },
 
     goToEvents() {
@@ -146,7 +149,9 @@ function studentEventActivitiesManager() {
       this.errorMessage = "";
 
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -188,7 +193,9 @@ function studentEventActivitiesManager() {
       this.errorMessage = "";
 
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -268,7 +275,9 @@ function studentEventActivitiesManager() {
 
     async loadStudentRegistrations() {
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) return;
 
         const studentId = this.getCurrentStudentId();
@@ -329,7 +338,9 @@ function studentEventActivitiesManager() {
           }
         }
 
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -518,7 +529,8 @@ function studentEventActivitiesManager() {
             // Clave de día LOCAL ("YYYY-MM-DD"). dateKey() evita el
             // corrimiento de toISOString() (día UTC) al este de UTC.
             const dateStr =
-              window.dateHelpers && typeof window.dateHelpers.dateKey === "function"
+              window.dateHelpers &&
+              typeof window.dateHelpers.dateKey === "function"
                 ? window.dateHelpers.dateKey(dateObj)
                 : dateObj.toISOString().split("T")[0]; // YYYY-MM-DD
 
@@ -547,7 +559,8 @@ function studentEventActivitiesManager() {
         } else {
           // Actividad normal (un solo día) — clave vía dateKey (local)
           const dateKey =
-            window.dateHelpers && typeof window.dateHelpers.dateKey === "function"
+            window.dateHelpers &&
+            typeof window.dateHelpers.dateKey === "function"
               ? window.dateHelpers.dateKey(activity.start_datetime)
               : activity.start_datetime.split("T")[0]; // YYYY-MM-DD
           if (!grouped[dateKey]) {
@@ -589,6 +602,79 @@ function studentEventActivitiesManager() {
         date: date,
         activities: sortedGrouped[date],
       }));
+
+      // Refrescar el resaltado del índice sticky con los días nuevos
+      this.updateActiveDay();
+    },
+
+    // --- Índice de días sticky: día activo (scroll spy) ---
+    // El botón del día en el que estamos se pinta con el color del evento.
+
+    activeDay: null,
+    _spyHandler: null,
+    _spyRaf: null,
+    _spyUnload: null,
+
+    // Línea de referencia: el borde inferior de la barra sticky. Si la barra
+    // no es visible (vista de un solo día), cae a un offset fijo.
+    activeDayLine() {
+      const bar = document.querySelector("[data-day-index]");
+      if (bar && typeof bar.getBoundingClientRect === "function") {
+        const r = bar.getBoundingClientRect();
+        if (r && r.bottom > 0) return r.bottom + 1;
+      }
+      return 96;
+    },
+
+    // Última sección cuyo tope ya cruzó la barra → ese es el día activo
+    updateActiveDay() {
+      const groups = this.activitiesByDay;
+      if (!Array.isArray(groups) || groups.length === 0) {
+        this.activeDay = null;
+        return;
+      }
+      const line = this.activeDayLine();
+      let current = groups[0].date;
+      for (const g of groups) {
+        const el = document.getElementById("dia-" + g.date);
+        if (!el || typeof el.getBoundingClientRect !== "function") continue;
+        if (el.getBoundingClientRect().top <= line) current = g.date;
+      }
+      this.activeDay = current;
+    },
+
+    initDaySpy() {
+      if (typeof window === "undefined" || this._spyHandler) return;
+      const schedule =
+        typeof window.requestAnimationFrame === "function"
+          ? (fn) => window.requestAnimationFrame(fn)
+          : (fn) => setTimeout(fn, 16);
+      this._spyHandler = () => {
+        if (this._spyRaf) return;
+        this._spyRaf = schedule(() => {
+          this._spyRaf = null;
+          this.updateActiveDay();
+        });
+      };
+      this._spyUnload = () => this.destroyDaySpy();
+      window.addEventListener("scroll", this._spyHandler, { passive: true });
+      window.addEventListener("resize", this._spyHandler);
+      // Limpieza best-effort al salir (mismo criterio que registrations.js)
+      window.addEventListener("beforeunload", this._spyUnload);
+      this.updateActiveDay();
+    },
+
+    destroyDaySpy() {
+      if (typeof window === "undefined" || !this._spyHandler) return;
+      window.removeEventListener("scroll", this._spyHandler);
+      window.removeEventListener("resize", this._spyHandler);
+      window.removeEventListener("beforeunload", this._spyUnload);
+      if (this._spyRaf && typeof window.cancelAnimationFrame === "function") {
+        window.cancelAnimationFrame(this._spyRaf);
+      }
+      this._spyRaf = null;
+      this._spyHandler = null;
+      this._spyUnload = null;
     },
 
     // Verificar si ya está registrado en una actividad
@@ -619,10 +705,111 @@ function studentEventActivitiesManager() {
       return true;
     },
 
+    // --- Presentación (delegado al helper compartido con el admin:
+    //     window.activityTypeHelpers) ---
+
+    typeHelpers() {
+      return (
+        (typeof window !== "undefined" && window.activityTypeHelpers) || null
+      );
+    },
+
+    // Borde fuerte de la tarjeta según el tipo
+    typeBorder(type) {
+      const h = this.typeHelpers();
+      if (h && typeof h.border === "function") return h.border(type);
+      return "border-gray-400";
+    },
+
+    // Círculo con el icono del tipo
+    typeSoft(type) {
+      const h = this.typeHelpers();
+      if (h && typeof h.soft === "function") return h.soft(type);
+      return "bg-gray-100 text-gray-600";
+    },
+
+    // Icono semántico del tipo (ti-school, ti-presentation, …)
+    typeIcon(type) {
+      const h = this.typeHelpers();
+      if (h && typeof h.icon === "function") return h.icon(type);
+      return "ti-tag";
+    },
+
+    // Duración POR SESIÓN: start/end de la actividad ya son el horario diario
+    // fijo (multisesión), así que la resta es la duración de esa sesión.
+    sessionDuration(activity) {
+      if (!activity) return "";
+      const h = this.typeHelpers();
+      if (h && typeof h.durationBetween === "function") {
+        const d = h.durationBetween(
+          activity.start_datetime,
+          activity.end_datetime,
+        );
+        if (d) return d;
+      }
+      return activity.duration_hours != null
+        ? `${activity.duration_hours} h`
+        : "";
+    },
+
+    // Estado de la actividad para el estudiante: "registered" | "full" |
+    // "available". El mapa a clases Tailwind vive en la plantilla (literales,
+    // para que Tailwind CDN las genere).
+    availabilityCode(activity) {
+      if (!activity) return "available";
+      if (this.isActivityRegistered(activity)) return "registered";
+      if (
+        activity.max_capacity != null &&
+        (activity.current_capacity || 0) >= activity.max_capacity
+      ) {
+        return "full";
+      }
+      return "available";
+    },
+
+    availabilityLabel(activity) {
+      const code = this.availabilityCode(activity);
+      if (code === "registered") return "Registrado";
+      if (code === "full") return "Cupo lleno";
+      return "Disponible";
+    },
+
+    // Scroll suave a la sección de un día desde el índice sticky
+    scrollToDay(dateStr) {
+      // Feedback inmediato: el scroll suave puede tardar
+      this.activeDay = dateStr;
+      const el = document.getElementById(`dia-${dateStr}`);
+      if (!el) return;
+      if (typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+
+    // Etiqueta compacta de día para el índice ("lun, 5 oct").
+    // Misma fórmula que calendar.js#dayLabel para que ambos roles muestren
+    // el día igual. Parseo local de "YYYY-MM-DD" (evita el corrimiento UTC).
+    dayLabel(dayStr) {
+      if (dayStr === null || dayStr === undefined || dayStr === "") return "";
+      const parts = String(dayStr)
+        .split("-")
+        .map((n) => parseInt(n, 10));
+      if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) {
+        return String(dayStr);
+      }
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      return d.toLocaleDateString("es-MX", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      });
+    },
+
     // Obtener el ID del estudiante actual
     getCurrentStudentId() {
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) return null;
 
         // Decodificar el token JWT para obtener el ID del usuario
