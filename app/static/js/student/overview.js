@@ -61,7 +61,9 @@ function studentOverviewManager() {
     // Cargar perfil del estudiante
     async loadStudentProfile() {
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -88,7 +90,9 @@ function studentOverviewManager() {
     // Cargar estadísticas
     async loadStats() {
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -134,14 +138,21 @@ function studentOverviewManager() {
           });
         }
 
-        // Cargar estadísticas de eventos activos
+        // Cargar estadísticas de eventos activos.
+        // Se usa `total` (no `events.length`): el endpoint pagina con 10 por
+        // defecto, por lo que `events.length` subcontaría si hay más eventos.
         const eventsResponse = await fetch("/api/events?status=active", {
           headers: window.getAuthHeaders(),
         });
 
         if (eventsResponse.ok) {
           const eventsData = await eventsResponse.json();
-          const activeEvents = eventsData.events ? eventsData.events.length : 0;
+          const activeEvents =
+            typeof eventsData.total === "number"
+              ? eventsData.total
+              : eventsData.events
+                ? eventsData.events.length
+                : 0;
 
           this.stats = this.stats.map((stat) => {
             if (stat.id === "upcoming_events") {
@@ -159,16 +170,21 @@ function studentOverviewManager() {
     async loadUpcomingEvents() {
       this.loadingUpcoming = true;
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
         }
 
-        // Obtener eventos activos que aún no han terminado
+        // Obtener eventos activos que aún no han terminado.
+        // `per_page` alto: el endpoint pagina con 10 por defecto y ordena
+        // `start_date:asc`, por lo que los eventos recientes (los que siguen
+        // activos) caerían en páginas posteriores y no aparecerían aquí.
         const now = new Date().toISOString();
         const response = await fetch(
-          `/api/events?status=active&sort=start_date:asc`,
+          `/api/events?status=active&sort=start_date:asc&per_page=100`,
           {
             headers: window.getAuthHeaders(),
           },
@@ -195,7 +211,9 @@ function studentOverviewManager() {
     async loadRecentRegistrations() {
       this.loadingRegistrations = true;
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -234,7 +252,9 @@ function studentOverviewManager() {
     // Obtener el ID del estudiante actual
     getCurrentStudentId() {
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) return null;
 
         // Decodificar el token JWT para obtener el ID del usuario

@@ -396,23 +396,37 @@ function adminDashboard() {
         const token = localStorage.getItem("authToken");
         if (!token) return;
 
-        // Obtener eventos futuros (próximos 30 días)
+        // Obtener eventos: los que ya empezaron pero siguen en curso y los
+        // futuros de los próximos 30 días. `per_page` alto porque el endpoint
+        // pagina con 10 por defecto y ordena `start_date:asc` (los eventos
+        // recientes quedarían en páginas posteriores y nunca se verían).
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const response = await f("/api/events?sort=start_date:asc");
+        const response = await f(
+          "/api/events?sort=start_date:asc&per_page=100",
+        );
         if (response && response.ok) {
           const data = await response.json();
           const events = Array.isArray(data) ? data : data.events || [];
 
-          // Filtrar eventos futuros y añadir campos formateados para las vistas
+          // Filtrar eventos no terminados y añadir campos formateados para las vistas
           const now = new Date();
           const next30Days = new Date();
           next30Days.setDate(now.getDate() + 30);
 
           const filtered = events
             .filter((event) => {
+              if (event.is_active === false) return false;
               const eventStart = new Date(event.start_date);
-              return eventStart >= now && eventStart <= next30Days;
+              if (isNaN(eventStart.getTime())) return false;
+              // Fin del evento: si no viene `end_date`, se toma el inicio
+              const eventEndRaw = event.end_date || event.start_date;
+              const eventEnd = new Date(eventEndRaw);
+              const notEnded = isNaN(eventEnd.getTime())
+                ? true
+                : eventEnd >= now;
+              // En curso (ya empezó pero no terminó) o por iniciar (≤ 30 días)
+              return notEnded && eventStart <= next30Days;
             })
             .slice(0, 5); // Limitar a 5 eventos
 

@@ -157,6 +157,59 @@ describe("adminDashboard consolidated tests", () => {
       expect(mgr.upcomingEvents.some((e) => e.id === 2)).toBe(false);
     });
 
+    test("loadUpcomingEvents keeps active events already started (not ended)", async () => {
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      const in3 = new Date(now);
+      in3.setDate(now.getDate() + 3);
+      const ended = new Date(now);
+      ended.setDate(now.getDate() - 5);
+      const events = [
+        // Activo, empezó ayer y aún no termina ⇒ debe aparecer
+        {
+          id: 10,
+          start_date: yesterday.toISOString(),
+          end_date: in3.toISOString(),
+          is_active: true,
+        },
+        // Terminado hace 5 días ⇒ no debe aparecer
+        {
+          id: 11,
+          start_date: ended.toISOString(),
+          end_date: ended.toISOString(),
+          is_active: true,
+        },
+        // Marcado como inactivo ⇒ no debe aparecer
+        {
+          id: 12,
+          start_date: now.toISOString(),
+          end_date: in3.toISOString(),
+          is_active: false,
+        },
+      ];
+      let requestedUrl = null;
+      global.fetch = jest.fn((url) => {
+        requestedUrl = url;
+        if (url.startsWith("/api/events"))
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ events }),
+          });
+        return Promise.resolve({ ok: false });
+      });
+      // loader requires auth token
+      global.localStorage.setItem("authToken", "tok");
+      await mgr.loadUpcomingEvents();
+
+      expect(mgr.upcomingEvents.some((e) => e.id === 10)).toBe(true);
+      expect(mgr.upcomingEvents.some((e) => e.id === 11)).toBe(false);
+      expect(mgr.upcomingEvents.some((e) => e.id === 12)).toBe(false);
+      // Debe pedir más de la página por defecto (10) para no perder eventos
+      expect(requestedUrl).toContain("per_page=");
+      expect(Number(requestedUrl.split("per_page=")[1])).toBeGreaterThan(10);
+    });
+
     test("loadRecentActivities filters last 7 days", async () => {
       const now = new Date();
       const in3 = new Date(now);
