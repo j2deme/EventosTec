@@ -93,7 +93,7 @@ def init_settings():
                     "PUBLIC_SELF_REGISTER_OPEN_MINUTES_BEFORE_START", "30"
                 ),
                 "description": (
-                    "Minutos antes del inicio en que abre el registro in situ "
+                    "Minutos antes del inicio en que abre el auto-registro "
                     "(self check-in)"
                 ),
                 "data_type": "integer",
@@ -106,7 +106,7 @@ def init_settings():
                     "PUBLIC_SELF_REGISTER_CLOSE_MINUTES_AFTER_START", "20"
                 ),
                 "description": (
-                    "Minutos después del inicio en que cierra el registro in situ "
+                    "Minutos después del inicio en que cierra el auto-registro "
                     "(self check-in)"
                 ),
                 "data_type": "integer",

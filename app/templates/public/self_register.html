@@ -1,5 +1,5 @@
-{% extends 'base.html' %} {% block title %}Registro in situ{% endblock %} {%
-block content %}
+{% extends 'base.html' %} {% block title %}Auto-registro{% endblock %} {% block
+content %}
 <div
   class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4"
 >
@@ -31,7 +31,7 @@ block content %}
       <div
         class="inline-flex items-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold"
       >
-        Registro in situ
+        Auto-registro
       </div>
       <p class="text-gray-600 text-sm mt-2">
         Ingresa tus credenciales para registrar asistencia en esta actividad.
@@ -55,7 +55,7 @@ block content %}
         <div class="flex flex-col items-center gap-4">
           <i class="ti ti-alert-triangle text-yellow-400 text-6xl"></i>
           <div class="text-lg font-medium text-yellow-700">
-            Registro no disponible
+            Auto-registro no disponible
           </div>
           <div class="text-sm text-gray-500" x-text="unavailableMessage"></div>
         </div>
@@ -129,8 +129,8 @@ block content %}
           x-show="expired"
           class="p-4 bg-yellow-50 rounded mt-2 text-sm text-yellow-800"
         >
-          El registro de asistencia para esta actividad ha finalizado. Si crees
-          que esto es un error contacta al staff.
+          El auto-registro para esta actividad ha finalizado. Si crees que esto
+          es un error contacta al staff.
         </div>
 
         <template x-if="message">

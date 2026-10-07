@@ -4,12 +4,12 @@ Fuente única para los dos puntos de entrada que validan credenciales de
 estudiantes:
 
 - ``POST /api/auth/student-login`` (login del portal del estudiante)
-- ``POST /api/registrations/self`` (registro in situ / self check-in)
+- ``POST /api/registrations/self`` (auto-registro / self check-in)
 
 Antes el segundo llamaba al primero por HTTP interno
 (``request.host_url + /api/auth/student-login``), lo que dependía de que la
 aplicación pudiera alcanzar su propia URL pública (proxy, DNS, TLS) y añadía
-una llamada de red por cada registro in situ. Aquí la validación corre **en
+una llamada de red por cada auto-registro. Aquí la validación corre **en
 proceso** y comparte el rate-limit entre ambos caminos, de modo que un
 ataque de fuerza bruta contra un número de control queda frenado aunque
 entra por cualquiera de las dos puertas.

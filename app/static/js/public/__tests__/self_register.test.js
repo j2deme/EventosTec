@@ -57,7 +57,7 @@ describe("selfRegister (formulario público)", () => {
   describe("init()", () => {
     test("ventana cerrada muestra el mensaje del servidor (no el genérico)", () => {
       const serverMessage =
-        "El registro in situ aún no abre. Disponible desde las 09:00.";
+        "El auto-registro aún no abre. Disponible desde las 09:00.";
       setInit({
         id: "conferencia-x",
         name: "Conferencia X",
@@ -187,7 +187,7 @@ describe("selfRegister (formulario público)", () => {
 
       await s.submit();
 
-      expect(s.message).toBe("Ya existe registro");
+      expect(s.message).toBe("Ya registraste tu asistencia en esta actividad");
       expect(s.messageClass).toContain("bg-yellow-100");
     });
 
@@ -220,13 +220,13 @@ describe("selfRegister (formulario público)", () => {
       const s = prepared();
       global.fetch.mockResolvedValue(
         json_response(400, {
-          message: "La ventana de registro in situ terminó.",
+          message: "La ventana de auto-registro terminó.",
         }),
       );
 
       await s.submit();
 
-      expect(s.message).toBe("La ventana de registro in situ terminó.");
+      expect(s.message).toBe("La ventana de auto-registro terminó.");
       expect(s.messageClass).toContain("bg-red-100");
     });
 

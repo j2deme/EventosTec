@@ -75,10 +75,10 @@ Nota: lista basada en los blueprints en app/api.
 - POST /api/public/event/<event_ref>/activity-slug -> devuelve activity_slug y event_slug (útil para rutas públicas)
 - Public registrations blueprint (public registration forms + endpoints para listar/descargar registros públicos)
 
-7. Registro in situ (Blueprint: self-register; prefijos mixtos)
+7. Auto-registro (Blueprint: self-register; prefijos mixtos)
 
 - GET /self-register y /public/self-register/<path:activity_ref> -> formulario público
-- POST /api/registrations/self -> API para registro in situ (valida credenciales llamando internamente /api/auth/student-login, crea Student si no existe, crea Attendance)
+- POST /api/registrations/self -> API para auto-registro (valida credenciales llamando internamente /api/auth/student-login, crea Student si no existe, crea Attendance)
 
 8. Estudiantes (Blueprint: /api/students)
 

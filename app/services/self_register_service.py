@@ -1,4 +1,4 @@
-"""Ventana de registro in situ (self check-in / self-register).
+"""Ventana de auto-registro (self check-in / self-register).
 
 Política de negocio: el formulario público ``/public/self-register/<ref>``
 solo permite marcarse presente dentro de un rango configurable alrededor del
@@ -31,7 +31,7 @@ NOT_OPEN = "not_open"
 CLOSED = "closed"
 
 GENERIC_NOT_AVAILABLE_MESSAGE = (
-    "El registro para esta actividad ha finalizado o no está disponible."
+    "El auto-registro para esta actividad ha finalizado o no está disponible."
 )
 
 
@@ -134,11 +134,11 @@ def window_message(
     if state == NOT_OPEN:
         hhmm = _local_hhmm(opens_at, tz_name)
         if hhmm:
-            return f"El registro in situ aún no abre. Disponible desde las {hhmm}."
-        return "El registro in situ aún no está disponible."
+            return f"El auto-registro aún no abre. Disponible desde las {hhmm}."
+        return "El auto-registro aún no está disponible."
     if state == CLOSED:
         hhmm = _local_hhmm(closes_at, tz_name)
         if hhmm:
-            return f"La ventana de registro in situ terminó a las {hhmm}."
-        return "La ventana de registro in situ ha terminado."
+            return f"La ventana de auto-registro terminó a las {hhmm}."
+        return "La ventana de auto-registro ha terminado."
     return GENERIC_NOT_AVAILABLE_MESSAGE

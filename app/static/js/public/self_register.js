@@ -8,7 +8,7 @@ function selfRegister() {
     message: "",
     messageClass: "bg-green-100 text-green-800",
     unavailableMessage:
-      "El registro para esta actividad ha finalizado o no está disponible.",
+      "El auto-registro para esta actividad ha finalizado o no está disponible.",
     countdownInterval: null,
     timeLeftText: "",
     deadline: null,
@@ -92,12 +92,13 @@ function selfRegister() {
         const data = await resp.json().catch(() => ({}));
         if (resp.status === 201) {
           this.messageClass = "bg-green-100 text-green-800";
-          this.message = data.message || "Registro exitoso";
+          this.message = data.message || "Auto-registro exitoso";
           this.controlNumber = "";
           this.password = "";
         } else if (resp.status === 409) {
           this.messageClass = "bg-yellow-100 text-yellow-800";
-          this.message = data.message || "Ya existe registro";
+          this.message =
+            data.message || "Ya registraste tu asistencia en esta actividad";
         } else if (resp.status === 401) {
           this.messageClass = "bg-red-100 text-red-800";
           this.message = data.message || "Credenciales inválidas";
@@ -136,7 +137,7 @@ function selfRegister() {
         const diff = this.deadline.diff(now);
         if (diff <= 0) {
           this.timeLeftText =
-            "El tiempo de registro para esta actividad ha finalizado.";
+            "El auto-registro para esta actividad ha finalizado.";
           // hide the form and show an expired notice
           this.expired = true;
           const frm = document.getElementById("self-register-form");

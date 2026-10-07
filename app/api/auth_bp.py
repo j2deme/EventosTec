@@ -80,7 +80,7 @@ def student_login():
     """Login de estudiante contra la plataforma MAB (8091).
 
     La validación de credenciales vive en ``student_auth_service`` (misma
-    función que usa el registro in situ) e incluye rate-limit compartido:
+    función que usa el auto-registro) e incluye rate-limit compartido:
     responde 429 cuando se agotan los intentos.
     """
     try:

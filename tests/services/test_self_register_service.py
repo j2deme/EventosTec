@@ -1,4 +1,4 @@
-"""Ventana de registro in situ (self check-in): cálculo y estados."""
+"""Ventana de auto-registro (self check-in): cálculo y estados."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -87,3 +87,6 @@ def test_messages_differ_between_states(app):
     assert open_msg is None
     assert not_open_msg is not None and "aún no abre" in not_open_msg
     assert closed_msg is not None and "terminó" in closed_msg
+    # Copy visible para el estudiante: el módulo se llama "auto-registro".
+    assert "auto-registro" in not_open_msg
+    assert "auto-registro" in closed_msg

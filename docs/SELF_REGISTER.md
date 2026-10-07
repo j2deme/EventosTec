@@ -1,4 +1,4 @@
-# Registro in situ (self check-in)
+# Auto-registro (self check-in)
 
 Flujo público para que un asistente **que no se preregistró** se marque a la
 llegada, sin intervención del personal. Es el QR que se genera desde el

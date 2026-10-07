@@ -114,7 +114,7 @@ def self_register_form(activity_ref=None):
         except Exception:
             activity_duration_hours = None
 
-        # Ventana de registro in situ (fuente única: self_register_service)
+        # Ventana de auto-registro (fuente única: self_register_service)
         state, opens_at, closes_at = self_register_state(activity)
         if closes_at is not None:
             activity_deadline_iso = safe_iso(closes_at)
@@ -273,5 +273,5 @@ def self_register_api():
 
     except Exception:
         db.session.rollback()
-        current_app.logger.exception("Error al procesar registro in situ")
-        return jsonify({"message": "Error al procesar el registro in situ"}), 500
+        current_app.logger.exception("Error al procesar auto-registro")
+        return jsonify({"message": "Error al procesar el auto-registro"}), 500

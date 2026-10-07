@@ -112,6 +112,7 @@ def test_window_not_yet_open_return_400(client, event_factory):
 
     assert response.status_code == 400
     assert "aún no abre" in response.get_json()["message"]
+    assert "auto-registro" in response.get_json()["message"]
 
 
 def test_window_closed_return_400(client, event_factory):
