@@ -84,6 +84,7 @@ require("../app");
 
 - Los módulos que se usan tanto en el navegador como en Jest exportan una factory y también se exponen en `window` para el runtime del navegador (mirar `attendances_list.js` y otros archivos en `admin/`).
 - Tests de integración del frontend se agrupan bajo `app/static/js/admin/__tests__/` y frecuentemente mockean `fetch` y servicios con `jest.fn()`.
+- **Fechas en la BD**: las columnas `datetime` guardan **hora local naive** (misma convención que `activities.start_datetime` y que los payloads del cliente). Al **escribir** instantes generados por el servidor usar `db_wall_local()` / `db_now_local()` de `app/utils/datetime_utils.py` — nunca `datetime.now(timezone.utc)` ni `db.func.now()`, que dejarían hora UTC en la columna y se leerían **+6 h** (ventana de presencia invertida → 0% de asistencia). Los valores que vienen del payload **no** se convierten: `parse_datetime_with_timezone()` conserva el wall time enviado. Al **leer/comparar** usar `localize_naive_datetime()` / `safe_iso()` y comparar con UTC aware. Detalle en `docs/TIMEZONE_FIX.md`.
 
 ## Archivos importantes a revisar para comprender flujo y edge-cases:
 

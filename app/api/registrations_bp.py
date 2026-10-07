@@ -7,6 +7,7 @@ from app.models.student import Student
 from app.models.activity import Activity
 from app.models.attendance import Attendance
 from app.utils.auth_helpers import get_user_or_403
+from app.utils.datetime_utils import db_now_local
 from sqlalchemy import cast, String
 from sqlalchemy import or_
 from sqlalchemy.orm import aliased
@@ -446,9 +447,9 @@ def update_registration(registration_id):
                     attendance.attendance_percentage = 100.0
                     attendance.status = "Asistió"
                     if not attendance.check_in_time:
-                        attendance.check_in_time = db.func.now()
+                        attendance.check_in_time = db_now_local()
                     if not attendance.check_out_time:
-                        attendance.check_out_time = db.func.now()
+                        attendance.check_out_time = db_now_local()
                     db.session.add(attendance)
                 else:
                     attendance = Attendance()
@@ -456,8 +457,8 @@ def update_registration(registration_id):
                     attendance.activity_id = registration.activity_id
                     attendance.attendance_percentage = 100.0
                     attendance.status = "Asistió"
-                    attendance.check_in_time = db.func.now()
-                    attendance.check_out_time = db.func.now()
+                    attendance.check_in_time = db_now_local()
+                    attendance.check_out_time = db_now_local()
                     db.session.add(attendance)
 
             elif prev_status == "Asistió" and new_status != "Asistió":
@@ -492,9 +493,9 @@ def update_registration(registration_id):
                     attendance.attendance_percentage = 100.0
                     attendance.status = "Asistió"
                     if not attendance.check_in_time:
-                        attendance.check_in_time = db.func.now()
+                        attendance.check_in_time = db_now_local()
                     if not attendance.check_out_time:
-                        attendance.check_out_time = db.func.now()
+                        attendance.check_out_time = db_now_local()
                     db.session.add(attendance)
                 else:
                     attendance = Attendance()
@@ -502,8 +503,8 @@ def update_registration(registration_id):
                     attendance.activity_id = registration.activity_id
                     attendance.attendance_percentage = 100.0
                     attendance.status = "Asistió"
-                    attendance.check_in_time = db.func.now()
-                    attendance.check_out_time = db.func.now()
+                    attendance.check_in_time = db_now_local()
+                    attendance.check_out_time = db_now_local()
                     db.session.add(attendance)
             else:
                 registration.confirmation_date = None

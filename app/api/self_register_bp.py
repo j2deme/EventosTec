@@ -20,6 +20,7 @@ from app.services.student_auth_service import (
     validate_student_credentials,
 )
 from app.utils.datetime_utils import localize_naive_datetime, safe_iso
+from app.utils.datetime_utils import db_wall_local
 
 # token utilities deprecated for public flows; do not import generative helpers
 
@@ -231,7 +232,7 @@ def self_register_api():
         attendance = Attendance()
         attendance.student_id = student.id
         attendance.activity_id = activity.id
-        attendance.check_in_time = now
+        attendance.check_in_time = db_wall_local(now)
         attendance.status = "Parcial"
         db.session.add(attendance)
 

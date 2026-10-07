@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.slug_utils import slugify as canonical_slugify
 from app.utils.datetime_utils import localize_naive_datetime, safe_iso
+from app.utils.datetime_utils import db_now_local
 from sqlalchemy.exc import IntegrityError
 import io
 import re
@@ -428,7 +429,7 @@ def api_confirm_registration(reg_id):
             attendance = Attendance()
             attendance.student_id = reg.student_id
             attendance.activity_id = reg.activity_id
-            attendance.check_in_time = datetime.now(timezone.utc)
+            attendance.check_in_time = db_now_local()
             # 'status' is an Enum('Asistió','Parcial','Ausente') in the model.
             # Use a valid value to avoid DB errors; map internal labels to 'Asistió'.
             attendance.status = "Asistió"
@@ -629,7 +630,7 @@ def api_walkin():
         attendance = Attendance()
         attendance.student_id = student.id
         attendance.activity_id = activity.id
-        attendance.check_in_time = datetime.now(timezone.utc)
+        attendance.check_in_time = db_now_local()
         attendance.status = "Asistió"
         db.session.add(attendance)
         db.session.flush()

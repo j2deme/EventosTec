@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timezone
 from marshmallow import ValidationError
-from app.utils.datetime_utils import parse_datetime_with_timezone
+from app.utils.datetime_utils import db_wall_local, parse_datetime_with_timezone
 from app import db
 from app.schemas import attendance_schema
 from app.models.attendance import Attendance
@@ -432,7 +432,7 @@ def register_attendance():
                         400,
                     )
                 except Exception:
-                    attendance.check_in_time = now
+                    attendance.check_in_time = db_wall_local(now)
             if check_out:
                 try:
                     attendance.check_out_time = parse_datetime_with_timezone(check_out)
@@ -447,7 +447,7 @@ def register_attendance():
                         400,
                     )
                 except Exception:
-                    attendance.check_out_time = now
+                    attendance.check_out_time = db_wall_local(now)
             if mark_present:
                 # Marcar como asistido y asumir 100% cuando se marca manualmente
                 # como presente desde el endpoint. Esto hace que la UI/admin
@@ -461,7 +461,7 @@ def register_attendance():
                 # posteriores al realizar el checkout.
                 try:
                     if has_session_control(activity) and not attendance.check_in_time:
-                        attendance.check_in_time = now
+                        attendance.check_in_time = db_wall_local(now)
                 except Exception:
                     # No bloquear si la comprobación falla por alguna razón
                     pass
@@ -485,7 +485,7 @@ def register_attendance():
                 # de porcentaje al hacer checkout.
                 try:
                     if has_session_control(activity) and not check_in:
-                        attendance.check_in_time = now
+                        attendance.check_in_time = db_wall_local(now)
                 except Exception:
                     pass
                 if check_in:
@@ -504,7 +504,7 @@ def register_attendance():
                             400,
                         )
                     except Exception:
-                        attendance.check_in_time = now
+                        attendance.check_in_time = db_wall_local(now)
                 if check_out:
                     try:
                         attendance.check_out_time = parse_datetime_with_timezone(
@@ -521,7 +521,7 @@ def register_attendance():
                             400,
                         )
                     except Exception:
-                        attendance.check_out_time = now
+                        attendance.check_out_time = db_wall_local(now)
                 # Persistir la nueva asistencia
                 db.session.add(attendance)
             else:
@@ -549,7 +549,7 @@ def register_attendance():
                             400,
                         )
                     except Exception:
-                        attendance.check_in_time = now
+                        attendance.check_in_time = db_wall_local(now)
                 if check_out:
                     try:
                         attendance.check_out_time = parse_datetime_with_timezone(
@@ -566,7 +566,7 @@ def register_attendance():
                             400,
                         )
                     except Exception:
-                        attendance.check_out_time = now
+                        attendance.check_out_time = db_wall_local(now)
                 db.session.add(attendance)
 
         if mark_present:
@@ -872,7 +872,7 @@ def batch_checkout():
             now = datetime.now(timezone.utc)
             if not att.check_out_time:
                 if not dry_run:
-                    att.check_out_time = now
+                    att.check_out_time = db_wall_local(now)
                 # otherwise, emulate for calculation
                 emulate_check_out = now
             else:
@@ -914,7 +914,7 @@ def batch_checkout():
             else:
                 # Persist check_out time if missing, then calculate via service
                 if not att.check_out_time:
-                    att.check_out_time = now
+                    att.check_out_time = db_wall_local(now)
                 db.session.add(att)
                 try:
                     db.session.flush()

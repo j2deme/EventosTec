@@ -1,5 +1,5 @@
 from datetime import datetime, timezone, timedelta
-from app.utils.datetime_utils import localize_naive_datetime
+from app.utils.datetime_utils import db_now_local, localize_naive_datetime
 from app.services.settings_manager import AppSettings
 from typing import Iterable, cast
 
@@ -58,7 +58,7 @@ def pause_attendance(attendance_id):
         raise ValueError("La asistencia ya está pausada")
 
     attendance.is_paused = True
-    attendance.pause_time = datetime.now(timezone.utc)
+    attendance.pause_time = db_now_local()
     return attendance
 
 

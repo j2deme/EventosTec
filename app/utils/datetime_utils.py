@@ -79,6 +79,64 @@ def localize_naive_datetime(dt, app_timezone="America/Mexico_City"):
     return localized.astimezone(timezone.utc)
 
 
+def db_wall_local(dt, app_timezone=None):
+    """Convierte un datetime a la forma en que se persiste en MySQL.
+
+    Convención de la BD (ver ``docs/TIMEZONE_FIX.md`` y ``iso_for_write()``):
+    las columnas ``datetime`` guardan el **wall time local** de la app y al
+    leerlas ``safe_iso()``/``localize_naive_datetime()`` las interpretan como
+    hora local. Por eso:
+
+    - ``naive`` → se asume que ya está en hora local y se devuelve tal cual.
+    - ``aware`` → se convierte a ``APP_TIMEZONE`` y se le quita el ``tzinfo``.
+
+    Sin esto, ``datetime.now(timezone.utc)`` (o ``db.func.now()`` cuando el
+    servidor MySQL corre en UTC) deja en la columna una hora **6 h** posterior
+    a la real con ``America/Mexico_City``: al leerla como local, el check-in
+    quedaba posterior al inicio de la actividad, la ventana de presencia
+    salía invertida y ``calculate_attendance_percentage`` devolvía 0 %.
+
+    Args:
+        dt: datetime naive/aware u otro valor (se devuelve sin tocar).
+        app_timezone: nombre IANA opcional; por defecto ``APP_TIMEZONE``.
+
+    Returns:
+        datetime naive en hora local, o el valor original si no es datetime.
+    """
+    if dt is None or not isinstance(dt, datetime):
+        return dt
+    if dt.tzinfo is None:
+        return dt
+
+    if app_timezone is None:
+        try:
+            app_timezone = AppSettings.app_timezone()
+        except Exception:
+            app_timezone = "America/Mexico_City"
+
+    try:
+        import zoneinfo
+
+        tz = zoneinfo.ZoneInfo(app_timezone)
+    except Exception:
+        try:
+            import pytz
+
+            tz = pytz.timezone(app_timezone)
+        except Exception:
+            tz = timezone.utc
+
+    try:
+        return dt.astimezone(tz).replace(tzinfo=None)
+    except Exception:
+        return dt.replace(tzinfo=None)
+
+
+def db_now_local(app_timezone=None):
+    """``datetime.now()`` listo para persistir (naive en hora local de la app)."""
+    return db_wall_local(datetime.now(timezone.utc), app_timezone)
+
+
 def safe_iso(dt):
     """Return an ISO 8601 string for a datetime-like value in a safe way.
 

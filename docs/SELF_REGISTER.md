@@ -124,3 +124,21 @@ acepta el slug público).
   mensajes del frontend.
 - `tests/test_datetime_utils_wall_local.py` — convención de escritura
   (sección 7).
+
+## 7. Convención horaria de los tiempos de asistencia
+
+Las columnas `datetime` de MySQL guardan **hora local naive** (la misma
+convención que `activities.start_datetime` y los payloads del cliente). Los
+instantes que genera el servidor se persisten con `db_wall_local()` /
+`db_now_local()` (`app/utils/datetime_utils.py`):
+
+- `self_register_bp` escribe el `check_in_time` del auto check-in con
+  `db_wall_local(now)`; igual `attendances_bp`, `registrations_bp`,
+  `public_registrations_bp` y `attendance_service` (`pause_time`).
+- Guardar `datetime.now(timezone.utc)` (o `db.func.now()`, con el servidor
+  MySQL en UTC) dejaba la hora UTC en la columna: al leerla como local, el
+  check-in quedaba +6 h respecto a la actividad, la ventana de presencia
+  salía invertida y el porcentaje salía 0 %. Detalle, evidencia y tabla de
+  sitios convertidos en `docs/TIMEZONE_FIX.md`.
+- Los valores que vienen del payload **no** se convierten:
+  `parse_datetime_with_timezone()` conserva el wall time del cliente.
