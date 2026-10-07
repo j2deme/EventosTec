@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from app.schemas import registration_schema, registrations_schema
+from app.schemas import attendance_schema
 from app.models.registration import Registration
 from app.models.student import Student
 from app.models.activity import Activity
@@ -290,6 +291,35 @@ def get_registrations():
                 act["current_capacity"] = val
                 act["current_registrations"] = val
                 reg["activity"] = act
+
+        # Asistencia de cada preregistro (auto check-in / cierre del admin).
+        # Es la fuente de verdad para que el portal del estudiante vea
+        # "asistencia registrada" mientras la sesión sigue abierta: el
+        # `status` de la Registration no cambia hasta el checkout.
+        # Una sola query batch por página (evita N+1).
+        pairs = {
+            (reg.get("student_id"), reg.get("activity_id"))
+            for reg in dumped_regs
+            if isinstance(reg, dict)
+            and reg.get("student_id")
+            and reg.get("activity_id")
+        }
+        attendance_map = {}
+        if pairs:
+            conds = [
+                (Attendance.student_id == sid) & (Attendance.activity_id == aid)
+                for sid, aid in pairs
+            ]
+            for att in Attendance.query.filter(or_(*conds)).all():
+                # Es una sesión por (estudiante, actividad); si alguna vez
+                # hubiera más, queda la última.
+                attendance_map[(att.student_id, att.activity_id)] = att
+
+        for reg in dumped_regs:
+            if not isinstance(reg, dict):
+                continue
+            att = attendance_map.get((reg.get("student_id"), reg.get("activity_id")))
+            reg["attendance"] = attendance_schema.dump(att) if att else None
 
         # Incluir tanto `current_page` (compatibilidad actual) como `page`
         # (clave que el frontend espera) para evitar roturas.

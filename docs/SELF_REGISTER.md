@@ -144,6 +144,24 @@ para conferencias:
    - la pausa está habilitada para `Magistral` **y** `Conferencia`
      (`attendance_service.has_session_control`).
 
+### Qué ve el estudiante en cada fase
+
+| Fase                               | QR `/public/self-register/<slug>`                                       | Portal "Mis registros"                                        |
+| ---------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------- |
+| Antes de abrir                     | "El auto-registro aún no abre…" (form oculto)                           | `Registrado` / `Confirmado`                                   |
+| Ventana abierta, sin registrar     | Formulario                                                              | `Registrado` / `Confirmado`                                   |
+| Check-in hecho (sesión `Parcial`)  | Tarjeta ✅ "¡Asistencia registrada!" con "Entrada: HH:MM" y "Continuar" | Badge **Asistencia registrada** + nota con la hora y el aviso |
+| Reintento (`409`)                  | La misma tarjeta ✅ (no un error)                                       | igual                                                         |
+| Ventana cerrada, **ya** registrado | Formulario en modo verificación (banner) → `409` con la misma tarjeta   | Badge **Asistencia registrada**                               |
+| Ventana cerrada, no registrado     | `400` con `window_message()`                                            | `Registrado` / `Confirmado`                                   |
+| Checkout del admin (`>= 80%`)      | —                                                                       | `Asistió` (política de §4)                                    |
+
+- El badge y la nota del portal salen de
+  `app/static/js/helpers/registrationStatus.js` (`visibleStatus()` /
+  `note()`), la única fuente para ese texto. Usan el campo `attendance` que
+  `GET /api/registrations` agrega a cada item con **una sola query batch**;
+  sin ese campo el helper cae al flag `attended` del schema.
+
 ## 5. Endpoints
 
 | Método | Ruta                               | Notas                                                                                                                     |
