@@ -5,6 +5,7 @@ from app.models.registration import Registration
 from app.models.attendance import Attendance
 from app.models.student import Student
 from app.services.settings_manager import AppSettings
+from app.services.attendance_list_service import build_attendance_list_context
 from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.slug_utils import slugify as canonical_slugify
@@ -272,9 +273,11 @@ def api_list_registrations():
                 "status": r.status,
                 "attended": bool(r.attended),
                 "registration_date": safe_iso(getattr(r, "registration_date", None)),
-                "check_in_time": safe_iso(getattr(attendance, "check_in_time", None))
-                if attendance
-                else None,
+                "check_in_time": (
+                    safe_iso(getattr(attendance, "check_in_time", None))
+                    if attendance
+                    else None
+                ),
                 "notes": getattr(r, "notes", None),
                 "source": "registration",
             }
@@ -348,14 +351,17 @@ def api_list_registrations():
     end = start + per_page
     page_items = items[start:end]
 
-    return jsonify(
-        {
-            "registrations": page_items,
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-        }
-    ), 200
+    return (
+        jsonify(
+            {
+                "registrations": page_items,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+            }
+        ),
+        200,
+    )
 
 
 @public_registrations_bp.route(
@@ -465,14 +471,17 @@ def api_confirm_registration(reg_id):
     except Exception:
         # defensive: if coercion fails, leave as-is
         pass
-    return jsonify(
-        {
-            "message": "Confirmación registrada",
-            "registration_id": reg.id,
-            "attendance_id": attendance.id if attendance else None,
-            "registration": reg_dict,
-        }
-    ), 200
+    return (
+        jsonify(
+            {
+                "message": "Confirmación registrada",
+                "registration_id": reg.id,
+                "attendance_id": attendance.id if attendance else None,
+                "registration": reg_dict,
+            }
+        ),
+        200,
+    )
 
 
 @public_registrations_bp.route("/api/public/registrations/walkin", methods=["POST"])
@@ -523,9 +532,10 @@ def api_walkin():
             return jsonify({"message": "Error conectando al servicio externo"}), 503
 
         if resp.status_code == 404:
-            return jsonify(
-                {"message": "Estudiante no encontrado en sistema externo"}
-            ), 404
+            return (
+                jsonify({"message": "Estudiante no encontrado en sistema externo"}),
+                404,
+            )
         if resp.status_code != 200:
             return jsonify({"message": "Error desde servicio externo"}), 503
 
@@ -556,9 +566,12 @@ def api_walkin():
         ext_email = d.get("email") or ""
 
         if not ext_control or not ext_full_name:
-            return jsonify(
-                {"message": "Datos externos incompletos para crear estudiante"}
-            ), 502
+            return (
+                jsonify(
+                    {"message": "Datos externos incompletos para crear estudiante"}
+                ),
+                502,
+            )
 
         # Create student inside DB transaction below (so registration+attendance are atomic)
         # We'll create it here but don't commit until the outer try/commit
@@ -602,12 +615,15 @@ def api_walkin():
         ).first()
         if existing:
             # Return conflict with existing attendance info
-            return jsonify(
-                {
-                    "message": "Ya existe una asistencia registrada para este estudiante",
-                    "attendance": existing.to_dict(),
-                }
-            ), 409
+            return (
+                jsonify(
+                    {
+                        "message": "Ya existe una asistencia registrada para este estudiante",
+                        "attendance": existing.to_dict(),
+                    }
+                ),
+                409,
+            )
 
         attendance = Attendance()
         attendance.student_id = student.id
@@ -634,12 +650,14 @@ def api_walkin():
     # Build response with created/updated resources
     resp = {
         "message": "Walk-in registrado",
-        "student": student.to_dict()
-        if hasattr(student, "to_dict")
-        else {"id": student.id},
-        "attendance": attendance.to_dict()
-        if hasattr(attendance, "to_dict")
-        else {"id": attendance.id, "student_id": student.id},
+        "student": (
+            student.to_dict() if hasattr(student, "to_dict") else {"id": student.id}
+        ),
+        "attendance": (
+            attendance.to_dict()
+            if hasattr(attendance, "to_dict")
+            else {"id": attendance.id, "student_id": student.id}
+        ),
         # include registration only if it existed
         "registration": (
             reg.to_dict()
@@ -686,18 +704,22 @@ def api_toggle_attendance(attendance_id):
             # If there is a registration linked to this student and activity, do not touch it here.
             db.session.delete(att)
             db.session.commit()
-            return jsonify(
-                {"message": "Asistencia removida", "attendance_id": attendance_id}
-            ), 200
+            return (
+                jsonify(
+                    {"message": "Asistencia removida", "attendance_id": attendance_id}
+                ),
+                200,
+            )
         except Exception:
             db.session.rollback()
             current_app.logger.exception("Error deleting attendance %s", attendance_id)
             return jsonify({"message": "Error al eliminar asistencia"}), 500
 
     # For confirm=True, if attendance already exists we simply return ok
-    return jsonify(
-        {"message": "Asistencia existente", "attendance_id": attendance_id}
-    ), 200
+    return (
+        jsonify({"message": "Asistencia existente", "attendance_id": attendance_id}),
+        200,
+    )
 
 
 @public_registrations_bp.route(
@@ -947,6 +969,32 @@ def public_event_registrations_view(event_ref):
     )
 
 
+@public_registrations_bp.route(
+    "/public/attendance-list/<path:activity_ref>", methods=["GET"]
+)
+def public_attendance_list(activity_ref):
+    """Lista de asistencia imprimible (vista pública de Jefes de Carrera).
+
+    Misma plantilla y mismo contenido que ``GET /api/reports/attendance_list``
+    (admin): el contexto lo construye el servicio compartido
+    ``app.services.attendance_list_service``, de modo que ambas vistas
+    impriman exactamente la misma lista.
+
+    ``activity_ref`` se resuelve slug primero y ID numérico como fallback
+    (misma estrategia que el resto de las vistas públicas). Se sirve sin
+    autenticación porque la vista de Jefes de Carrera ya lista estos mismos
+    datos con el slug/ID de la actividad.
+    """
+    activity = resolve_activity_by_id(activity_ref)
+    if not activity:
+        return "Actividad no encontrada", 404
+
+    return render_template(
+        "admin/reports/attendance_list.html",
+        **build_attendance_list_context(activity),
+    )
+
+
 @public_registrations_bp.route("/api/public/attendances/search", methods=["GET"])
 def api_public_search_attendances():
     """Search attendances for a specific activity using activity_id (slug or numeric)."""
@@ -1030,9 +1078,9 @@ def api_public_search_attendances():
                     "id": att.id,
                     "student_id": att.student_id,
                     "student_name": student.full_name if student else "",
-                    "student_identifier": getattr(student, "control_number", "")
-                    if student
-                    else "",
+                    "student_identifier": (
+                        getattr(student, "control_number", "") if student else ""
+                    ),
                     "is_paused": att.is_paused,
                     "check_in_time": safe_iso(getattr(att, "check_in_time", None)),
                     "check_out_time": safe_iso(getattr(att, "check_out_time", None)),
@@ -1107,11 +1155,14 @@ def api_public_pause_attendance(attendance_id):
     available_until = end_dt + timedelta(minutes=until_minutes)
 
     if now < available_from:
-        return jsonify(
-            {
-                "message": f"Esta funcionalidad estará disponible a partir de {safe_iso(available_from)}"
-            }
-        ), 403
+        return (
+            jsonify(
+                {
+                    "message": f"Esta funcionalidad estará disponible a partir de {safe_iso(available_from)}"
+                }
+            ),
+            403,
+        )
 
     if now > available_until:
         return jsonify({"message": "La ventana pública de control ha expirado."}), 403
@@ -1206,11 +1257,14 @@ def api_public_resume_attendance(attendance_id):
     available_until = end_dt + timedelta(minutes=until_minutes)
 
     if now < available_from:
-        return jsonify(
-            {
-                "message": f"Esta funcionalidad estará disponible a partir de {safe_iso(available_from)}"
-            }
-        ), 403
+        return (
+            jsonify(
+                {
+                    "message": f"Esta funcionalidad estará disponible a partir de {safe_iso(available_from)}"
+                }
+            ),
+            403,
+        )
 
     if now > available_until:
         return jsonify({"message": "La ventana pública de control ha expirado."}), 403
@@ -1233,9 +1287,10 @@ def api_public_resume_attendance(attendance_id):
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Error resuming attendance %s", attendance_id)
-        return jsonify(
-            {"message": "Error al reanudar asistencia", "error": str(e)}
-        ), 400
+        return (
+            jsonify({"message": "Error al reanudar asistencia", "error": str(e)}),
+            400,
+        )
 
 
 @public_registrations_bp.route("/api/public/registrations/export", methods=["POST"])
@@ -1287,9 +1342,9 @@ def api_export_registrations_xlsx():
             s = getattr(r, "student", None)
             rows.append(
                 {
-                    "Número de control": getattr(s, "control_number", None)
-                    if s
-                    else None,
+                    "Número de control": (
+                        getattr(s, "control_number", None) if s else None
+                    ),
                     "Nombre completo": getattr(s, "full_name", None) if s else None,
                     "Correo": getattr(s, "email", None) if s else None,
                     "Carrera": getattr(s, "career", None) if s else None,
@@ -1337,6 +1392,7 @@ def api_export_registrations_xlsx():
     except Exception as e:
         tb = traceback.format_exc()
         current_app.logger.exception("Error generando XLSX publico")
-        return jsonify(
-            {"message": "Error generando XLSX", "error": str(e), "trace": tb}
-        ), 500
+        return (
+            jsonify({"message": "Error generando XLSX", "error": str(e), "trace": tb}),
+            500,
+        )

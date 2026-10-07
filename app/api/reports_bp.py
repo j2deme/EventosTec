@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify, render_template, current_app
 from flask import Response
 from flask_jwt_extended import jwt_required
-from datetime import timedelta, datetime, timezone
+from datetime import datetime, timezone
 from app import db
 from app.utils.auth_helpers import require_admin
 from app.utils.datetime_utils import localize_naive_datetime
+from app.services.attendance_list_service import build_attendance_list_context
 from app.models.registration import Registration
 from app.models.activity import Activity
 from app.models.event import Event
@@ -34,64 +35,12 @@ def attendance_list():
     if not activity:
         return "Actividad no encontrada", 404
 
-    event = db.session.get(Event, activity.event_id)
+    # El contexto (lista, orden y detección multiday) lo construye el servicio
+    # compartido: es el mismo que usa la vista pública de Jefes de Carrera
+    # (/public/attendance-list/<ref>), para que ambas impriman idénticas.
+    context = build_attendance_list_context(activity)
 
-    # Obtener preregistros ordenados por apellido/nombre (student.full_name)
-    regs = (
-        db.session.query(Registration)
-        .filter(Registration.activity_id == activity_id)
-        .join(Student)
-        .order_by(Student.full_name)
-        .all()
-    )
-
-    students = []
-    for r in regs:
-        # Cargar explícitamente el estudiante para evitar supuestos del ORM en el analizador estático
-        s = db.session.get(Student, r.student_id)
-        if not s:
-            continue
-        students.append(
-            {
-                "id": s.id,
-                "full_name": s.full_name,
-                "control_number": s.control_number,
-                "career": s.career,
-            }
-        )
-
-    # Determine if activity spans multiple days (localize DB datetimes first)
-    multi_day = False
-    try:
-        app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
-        start = activity.start_datetime
-        end = activity.end_datetime
-        sdt = localize_naive_datetime(start, app_tz) if start is not None else None
-        edt = localize_naive_datetime(end, app_tz) if end is not None else None
-        if sdt and edt and sdt.date() != edt.date():
-            multi_day = True
-            # build list of dates inclusive
-            delta = (edt.date() - sdt.date()).days
-            dates = [sdt.date() + timedelta(days=i) for i in range(delta + 1)]
-        else:
-            dates = [
-                (
-                    sdt.date()
-                    if sdt is not None
-                    else (edt.date() if edt is not None else None)
-                )
-            ]
-    except Exception:
-        dates = []
-
-    return render_template(
-        "admin/reports/attendance_list.html",
-        event=event,
-        activity=activity,
-        students=students,
-        dates=dates,
-        multi_day=multi_day,
-    )
+    return render_template("admin/reports/attendance_list.html", **context)
 
 
 @reports_bp.route("/participation_matrix", methods=["GET"])

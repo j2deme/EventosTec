@@ -184,22 +184,40 @@ endblock %} {% block content %}
                           x-text="a._loading_manage ? 'Abriendo...' : 'Gestionar'"
                         ></span>
                       </button>
-                      <!-- Lista (download) button -->
+                      <!-- Imprimir (lista imprimible) button -->
+                      <button
+                        x-show="a.current_registrations > 0"
+                        @click.prevent="printAttendanceListForActivity(a)"
+                        class="ml-2 p-2 bg-indigo-600 text-white rounded inline-flex items-center text-sm"
+                        title="Lista para imprimir"
+                        aria-label="Lista para imprimir"
+                      >
+                        <i class="ti ti-printer mr-0 md:mr-2"></i>
+                        <span class="hidden md:inline text-xs">Imprimir</span>
+                      </button>
+                      <!-- XLSX (download) button -->
                       <button
                         x-show="a.current_registrations > 0"
                         :disabled="a._loading_download"
                         @click.prevent="downloadRegistrationsForActivity(a)"
                         class="ml-2 bg-gray-700 text-white p-2 rounded inline-flex items-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Descargar inscritos"
+                        title="Descargar XLSX"
                         :aria-disabled="a._loading_download ? 'true' : 'false'"
+                        aria-label="Descargar XLSX"
                       >
                         <template x-if="a._loading_download">
-                          <i class="ti ti-loader animate-spin"></i>
-                          <span class="sr-only">Generando...</span>
+                          <span class="inline-flex items-center">
+                            <i class="ti ti-loader animate-spin"></i>
+                            <span class="sr-only">Generando...</span>
+                          </span>
                         </template>
                         <template x-if="!a._loading_download">
-                          <i class="ti ti-users"></i>
-                          <span class="sr-only">Lista</span>
+                          <span class="inline-flex items-center">
+                            <i class="ti ti-file-spreadsheet"></i>
+                            <span class="hidden md:inline ml-2 text-xs"
+                              >XLSX</span
+                            >
+                          </span>
                         </template>
                       </button>
                       <!-- Copiar enlace button -->

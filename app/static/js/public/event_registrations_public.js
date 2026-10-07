@@ -126,6 +126,7 @@ function eventRegistrationsPublic() {
           name: a.name,
           activity_type: a.activity_type || null,
           department: a.department || "",
+          public_slug: a.public_slug || null,
           start_datetime: a.start_datetime,
           end_datetime: a.end_datetime,
           datesString: a.datesString || null,
@@ -500,6 +501,39 @@ function eventRegistrationsPublic() {
       } catch (e) {
         console.error("copyLinkForActivity", e);
         a._loading_copy = false;
+      }
+    },
+
+    // Abrir la lista de asistencia imprimible en pestaña nueva (misma plantilla
+    // que la de admin). El endpoint público no requiere Authorization, así que
+    // basta con navegar: no hace falta fetch + blob como en el admin.
+    printAttendanceListForActivity(a) {
+      if (!a) return;
+      const ref = a.public_slug || a.id;
+      if (ref === null || ref === undefined || ref === "") {
+        if (typeof showToast === "function")
+          showToast(
+            "No se pudo abrir la lista: actividad sin identificador",
+            "error",
+          );
+        else alert("No se pudo abrir la lista: actividad sin identificador");
+        return;
+      }
+      const url = `/public/attendance-list/${encodeURIComponent(ref)}`;
+      // Se abre de forma síncrona (dentro del gesto del usuario) para no caer
+      // en el bloqueador de popups.
+      let win = null;
+      try {
+        win =
+          typeof window !== "undefined" && typeof window.open === "function"
+            ? window.open(url, "_blank")
+            : null;
+      } catch (e) {
+        win = null;
+      }
+      if (!win) {
+        // Fallback: abrir en la misma pestaña si hay bloqueador de ventanas
+        window.location.href = url;
       }
     },
 
