@@ -62,12 +62,11 @@ def test_public_attendance_list_unknown_ref_returns_404(client):
 
 
 def test_public_attendance_list_renders_without_auth(client, app, sample_data):
-    """La vista pública renderiza la lista sin JWT, resolviendo por slug e ID."""
+    """La vista pública renderiza la lista sin JWT, resolviendo por slug."""
     activity_id, slug = _seed_activity_with_registration(
         app, sample_data, "Taller Impresion Publica", "taller-impresion-publica"
     )
 
-    # Por slug (estrategia preferida)
     response = client.get(f"/public/attendance-list/{slug}")
     assert response.status_code == 200
     html = response.get_data(as_text=True)
@@ -76,10 +75,40 @@ def test_public_attendance_list_renders_without_auth(client, app, sample_data):
     assert "Juan Pérez" in html
     assert "Total de preregistrados: 1" in _plain(html)
 
-    # Por ID numérico (fallback)
+    # El ID numérico NO resuelve: no hay fallback (evita enumerar /1, /2, ...)
     response_by_id = client.get(f"/public/attendance-list/{activity_id}")
-    assert response_by_id.status_code == 200
-    assert "Juan Pérez" in response_by_id.get_data(as_text=True)
+    assert response_by_id.status_code == 404
+
+
+def test_public_attendance_list_rejects_numeric_id_enumeration(
+    client, app, sample_data
+):
+    """`/public/attendance-list/<id>` responde 404: la lista solo va por slug.
+
+    La ruta es pública y expone nombre + número de control de todos los
+    preregistrados; permitir el ID convirtió el endpoint en un volcado
+    enumerable (1, 2, 3, ...).
+    """
+    activity_id, slug = _seed_activity_with_registration(
+        app, sample_data, "Conferencia Por Id", "conferencia-por-id"
+    )
+
+    assert client.get(f"/public/attendance-list/{slug}").status_code == 200
+    assert client.get(f"/public/attendance-list/{activity_id}").status_code == 404
+    # Un ID inexistente también da 404 (misma respuesta, sin revelar si existe)
+    assert client.get("/public/attendance-list/999999").status_code == 404
+
+
+def test_public_attendance_list_activity_without_slug_returns_404(
+    client, app, sample_data
+):
+    """Una actividad sin `public_slug` no es imprimible por esta ruta."""
+    activity_id, _ = _seed_activity_with_registration(
+        app, sample_data, "Taller Sin Slug", None
+    )
+
+    response = client.get(f"/public/attendance-list/{activity_id}")
+    assert response.status_code == 404
 
 
 def test_public_attendance_list_matches_admin_output(

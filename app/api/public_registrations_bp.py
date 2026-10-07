@@ -982,12 +982,21 @@ def public_attendance_list(activity_ref):
     ``app.services.attendance_list_service``, de modo que ambas vistas
     impriman exactamente la misma lista.
 
-    ``activity_ref`` se resuelve slug primero y ID numérico como fallback
-    (misma estrategia que el resto de las vistas públicas). Se sirve sin
-    autenticación porque la vista de Jefes de Carrera ya lista estos mismos
-    datos con el slug/ID de la actividad.
+    **Solo se acepta ``public_slug``**: a diferencia del resto de vistas
+    públicas aquí **no** hay fallback a ID numérico, porque el ID se enumera
+    trivialmente (``/public/attendance-list/1``, ``/2``, ...) y esta vista
+    imprime nombre y número de control de todos los preregistrados sin
+    autenticación. Una actividad sin ``public_slug`` simplemente no es
+    imprimible por esta ruta.
     """
-    activity = resolve_activity_by_id(activity_ref)
+    ref = (activity_ref or "").strip()
+    activity = None
+    if ref:
+        try:
+            activity = Activity.query.filter_by(public_slug=ref).first()
+        except Exception:
+            activity = None
+
     if not activity:
         return "Actividad no encontrada", 404
 

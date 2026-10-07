@@ -29,11 +29,15 @@ describe("eventRegistrationsPublic.printAttendanceListForActivity", () => {
     }
   });
 
-  test("abre la lista imprimible en pestaña nueva usando el ID", () => {
-    mgr.printAttendanceListForActivity({ id: 42, name: "Taller X" });
+  test("abre la lista imprimible en pestaña nueva usando el public_slug", () => {
+    mgr.printAttendanceListForActivity({
+      id: 42,
+      public_slug: "taller-x",
+      name: "Taller X",
+    });
 
     expect(openSpy).toHaveBeenCalledTimes(1);
-    expect(openSpy.mock.calls[0][0]).toBe("/public/attendance-list/42");
+    expect(openSpy.mock.calls[0][0]).toBe("/public/attendance-list/taller-x");
     expect(openSpy.mock.calls[0][1]).toBe("_blank");
   });
 
@@ -48,6 +52,13 @@ describe("eventRegistrationsPublic.printAttendanceListForActivity", () => {
     );
   });
 
+  test("con solo id numérico (sin public_slug) no abre nada y avisa", () => {
+    mgr.printAttendanceListForActivity({ id: 42, name: "Solo id" });
+
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(window.showToast).toHaveBeenCalled();
+  });
+
   test("si el navegador bloquea la pestaña, navega en la misma", () => {
     const origLocation = window.location;
     Object.defineProperty(window, "location", {
@@ -58,8 +69,8 @@ describe("eventRegistrationsPublic.printAttendanceListForActivity", () => {
     openSpy.mockReturnValue(null);
 
     try {
-      mgr.printAttendanceListForActivity({ id: 7 });
-      expect(window.location.href).toBe("/public/attendance-list/7");
+      mgr.printAttendanceListForActivity({ id: 7, public_slug: "curso-7" });
+      expect(window.location.href).toBe("/public/attendance-list/curso-7");
     } finally {
       Object.defineProperty(window, "location", {
         value: origLocation,

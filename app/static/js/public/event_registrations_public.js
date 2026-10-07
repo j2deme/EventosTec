@@ -507,16 +507,15 @@ function eventRegistrationsPublic() {
     // Abrir la lista de asistencia imprimible en pestaña nueva (misma plantilla
     // que la de admin). El endpoint público no requiere Authorization, así que
     // basta con navegar: no hace falta fetch + blob como en el admin.
+    // Solo se usa public_slug: la ruta rechaza IDs numéricos (enumerables).
     printAttendanceListForActivity(a) {
       if (!a) return;
-      const ref = a.public_slug || a.id;
+      const ref = a.public_slug;
       if (ref === null || ref === undefined || ref === "") {
-        if (typeof showToast === "function")
-          showToast(
-            "No se pudo abrir la lista: actividad sin identificador",
-            "error",
-          );
-        else alert("No se pudo abrir la lista: actividad sin identificador");
+        const msg =
+          "No se pudo abrir la lista: la actividad no tiene enlace público";
+        if (typeof showToast === "function") showToast(msg, "error");
+        else alert(msg);
         return;
       }
       const url = `/public/attendance-list/${encodeURIComponent(ref)}`;
