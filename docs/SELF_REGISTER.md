@@ -36,6 +36,26 @@ Configuración (ENV o `scripts/initialize_app_settings.py`):
 > Para editarlas desde la UI de Settings hay que sembrarlas:
 > `python scripts/initialize_app_settings.py`.
 
+### Ejemplo: adelantar la apertura de una actividad
+
+Si una actividad necesita abrir más pronto de lo que dice el default (p. ej.
+una conferencia de las **13:00** que debe abrir a las **11:50**), sube el
+minuto de apertura a `70`:
+
+- **UI**: `Admin → Settings` →
+  `public_self_register_open_minutes_before_start = 70`. Aplica en ~10 s (TTL
+  de caché), sin reiniciar.
+- **ENV**: `APP_PUBLIC_SELF_REGISTER_OPEN_MINUTES_BEFORE_START=70` en `.env`.
+  Fija el valor (queda bloqueado en la UI) y requiere reiniciar el contenedor.
+
+No hay que tocar código ni migrar. Dos notas:
+
+- El valor es **global**: todas las actividades abrirían 70 min antes de su
+  inicio. Eso no altera el porcentaje de asistencia, porque la presencia se
+  recorta a la ventana real de la actividad (`calculate_attendance_percentage`).
+- El cierre sigue siendo `inicio + public_self_register_close_minutes_after_start`
+  (default 20). Conviene regresar el default a 30 al terminar el evento.
+
 ## 2. Rate limit
 
 `POST /api/registrations/self` y `POST /api/auth/student-login` comparten el
