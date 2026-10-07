@@ -1,6 +1,18 @@
 from app import db
 
 
+def _registration_date_default():
+    """Default de `registration_date`: hora local naive.
+
+    Las columnas `datetime` guardan wall time local (ver
+    `docs/TIMEZONE_FIX.md`), no la hora del servidor MySQL. El import se hace
+    dentro de la función para evitar ciclos al cargar los modelos.
+    """
+    from app.utils.datetime_utils import db_now_local
+
+    return db_now_local()
+
+
 class Registration(db.Model):
     __tablename__ = "registrations"
 
@@ -8,7 +20,12 @@ class Registration(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey("students.id"), nullable=False)
     activity_id = db.Column(db.Integer, db.ForeignKey("activities.id"), nullable=False)
     registration_date = db.Column(
-        db.DateTime, server_default=db.func.now(), nullable=False
+        db.DateTime,
+        # Calculado en Python (hora local). `server_default` queda solo como
+        # respaldo para INSERTs hechos con SQL crudo.
+        default=_registration_date_default,
+        server_default=db.func.now(),
+        nullable=False,
     )
     status = db.Column(
         db.Enum("Registrado", "Confirmado", "Asistió", "Ausente", "Cancelado"),

@@ -2,6 +2,7 @@ from app.models.registration import Registration
 from app.models.activity import Activity
 from datetime import datetime, timedelta
 from app import db
+from app.utils.datetime_utils import db_now_local
 
 
 def _get_daily_sessions(activity):
@@ -225,7 +226,7 @@ def create_registration_simple(student_id, activity_id):
         if existing:
             if existing.status == "Cancelado":
                 existing.status = "Registrado"
-                existing.registration_date = db.func.now()
+                existing.registration_date = db_now_local()
                 existing.confirmation_date = None
                 existing.attended = False
                 db.session.add(existing)
@@ -335,7 +336,7 @@ def create_registration_atomic(student_id, activity_id):
                 # Si existe y está cancelado, reactivar
                 if existing.status == "Cancelado":
                     existing.status = "Registrado"
-                    existing.registration_date = db.func.now()
+                    existing.registration_date = db_now_local()
                     existing.confirmation_date = None
                     existing.attended = False
                     session.add(existing)

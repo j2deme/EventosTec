@@ -2,7 +2,11 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timezone
 from marshmallow import ValidationError
-from app.utils.datetime_utils import db_wall_local, parse_datetime_with_timezone
+from app.utils.datetime_utils import (
+    db_now_local,
+    db_wall_local,
+    parse_datetime_with_timezone,
+)
 from app import db
 from app.schemas import attendance_schema
 from app.models.attendance import Attendance
@@ -576,7 +580,7 @@ def register_attendance():
             if registration:
                 registration.attended = True
                 registration.status = "Asistió"
-                registration.confirmation_date = db.func.now()
+                registration.confirmation_date = db_now_local()
                 db.session.add(registration)
 
         # Recalcular porcentaje y estado al hacer checkout. Antes solo se

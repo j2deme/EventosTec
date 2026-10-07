@@ -345,7 +345,7 @@ def sync_registration_status(attendance):
         registration.status = "Asistió"
         registration.attended = True
         if registration.confirmation_date is None:
-            registration.confirmation_date = db.func.now()
+            registration.confirmation_date = db_now_local()
     else:
         registration.status = "Ausente"
         registration.attended = False
@@ -403,7 +403,7 @@ def create_related_attendances(student_id, activity_id):
             if registration:
                 registration.attended = True
                 registration.status = "Asistió"
-                registration.confirmation_date = db.func.now()
+                registration.confirmation_date = db_now_local()
                 db.session.add(registration)
 
 
@@ -520,7 +520,7 @@ def sync_related_attendances_from_source(
                 if reg:
                     reg.attended = True
                     reg.status = "Asistió"
-                    reg.confirmation_date = db.func.now()
+                    reg.confirmation_date = db_now_local()
                     db.session.add(reg)
 
             summary["created"] += 1
@@ -996,7 +996,7 @@ def create_attendances_from_file(file_stream, activity_id, dry_run=True):
             if registration:
                 registration.attended = True
                 registration.status = "Asistió"
-                registration.confirmation_date = db.func.now()
+                registration.confirmation_date = db_now_local()
                 db.session.add(registration)
 
         summary["created"] += 1

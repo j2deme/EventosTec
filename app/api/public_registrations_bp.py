@@ -403,14 +403,14 @@ def api_confirm_registration(reg_id):
     if confirm:
         reg.attended = True
         reg.status = "Asistió"
-        reg.confirmation_date = db.func.now()
+        reg.confirmation_date = db_now_local()
     else:
         # Desconfirmación: two possible flows
         if mark_absent:
             # explicit request to mark as Ausente
             reg.attended = False
             reg.status = "Ausente"
-            reg.confirmation_date = db.func.now()
+            reg.confirmation_date = db_now_local()
         else:
             # revert to preregistro state
             reg.attended = False
@@ -608,7 +608,7 @@ def api_walkin():
             if not reg.attended:
                 reg.attended = True
                 reg.status = "Asistió"
-                reg.confirmation_date = db.func.now()
+                reg.confirmation_date = db_now_local()
                 db.session.add(reg)
 
         # avoid duplicate attendance

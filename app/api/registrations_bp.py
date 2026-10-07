@@ -89,7 +89,7 @@ def create_registration():
 
                 # ✨ Re-registrar: actualizar estado y datos
                 existing_registration.status = "Registrado"
-                existing_registration.registration_date = db.func.now()
+                existing_registration.registration_date = db_now_local()
                 existing_registration.confirmation_date = None
                 existing_registration.attended = False
 
@@ -483,7 +483,7 @@ def update_registration(registration_id):
             registration.attended = bool(attended)
             if registration.attended:
                 registration.status = "Asistió"
-                registration.confirmation_date = db.func.now()
+                registration.confirmation_date = db_now_local()
 
                 attendance = Attendance.query.filter_by(
                     student_id=registration.student_id,

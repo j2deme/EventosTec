@@ -111,6 +111,16 @@ Write sites converted:
 | `app/api/self_register_bp.py`        | self check-in `check_in_time`                                                     |
 | `app/services/attendance_service.py` | `pause_attendance()` → `pause_time`                                               |
 
+### Follow-up (2026-10-07): registration dates
+
+`registrations.registration_date` and `registrations.confirmation_date` were still written with `db.func.now()`, so the **Fecha de registro / Fecha de confirmación** shown in the admin registration modal (and in the student list) came out **+6 h** ahead:
+
+- 12 assignment sites converted (`db.func.now()` → `db_now_local()`) in `registrations_bp`, `public_registrations_bp`, `attendances_bp`, `attendance_service` and `registration_service`.
+- `Registration.registration_date` gained a **Python-side default** (`_registration_date_default()`, lazy import so the models don't create an import cycle). New preregistrations no longer depend on the MySQL clock; `server_default` is kept as a fallback for raw-SQL inserts (there are no bulk inserts of `Registration`, so the client-side default is safe).
+- `created_at` / `updated_at` still use `server_default=db.func.now()` (UTC): they are metadata and only show up as a display fallback when `registration_date` is null.
+
+- Tests: `tests/test_registration_dates_wall_local.py` — default value, re-register, checkout confirmation, plus a guard that fails if either field is ever assigned with `db.func.now()` again.
+
 **Payload values are not converted.** `parse_datetime_with_timezone()` keeps the wall time the client sent (an `<input type="datetime-local">` value is naive local and is deliberately tagged as UTC), so wrapping it in `db_wall_local()` would subtract 6 hours from every manual check-in. Comparisons keep using aware UTC (`datetime.now(timezone.utc)`); only _assignments_ are converted.
 
 ### Migration notes
