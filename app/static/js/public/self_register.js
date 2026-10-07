@@ -5,6 +5,9 @@ function selfRegister() {
     controlNumber: "",
     password: "",
     loading: false,
+    verifyOnly: false,
+    checkedIn: false,
+    successDetail: "",
     message: "",
     messageClass: "bg-green-100 text-green-800",
     unavailableMessage:
@@ -33,6 +36,8 @@ function selfRegister() {
         this.activityExists = !!init.exists;
         this.activityAllowed = !!init.allowed;
         this.activityInvalid = !!init.invalid;
+        // Ventana cerrada: el form se muestra solo para verificar asistencia.
+        this.verifyOnly = !!init.verify;
 
         if (!this.activityExists) {
           this.messageClass = "bg-red-100 text-red-800";
@@ -41,7 +46,8 @@ function selfRegister() {
           this.messageClass = "bg-yellow-100 text-yellow-800";
           // Mensaje del servidor: distingue "aún no abre" de "ya cerró".
           this.unavailableMessage = init.message || this.unavailableMessage;
-          this.message = this.unavailableMessage;
+          // En modo verificación el banner ya muestra ese texto; no duplicar.
+          if (!this.verifyOnly) this.message = this.unavailableMessage;
         }
 
         // expired flag used to hide the form when time ends
@@ -91,14 +97,16 @@ function selfRegister() {
 
         const data = await resp.json().catch(() => ({}));
         if (resp.status === 201) {
-          this.messageClass = "bg-green-100 text-green-800";
-          this.message = data.message || "Auto-registro exitoso";
-          this.controlNumber = "";
-          this.password = "";
+          this.markCheckedIn(data);
         } else if (resp.status === 409) {
-          this.messageClass = "bg-yellow-100 text-yellow-800";
-          this.message =
-            data.message || "Ya registraste tu asistencia en esta actividad";
+          if (data.code === "already_registered") {
+            // Mismo estado que el 201: ya estaba registrado, no es un error.
+            this.markCheckedIn(data);
+          } else {
+            this.messageClass = "bg-yellow-100 text-yellow-800";
+            this.message =
+              data.message || "Ya registraste tu asistencia en esta actividad";
+          }
         } else if (resp.status === 401) {
           this.messageClass = "bg-red-100 text-red-800";
           this.message = data.message || "Credenciales inválidas";
@@ -125,6 +133,47 @@ function selfRegister() {
       } finally {
         this.loading = false;
       }
+    },
+
+    // Pantalla de confirmación: se usa tanto en el 201 (primer check-in)
+    // como en el 409 "ya registrado", para que el estudiante salga con la
+    // misma certeza en ambos casos.
+    markCheckedIn(data) {
+      const attendance = (data && data.attendance) || {};
+      const time = this.formatCheckInTime(attendance.check_in_time);
+      this.successDetail = time
+        ? `Entrada: ${time}`
+        : "Tu asistencia quedó registrada.";
+      this.message = "";
+      this.checkedIn = true;
+      this.controlNumber = "";
+      this.password = "";
+    },
+
+    formatCheckInTime(value) {
+      if (!value) return "";
+      try {
+        if (
+          window.dateHelpers &&
+          typeof window.dateHelpers.formatTime === "function"
+        ) {
+          return window.dateHelpers.formatTime(value);
+        }
+      } catch (e) {
+        // sin dateHelpers (tests / carga parcial): fallback abajo
+      }
+      const raw = String(value);
+      return raw.length >= 16 ? raw.slice(11, 16) : "";
+    },
+
+    // "Continuar" en la tarjeta de éxito: limpia la confirmación y vuelve al
+    // formulario (en modo verificación si la ventana ya cerró).
+    continueFromSuccess() {
+      this.checkedIn = false;
+      this.successDetail = "";
+      this.message = "";
+      this.controlNumber = "";
+      this.password = "";
     },
 
     startCountdown() {

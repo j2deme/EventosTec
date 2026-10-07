@@ -13,6 +13,7 @@ content %}
     data-activity-exists="{{ '1' if activity_exists else '0' }}"
     data-activity-allowed="{{ '1' if activity_allowed else '0' }}"
     data-activity-invalid="{{ '1' if activity_invalid else '0' }}"
+    data-activity-verify="{{ '1' if verify_only else '0' }}"
     data-activity-start="{{ activity_start_iso or '' }}"
     data-activity-duration="{{ activity_duration_hours or '' }}"
     data-activity-deadline="{{ activity_deadline_iso or '' }}"
@@ -39,7 +40,10 @@ content %}
     </div>
 
     <!-- Visual states: activity not found or not allowed/expired -->
-    <div x-show="!activityExists || !activityAllowed" class="text-center py-8">
+    <div
+      x-show="!activityExists || (!activityAllowed && !verifyOnly)"
+      class="text-center py-8"
+    >
       <template x-if="!activityExists">
         <div class="flex flex-col items-center gap-4">
           <i class="ti ti-ban text-gray-300 text-6xl"></i>
@@ -62,82 +66,124 @@ content %}
       </template>
     </div>
 
-    <template x-if="activityExists && activityAllowed">
+    <template x-if="activityExists && (activityAllowed || verifyOnly)">
       <div>
-        <div class="mb-3">
-          <div class="text-xs text-gray-500">
-            {{ activity_type or 'Actividad' }}
-          </div>
+        <!-- Ventana cerrada: el formulario queda en modo verificación -->
+        <template x-if="verifyOnly">
           <div
-            class="text-lg font-semibold text-indigo-600"
-            x-text="activityName"
-          ></div>
-          <div
-            x-show="timeLeftText"
-            class="text-sm text-gray-500 mt-1 flex items-center gap-2"
+            class="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800"
           >
-            <i class="ti ti-clock text-indigo-400"></i>
-            <span x-text="timeLeftText"></span>
-          </div>
-        </div>
-
-        <form
-          id="self-register-form"
-          @submit.prevent="submit()"
-          class="space-y-4"
-          x-show="!expired"
-        >
-          <div>
-            <label class="block text-sm font-medium text-gray-700"
-              >Número de control</label
-            >
-            <input
-              inputmode="numeric"
-              autocomplete="off"
-              x-model="controlNumber"
-              class="mt-1 block w-full rounded-lg border p-3 text-base"
-              placeholder="Ej: 12345678"
-            />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700"
-              >Contraseña</label
-            >
-            <input
-              type="password"
-              autocomplete="off"
-              x-model="password"
-              class="mt-1 block w-full rounded-lg border p-3 text-base"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <div class="flex items-center justify-between">
-            <button
-              type="submit"
-              :disabled="loading"
-              class="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg disabled:opacity-60 text-center"
-            >
-              Registrar
-            </button>
-          </div>
-          <div x-show="loading" class="text-sm text-gray-500 text-center">
-            Procesando…
-          </div>
-        </form>
-        <div
-          x-show="expired"
-          class="p-4 bg-yellow-50 rounded mt-2 text-sm text-yellow-800"
-        >
-          El auto-registro para esta actividad ha finalizado. Si crees que esto
-          es un error contacta al staff.
-        </div>
-
-        <template x-if="message">
-          <div :class="messageClass + ' mt-4 p-3 rounded'">
-            <div x-text="message"></div>
+            <div class="font-semibold">Verificación de asistencia</div>
+            <div x-text="unavailableMessage"></div>
+            <div class="mt-1">
+              Ingresa tus credenciales para verificar si tu asistencia quedó
+              registrada.
+            </div>
           </div>
         </template>
+
+        <!-- Confirmación tras registrarse (201) o al reintentar (409) -->
+        <template x-if="checkedIn">
+          <div class="text-center py-4">
+            <i class="ti ti-circle-check text-green-500 text-6xl"></i>
+            <div class="text-xl font-bold text-gray-900 mt-3">
+              ¡Asistencia registrada!
+            </div>
+            <div class="text-sm text-gray-600 mt-1" x-text="activityName"></div>
+            <div
+              class="text-sm text-gray-700 mt-2"
+              x-text="successDetail"
+            ></div>
+            <div class="text-xs text-gray-500 mt-2">
+              El resultado final se define al cierre de la actividad.
+            </div>
+            <button
+              type="button"
+              @click="continueFromSuccess()"
+              class="mt-5 w-full bg-indigo-600 text-white px-4 py-3 rounded-lg"
+            >
+              Continuar
+            </button>
+          </div>
+        </template>
+
+        <div x-show="!checkedIn">
+          <div class="mb-3">
+            <div class="text-xs text-gray-500">
+              {{ activity_type or 'Actividad' }}
+            </div>
+            <div
+              class="text-lg font-semibold text-indigo-600"
+              x-text="activityName"
+            ></div>
+            <div
+              x-show="timeLeftText"
+              class="text-sm text-gray-500 mt-1 flex items-center gap-2"
+            >
+              <i class="ti ti-clock text-indigo-400"></i>
+              <span x-text="timeLeftText"></span>
+            </div>
+          </div>
+
+          <form
+            id="self-register-form"
+            @submit.prevent="submit()"
+            class="space-y-4"
+            x-show="!expired"
+          >
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Número de control</label
+              >
+              <input
+                inputmode="numeric"
+                autocomplete="off"
+                x-model="controlNumber"
+                class="mt-1 block w-full rounded-lg border p-3 text-base"
+                placeholder="Ej: 12345678"
+              />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >Contraseña</label
+              >
+              <input
+                type="password"
+                autocomplete="off"
+                x-model="password"
+                class="mt-1 block w-full rounded-lg border p-3 text-base"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div class="flex items-center justify-between">
+              <button
+                type="submit"
+                :disabled="loading"
+                class="w-full bg-indigo-600 text-white px-4 py-3 rounded-lg disabled:opacity-60 text-center"
+              >
+                Registrar
+              </button>
+            </div>
+            <div x-show="loading" class="text-sm text-gray-500 text-center">
+              Procesando…
+            </div>
+          </form>
+          <div
+            x-show="expired"
+            class="p-4 bg-yellow-50 rounded mt-2 text-sm text-yellow-800"
+          >
+            El auto-registro para esta actividad ha finalizado. Si ya te
+            registraste, recarga la página para verificar tu asistencia; si
+            crees que esto es un error, contacta al staff.
+          </div>
+
+          <template x-if="message">
+            <div :class="messageClass + ' mt-4 p-3 rounded'">
+              <div x-text="message"></div>
+            </div>
+          </template>
+        </div>
       </div>
     </template>
   </div>
@@ -152,8 +198,9 @@ content %}
       const exists = el.getAttribute("data-activity-exists") === "1";
       const allowed = el.getAttribute("data-activity-allowed") === "1";
       const invalid = el.getAttribute("data-activity-invalid") === "1";
+      const verify = el.getAttribute("data-activity-verify") === "1";
       const message = el.getAttribute("data-activity-message") || "";
-      return { id, name, exists, allowed, invalid, message };
+      return { id, name, exists, allowed, invalid, verify, message };
     } catch (e) {
       return {
         id: "",
@@ -161,6 +208,7 @@ content %}
         exists: false,
         allowed: true,
         invalid: false,
+        verify: false,
         message: "",
       };
     }

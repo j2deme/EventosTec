@@ -25,6 +25,15 @@ cierra = inicio + public_self_register_close_minutes_after_start   (default 20)
   `data-activity-message` y se muestran en el panel de "no disponible".
 - El countdown del cliente usa **solo** `data-activity-deadline` (deadline
   calculado por el backend); se eliminó el fallback `start + 20 min` del JS.
+  El deadline solo se pasa con la ventana **abierta**, para que el modo
+  verificación no oculte el formulario al expirar.
+- **Verificar después del cierre**: con `closed` el formulario se muestra en
+  _modo verificación_ (`verify_only`, banner amarillo) en lugar de ocultarse,
+  para que quien ya se registró pueda confirmarlo. En el `POST`, `not_open`
+  se rechaza **antes** de llamar al sistema externo (barato) y `closed` se
+  evalúa **después** de validar credenciales, de modo que el duplicado
+  responde `409 already_registered` con su asistencia en vez de "la ventana
+  terminó".
 
 Configuración (ENV o `scripts/initialize_app_settings.py`):
 
@@ -70,6 +79,19 @@ Respuesta: `429` con `RATE_LIMIT_MESSAGE`. El límite se aplica **antes** de
 llamar al sistema externo. Constantes en
 `app/services/student_auth_service.py::CREDENTIAL_ATTEMPT_LIMITS`;
 `reset_credential_limits()` las limpia (tests).
+
+**Intentos que no consumen cuota**: cuando el request ya pasó la validación
+de credenciales y aun así se rechaza por una razón que no es de
+autenticación, se devuelve el intento del número de control con
+`refund_credential_attempt()`:
+
+- duplicado → `409 already_registered` (el estudiante ansioso que reintenta
+  no debe agotar la cuota de 8 y terminar en un confuso 429);
+- ventana cerrada sin registro previo → `400` con `window_message()`.
+
+El contador **por IP** nunca se devuelve: sigue siendo la red de seguridad
+contra el abuso desde una misma IP. `SlidingWindowLimiter.refund()` es la
+primitiva (tests en `tests/services/test_rate_limit.py`).
 
 ## 3. Validación de credenciales en proceso (sin loopback HTTP)
 
@@ -132,6 +154,14 @@ para conferencias:
 
 Payload: `{"control_number", "password", "activity_id"}` (`activity_id`
 acepta el slug público).
+
+Respuestas de éxito y de duplicado:
+
+- `201` → `{"message", "attendance"}`: sesión recién abierta.
+- `409` → `{"code": "already_registered", "message", "attendance"}`: la
+  asistencia ya existente. La UI pinta **la misma pantalla de confirmación**
+  que el 201 (tarjeta ✅ con "Entrada: HH:MM" y botón "Continuar") en vez de
+  un error, y el endpoint devuelve el intento de rate-limit (ver §2).
 
 ## 6. Pruebas
 

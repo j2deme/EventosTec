@@ -16,6 +16,7 @@ from app.services.student_auth_service import (
     CredentialServiceUnavailable,
     CredentialsRateLimited,
     InvalidCredentials,
+    refund_credential_attempt,
     reset_credential_limits,
     validate_student_credentials,
 )
@@ -120,5 +121,31 @@ def test_rate_limit_is_per_ip(monkeypatch):
 
         with pytest.raises(CredentialsRateLimited):
             validate_student_credentials("A0000003", "secret", ip="203.0.113.10")
+
+    assert post.call_count == 2
+
+
+def test_refund_credential_attempt_libera_solo_el_numero_de_control(monkeypatch):
+    """El intento devuelto (p. ej. 409 por duplicado) libera el número de
+    control, pero la cuota por IP queda intacta: es la red de seguridad
+    contra el abuso desde una misma IP."""
+    monkeypatch.setitem(
+        auth_service.CREDENTIAL_ATTEMPT_LIMITS, "control_number", (1, 300)
+    )
+    monkeypatch.setitem(auth_service.CREDENTIAL_ATTEMPT_LIMITS, "ip", (100, 300))
+
+    with patch.object(auth_service.requests, "post") as post:
+        post.return_value = _external(401)
+
+        with pytest.raises(InvalidCredentials):
+            validate_student_credentials("A1234567", "secret", ip="203.0.113.10")
+        with pytest.raises(CredentialsRateLimited):
+            validate_student_credentials("A1234567", "secret", ip="203.0.113.10")
+
+        refund_credential_attempt("A1234567")
+
+        # Con el intento devuelto vuelve a poder validar (401, no 429)
+        with pytest.raises(InvalidCredentials):
+            validate_student_credentials("A1234567", "secret", ip="203.0.113.10")
 
     assert post.call_count == 2

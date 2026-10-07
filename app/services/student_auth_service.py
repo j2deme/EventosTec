@@ -63,6 +63,22 @@ def reset_credential_limits() -> None:
     _credential_limiter.reset()
 
 
+def refund_credential_attempt(control_number: str) -> None:
+    """Devuelve al contador un intento que no fue un ataque de fuerza bruta.
+
+    Se llama cuando el request ya pasó por la validación de credenciales y
+    aun así se rechaza por una razón que no es de autenticación (auto-registro
+    duplicado → 409, o ventana cerrada → 400): reintentar en esos casos no
+    prueba contraseñas, así que no debe agotar la cuota de 8 intentos / 300 s
+    por número de control.
+
+    Solo se devuelve el contador del **número de control**: el contador por IP
+    (80 / 300 s) queda intacto y sigue siendo la red de seguridad contra el
+    abuso desde una misma IP.
+    """
+    _credential_limiter.refund(f"student-credentials:{control_number}")
+
+
 def client_ip() -> str:
     """IP del visitante, considerando proxies inversos si reportan X-Forwarded-For."""
     forwarded = request.headers.get("X-Forwarded-For", "")

@@ -7,6 +7,8 @@ from app.models.registration import Registration
 from app.models.attendance import Attendance
 from app.schemas import attendance_schema
 from app.services.self_register_service import (
+    CLOSED,
+    NOT_OPEN,
     OPEN,
     self_register_state,
     window_message,
@@ -16,6 +18,7 @@ from app.services.student_auth_service import (
     CredentialServiceUnavailable,
     CredentialsRateLimited,
     InvalidCredentials,
+    refund_credential_attempt,
     upsert_student,
     validate_student_credentials,
 )
@@ -124,9 +127,18 @@ def self_register_form(activity_ref=None):
         except Exception:
             activity_type = None
 
-    # Determina si la actividad admite self-register (ventana configurable)
+    # Determina si la actividad admite self-register (ventana configurable).
+    # `verify_only`: la ventana ya cerró pero el formulario se muestra igual,
+    # en modo verificación, para que quien ya se registró pueda confirmarlo.
     activity_allowed = state == OPEN
+    verify_only = state == CLOSED
     error_message = window_message(state, opens_at, closes_at)
+
+    # El countdown (y con él el ocultamiento del form al llegar a cero) solo
+    # aplica con la ventana abierta: en modo verificación el formulario debe
+    # seguir visible.
+    if state != OPEN:
+        activity_deadline_iso = None
 
     # Preferir public_slug como identificador de la actividad (el POST lo
     # resuelve con la misma estrategia slug-first).
@@ -141,6 +153,7 @@ def self_register_form(activity_ref=None):
         activity_exists=activity_exists,
         activity_allowed=activity_allowed,
         activity_invalid=activity_ref_invalid,
+        verify_only=verify_only,
         error_message=error_message,
         activity_message=error_message,
         activity_start_iso=activity_start_iso,
@@ -157,6 +170,11 @@ def self_register_api():
     No acredita por sí mismo: la Registration del estudiante queda intacta y
     se cierra recién en el checkout del admin (>= 80% -> 'Asistió',
     < 80% -> 'Ausente'). Ver ``attendance_service.sync_registration_status``.
+
+    Ventana: ``not_open`` se rechaza antes de llamar al sistema externo;
+    ``closed`` se evalúa **después** de validar credenciales para que quien ya
+    se registró reciba el 409 de verificación en vez de "la ventana terminó".
+    El 409 devuelve su intento de rate-limit (no consume cuota).
     """
     try:
         payload = request.get_json() or {}
@@ -176,9 +194,13 @@ def self_register_api():
         if not activity:
             return jsonify({"message": "Actividad no encontrada"}), 404
 
-        # Ventana configurable (mismo criterio que la vista del formulario)
+        # Ventana configurable (mismo criterio que la vista del formulario).
+        # `not_open` se rechaza aquí mismo: es el caso barato, sin llamar al
+        # sistema externo. `closed` se evalúa más abajo, DESPUÉS de validar
+        # credenciales, para que quien ya se registró pueda verificar su
+        # asistencia aunque la ventana haya terminado.
         state, _opens_at, _closes_at = self_register_state(activity)
-        if state != OPEN:
+        if state == NOT_OPEN:
             return (
                 jsonify({"message": window_message(state, _opens_at, _closes_at)}),
                 400,
@@ -213,18 +235,36 @@ def self_register_api():
         student = upsert_student(control_number, student_info)
         db.session.commit()
 
-        # Rechazar duplicados: una sola sesión de asistencia por actividad
+        # Rechazar duplicados: una sola sesión de asistencia por actividad.
+        # El 409 no es un error para el usuario sino la confirmación de que
+        # ya quedó registrado, así que se devuelve su intento de rate-limit
+        # (reintentar no es fuerza bruta) y se manda la asistencia existente
+        # para que la UI pueda mostrarla.
         existing_att = Attendance.query.filter_by(
             student_id=student.id, activity_id=activity.id
         ).first()
         if existing_att:
+            refund_credential_attempt(control_number)
             return (
                 jsonify(
                     {
-                        "message": "Ya existe un registro de asistencia para esta actividad"
+                        "code": "already_registered",
+                        "message": (
+                            "Tu asistencia ya estaba registrada para esta actividad"
+                        ),
+                        "attendance": attendance_schema.dump(existing_att),
                     }
                 ),
                 409,
+            )
+
+        # Ventana cerrada y sin registro previo: ya no se puede entrar. Las
+        # credenciales ya fueron válidas, así que el intento tampoco cuenta.
+        if state == CLOSED:
+            refund_credential_attempt(control_number)
+            return (
+                jsonify({"message": window_message(state, _opens_at, _closes_at)}),
+                400,
             )
 
         # Self check-in: abre la sesión. 'Parcial' = presente pero sin cerrar.

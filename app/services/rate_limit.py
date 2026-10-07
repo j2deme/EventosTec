@@ -46,6 +46,23 @@ class SlidingWindowLimiter:
             times.append(now)
             return True
 
+    def refund(self, key: str) -> bool:
+        """Devuelve un intento previamente registrado para ``key``.
+
+        Para cuando el intento resultó ser inofensivo y no debe quemar la
+        cuota: por ejemplo un auto-registro duplicado (409), donde el
+        estudiante ansioso que reintenta ya demostró credenciales válidas y
+        no está probando contraseñas.
+
+        Devuelve ``True`` si había un intento que retirar.
+        """
+        with self._lock:
+            entry = self._hits.get(key)
+            if not entry or not entry["times"]:
+                return False
+            entry["times"].pop()
+            return True
+
     def _evict_locked(self, now: float) -> None:
         """Suelta claves cuyos intentos ya vencieron para no crecer sin límite."""
         expired = [

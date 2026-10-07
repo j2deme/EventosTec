@@ -75,6 +75,28 @@ describe("selfRegister (formulario público)", () => {
       expect(state.messageClass).toContain("bg-yellow-100");
     });
 
+    test("modo verificación (ventana cerrada): banner sin duplicar el mensaje", () => {
+      const serverMessage = "La ventana de auto-registro terminó a las 14:20.";
+      setInit({
+        id: "conferencia-x",
+        name: "Conferencia X",
+        exists: true,
+        allowed: false,
+        verify: true,
+        invalid: false,
+        message: serverMessage,
+      });
+
+      state.init();
+
+      expect(state.verifyOnly).toBe(true);
+      // El texto queda en unavailableMessage (lo pinta el banner) y no se
+      // duplica en la caja de mensajes del formulario.
+      expect(state.unavailableMessage).toBe(serverMessage);
+      expect(state.message).toBe("");
+      expect(state.activityAllowed).toBe(false);
+    });
+
     test("actividad inexistente marca error y deshabilita el envío", async () => {
       setInit({ id: "no-existe", exists: false, allowed: false });
 
@@ -158,16 +180,20 @@ describe("selfRegister (formulario público)", () => {
       return state;
     };
 
-    test("201: éxito, limpia credenciales y reporta el mensaje", async () => {
+    test("201: muestra la pantalla de confirmación y limpia credenciales", async () => {
       const s = prepared();
       global.fetch.mockResolvedValue(
-        json_response(201, { message: "Asistencia registrada" }),
+        json_response(201, {
+          message: "Asistencia registrada",
+          attendance: { check_in_time: "2026-10-07T13:02:00" },
+        }),
       );
 
       await s.submit();
 
-      expect(s.message).toBe("Asistencia registrada");
-      expect(s.messageClass).toContain("bg-green-100");
+      expect(s.checkedIn).toBe(true);
+      expect(s.successDetail).toBe("Entrada: 13:02");
+      expect(s.message).toBe("");
       expect(s.controlNumber).toBe("");
       expect(s.loading).toBe(false);
 
@@ -181,14 +207,52 @@ describe("selfRegister (formulario público)", () => {
       });
     });
 
-    test("409 duplicado => aviso amarillo", async () => {
+    test("409 con code already_registered => la misma confirmación, no un error", async () => {
+      const s = prepared();
+      global.fetch.mockResolvedValue(
+        json_response(409, {
+          code: "already_registered",
+          message: "Tu asistencia ya estaba registrada para esta actividad",
+          attendance: { check_in_time: "2026-10-07T13:02:00" },
+        }),
+      );
+
+      await s.submit();
+
+      expect(s.checkedIn).toBe(true);
+      expect(s.successDetail).toBe("Entrada: 13:02");
+      expect(s.message).toBe("");
+      expect(s.messageClass).not.toContain("bg-red-100");
+    });
+
+    test("409 sin code (backend sin el campo) => aviso amarillo", async () => {
       const s = prepared();
       global.fetch.mockResolvedValue(json_response(409, {}));
 
       await s.submit();
 
+      expect(s.checkedIn).toBe(false);
       expect(s.message).toBe("Ya registraste tu asistencia en esta actividad");
       expect(s.messageClass).toContain("bg-yellow-100");
+    });
+
+    test("'Continuar' cierra la confirmación y vuelve al formulario", async () => {
+      const s = prepared();
+      global.fetch.mockResolvedValue(
+        json_response(201, {
+          attendance: { check_in_time: "2026-10-07T13:02:00" },
+        }),
+      );
+
+      await s.submit();
+      expect(s.checkedIn).toBe(true);
+
+      s.continueFromSuccess();
+
+      expect(s.checkedIn).toBe(false);
+      expect(s.successDetail).toBe("");
+      expect(s.message).toBe("");
+      expect(s.controlNumber).toBe("");
     });
 
     test("401 credenciales inválidas => error rojo", async () => {
