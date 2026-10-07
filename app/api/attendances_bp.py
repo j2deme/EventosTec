@@ -10,6 +10,7 @@ from app.models.student import Student
 from app.models.activity import Activity
 from app.utils.auth_helpers import require_admin, get_user_or_403
 from app.models.registration import Registration
+from app.services.attendance_service import has_session_control
 import traceback
 
 
@@ -43,12 +44,15 @@ def pause_attendance():
         db.session.add(attendance)
         db.session.commit()
 
-        return jsonify(
-            {
-                "message": "Asistencia pausada exitosamente",
-                "attendance": attendance_schema.dump(attendance),
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "message": "Asistencia pausada exitosamente",
+                    "attendance": attendance_schema.dump(attendance),
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -79,18 +83,22 @@ def resume_attendance():
         db.session.add(attendance)
         db.session.commit()
 
-        return jsonify(
-            {
-                "message": "Asistencia reanudada exitosamente",
-                "attendance": attendance_schema.dump(attendance),
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "message": "Asistencia reanudada exitosamente",
+                    "attendance": attendance_schema.dump(attendance),
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         db.session.rollback()
-        return jsonify(
-            {"message": "Error al reanudar asistencia", "error": str(e)}
-        ), 400
+        return (
+            jsonify({"message": "Error al reanudar asistencia", "error": str(e)}),
+            400,
+        )
 
 
 @attendances_bp.route("/", methods=["GET"])
@@ -299,25 +307,29 @@ def get_attendances():
 
             result.append(d)
 
-        return jsonify(
-            {
-                "attendances": result,
-                "total": total,
-                "pages": pages,
-                "current_page": page,
-                "stats": {
-                    "today": stats_today,
-                    "walkins": walkins,
-                    "converted": converted,
-                    "errors": errors,
-                },
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "attendances": result,
+                    "total": total,
+                    "pages": pages,
+                    "current_page": page,
+                    "stats": {
+                        "today": stats_today,
+                        "walkins": walkins,
+                        "converted": converted,
+                        "errors": errors,
+                    },
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
-        return jsonify(
-            {"message": "Error al obtener asistencias", "error": str(e)}
-        ), 500
+        return (
+            jsonify({"message": "Error al obtener asistencias", "error": str(e)}),
+            500,
+        )
 
 
 @attendances_bp.route("/<int:attendance_id>", methods=["GET"])
@@ -370,9 +382,10 @@ def delete_attendance(attendance_id):
 
     except Exception as e:
         db.session.rollback()
-        return jsonify(
-            {"message": "Error al eliminar asistencia", "error": str(e)}
-        ), 500
+        return (
+            jsonify({"message": "Error al eliminar asistencia", "error": str(e)}),
+            500,
+        )
 
 
 @attendances_bp.route("/register", methods=["POST"])
@@ -409,24 +422,30 @@ def register_attendance():
                 try:
                     attendance.check_in_time = parse_datetime_with_timezone(check_in)
                 except ValidationError as ve:
-                    return jsonify(
-                        {
-                            "message": "Formato de check_in_time inválido",
-                            "error": str(ve),
-                        }
-                    ), 400
+                    return (
+                        jsonify(
+                            {
+                                "message": "Formato de check_in_time inválido",
+                                "error": str(ve),
+                            }
+                        ),
+                        400,
+                    )
                 except Exception:
                     attendance.check_in_time = now
             if check_out:
                 try:
                     attendance.check_out_time = parse_datetime_with_timezone(check_out)
                 except ValidationError as ve:
-                    return jsonify(
-                        {
-                            "message": "Formato de check_out_time inválido",
-                            "error": str(ve),
-                        }
-                    ), 400
+                    return (
+                        jsonify(
+                            {
+                                "message": "Formato de check_out_time inválido",
+                                "error": str(ve),
+                            }
+                        ),
+                        400,
+                    )
                 except Exception:
                     attendance.check_out_time = now
             if mark_present:
@@ -436,15 +455,12 @@ def register_attendance():
                 # permite crear asistencias relacionadas.
                 attendance.attendance_percentage = 100.0
                 attendance.status = "Asistió"
-                # Para conferencias magistrales, si se marca como presente y
-                # no se proporcionó check_in_time en el payload, establecer
-                # el check-in en 'now' para permitir cálculos posteriores
-                # al realizar el checkout (relevante para magistrales).
+                # Para conferencias (Magistral/Conferencia), si se marca como
+                # presente y no se proporcionó check_in_time en el payload,
+                # establecer el check-in en 'now' para permitir cálculos
+                # posteriores al realizar el checkout.
                 try:
-                    if (
-                        getattr(activity, "activity_type", None) == "Magistral"
-                        and not attendance.check_in_time
-                    ):
+                    if has_session_control(activity) and not attendance.check_in_time:
                         attendance.check_in_time = now
                 except Exception:
                     # No bloquear si la comprobación falla por alguna razón
@@ -463,14 +479,12 @@ def register_attendance():
                 attendance.status = "Asistió"
                 attendance.check_in_time = None
                 attendance.check_out_time = None
-                # Si la actividad es magistral, y no se envió check_in en el
-                # payload, asumimos que el walk-in implica check-in ahora para
-                # permitir cálculo de porcentaje al hacer checkout.
+                # Si la actividad tiene control de sesión (Magistral /
+                # Conferencia) y no se envió check_in en el payload, asumimos
+                # que el walk-in implica check-in ahora para permitir cálculo
+                # de porcentaje al hacer checkout.
                 try:
-                    if (
-                        getattr(activity, "activity_type", None) == "Magistral"
-                        and not check_in
-                    ):
+                    if has_session_control(activity) and not check_in:
                         attendance.check_in_time = now
                 except Exception:
                     pass
@@ -480,12 +494,15 @@ def register_attendance():
                             check_in
                         )
                     except ValidationError as ve:
-                        return jsonify(
-                            {
-                                "message": "Formato de check_in_time inválido",
-                                "error": str(ve),
-                            }
-                        ), 400
+                        return (
+                            jsonify(
+                                {
+                                    "message": "Formato de check_in_time inválido",
+                                    "error": str(ve),
+                                }
+                            ),
+                            400,
+                        )
                     except Exception:
                         attendance.check_in_time = now
                 if check_out:
@@ -494,12 +511,15 @@ def register_attendance():
                             check_out
                         )
                     except ValidationError as ve:
-                        return jsonify(
-                            {
-                                "message": "Formato de check_out_time inválido",
-                                "error": str(ve),
-                            }
-                        ), 400
+                        return (
+                            jsonify(
+                                {
+                                    "message": "Formato de check_out_time inválido",
+                                    "error": str(ve),
+                                }
+                            ),
+                            400,
+                        )
                     except Exception:
                         attendance.check_out_time = now
                 # Persistir la nueva asistencia
@@ -519,12 +539,15 @@ def register_attendance():
                             check_in
                         )
                     except ValidationError as ve:
-                        return jsonify(
-                            {
-                                "message": "Formato de check_in_time inválido",
-                                "error": str(ve),
-                            }
-                        ), 400
+                        return (
+                            jsonify(
+                                {
+                                    "message": "Formato de check_in_time inválido",
+                                    "error": str(ve),
+                                }
+                            ),
+                            400,
+                        )
                     except Exception:
                         attendance.check_in_time = now
                 if check_out:
@@ -533,12 +556,15 @@ def register_attendance():
                             check_out
                         )
                     except ValidationError as ve:
-                        return jsonify(
-                            {
-                                "message": "Formato de check_out_time inválido",
-                                "error": str(ve),
-                            }
-                        ), 400
+                        return (
+                            jsonify(
+                                {
+                                    "message": "Formato de check_out_time inválido",
+                                    "error": str(ve),
+                                }
+                            ),
+                            400,
+                        )
                     except Exception:
                         attendance.check_out_time = now
                 db.session.add(attendance)
@@ -558,10 +584,11 @@ def register_attendance():
         # (p. ej. self check-in) nunca se actualizaba a 'Asistió'/'Ausente'.
         # mark_present es un override manual (100%): no se recalcula.
         if check_out and not mark_present:
-            # El checkout cierra la sesión: si quedó una pausa vigente
-            # (olvido del operador), no debe descontar el tiempo restante.
+            # Política de cierre: una pausa vigente (el alumno se fue y no
+            # volvió, u olvidaron reanudar) SÍ descuenta hasta el check-out.
+            # Solo se apaga el indicador; pause_time se conserva para que el
+            # cálculo descuente de pause_time a check_out_time.
             if getattr(attendance, "is_paused", False):
-                attendance.resume_time = attendance.pause_time
                 attendance.is_paused = False
                 db.session.add(attendance)
             try:
@@ -572,6 +599,7 @@ def register_attendance():
                 try:
                     from app.services.attendance_service import (
                         calculate_attendance_percentage,
+                        sync_registration_status,
                     )
 
                     # El servicio recalcula attendance_percentage y deriva
@@ -586,6 +614,18 @@ def register_attendance():
                     perc = calculate_attendance_percentage(attendance.id)
                     if perc is not None:
                         db.session.add(attendance)
+                        # Cierre definitivo: el resultado pasa a la
+                        # preregistración (>= 80% -> 'Asistió', < 80% ->
+                        # 'Ausente'). Savepoint para que un error aquí no
+                        # descarte el checkout ya calculado.
+                        try:
+                            with db.session.begin_nested():
+                                sync_registration_status(attendance)
+                        except Exception:
+                            current_app.logger.exception(
+                                "Error sincronizando la preregistro de la asistencia %s",
+                                getattr(attendance, "id", None),
+                            )
                 except Exception:
                     current_app.logger.exception(
                         "Error recalculando porcentaje de la asistencia %s",
@@ -632,15 +672,19 @@ def register_attendance():
 
         status_code = 201 if created else 200
         message = "Asistencia creada" if created else "Asistencia actualizada"
-        return jsonify(
-            {"message": message, "attendance": attendance_schema.dump(attendance)}
-        ), status_code
+        return (
+            jsonify(
+                {"message": message, "attendance": attendance_schema.dump(attendance)}
+            ),
+            status_code,
+        )
 
     except Exception as e:
         db.session.rollback()
-        return jsonify(
-            {"message": "Error al registrar asistencia", "error": str(e)}
-        ), 500
+        return (
+            jsonify({"message": "Error al registrar asistencia", "error": str(e)}),
+            500,
+        )
 
 
 @attendances_bp.route("/sync-related", methods=["POST"])
@@ -724,35 +768,54 @@ def sync_related():
             selected_info = None
 
         status_code = 200 if dry_run else 201
-        return jsonify(
-            {
-                "message": "Sincronizaci\u00f3n completada",
-                "dry_run": dry_run,
-                "summary": summary,
-                "resolved_source": resolved,
-                "selected_activity": selected_info,
-            }
-        ), status_code
+        return (
+            jsonify(
+                {
+                    "message": "Sincronizaci\u00f3n completada",
+                    "dry_run": dry_run,
+                    "summary": summary,
+                    "resolved_source": resolved,
+                    "selected_activity": selected_info,
+                }
+            ),
+            status_code,
+        )
 
     except Exception as e:
-        return jsonify(
-            {"message": "Error en sincronizaci\u00f3n", "error": str(e)}
-        ), 500
+        return (
+            jsonify({"message": "Error en sincronizaci\u00f3n", "error": str(e)}),
+            500,
+        )
 
 
 @attendances_bp.route("/batch-checkout", methods=["POST"])
 @jwt_required()
 @require_admin
 def batch_checkout():
-    """Batch process to perform a 'checkout' for attendances missing a check_out_time,
-    recalculate attendance_percentage and create related attendances for those
-    that meet the threshold (>=80%). Payload:
-    {
-      "activity_id": <int>,
-      "student_ids": [<int>, ...],   # optional filter
-      "dry_run": true|false          # optional, default true
-    }
-    Returns a summary: { processed: N, updated: M, related_created: K, details: [...] }
+    """Cierra las asistencias abiertas de una actividad y recalcula su estado.
+
+    - Marca ``check_out_time`` (por defecto "ahora") en las sesiones abiertas.
+    - Recalcula ``attendance_percentage``/``status`` (>= 80% -> 'Asistió').
+    - **Sincroniza la preregistración**: >= 80% -> 'Asistió', < 80% ->
+      'Ausente' (el alumno llegó pero no completó la actividad, así que no
+      acredita). Ver ``attendance_service.sync_registration_status``.
+    - Crea las asistencias relacionadas de las que alcanzan el umbral.
+
+    Política de pausas: una pausa vigente al cierre **sí descuenta** el
+    tiempo hasta el check-out (el alumno que se fue y no volvió no debe
+    acreditar); solo se apaga el indicador de pausa.
+
+    Payload::
+
+        {
+          "activity_id": <int>,
+          "student_ids": [<int>, ...],   # opcional
+          "dry_run": true|false          # opcional, default true
+        }
+
+    Returns: ``{ processed, updated, related_created, resumed_paused, details }``
+    ``details`` incluye ``percentage``, ``related_created`` y
+    ``registration_status`` (estado que quedará en la preregistro, si existe).
     """
     try:
         payload = request.get_json() or {}
@@ -765,7 +828,9 @@ def batch_checkout():
 
         from app.services.attendance_service import (
             calculate_attendance_percentage,
+            compute_attendance_metrics,
             create_related_attendances,
+            sync_registration_status,
         )
         from app.models.attendance import Attendance
         from app.models.activity import Activity
@@ -813,15 +878,13 @@ def batch_checkout():
             else:
                 emulate_check_out = att.check_out_time
 
-            # Auto-reanudar pausas abiertas antes de calcular: si el instructor
-            # olvidó reanudar (o la ventana pública de resume expiró), el
-            # checkout cierra la sesión y una pausa vigente no debe descontar
-            # el tiempo restante de la asistencia.
+            # Cierre de sesiones pausadas: la pausa vigente SÍ descuenta hasta
+            # el check-out (el alumno que se fue y no volvió no debe
+            # acreditar). Solo se apaga el indicador de pausa; pause_time se
+            # conserva para que el cálculo descuente de pause_time a check_out.
             if getattr(att, "is_paused", False):
                 summary["resumed_paused"] += 1
                 if not dry_run:
-                    # Pausa vigente sin reanudar -> se considera de duración cero
-                    att.resume_time = att.pause_time
                     att.is_paused = False
                     db.session.add(att)
                     try:
@@ -829,71 +892,27 @@ def batch_checkout():
                     except Exception:
                         pass
 
-            # Calculate percentage.
-            # - If dry_run: compute in-memory without mutating DB/session.
-            # - If not dry_run: use the service which updates the attendance and persists below.
+            # Calcular porcentaje.
+            # - dry_run: cálculo puro, sin tocar la sesión de la BD.
+            # - real: se persiste vía el servicio y se cierra la preregistro.
             perc = None
             if dry_run:
-                # Local calculation (mirror logic from service.calculate_net_duration_seconds)
                 try:
-                    # normalize timezone-aware datetimes
-                    def _ensure_tz(dt):
-                        if dt is None:
-                            return None
-                        if dt.tzinfo is not None:
-                            return dt.astimezone(timezone.utc)
-                        # interpret naive DB datetimes in app timezone
-                        from flask import current_app
-                        from app.utils.datetime_utils import localize_naive_datetime
-
-                        app_timezone = current_app.config.get(
-                            "APP_TIMEZONE", "America/Mexico_City"
-                        )
-                        return localize_naive_datetime(dt, app_timezone)
-
-                    start = _ensure_tz(att.check_in_time)
-                    end = _ensure_tz(emulate_check_out)
-
-                    total_paused_seconds = 0
-                    # Solo descontar pausas cerradas (con reanudación
-                    # explícita); una pausa vigente se auto-reanuda con
-                    # duración cero, igual que en el camino real.
-                    if getattr(att, "pause_time", None) and not getattr(
-                        att, "is_paused", False
-                    ):
-                        resume_time = getattr(att, "resume_time", None)
-                        if resume_time:
-                            resume_or_now = _ensure_tz(resume_time)
-                            pause_time = _ensure_tz(att.pause_time)
-                            if resume_or_now and pause_time:
-                                total_paused_seconds = max(
-                                    0,
-                                    (resume_or_now - pause_time).total_seconds(),
-                                )
-
-                    if not start or not end:
-                        net_duration_seconds = 0
-                    else:
-                        net_duration_seconds = max(
-                            0, (end - start).total_seconds() - total_paused_seconds
-                        )
-
-                    expected_duration_seconds = 0
-                    if getattr(activity, "duration_hours", None) is not None:
-                        expected_duration_seconds = activity.duration_hours * 3600
-
-                    if expected_duration_seconds > 0:
-                        percentage = (
-                            net_duration_seconds / expected_duration_seconds
-                        ) * 100
-                        perc = round(max(0, percentage), 2)
-                    else:
-                        # If no expected duration, assume 100% if had both times
-                        perc = 100.0 if start and end else 0.0
+                    metrics = compute_attendance_metrics(
+                        att,
+                        activity,
+                        now=now,
+                        check_out_override=emulate_check_out,
+                    )
+                    perc = metrics[0] if metrics else 0.0
                 except Exception:
+                    current_app.logger.exception(
+                        "batch-checkout: error calculando el dry-run (asistencia %s)",
+                        getattr(att, "id", None),
+                    )
                     perc = 0.0
             else:
-                # Persist check_out time if missing, then calculate via service which mutates the attendance
+                # Persist check_out time if missing, then calculate via service
                 if not att.check_out_time:
                     att.check_out_time = now
                 db.session.add(att)
@@ -903,6 +922,20 @@ def batch_checkout():
                     pass
 
                 perc = calculate_attendance_percentage(att.id)
+
+                # Cierre definitivo: el resultado pasa a la preregistración
+                # (>= 80% -> 'Asistió', < 80% -> 'Ausente'). Savepoint para
+                # que un error aquí no descarte el checkout ya calculado.
+                if perc is not None:
+                    try:
+                        with db.session.begin_nested():
+                            sync_registration_status(att)
+                    except Exception:
+                        current_app.logger.exception(
+                            "batch-checkout: error sincronizando preregistro "
+                            "(asistencia %s)",
+                            getattr(att, "id", None),
+                        )
 
                 # Persist updates from service
                 db.session.add(att)
@@ -917,11 +950,21 @@ def batch_checkout():
                     create_related_attendances(att.student_id, activity_id)
                     created_related = 1
 
+            # Estado que quedará en la preregistración (si existe)
+            registration_status = None
+            if perc is not None:
+                has_registration = Registration.query.filter_by(
+                    student_id=att.student_id, activity_id=activity_id
+                ).first()
+                if has_registration is not None:
+                    registration_status = "Asistió" if (perc or 0) >= 80 else "Ausente"
+
             summary["details"].append(
                 {
                     "attendance_id": att.id,
                     "percentage": perc or 0,
                     "related_created": created_related,
+                    "registration_status": registration_status,
                 }
             )
             summary["updated"] += 1
@@ -931,13 +974,16 @@ def batch_checkout():
             # commit already performed per-attendance
             pass
 
-        return jsonify(
-            {
-                "message": "Batch checkout completado",
-                "dry_run": dry_run,
-                "summary": summary,
-            }
-        ), 200
+        return (
+            jsonify(
+                {
+                    "message": "Batch checkout completado",
+                    "dry_run": dry_run,
+                    "summary": summary,
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         db.session.rollback()
@@ -996,6 +1042,9 @@ def batch_upload_attendances():
 
     except Exception as e:
         tb = traceback.format_exc()
-        return jsonify(
-            {"message": "Error en importación batch", "error": str(e), "trace": tb}
-        ), 500
+        return (
+            jsonify(
+                {"message": "Error en importación batch", "error": str(e), "trace": tb}
+            ),
+            500,
+        )

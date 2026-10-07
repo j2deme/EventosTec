@@ -520,9 +520,10 @@
                           <i class="ti ti-book"></i>
                         </button>
 
-                        <!-- Pause/Resume buttons for Magistral activities -->
+                        <!-- Pause/Resume buttons for session-control activities
+                             (Magistral / Conferencia) -->
                         <template
-                          x-if="row.activity_type === 'Magistral' && row.check_in_time && !row.check_out_time"
+                          x-if="['Magistral', 'Conferencia'].includes(row.activity_type) && row.check_in_time && !row.check_out_time"
                         >
                           <button
                             x-show="!row.is_paused"
@@ -534,7 +535,7 @@
                           </button>
                         </template>
                         <template
-                          x-if="row.activity_type === 'Magistral' && row.is_paused"
+                          x-if="['Magistral', 'Conferencia'].includes(row.activity_type) && row.is_paused"
                         >
                           <button
                             @click="resumeAttendance(row)"

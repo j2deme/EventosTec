@@ -6,6 +6,7 @@ from app.models.attendance import Attendance
 from app.models.student import Student
 from app.services.settings_manager import AppSettings
 from app.services.attendance_list_service import build_attendance_list_context
+from app.services.attendance_service import has_session_control
 from datetime import datetime, timedelta, timezone
 import requests
 from app.utils.slug_utils import slugify as canonical_slugify
@@ -747,15 +748,15 @@ def public_pause_attendance_view(activity_ref):
             error_message="Actividad no encontrada",
         )
 
-    # Only allow for Magistral activities
-    if getattr(activity, "activity_type", None) != "Magistral":
+    # Control de sesión habilitado para conferencias (Magistral / Conferencia)
+    if not has_session_control(activity):
         return render_template(
             "public/pause_attendance.html",
             activity_id="",
             activity_name=activity.name,
             activity_invalid=False,
             activity_allowed=False,
-            error_message="Solo disponible para conferencias magistrales",
+            error_message="Solo disponible para actividades tipo Magistral o Conferencia",
         )
 
     # Check time window: for public pause/resume we allow from NOW until configured minutes after end
@@ -1010,11 +1011,16 @@ def api_public_search_attendances():
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
-    # Only allow for Magistral activities
-    if getattr(activity, "activity_type", None) != "Magistral":
-        return jsonify(
-            {"message": "Solo disponible para conferencias magistrales"}
-        ), 400
+    # Control de sesión habilitado para conferencias (Magistral / Conferencia)
+    if not has_session_control(activity):
+        return (
+            jsonify(
+                {
+                    "message": "Solo disponible para actividades tipo Magistral o Conferencia"
+                }
+            ),
+            400,
+        )
 
     # Check time window: public search available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
@@ -1118,11 +1124,16 @@ def api_public_pause_attendance(attendance_id):
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
-    # Only allow for Magistral activities
-    if getattr(activity, "activity_type", None) != "Magistral":
-        return jsonify(
-            {"message": "Solo disponible para conferencias magistrales"}
-        ), 400
+    # Control de sesión habilitado para conferencias (Magistral / Conferencia)
+    if not has_session_control(activity):
+        return (
+            jsonify(
+                {
+                    "message": "Solo disponible para actividades tipo Magistral o Conferencia"
+                }
+            ),
+            400,
+        )
 
     # Check time window: public pause available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)
@@ -1220,11 +1231,16 @@ def api_public_resume_attendance(attendance_id):
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
 
-    # Only allow for Magistral activities
-    if getattr(activity, "activity_type", None) != "Magistral":
-        return jsonify(
-            {"message": "Solo disponible para conferencias magistrales"}
-        ), 400
+    # Control de sesión habilitado para conferencias (Magistral / Conferencia)
+    if not has_session_control(activity):
+        return (
+            jsonify(
+                {
+                    "message": "Solo disponible para actividades tipo Magistral o Conferencia"
+                }
+            ),
+            400,
+        )
 
     # Check time window: public resume available from NOW until 5 minutes after end
     now = datetime.now(timezone.utc)

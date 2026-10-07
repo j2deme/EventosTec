@@ -93,7 +93,12 @@ def test_register_checkout_recalculates_percentage_and_status(
 
 
 def test_register_checkout_unwinds_open_pause(client, auth_headers, sample_data):
-    """El checkout vía /register cierra una pausa abierta antes de calcular."""
+    """El checkout cierra una pausa abierta y ésta SÍ descuenta hasta el cierre.
+
+    Política de conferencias: si el asistente salió y no volvió, la pausa
+    vigente se descuenta hasta el check-out (antes se auto-reanudaba con
+    duración cero y quedaba 'Asistió' al 100%).
+    """
     from app import db
     from app.models.activity import Activity
     from app.models.attendance import Attendance
@@ -141,7 +146,11 @@ def test_register_checkout_unwinds_open_pause(client, auth_headers, sample_data)
 
     with client.application.app_context():
         att = db.session.get(Attendance, attendance_id)
+        # Solo se apaga el indicador; pause_time se conserva para descontar
         assert att.is_paused is False
-        assert att.resume_time is not None
-        assert att.attendance_percentage >= 80
-        assert att.status == "Asistió"
+        assert att.resume_time is None
+        assert att.pause_time is not None
+        assert att.check_out_time is not None
+        # Pausa de 12:10 hasta el cierre de 13:00: 10 de 60 min -> < 80%
+        assert att.attendance_percentage < 80
+        assert att.status == "Parcial"

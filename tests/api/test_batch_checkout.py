@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from app import db
 from app.models.activity import Activity
 from app.models.attendance import Attendance
+from app.models.registration import Registration
 from app.models.student import Student
 
 
@@ -357,11 +358,16 @@ def test_batch_checkout_default_dry_run_true(client, auth_headers, sample_data, 
         assert att.check_out_time is None
 
 
-def test_batch_checkout_resumes_stuck_paused(client, auth_headers, sample_data, app):
-    """batch-checkout despausa pausas abiertas y no descuenta ese tiempo.
+def test_batch_checkout_discounts_open_pause_and_closes_registration(
+    client, auth_headers, sample_data, app
+):
+    """El cierre final descuenta una pausa abierta y cierra la preregistración.
 
-    Regresión del bug: asistencias pausadas y nunca reanudadas quedaban con
-    porcentaje ~0 ('Parcial'/'Ausente') al hacer checkout.
+    Política de conferencias: si el asistente salió y no volvió (la asistencia
+    queda pausada al cierre), ese tiempo **sí** descuenta: queda por debajo del
+    umbral de 80% y su preregistración cierra en 'Ausente' (no acredita
+    horas). Antes el checkout auto-reanudaba la pausa con duración cero y el
+    alumno acreditaba el 100%.
     """
     with app.app_context():
         activity = Activity(
@@ -378,7 +384,7 @@ def test_batch_checkout_resumes_stuck_paused(client, auth_headers, sample_data, 
         db.session.add(activity)
         db.session.commit()
 
-        # Asistencia pausada y nunca reanudada (olvido del operador)
+        # Asistencia pausada y nunca reanudada (el alumno se fue y no volvió)
         attendance = Attendance(
             student_id=sample_data["student_id"],
             activity_id=activity.id,
@@ -389,10 +395,20 @@ def test_batch_checkout_resumes_stuck_paused(client, auth_headers, sample_data, 
             attendance_percentage=0.0,
         )
         db.session.add(attendance)
+
+        # Preregistrado confirmado (hours_service acreditaría como tal)
+        registration = Registration(
+            student_id=sample_data["student_id"],
+            activity_id=activity.id,
+            status="Confirmado",
+            attended=True,
+        )
+        db.session.add(registration)
         db.session.commit()
 
         activity_id = activity.id
         attendance_id = attendance.id
+        registration_id = registration.id
 
     response = client.post(
         "/api/attendances/batch-checkout",
@@ -406,13 +422,18 @@ def test_batch_checkout_resumes_stuck_paused(client, auth_headers, sample_data, 
 
     with app.app_context():
         att = db.session.get(Attendance, attendance_id)
-        # La pausa abierta se cerró al hacer checkout (duración cero)
+        # Solo se apaga el indicador; pause_time se conserva para descontar
         assert att.is_paused is False
-        assert att.resume_time is not None
+        assert att.resume_time is None
+        assert att.pause_time is not None
         assert att.check_out_time is not None
-        # Sin descuento de la pausa olvidada: presencia completa -> >= 80%
-        assert att.attendance_percentage >= 80
-        assert att.status == "Asistió"
+        # Pausa desde 10:05 hasta el cierre: casi toda la ventana descuenta
+        assert 0 < att.attendance_percentage < 80
+        assert att.status == "Parcial"
+
+        reg = db.session.get(Registration, registration_id)
+        assert reg.status == "Ausente"
+        assert reg.attended is False
 
 
 def test_batch_checkout_dry_run_reports_paused_without_changes(
@@ -444,6 +465,15 @@ def test_batch_checkout_dry_run_reports_paused_without_changes(
             attendance_percentage=0.0,
         )
         db.session.add(attendance)
+
+        # Preregistrado confirmado: la vista previa debe anticipar el cierre
+        registration = Registration(
+            student_id=sample_data["student_id"],
+            activity_id=activity.id,
+            status="Confirmado",
+            attended=True,
+        )
+        db.session.add(registration)
         db.session.commit()
 
         activity_id = activity.id
@@ -459,6 +489,20 @@ def test_batch_checkout_dry_run_reports_paused_without_changes(
     data = json.loads(response.data)
     assert data["summary"]["resumed_paused"] == 1
 
+    # La vista previa usa el MISMO calculador que el cierre real: la pausa
+    # abierta descuenta (antes el dry-run tenía su propia copia y daba 100%).
+    detail = next(
+        (
+            d
+            for d in data["summary"]["details"]
+            if d.get("attendance_id") == attendance_id
+        ),
+        None,
+    )
+    assert detail is not None
+    assert 0 < detail["percentage"] < 80
+    assert detail["registration_status"] == "Ausente"
+
     # Sin cambios en BD
     with app.app_context():
         att = db.session.get(Attendance, attendance_id)
@@ -466,3 +510,8 @@ def test_batch_checkout_dry_run_reports_paused_without_changes(
         assert att.resume_time is None
         assert att.check_out_time is None
         assert att.status == "Parcial"
+
+        reg = Registration.query.filter_by(
+            student_id=sample_data["student_id"], activity_id=activity_id
+        ).first()
+        assert reg.status == "Confirmado"

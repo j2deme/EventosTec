@@ -121,7 +121,14 @@ def test_pause_attendance_valid(app, setup_attendance_test_data):
 
 
 def test_resume_attendance_valid(app, setup_attendance_test_data):
-    """Test reanudar una asistencia pausada."""
+    """Reanudar pliega la pausa en el check-in y libera los campos de pausa.
+
+    Ventana de la actividad 10:00-11:00 y pausa iniciada a las 10:15: al
+    reanudar (mucho después, "ahora") el segmento se recorta al fin de la
+    actividad, así que los 45 min restantes se descuentan desplazando
+    ``check_in_time`` a 10:45. Antes solo se marcaba ``resume_time`` y la
+    segunda pausa borraba el descuento de la primera.
+    """
     with app.app_context():
         attendance_id = setup_attendance_test_data["attendance_id"]
 
@@ -134,7 +141,60 @@ def test_resume_attendance_valid(app, setup_attendance_test_data):
         resumed_attendance = resume_attendance(attendance_id)
 
         assert resumed_attendance.is_paused is False
-        assert resumed_attendance.resume_time is not None
+        # Campos libres para el siguiente ciclo de pausa
+        assert resumed_attendance.pause_time is None
+        assert resumed_attendance.resume_time is None
+        # 45 min plegados (10:15 -> 11:00, fin de la actividad). El valor
+        # persistido puede volver naive (wall time local) o con tz: se
+        # compara el wall time en cualquier caso.
+        check_in = resumed_attendance.check_in_time
+        if check_in.tzinfo is not None:
+            check_in = check_in.replace(tzinfo=None)
+        assert check_in == datetime(2024, 1, 1, 10, 45)
+
+
+def test_resume_allows_second_pause_cycle(app, setup_attendance_test_data):
+    """Tras reanudar se puede volver a pausar sin pisar el primer ciclo."""
+    with app.app_context():
+        attendance_id = setup_attendance_test_data["attendance_id"]
+
+        attendance = db.session.get(Attendance, attendance_id)
+        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        attendance.is_paused = True
+        attendance.pause_time = datetime(2024, 1, 1, 10, 15, 0, tzinfo=timezone.utc)
+        db.session.commit()
+
+        resume_attendance(attendance_id)
+
+        paused_again = pause_attendance(attendance_id)
+        assert paused_again.is_paused is True
+        assert paused_again.pause_time is not None
+
+
+def test_percentage_after_resume_has_no_double_discount(
+    app, setup_attendance_test_data
+):
+    """El tiempo ya plegado en ``check_in_time`` no se descuenta otra vez."""
+    with app.app_context():
+        attendance_id = setup_attendance_test_data["attendance_id"]
+
+        attendance = db.session.get(Attendance, attendance_id)
+        attendance.check_in_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        attendance.is_paused = True
+        attendance.pause_time = datetime(2024, 1, 1, 10, 15, 0, tzinfo=timezone.utc)
+        db.session.commit()
+
+        # check_in pasa a 10:45 y los campos de pausa quedan libres
+        resume_attendance(attendance_id)
+
+        attendance.check_out_time = datetime(2024, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+        db.session.commit()
+
+        percentage = calculate_attendance_percentage(attendance_id)
+
+        # 15 min de presencia sobre 60 min de actividad = 25%
+        # (con un segundo descuento del mismo intervalo saldría 0%)
+        assert round(percentage, 2) == 25.0
 
 
 # --- Tests para calculate_net_duration_seconds ---

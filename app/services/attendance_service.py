@@ -29,6 +29,20 @@ def _normalize_external_json(obj):
     return {}
 
 
+# Tipos de actividad con control de sesión (check-in/checkout + pausa):
+# conferencias donde el asistente puede retirarse un momento y regresar.
+# La pausa se habilitó primero solo para "Magistral"; "Conferencia" es el
+# mismo caso de uso y también queda habilitado.
+SESSION_CONTROL_ACTIVITY_TYPES = ("Magistral", "Conferencia")
+
+
+def has_session_control(activity) -> bool:
+    """True si la actividad admite pausar/reanudar y check-in automático."""
+    if activity is None:
+        return False
+    return getattr(activity, "activity_type", None) in SESSION_CONTROL_ACTIVITY_TYPES
+
+
 def pause_attendance(attendance_id):
     """Marca la asistencia como pausada."""
     from app import db
@@ -48,8 +62,65 @@ def pause_attendance(attendance_id):
     return attendance
 
 
+def _ensure_utc(dt):
+    """Convierte un datetime (naive en BD o aware) a UTC aware."""
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc)
+    app_timezone = AppSettings.app_timezone()
+    return localize_naive_datetime(dt, app_timezone)
+
+
+def _activity_window_utc(activity):
+    """``(inicio, fin)`` en UTC de la actividad según su duración.
+
+    ``fin`` es ``None`` cuando la actividad no tiene ``duration_hours``.
+    """
+    if activity is None:
+        return (None, None)
+    start = _ensure_utc(getattr(activity, "start_datetime", None))
+    if start is None:
+        return (None, None)
+    duration = getattr(activity, "duration_hours", None)
+    try:
+        if duration is None:
+            return (start, None)
+        return (start, start + timedelta(hours=float(duration)))
+    except Exception:
+        return (start, None)
+
+
+def _fold_paused_seconds(attendance, until):
+    """Segundos de la pausa vigente que caen dentro de la ventana de la actividad.
+
+    Se recorta a la ventana para no descontar tiempo fuera del evento (p. ej.
+    una pausa iniciada antes del inicio o que se extiende más allá del fin).
+    """
+    pause_start = _ensure_utc(attendance.pause_time)
+    pause_end = _ensure_utc(until)
+    if pause_start is None or pause_end is None:
+        return 0.0
+
+    act_start, act_end = _activity_window_utc(getattr(attendance, "activity", None))
+    seg_start = pause_start if act_start is None else max(pause_start, act_start)
+    seg_end = pause_end if act_end is None else min(pause_end, act_end)
+    if seg_end <= seg_start:
+        return 0.0
+    return (seg_end - seg_start).total_seconds()
+
+
 def resume_attendance(attendance_id):
-    """Reanuda la asistencia y ajusta tiempos para el cálculo."""
+    """Reanuda la asistencia y pliega la pausa transcurrida en el check-in.
+
+    ``Attendance`` solo almacena UN intervalo de pausa
+    (``pause_time``/``resume_time``): si se pausa, se reanuda y se vuelve a
+    pausar, la segunda pausa pisaba la primera y el cálculo descontaba 0 (un
+    alumno que sale varias veces quedaba con el 100%). Para soportar N pausas
+    sin migrar la tabla, cada segmento reanudado se **pliega en
+    ``check_in_time``** (desplazándolo) y los campos de pausa quedan libres
+    para el siguiente ciclo; ``created_at`` conserva la hora real de llegada.
+    """
     from app import db
 
     attendance = db.session.get(Attendance, attendance_id)
@@ -58,44 +129,53 @@ def resume_attendance(attendance_id):
     if not attendance.is_paused:
         raise ValueError("La asistencia no está pausada")
 
+    resumed_at = datetime.now(timezone.utc)
+    if attendance.check_in_time is not None and attendance.pause_time is not None:
+        paused_seconds = _fold_paused_seconds(attendance, resumed_at)
+        if paused_seconds > 0:
+            attendance.check_in_time = attendance.check_in_time + timedelta(
+                seconds=paused_seconds
+            )
+
     attendance.is_paused = False
-    attendance.resume_time = datetime.now(timezone.utc)
+    attendance.pause_time = None
+    attendance.resume_time = None
     return attendance
 
 
 # Función auxiliar para calcular duración neta (considerando pausas)
 
 
-def calculate_net_duration_seconds(attendance):
-    """Calcula la duración real en segundos, restando las pausas."""
+def calculate_net_duration_seconds(attendance, end_override=None, now=None):
+    """Calcula la duración real en segundos, restando las pausas.
+
+    ``end_override`` permite simular el cierre de sesión (dry-run) sin
+    escribir en la asistencia. Una pausa aún abierta descuenta hasta el fin
+    efectivo de la sesión (check-out o "ahora"), igual que en el cálculo de
+    porcentaje.
+    """
     if not attendance.check_in_time:
         return 0
 
-    # Si no hay check-out, usar ahora
-    end_time = attendance.check_out_time or datetime.now(timezone.utc)
+    current = now if now is not None else datetime.now(timezone.utc)
+    # Sin check-out, la sesión sigue abierta: se mide hasta ahora.
+    end_time = (
+        end_override
+        if end_override is not None
+        else (attendance.check_out_time or current)
+    )
 
-    # Helper: ensure datetime is timezone-aware. If naive, interpret it in
-    # the app timezone and convert to UTC using localize_naive_datetime.
-    def _ensure_tz(dt):
-        if dt is None:
-            return None
-        if dt.tzinfo is not None:
-            return dt.astimezone(timezone.utc)
-        app_timezone = AppSettings.app_timezone()
-        return localize_naive_datetime(dt, app_timezone)
-
-    start = _ensure_tz(attendance.check_in_time)
-    end = _ensure_tz(end_time)
+    start = _ensure_utc(attendance.check_in_time)
+    end = _ensure_utc(end_time)
 
     total_paused_seconds = 0
     if attendance.pause_time:
-        # Sumar todas las pausas. Asumimos una sola pausa por ahora.
-        # Para múltiples pausas, se necesitaría una estructura diferente (ej: lista de pausas)
-        resume_or_now = attendance.resume_time or datetime.now(timezone.utc)
-        resume_or_now = _ensure_tz(resume_or_now)
-        pause_time = _ensure_tz(attendance.pause_time)
-        if resume_or_now and pause_time:
-            total_paused_seconds = (resume_or_now - pause_time).total_seconds()
+        # Un solo intervalo de pausa por fila (los ciclos posteriores se
+        # pliegan en check_in_time al reanudar; ver resume_attendance).
+        resume_or_end = _ensure_utc(attendance.resume_time or end_time)
+        pause_start = _ensure_utc(attendance.pause_time)
+        if resume_or_end and pause_start:
+            total_paused_seconds = max(0, (resume_or_end - pause_start).total_seconds())
 
     if not start or not end:
         return 0
@@ -104,84 +184,80 @@ def calculate_net_duration_seconds(attendance):
     return max(0, net_duration)  # No permitir duraciones negativas
 
 
-def calculate_attendance_percentage(attendance_id):
-    """
-    Calcula y actualiza el porcentaje de asistencia y el estado para una asistencia.
-    """
-    from app import db
+def _status_for_percentage(percentage):
+    """Asistió (>= 80%), Parcial (> 0%) o Ausente (0%)."""
+    if percentage >= 80:
+        return "Asistió"
+    if percentage > 0:
+        return "Parcial"
+    return "Ausente"
 
-    attendance = db.session.get(Attendance, attendance_id)
-    if not attendance or not attendance.check_in_time or not attendance.check_out_time:
+
+def compute_attendance_metrics(
+    attendance, activity=None, *, now=None, check_out_override=None
+):
+    """Calcula ``(porcentaje, estado)`` de una asistencia **sin tocar la BD**.
+
+    Única implementación del cálculo: la usan
+    ``calculate_attendance_percentage`` (que persiste) y la vista previa de
+    ``batch-checkout`` en dry-run, que antes tenía una copia propia y
+    divergía (usaba duración neta en vez de la intersección con la ventana
+    de la actividad, y no aplicaba la regla de "pausa >= duración").
+
+    Args:
+        attendance: fila a evaluar (no se modifica).
+        activity: actividad a evaluar; por defecto ``attendance.activity``.
+        now: instante de referencia (por defecto, ahora en UTC).
+        check_out_override: simula el cierre de sesión sin escribirlo
+            (dry-run o checkout que se está por persistir).
+    """
+    if attendance is None:
         return None
 
-    activity = getattr(attendance, "activity", None)
-    if not activity:
-        return None
+    pres_start = _ensure_utc(attendance.check_in_time)
+    effective_check_out = (
+        check_out_override
+        if check_out_override is not None
+        else attendance.check_out_time
+    )
+    pres_end = _ensure_utc(effective_check_out)
 
-    # Calcular la superposición entre la ventana de presencia y la ventana programada
-    # Helper: ensure timezone-aware
-    def _ensure_tz(dt):
-        if dt is None:
-            return None
-        if dt.tzinfo is not None:
-            return dt.astimezone(timezone.utc)
-        app_timezone = AppSettings.app_timezone()
-        return localize_naive_datetime(dt, app_timezone)
-
-    pres_start = _ensure_tz(attendance.check_in_time)
-    pres_end = _ensure_tz(attendance.check_out_time)
-
-    # Si no hay tiempos válidos, no calcular
+    # Sin tiempos válidos no se puede calcular (y no se modifica nada)
     if not pres_start or not pres_end:
         return None
 
-    act_start = _ensure_tz(getattr(activity, "start_datetime", None))
-    # Definir act_end según duración de la actividad si está disponible
-    act_end = None
-    try:
-        if (
-            act_start is not None
-            and getattr(activity, "duration_hours", None) is not None
-        ):
-            act_end = act_start + timedelta(hours=float(activity.duration_hours))
-    except Exception:
-        act_end = None
+    if activity is None:
+        activity = getattr(attendance, "activity", None)
+    if not activity:
+        return None
 
-    # Si no hay act_start o duration, caemos al comportamiento por defecto
+    current = now if now is not None else datetime.now(timezone.utc)
+    act_start, act_end = _activity_window_utc(activity)
+
+    # Sin inicio o duración: caemos al comportamiento legacy (duración neta)
     if not act_start or not act_end:
-        # Fallback: usar duración neta completa (comportamiento legacy)
-        net_duration_seconds = calculate_net_duration_seconds(attendance)
+        net_duration_seconds = calculate_net_duration_seconds(
+            attendance, end_override=effective_check_out, now=current
+        )
         expected_duration_seconds = (activity.duration_hours or 0) * 3600
         if expected_duration_seconds > 0:
             percentage = (net_duration_seconds / expected_duration_seconds) * 100
-            attendance.attendance_percentage = round(max(0, percentage), 2)
-            if attendance.attendance_percentage >= 80:
-                attendance.status = "Asistió"
-            elif attendance.attendance_percentage > 0:
-                attendance.status = "Parcial"
-            else:
-                attendance.status = "Ausente"
-            return attendance.attendance_percentage
-        else:
-            attendance.attendance_percentage = 100.0
-            attendance.status = "Asistió"
-            return 100.0
+            percentage = round(max(0, percentage), 2)
+            return (percentage, _status_for_percentage(percentage))
+        return (100.0, "Asistió")
 
-    # calcular intersección
+    # intersección entre la ventana de presencia y la programada
     window_start = max(pres_start, act_start)
     window_end = min(pres_end, act_end)
     overlap_seconds = max(0, (window_end - window_start).total_seconds())
 
-    # calcular segundos de pausa que ocurran dentro de la superposición
+    # segundos de pausa que caen dentro de la ventana calculada
     paused_seconds = 0
     if attendance.pause_time:
-        pause_start = _ensure_tz(attendance.pause_time)
-        pause_end = _ensure_tz(
-            attendance.resume_time
-            or attendance.check_out_time
-            or datetime.now(timezone.utc)
+        pause_start = _ensure_utc(attendance.pause_time)
+        pause_end = _ensure_utc(
+            attendance.resume_time or effective_check_out or current
         )
-        # solapamiento entre pausa y ventana calculada
         ps = max(pause_start, window_start) if pause_start and window_start else None
         pe = min(pause_end, window_end) if pause_end and window_end else None
         if ps and pe and pe > ps:
@@ -190,38 +266,92 @@ def calculate_attendance_percentage(attendance_id):
     net_seconds = max(0, overlap_seconds - paused_seconds)
     expected_seconds = max(0, (act_end - act_start).total_seconds())
 
-    if expected_seconds > 0:
-        # If the raw pause duration (resume - pause) exceeds or equals the
-        # activity expected duration, treat as absent. This covers cases where
-        # the user paused for longer than the activity length (external long
-        # pause) even if a small non-paused slice remains inside the window.
-        try:
-            if attendance.pause_time and attendance.resume_time:
-                raw_pause = (
-                    attendance.resume_time - attendance.pause_time
-                ).total_seconds()
-                if raw_pause >= expected_seconds:
-                    attendance.attendance_percentage = 0.0
-                    attendance.status = "Ausente"
-                    return 0.0
-        except Exception:
-            # If any unexpected issue occurs computing raw pause, continue with
-            # the usual overlap-based calculation.
-            pass
-        percentage = (net_seconds / expected_seconds) * 100
-        attendance.attendance_percentage = round(max(0, percentage), 2)
-        if attendance.attendance_percentage >= 80:
-            attendance.status = "Asistió"
-        elif attendance.attendance_percentage > 0:
-            attendance.status = "Parcial"
-        else:
-            attendance.status = "Ausente"
-        return attendance.attendance_percentage
+    if expected_seconds <= 0:
+        return (100.0, "Asistió")
+
+    # Pausa igual o más larga que la actividad -> Ausente, aunque quede un
+    # resto de presencia sin pausar dentro de la ventana.
+    try:
+        if attendance.pause_time and attendance.resume_time:
+            raw_pause = (attendance.resume_time - attendance.pause_time).total_seconds()
+            if raw_pause >= expected_seconds:
+                return (0.0, "Ausente")
+    except Exception:
+        # Si algo falla al comparar la pausa, seguimos con el cálculo usual.
+        pass
+
+    percentage = round(max(0, (net_seconds / expected_seconds) * 100), 2)
+    return (percentage, _status_for_percentage(percentage))
+
+
+def calculate_attendance_percentage(attendance_id):
+    """Calcula, persiste y devuelve el porcentaje de asistencia de una fila.
+
+    Devuelve ``None`` (sin modificar nada) si la asistencia no tiene
+    check-in/check-out o si la actividad no está disponible.
+    """
+    from app import db
+
+    attendance = db.session.get(Attendance, attendance_id)
+    if not attendance:
+        return None
+
+    metrics = compute_attendance_metrics(attendance)
+    if metrics is None:
+        return None
+
+    percentage, status = metrics
+    attendance.attendance_percentage = percentage
+    attendance.status = status
+    return percentage
+
+
+def sync_registration_status(attendance):
+    """Refleja el resultado final del checkout en la preregistración.
+
+    Política de cierre (self check-in / conferencias):
+
+    - Sesión cerrada con ``attendance_percentage >= 80`` -> Registration
+      ``Asistió`` (acredita horas) y ``attended = True``.
+    - Sesión cerrada con ``< 80`` -> Registration ``Ausente``: el alumno
+      llegó, pero no completó la actividad, por lo que **no** acredita.
+    - Sesión abierta (sin check-out) -> no se toca: el resultado aún no está
+      definido.
+
+    Nota: ``hours_service`` también acredita las Registration en estado
+    ``Confirmado``, así que marcar ``Ausente`` es lo único que quita las
+    horas de un preregistrado que se retiró a media actividad.
+
+    Returns:
+        La ``Registration`` modificada o ``None`` (sin preregistro, sesión
+        abierta o registro cancelado).
+    """
+    from app import db
+    from app.models.registration import Registration
+
+    if attendance is None or attendance.check_out_time is None:
+        return None
+    if attendance.student_id is None or attendance.activity_id is None:
+        return None
+
+    registration = Registration.query.filter_by(
+        student_id=attendance.student_id, activity_id=attendance.activity_id
+    ).first()
+    if registration is None or registration.status == "Cancelado":
+        return None
+
+    percentage = attendance.attendance_percentage or 0
+    if percentage >= 80:
+        registration.status = "Asistió"
+        registration.attended = True
+        if registration.confirmation_date is None:
+            registration.confirmation_date = db.func.now()
     else:
-        # fallback conservador
-        attendance.attendance_percentage = 100.0
-        attendance.status = "Asistió"
-        return 100.0
+        registration.status = "Ausente"
+        registration.attended = False
+
+    db.session.add(registration)
+    return registration
 
 
 def create_related_attendances(student_id, activity_id):
@@ -1031,9 +1161,9 @@ def process_exit_from_file(
                 {
                     "control_number": cn,
                     "student_id": student.id,
-                    "student_name": getattr(student, "full_name", "-")
-                    if student
-                    else "-",
+                    "student_name": (
+                        getattr(student, "full_name", "-") if student else "-"
+                    ),
                     "action": "not_found",
                     "action_display": "No encontrado",
                     "row_index": row_index,
