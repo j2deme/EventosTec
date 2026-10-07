@@ -10,7 +10,7 @@
 
 2. Integraciones externas críticas
 
-- Servicio externo de autenticación de alumnos: sí. /api/auth/student-login POST -> <http://apps.tecvalles.mx:8091/api/validate/student> (requests.post). También /api/registrations/self hace llamadas internas al endpoint de login (requests.post a /api/auth/student-login).
+- Servicio externo de autenticación de alumnos: sí. `POST /api/auth/student-login` y `POST /api/registrations/self` validan en proceso contra <http://apps.tecvalles.mx:8091/api/validate/student> (`requests.post` compartido en `app/services/student_auth_service.py`). Desde la ronda 2026-10-06 ya **no** hay llamada HTTP interna de `/api/registrations/self` a `/api/auth/student-login` (se eliminó el loopback al `request.host_url`).
 
 - Otras integraciones: no se encontraron integraciones de pagos, webhooks o servicios de streaming. No hay referencias a Stripe/PayPal/Pusher/Socket.io.
 
@@ -45,11 +45,11 @@ Autenticación (JWT + localStorage + validación externa)
 - Flujo actual de login:
   - Administradores: POST /api/auth/login. El servidor valida credenciales locales (User model) y genera un JWT con create_access_token (Flask-JWT-Extended). La respuesta contiene { access_token, user }.
   - Estudiantes: POST /api/auth/student-login. El servidor reenvía credenciales al servicio externo (<http://apps.tecvalles.mx:8091/api/validate/student>). Si la validación externa es exitosa, crea/actualiza el Student local y emite un access_token similar.
-  - Registro in situ (/api/registrations/self) reutiliza internamente el endpoint /api/auth/student-login (llamada HTTP interna) para validar credenciales antes de crear Attendance.
+  - Registro in situ (`/api/registrations/self`) valida las credenciales **en proceso** con la misma función que `student-login` (`student_auth_service.validate_student_credentials`), compartiendo el mismo rate-limit por número de control y por IP: no hace llamadas HTTP internas (ronda 2026-10-06).
 
 - Logout (revocado server-side — implementado):
   - POST /api/auth/logout registra el `jti` del token vigente en la tabla `revoked_tokens` (modelo `RevokedToken` en app/models/revoked_token.py + migración alembic `20260927_add_revoked_tokens`, head de `20251031_create_app_settings`) y purga oportunamente las filas de tokens ya vencidos.
-  - Flask-JWT-Extended consulta el blocklist en cada request vía `@jwt.token_in_blocklist_loader` (app/__init__.py): un token revocado responde 401 hasta su `exp`; los demás tokens del mismo usuario siguen válidos. Si la migración no se ha aplicado, el loader emite un warning y no bloquea (la app no cae).
+  - Flask-JWT-Extended consulta el blocklist en cada request vía `@jwt.token_in_blocklist_loader` (`app/__init__.py`): un token revocado responde 401 hasta su `exp`; los demás tokens del mismo usuario siguen válidos. Si la migración no se ha aplicado, el loader emite un warning y no bloquea (la app no cae).
   - Frontend: el logout quedó centralizado en `logout()` de app/static/js/app.js — tras el confirm, dispara `POST /api/auth/logout` con `keepalive: true` vía `safeFetch` ANTES de limpiar localStorage y redirigir (la petición sobrevive al cambio de página). Los factories de admin/student (dashboard, overview, profile) delegan en `window.logout` y conservan fallback local para tests que no cargan app.js.
 
 - Refresh de tokens:
@@ -94,7 +94,7 @@ Baseline de limpieza previo a la migración (todo verificado con pruebas)
   - Enlaces para jefes: `fetchActivityToken()` en `activities.js` ya no aborta si la actividad no tiene `public_slug`; genera los 4 enlaces usando el **ID numérico** como fallback (el backend acepta slug o ID en todas las vistas públicas) y muestra el aviso "Sin slug público". Verificación de generación automática de slugs: `POST /api/events/` y `POST /api/activities/` generan `public_slug` + `public_url` (tests nuevos en `tests/api/test_events.py` y `tests/api/test_activities.py`). Nota: los links del año pasado (formato `/public/registrations/<token>`) murieron con el refactor `c10cbab` → regenerar y compartir los links con slug en el nuevo evento.
   - Tests nuevos: `test_batch_checkout.py` (+2: despausa real y dry_run), `test_attendances_register.py` (+2: recálculo y despausa en checkout), `test_settings_manager.py` (+1: default 60), `test_events.py` y `test_activities.py` (+1 cada uno: slug+public_url), `activities.consolidated.test.js` (+2: enlaces por slug y fallback a ID). Reparado `tests/api/test_public_pause_attendance_timezone.py`: sus 5 tests fallaban preexistentemente por la deprecación de `generate_public_token`; migrados a resolución por ID numérico/`activity_id`.
 
-  - Hallazgo clave para los enlaces (punto 5): `@pre_dump` de `ActivitySchema` copiaba una lista blanca de atributos **sin `public_slug`**, por lo que *ningún* endpoint de actividad devolvía el slug (el `public_url` que agregaba `activities_bp` era código muerto y el modal de enlaces nunca recibía slug). Añadido `public_slug` a la lista blanca → listado, detalle y creación de actividades ahora incluyen `public_slug` (y por tanto `public_url`). Con esto + la auto-generación de slug en create (evento y actividad) + fallback a ID numérico en el modal, el flujo "crear nuevo evento → compartir enlaces con jefes" queda completo.
+  - Hallazgo clave para los enlaces (punto 5): `@pre_dump` de `ActivitySchema` copiaba una lista blanca de atributos **sin `public_slug`**, por lo que _ningún_ endpoint de actividad devolvía el slug (el `public_url` que agregaba `activities_bp` era código muerto y el modal de enlaces nunca recibía slug). Añadido `public_slug` a la lista blanca → listado, detalle y creación de actividades ahora incluyen `public_slug` (y por tanto `public_url`). Con esto + la auto-generación de slug en create (evento y actividad) + fallback a ID numérico en el modal, el flujo "crear nuevo evento → compartir enlaces con jefes" queda completo.
   - `datetime.utcnow()` (Python 3.14 + `filterwarnings = error::DeprecationWarning:app.*` en pytest.ini) en `settings_manager.py` (2 sitios) y `reports_bp.py` (1) hacía fallar las lecturas de settings en tests: reemplazado por `datetime.now(timezone.utc).replace(tzinfo=None)` (naive-UTC idéntico, patrón ya usado en `revoked_token.py`). Sin este fix, el nuevo default de 60 min se hacía visible como fallo en `test_app_settings_convenience_methods`.
   - Tests reparados (preexistentes, datos/fixtures rotos): `tests/test_activities.py` y `tests/api/test_activities.py` (fechas con offset `-06:00` para superar la validación de rango evento↔actividad con la interpretación naive→APP_TIMEZONE), `tests/test_slug_utils.py` (DummyModel con columna simulada que expone `.like()`), `tests/api/test_public_pause_attendance_timezone.py` (5 tests: `generate_public_token` deprecado → resolución por ID numérico/`activity_id`).
 - Despliegue (producción, 2026-09-29): ✅ `flask db upgrade` ejecutado (`alembic_version` reparado a un solo registro en `20260927_add_revoked_tokens`, head). ✅ Seed de settings en BD (4 filas editables: `app_timezone=America/Mexico_City`, `public_pause_available_from_seconds=0`, `public_pause_available_until_after_end_minutes=60`, `public_confirm_window_days=30`). ✅ **Código desplegado con `./deploy.sh` y smoke-test manual pasado (verificado 2026-10-02)**: logout con token viejo → 401, enlaces públicos, y Admin → Settings muestra las 4 filas (pausa = 60).
@@ -119,13 +119,13 @@ docker compose exec web flask db upgrade
 ```
 
 - Nueva revisión: `20261001_add_credit_overrides` (down: `20260927_add_revoked_tokens`). **Solo `CREATE TABLE credit_overrides`** — no altera ni toca tablas existentes (sin riesgo de regresión de datos).
-- Revisión encadenada: `20261002_add_credit_grants` (down: `20261001_add_credit_overrides`). Igual de aditiva: **solo `CREATE TABLE credit_grants`** + 3 índices. Mientras no exista, `load_grants_map()` devuelve `{}` y `credit_grants_available()` devuelve `False`: la lista se calcula sin exclusión por otorgamiento y el botón *Otorgar crédito* aparece bloqueado en la UI (la descarga del Excel sigue funcionando). **No usar *Otorgar crédito* antes de migrar**: el Excel se descargaría pero el registro fallaría y el archivo quedaría sin constancia.
+- Revisión encadenada: `20261002_add_credit_grants` (down: `20261001_add_credit_overrides`). Igual de aditiva: **solo `CREATE TABLE credit_grants`** + 3 índices. Mientras no exista, `load_grants_map()` devuelve `{}` y `credit_grants_available()` devuelve `False`: la lista se calcula sin exclusión por otorgamiento y el botón _Otorgar crédito_ aparece bloqueado en la UI (la descarga del Excel sigue funcionando). **No usar _Otorgar crédito_ antes de migrar**: el Excel se descargaría pero el registro fallaría y el archivo quedaría sin constancia.
 - Mientras no se ejecute, la lista de créditos sigue funcionando: `load_overrides_map()` es defensivo (loguea warning y calcula sin overrides). Los endpoints CRUD de overrides devolverán 500 hasta que la tabla exista — migrar antes de usar esa UI.
-- **Estado (verificado 2026-10-02): ⏳ AÚN PENDIENTE en producción** — `alembic_version` = `20260927_add_revoked_tokens` y la tabla `credit_overrides` no existe. Los botones *Omitir / Forzar inclusión* de la UI de créditos responderán 500 hasta correr el `flask db upgrade` en el servidor. `credit_grants` también queda pendiente (va encadenada).
+- **Estado (verificado 2026-10-02): ⏳ AÚN PENDIENTE en producción** — `alembic_version` = `20260927_add_revoked_tokens` y la tabla `credit_overrides` no existe. Los botones _Omitir / Forzar inclusión_ de la UI de créditos responderán 500 hasta correr el `flask db upgrade` en el servidor. `credit_grants` también queda pendiente (va encadenada).
 
 ### Pendiente documentado (fuera de alcance de esta ronda)
 
-- **Fase 3: tabla `credit_grants`** para evitar doble acreditación al re-exportar la lista a la plataforma externa (historial de grants por lote/evento) → **implementada en la ronda 2026-10-02**, ver la sección *Fase 3: credit_grants* al final de este documento.
+- **Fase 3: tabla `credit_grants`** para evitar doble acreditación al re-exportar la lista a la plataforma externa (historial de grants por lote/evento) → **implementada en la ronda 2026-10-02**, ver la sección _Fase 3: credit_grants_ al final de este documento.
 - Los overrides solo afectan la lista de créditos (vista admin); el badge del portal del estudiante (`has_complementary_credit` del detalle de evento) sigue puramente derivado.
 
 ## Fix de zona horaria en importación batch (ronda 2026-10-02)
@@ -152,18 +152,57 @@ Objetivo: evitar que al re-exportar la lista a la plataforma externa se acredite
 
 ### Flujo del admin (confirmación explícita)
 
-1. Modal *Exportar Créditos* → *Buscar Estudiantes* → lista de **pendientes** (los ya otorgados quedan fuera y se cuentan en `excluded_already_granted`).
+1. Modal _Exportar Créditos_ → _Buscar Estudiantes_ → lista de **pendientes** (los ya otorgados quedan fuera y se cuentan en `excluded_already_granted`).
 2. **Otorgar crédito (N)** → confirmación en pantalla → (a) descarga el XLSX de los pendientes y (b) `POST /api/students/credit-grants` con los mismos filtros y `confirm: true`. El orden es deliberado: si el POST falla, no se gastó nada y se reintenta sin doble acreditación.
 3. **Descargar sin otorgar** solo genera el archivo (revisar / re-auditar).
 
 ### Decisiones de diseño
 
-- El **Excel nunca incluye** a los ya otorgados: es el archivo que se sube al externo. El toggle *Ver ya otorgados* solo afecta a la vista previa en pantalla y marca la fila con `already_granted`.
+- El **Excel nunca incluye** a los ya otorgados: es el archivo que se sube al externo. El toggle _Ver ya otorgados_ solo afecta a la vista previa en pantalla y marca la fila con `already_granted`.
 - El endpoint de lista acepta `include_granted=1` para auditar; el de export y el de otorgamiento **nunca** lo activan.
 - `credit_grants_available` en la respuesta de la lista habilita/deshabilita el botón de otorgamiento según exista la tabla (evita descargar un archivo que no se puede registrar).
 - Corrección incluida: la descarga del Excel usaba `window.open()` contra una ruta con `@jwt_required` (sin header `Authorization`) y abría una pestaña con 401; ahora baja con `fetch` autenticado + blob, igual que el resto de exportes.
 
 ### Despliegue
 
-- `flask db upgrade` aplica `20261001` y `20261002` en cadena. Ver el estado en *Paso de despliegue OBLIGATORIO*.
+- `flask db upgrade` aplica `20261001` y `20261002` en cadena. Ver el estado en _Paso de despliegue OBLIGATORIO_.
 - Tests: `tests/api/test_credit_grants.py` — auth, validaciones del POST, acreditación + exclusión de la lista, segundo crédito con horas frescas, no repetibilidad, fila forzada por override, Excel sin acreditados e historial por lote.
+
+## Registro in situ y cierre de asistencia (ronda 2026-10-06)
+
+### 1. Ventana de self check-in configurable
+
+- Ventana única `[inicio - public_self_register_open_minutes_before_start, inicio + public_self_register_close_minutes_after_start]` (defaults **30 / 20 min**) calculada en `app/services/self_register_service.py` y usada por la vista GET, el POST y el countdown del frontend. Antes solo existía el límite superior, hardcodeado en 3 lugares, y **no había límite inferior**: un QR generado días antes dejaba el check-in abierto _antes_ de que empezara la actividad.
+- Estados `open` / `not_open` / `closed` con mensajes distintos, expuestos al JS vía `data-activity-message` (el servidor manda: `data-activity-deadline` ya no lo calcula el cliente).
+- **Despliegue**: `python scripts/initialize_app_settings.py` siembra las 2 keys nuevas para poder editarlas en Admin → Settings (también se pueden fijar por ENV: `APP_PUBLIC_SELF_REGISTER_OPEN_MINUTES_BEFORE_START` / `..._CLOSE_MINUTES_AFTER_START`).
+
+### 2. Rate-limit y validación de credenciales en proceso
+
+- `app/services/student_auth_service.py` (nuevo): fuente única de `validate_student_credentials()` + `upsert_student()`; lo usan `POST /api/auth/student-login` y `POST /api/registrations/self`. Se eliminó el loopback HTTP y `requests` ya no se importa en `auth_bp`.
+- Límites compartidos `CREDENTIAL_ATTEMPT_LIMITS = {"control_number": (8, 300), "ip": (80, 300)}` → **429** con mensaje genérico, aplicados **antes** de llamar al externo (el barrido de números de control desde una misma IP también se frena). Reset para tests: `reset_credential_limits()`.
+- Mapeo de errores (antes se devolvía `error: str(e)`, con fuga de detalle): `InvalidCredentials` → **401**, `CredentialServiceUnavailable` → **503**, `CredentialsRateLimited` → **429**.
+
+### 3. Política de estado y de horas
+
+- El self check-in **abre** la sesión: `Attendance.status = "Parcial"` y solo `Registration.attended = True`; ya **no** se cambia `Registration.status` a "Asistió" en la llegada (seguía marcando "Asistió" a quien nunca volvió).
+- El cierre (checkout individual o `batch-checkout`) recalcula y sincroniza con `sync_registration_status()`: **`>= 80%` → `Asistió`** (acredita horas), **`< 80%` → `Ausente`** (no acredita: es lo único que quita las horas que `hours_service` da por `Confirmado`), sesión abierta → sin cambios, `Cancelado` → se ignora.
+- El dry-run de `batch-checkout` ahora usa el calculador compartido `compute_attendance_metrics` (su copia propia divergía: usaba duración neta en vez de la intersección con la ventana y no aplicaba "pausa >= duración" → predecía 100% donde el cierre real daba < 80%) y expone `details.registration_status` (qué estado quedará en la preregistración).
+
+### 4. Pausas: el cierre descuenta y las varias pausas sí suman
+
+- La pausa abierta **sí descuenta** hasta el check-out: `batch-checkout` / checkout individual dejan de auto-reanudar con duración cero; solo se apaga `is_paused` y `pause_time` se conserva para que el calculador descuente `pause_time → check_out_time`. Antes el alumno que se fue y no volvió cerraba al 100%.
+- Cada ciclo pausa/reanuda se **pliega en `check_in_time`** (`resume_attendance`, recortado a la ventana de la actividad) y libera `pause_time`/`resume_time`, de modo que varias pausas sí descuentan (antes la 2ª pausa pisaba el descuento de la 1ª y salía 100%). Sin migración: `created_at` conserva la llegada real.
+- La pausa quedó habilitada para `Magistral` **y** `Conferencia` (`SESSION_CONTROL_ACTIVITY_TYPES` en `attendance_service`); la vista de captura para personal sigue siendo solo Magistral.
+
+### 5. Convención de escritura de los tiempos de asistencia (alineación horaria)
+
+- Las columnas `datetime` de MySQL guardan **hora local naive** y así se leen (`safe_iso` / `localize_naive_datetime` interpretan el naive como hora de `APP_TIMEZONE`). Escribir `datetime.now(timezone.utc)` (o `db.func.now()` con el servidor MySQL en UTC) dejaba en la columna una hora **6 h** posterior: al leerla como local el check-in quedaba posterior al inicio de la actividad, la ventana de presencia salía invertida y `calculate_attendance_percentage` devolvía **0%**.
+- Bug latente: `batch-checkout` se agregó el 2026-09-28 y **nunca corrió sobre datos reales**; el 46° Aniversario corre 2026-10-05 → 10-09, así que el cierre por lotes habría cerrado el evento al 0%. Evidencia en el dump `EventosTec-2026-10-02-04-33-53.sql` (64 check-ins de la magistral de las 10:00 registrados a las 15:19–15:54 UTC).
+- Ahora los instantes que genera el servidor se persisten con **`db_wall_local()` / `db_now_local()`** (`app/utils/datetime_utils.py`) en `attendances_bp` (check-in, check-out y `now` de `batch-checkout`), `registrations_bp` (8 sitios `db.func.now()`), `public_registrations_bp` (walk-in y confirmación), `self_register_bp` (check-in) y `attendance_service` (`pause_time`). Los valores que vienen del payload **no** se convierten: `parse_datetime_with_timezone()` conserva el wall time del cliente (input naive de `<input type="datetime-local">`), igual que `create_activity` ya lo hacía. Detalle y verificación: `docs/TIMEZONE_FIX.md`.
+- Sin migración de datos: las filas antiguas escritas en UTC siguen desfasadas 6 h (los eventos cerrados no se re calculan); esto también corrige el desfase de 6 h que mostraba la columna de check-in en la UI.
+
+### 6. Tests
+
+- Nuevos: `tests/api/test_self_register_api.py` (400 faltantes / 404 / ventana no-abierta y cerrada / 401 / 503 / 429 sin volver a llamar al externo / 201 con sesión `Parcial` y preregistro intacto / 409 duplicado / alta de estudiante), `tests/services/test_self_register_service.py`, `tests/services/test_student_auth_service.py` (mapeo de errores y rate-limit por control e IP), `tests/test_datetime_utils_wall_local.py` (round-trip escritura→lectura), `app/static/js/public/__tests__/self_register.test.js` (ventana, countdown con deadline del servidor, ramas 201/401/409/429/400/503/red).
+- Actualizados por la nueva política: `tests/api/test_batch_checkout.py` (pausa abierta descuenta + cierre de la preregistro en `Ausente`; dry-run comparte calculador), `tests/api/test_attendances_register.py`, `tests/test_attendance_service.py` (plegado de la pausa, 2ª pausa y no doble descuento), `tests/test_public_slug_views.py`, `tests/api/test_auth_type_claim.py`.
+- Resultado de la ronda: **pytest 334 passed / 1 xpassed**, **jest 27 suites / 357 tests**, `ruff check` + `ruff format` + `prettier` limpios en los archivos tocados.
