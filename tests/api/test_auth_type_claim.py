@@ -5,6 +5,7 @@
   conservan el orden histórico (User primero, luego Student).
 - Escenario de colisión: una PK en `users` y la misma PK en `students`.
 """
+
 import base64
 import json
 
@@ -78,9 +79,11 @@ def test_student_login_embeds_type_claim(client, app, monkeypatch):
                 },
             }
 
-    import app.api.auth_bp as auth_bp_module
+    import app.services.student_auth_service as student_auth_service
 
-    monkeypatch.setattr(auth_bp_module.requests, "post", lambda *a, **k: _FakeResp())
+    monkeypatch.setattr(
+        student_auth_service.requests, "post", lambda *a, **k: _FakeResp()
+    )
 
     response = client.post(
         "/api/auth/student-login",

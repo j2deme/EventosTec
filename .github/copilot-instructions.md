@@ -185,6 +185,8 @@ NIVEL 3: Hard-coded Default
 | `public_pause_available_from_seconds`            | `AppSettings.public_pause_available_from_seconds()`            | Tiempo de pausa pública          |
 | `public_pause_available_until_after_end_minutes` | `AppSettings.public_pause_available_until_after_end_minutes()` | Período de gracia post-actividad |
 | `public_confirm_window_days`                     | `AppSettings.public_confirm_window_days()`                     | Ventana de confirmación pública  |
+| `public_self_register_open_minutes_before_start` | `AppSettings.public_self_register_open_minutes_before_start()` | Apertura del registro in situ    |
+| `public_self_register_close_minutes_after_start` | `AppSettings.public_self_register_close_minutes_after_start()` | Cierre del registro in situ      |
 
 ### Acceso en Código
 

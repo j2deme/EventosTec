@@ -6,7 +6,6 @@ from flask_jwt_extended import (
     jwt_required,
 )
 from datetime import datetime, timezone
-import requests
 from app import db
 from app.schemas import user_login_schema
 from app.models.user import User
@@ -14,6 +13,15 @@ from app.models.student import Student
 from app.models.revoked_token import RevokedToken
 from app.services.password_recovery_service import request_recovery
 from app.services.rate_limit import SlidingWindowLimiter
+from app.services.student_auth_service import (
+    RATE_LIMIT_MESSAGE,
+    CredentialServiceUnavailable,
+    CredentialsRateLimited,
+    InvalidCredentials,
+    client_ip as _service_client_ip,
+    upsert_student,
+    validate_student_credentials,
+)
 from app.utils.auth_helpers import require_admin
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
@@ -69,6 +77,12 @@ def login():
 
 @auth_bp.route("/student-login", methods=["POST"])
 def student_login():
+    """Login de estudiante contra la plataforma MAB (8091).
+
+    La validación de credenciales vive en ``student_auth_service`` (misma
+    función que usa el registro in situ) e incluye rate-limit compartido:
+    responde 429 cuando se agotan los intentos.
+    """
     try:
         data = request.get_json() or {}
         control_number = data.get("control_number")
@@ -79,112 +93,60 @@ def student_login():
                 {"message": "Número de control y contraseña son requeridos"}
             ), 400
 
-        external_api_url = "http://apps.tecvalles.mx:8091/api/validate/student"
+        try:
+            student_info = validate_student_credentials(control_number, password)
+        except CredentialsRateLimited:
+            current_app.logger.info("student-login limitado (%s)", control_number)
+            return jsonify({"message": RATE_LIMIT_MESSAGE}), 429
+        except InvalidCredentials:
+            return jsonify({"message": "Credenciales inválidas"}), 401
+        except CredentialServiceUnavailable:
+            current_app.logger.warning(
+                "student-login: sistema externo no disponible (%s)", control_number
+            )
+            return jsonify(
+                {"message": "Error en la validación con sistema externo"}
+            ), 503
 
         try:
-            # Enviar credenciales al sistema externo
-            external_response = requests.post(
-                external_api_url,
-                json={
-                    "username": control_number,  # Asumiendo que username es el número de control
-                    "password": password,
-                },
-                timeout=10,
-            )
-
-            if external_response.status_code == 200:
-                external_data = external_response.json()
-
-                # Verificar que la respuesta sea exitosa
-                if external_data.get("success") and external_data.get("data"):
-                    student_info = external_data["data"]
-
-                    # Crear o actualizar estudiante en nuestra base de datos
-                    student = Student.query.filter_by(
-                        control_number=control_number
-                    ).first()
-
-                    if not student:
-                        # Crear nuevo estudiante con todos los datos disponibles
-                        # Usar asignaciones explícitas para evitar constructor kwargs
-                        student = Student()
-                        student.control_number = control_number
-                        student.full_name = student_info.get("name", "") or ""
-                        student.career = (
-                            student_info.get("career", {}).get("name", "")
-                            if student_info.get("career")
-                            else ""
-                        )
-                        student.email = student_info.get("email", "") or ""
-                        db.session.add(student)
-                    else:
-                        # Actualizar información si es necesario
-                        student.full_name = student_info.get("name", student.full_name)
-                        if student_info.get("career"):
-                            student.career = student_info["career"].get(
-                                "name", student.career
-                            )
-                        student.email = student_info.get("email", student.email)
-
-                    db.session.commit()
-
-                    # Generar token para estudiante (claim 'type' para
-                    # desambiguar frente a User en get_current_user)
-                    access_token = create_access_token(
-                        identity=str(student.id), additional_claims={"type": "student"}
-                    )
-                    return jsonify(
-                        {
-                            "access_token": access_token,
-                            "student": {
-                                "id": student.id,
-                                "control_number": student.control_number,
-                                "full_name": student.full_name,
-                                "career": student.career,
-                                "email": student.email,
-                                "type": "student",
-                            },
-                        }
-                    ), 200
-                else:
-                    return jsonify({"message": "Credenciales inválidas"}), 401
-            else:
-                # Manejar diferentes códigos de error del sistema externo
-                if external_response.status_code == 401:
-                    return jsonify({"message": "Credenciales inválidas"}), 401
-                else:
-                    return jsonify(
-                        {"message": "Error en la validación con sistema externo"}
-                    ), 503
-
-        except requests.exceptions.RequestException as e:
-            return jsonify(
-                {"message": "Error de conexión con sistema externo", "error": str(e)}
-            ), 503
-        except Exception as e:
+            student = upsert_student(control_number, student_info)
+            db.session.commit()
+        except Exception:
             db.session.rollback()
             current_app.logger.exception("Error in /api/auth/student-login")
-            return jsonify(
-                {"message": "Error en el login de estudiante", "error": str(e)}
-            ), 400
+            return jsonify({"message": "Error en el login de estudiante"}), 400
 
-    except Exception as e:
-        current_app.logger.exception("Unhandled error in /api/auth/student-login outer")
+        # Generar token para estudiante (claim 'type' para desambiguar frente
+        # a User en get_current_user)
+        access_token = create_access_token(
+            identity=str(student.id), additional_claims={"type": "student"}
+        )
         return jsonify(
-            {"message": "Error en el login de estudiante", "error": str(e)}
-        ), 400
+            {
+                "access_token": access_token,
+                "student": {
+                    "id": student.id,
+                    "control_number": student.control_number,
+                    "full_name": student.full_name,
+                    "career": student.career,
+                    "email": student.email,
+                    "type": "student",
+                },
+            }
+        ), 200
+
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Unhandled error in /api/auth/student-login")
+        return jsonify({"message": "Error en el login de estudiante"}), 400
 
 
 # Solicitud de recuperación de contraseña (fuente de verdad: plataforma MAB)
 
 
 def _client_ip() -> str:
-    """IP del visitante, considerando proxies inversos si reportan X-Forwarded-For."""
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        # Primera IP de la cadena: la que agregó el proxy más cercano.
-        return forwarded.split(",")[0].strip()
-    return request.remote_addr or "unknown"
+    """IP del visitante (fuente única: ``student_auth_service.client_ip``)."""
+    return _service_client_ip()
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])

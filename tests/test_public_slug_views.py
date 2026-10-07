@@ -39,14 +39,19 @@ class TestSelfRegisterBySlug:
         # El template expone la actividad resuelta por slug en data-activity-id
         assert b'data-activity-id="test-regular-activity"' in resp.data
 
-    def test_self_register_by_slug_passes_activity_token(
+    def test_self_register_by_slug_reports_closed_window(
         self, client, regular_activity
     ):
-        """Test that activity_token is generated and passed to template."""
+        """Una actividad fuera de la ventana expone el form deshabilitado.
+
+        ``regular_activity`` inicia en 2024: la ventana de self check-in ya
+        cerró, así que ``activity_allowed`` es 0 y el template pasa al
+        frontend el mensaje de la ventana (``data-activity-message``).
+        """
         resp = client.get(f"/public/self-register/{regular_activity.public_slug}")
         assert resp.status_code == 200
-        # The response should contain activity_token in the template (passed as context)
-        # This is a basic check; actual token validation happens in form submission
+        assert b'data-activity-allowed="0"' in resp.data
+        assert b'data-activity-message=""' not in resp.data
 
     def test_self_register_by_invalid_slug(self, client):
         """Test that invalid slug returns error state."""

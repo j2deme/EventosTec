@@ -87,6 +87,32 @@ def init_settings():
                 "default_value": "30",
                 "is_editable": True,
             },
+            {
+                "key": "public_self_register_open_minutes_before_start",
+                "value": os.environ.get(
+                    "PUBLIC_SELF_REGISTER_OPEN_MINUTES_BEFORE_START", "30"
+                ),
+                "description": (
+                    "Minutos antes del inicio en que abre el registro in situ "
+                    "(self check-in)"
+                ),
+                "data_type": "integer",
+                "default_value": "30",
+                "is_editable": True,
+            },
+            {
+                "key": "public_self_register_close_minutes_after_start",
+                "value": os.environ.get(
+                    "PUBLIC_SELF_REGISTER_CLOSE_MINUTES_AFTER_START", "20"
+                ),
+                "description": (
+                    "Minutos después del inicio en que cierra el registro in situ "
+                    "(self check-in)"
+                ),
+                "data_type": "integer",
+                "default_value": "20",
+                "is_editable": True,
+            },
         ]
 
         created_count = 0

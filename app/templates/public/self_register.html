@@ -16,6 +16,7 @@ block content %}
     data-activity-start="{{ activity_start_iso or '' }}"
     data-activity-duration="{{ activity_duration_hours or '' }}"
     data-activity-deadline="{{ activity_deadline_iso or '' }}"
+    data-activity-message="{{ activity_message or '' }}"
   >
     <div class="text-center mb-6">
       <div
@@ -56,9 +57,7 @@ block content %}
           <div class="text-lg font-medium text-yellow-700">
             Registro no disponible
           </div>
-          <div class="text-sm text-gray-500">
-            El registro para esta actividad ha finalizado o no está disponible.
-          </div>
+          <div class="text-sm text-gray-500" x-text="unavailableMessage"></div>
         </div>
       </template>
     </div>
@@ -88,7 +87,6 @@ block content %}
           class="space-y-4"
           x-show="!expired"
         >
-          <input type="hidden" x-model="activityId" />
           <div>
             <label class="block text-sm font-medium text-gray-700"
               >Número de control</label
@@ -154,7 +152,8 @@ block content %}
       const exists = el.getAttribute("data-activity-exists") === "1";
       const allowed = el.getAttribute("data-activity-allowed") === "1";
       const invalid = el.getAttribute("data-activity-invalid") === "1";
-      return { id, name, exists, allowed, invalid };
+      const message = el.getAttribute("data-activity-message") || "";
+      return { id, name, exists, allowed, invalid, message };
     } catch (e) {
       return {
         id: "",
@@ -162,6 +161,7 @@ block content %}
         exists: false,
         allowed: true,
         invalid: false,
+        message: "",
       };
     }
   };

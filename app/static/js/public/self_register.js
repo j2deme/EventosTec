@@ -7,6 +7,8 @@ function selfRegister() {
     loading: false,
     message: "",
     messageClass: "bg-green-100 text-green-800",
+    unavailableMessage:
+      "El registro para esta actividad ha finalizado o no está disponible.",
     countdownInterval: null,
     timeLeftText: "",
     deadline: null,
@@ -21,6 +23,7 @@ function selfRegister() {
           exists: false,
           allowed: true,
           invalid: false,
+          message: "",
         };
         if (window.__selfRegister_init && el) {
           init = window.__selfRegister_init(el) || init;
@@ -36,8 +39,9 @@ function selfRegister() {
           this.message = "Actividad no encontrada. Contacta al personal.";
         } else if (!this.activityAllowed) {
           this.messageClass = "bg-yellow-100 text-yellow-800";
-          this.message =
-            "El registro para esta actividad ha finalizado o no está disponible.";
+          // Mensaje del servidor: distingue "aún no abre" de "ya cerró".
+          this.unavailableMessage = init.message || this.unavailableMessage;
+          this.message = this.unavailableMessage;
         }
 
         // expired flag used to hide the form when time ends
@@ -45,22 +49,13 @@ function selfRegister() {
         // read activity timing data for countdown
         try {
           const card = document.getElementById("self-register-card");
-          const startIso = card?.dataset?.activityStart;
-          const duration = card?.dataset?.activityDuration;
           const deadlineIso = card?.dataset?.activityDeadline;
 
-          if (deadlineIso) {
-            if (typeof dayjs !== "undefined") {
-              this.deadline = dayjs(deadlineIso);
-              this.startCountdown();
-            }
-          } else if (startIso) {
-            // compute deadline = start + 20 minutes (self-registration window)
-            if (typeof dayjs !== "undefined") {
-              const start = dayjs(startIso);
-              this.deadline = start.add(20, "minute");
-              this.startCountdown();
-            }
+          // El deadline lo calcula el backend (ventana configurable); no se
+          // deriva en el cliente para evitar que diverjan.
+          if (deadlineIso && typeof dayjs !== "undefined") {
+            this.deadline = dayjs(deadlineIso);
+            this.startCountdown();
           }
         } catch (e) {
           // ignore - countdown is optional
@@ -106,6 +101,11 @@ function selfRegister() {
         } else if (resp.status === 401) {
           this.messageClass = "bg-red-100 text-red-800";
           this.message = data.message || "Credenciales inválidas";
+        } else if (resp.status === 429) {
+          this.messageClass = "bg-yellow-100 text-yellow-800";
+          this.message =
+            data.message ||
+            "Demasiados intentos. Espera unos minutos y vuelve a intentarlo.";
         } else if (resp.status === 400) {
           this.messageClass = "bg-red-100 text-red-800";
           this.message = data.message || "Error en la solicitud";

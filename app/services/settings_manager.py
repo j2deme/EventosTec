@@ -278,3 +278,13 @@ class AppSettings:
     def public_confirm_window_days() -> int:
         """Get days window for confirming attendance (default: 30)."""
         return SettingsManager.get("public_confirm_window_days", 30)
+
+    @staticmethod
+    def public_self_register_open_minutes_before_start() -> int:
+        """Minutos antes del inicio en que abre el registro in situ (default: 30)."""
+        return SettingsManager.get("public_self_register_open_minutes_before_start", 30)
+
+    @staticmethod
+    def public_self_register_close_minutes_after_start() -> int:
+        """Minutos después del inicio en que cierra el registro in situ (default: 20)."""
+        return SettingsManager.get("public_self_register_close_minutes_after_start", 20)

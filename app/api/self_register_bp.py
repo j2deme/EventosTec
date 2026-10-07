@@ -1,19 +1,74 @@
 from flask import Blueprint, request, jsonify, render_template, current_app
-import requests
+from datetime import datetime, timezone
+
 from app import db
-from app.models.student import Student
 from app.models.activity import Activity
 from app.models.registration import Registration
 from app.models.attendance import Attendance
 from app.schemas import attendance_schema
-from datetime import datetime, timedelta, timezone
+from app.services.self_register_service import (
+    OPEN,
+    self_register_state,
+    window_message,
+)
+from app.services.student_auth_service import (
+    RATE_LIMIT_MESSAGE,
+    CredentialServiceUnavailable,
+    CredentialsRateLimited,
+    InvalidCredentials,
+    upsert_student,
+    validate_student_credentials,
+)
 from app.utils.datetime_utils import localize_naive_datetime, safe_iso
+
 # token utilities deprecated for public flows; do not import generative helpers
 
 self_register_bp = Blueprint("self_register", __name__, url_prefix="")
 
 
-# use centralized safe_iso from app.utils.datetime_utils
+def _find_activity(ref):
+    """Resuelve una actividad: slug primero (preferido), ID numérico al final."""
+    if ref is None or ref == "":
+        return None
+
+    activity = None
+    try:
+        activity = Activity.query.filter_by(public_slug=ref).first()
+    except Exception:
+        activity = None
+
+    if not activity and str(ref).isdigit():
+        try:
+            activity = db.session.get(Activity, int(ref))
+        except Exception:
+            activity = None
+
+    return activity
+
+
+def _resolve_activity(activity_ref=None):
+    """Resuelve la actividad de la vista pública.
+
+    Returns:
+        ``(activity, invalid)`` — ``invalid`` marca un reference inexistente
+        (para distinguir "QR inválido" de "sin actividad").
+    """
+    invalid = False
+    activity = _find_activity(activity_ref)
+
+    if activity_ref and not activity:
+        invalid = True
+
+    # Legacy: aceptar el id crudo por query param (?activity=<id>)
+    if not activity:
+        aid = request.args.get("activity")
+        if aid:
+            try:
+                activity = db.session.get(Activity, int(aid))
+            except Exception:
+                activity = None
+
+    return activity, invalid
 
 
 @self_register_bp.route("/self-register", methods=["GET"])
@@ -23,66 +78,33 @@ def self_register_form(activity_ref=None):
     1. Slug first (preferred, from DB public_slug)
     2. Numeric ID (fallback, from path param or query param)
     """
-    activity = None
-    activity_name = None
-    activity_exists = False
-    bool(activity_ref is not None)
-    activity_ref_invalid = False
+    activity, activity_ref_invalid = _resolve_activity(activity_ref)
 
-    # Try to resolve activity from path param (activity_ref can be slug or token)
-    if activity_ref:
-        # First, try as slug (prefer DB lookup)
-        try:
-            activity = Activity.query.filter_by(public_slug=activity_ref).first()
-        except Exception:
-            activity = None
-
-        # If still not found, try as numeric ID (fallback)
-        if not activity:
-            try:
-                if str(activity_ref).isdigit():
-                    activity = db.session.get(Activity, int(activity_ref))
-            except Exception:
-                activity = None
-
-        if not activity:
-            activity_ref_invalid = True
-
-    # Legacy: accept raw activity id from query param
-    if not activity:
-        aid = request.args.get("activity")
-        if aid:
-            try:
-                activity = db.session.get(Activity, int(aid))
-                if activity:
-                    activity_name = activity.name
-                    activity_exists = True
-            except Exception:
-                pass
-
-    if activity:
-        activity_name = activity.name
-        activity_exists = True
+    activity_name = getattr(activity, "name", None)
+    activity_exists = activity is not None
 
     activity_start_iso = None
     activity_duration_hours = None
     activity_deadline_iso = None
     activity_type = None
+
+    state = OPEN
+    opens_at = None
+    closes_at = None
+
     if activity:
-        # start datetime (localized to UTC for consistency)
-        if getattr(activity, "start_datetime", None) is not None:
+        # start datetime (localizado a UTC para el countdown del cliente)
+        start_dt = getattr(activity, "start_datetime", None)
+        if start_dt is not None:
             try:
                 app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
-                s_local = localize_naive_datetime(activity.start_datetime, app_tz)
+                s_local = localize_naive_datetime(start_dt, app_tz)
                 activity_start_iso = (
-                    safe_iso(s_local)
-                    if s_local is not None
-                    else safe_iso(activity.start_datetime)
+                    safe_iso(s_local) if s_local is not None else safe_iso(start_dt)
                 )
             except Exception:
                 activity_start_iso = None
 
-        # compute a safe float for duration_hours
         try:
             hours_val = getattr(activity, "duration_hours", None)
             activity_duration_hours = (
@@ -91,45 +113,25 @@ def self_register_form(activity_ref=None):
         except Exception:
             activity_duration_hours = None
 
-        # compute registration deadline = start + 20 minutes (use localized UTC)
-        try:
-            start_dt = getattr(activity, "start_datetime", None)
-            if start_dt is not None:
-                app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
-                s_local = localize_naive_datetime(start_dt, app_tz)
-                if s_local is not None:
-                    deadline_dt = s_local + timedelta(minutes=20)
-                    activity_deadline_iso = safe_iso(deadline_dt)
-                else:
-                    activity_deadline_iso = None
-        except Exception:
-            activity_deadline_iso = None
+        # Ventana de registro in situ (fuente única: self_register_service)
+        state, opens_at, closes_at = self_register_state(activity)
+        if closes_at is not None:
+            activity_deadline_iso = safe_iso(closes_at)
+
         try:
             activity_type = getattr(activity, "activity_type", None) or None
         except Exception:
             activity_type = None
 
-    # Prepare template context: prefer public_slug for activity_id if available
+    # Determina si la actividad admite self-register (ventana configurable)
+    activity_allowed = state == OPEN
+    error_message = window_message(state, opens_at, closes_at)
+
+    # Preferir public_slug como identificador de la actividad (el POST lo
+    # resuelve con la misma estrategia slug-first).
     activity_id_out = None
     if activity:
         activity_id_out = getattr(activity, "public_slug", None) or str(activity.id)
-
-    # Determine whether activity is allowed for self-register (time window)
-    activity_allowed = True
-    error_message = None
-    try:
-        now = datetime.now(timezone.utc)
-        cutoff = None
-        if activity is not None and getattr(activity, "start_datetime", None):
-            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
-            s_local = localize_naive_datetime(activity.start_datetime, app_tz)
-            if s_local is not None:
-                cutoff = s_local + timedelta(minutes=20)
-        if cutoff and now > cutoff:
-            activity_allowed = False
-            error_message = "La ventana de registro in situ ha terminado"
-    except Exception:
-        pass
 
     return render_template(
         "public/self_register.html",
@@ -139,6 +141,7 @@ def self_register_form(activity_ref=None):
         activity_allowed=activity_allowed,
         activity_invalid=activity_ref_invalid,
         error_message=error_message,
+        activity_message=error_message,
         activity_start_iso=activity_start_iso,
         activity_duration_hours=activity_duration_hours,
         activity_deadline_iso=activity_deadline_iso,
@@ -148,6 +151,12 @@ def self_register_form(activity_ref=None):
 
 @self_register_bp.route("/api/registrations/self", methods=["POST"])
 def self_register_api():
+    """Self check-in: abre una sesión de asistencia (status 'Parcial').
+
+    No acredita por sí mismo: la Registration del estudiante queda intacta y
+    se cierra recién en el checkout del admin (>= 80% -> 'Asistió',
+    < 80% -> 'Ausente'). Ver ``attendance_service.sync_registration_status``.
+    """
     try:
         payload = request.get_json() or {}
         control_number = (payload.get("control_number") or "").strip()
@@ -155,101 +164,69 @@ def self_register_api():
         activity_ref = payload.get("activity_id")
 
         if not control_number or not password or not activity_ref:
-            return jsonify(
-                {"message": "control_number, password y activity_id son requeridos"}
-            ), 400
+            return (
+                jsonify(
+                    {"message": "control_number, password y activity_id son requeridos"}
+                ),
+                400,
+            )
 
-        # Resolve activity_ref (slug preferred, else numeric id)
-        activity = (
-            Activity.query.filter_by(public_slug=activity_ref).first()
-            if activity_ref
-            else None
-        )
-        if not activity and str(activity_ref).isdigit():
-            activity = db.session.get(Activity, int(activity_ref))
-
+        activity = _find_activity(activity_ref)
         if not activity:
             return jsonify({"message": "Actividad no encontrada"}), 404
 
-        # Use timezone-aware datetimes for comparison to avoid naive/aware errors
-        now = datetime.now(timezone.utc)
-        cutoff = None
-        if getattr(activity, "start_datetime", None):
-            app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
-            s_local = localize_naive_datetime(activity.start_datetime, app_tz)
-            if s_local is not None:
-                cutoff = s_local + timedelta(minutes=20)
+        # Ventana configurable (mismo criterio que la vista del formulario)
+        state, _opens_at, _closes_at = self_register_state(activity)
+        if state != OPEN:
+            return (
+                jsonify({"message": window_message(state, _opens_at, _closes_at)}),
+                400,
+            )
 
-        if cutoff and now > cutoff:
-            return jsonify(
-                {"message": "La ventana de registro in situ ha terminado"}
-            ), 400
-
-        # Authenticate student against external validation endpoint by calling internal auth route
-        # We call the existing student-login endpoint internally to reuse its logic.
-        auth_url = request.host_url.rstrip("/") + "/api/auth/student-login"
+        # Credenciales contra la plataforma MAB: validación en proceso con
+        # rate-limit compartido con /api/auth/student-login.
         try:
-            r = requests.post(
-                auth_url,
-                json={"control_number": control_number, "password": password},
-                timeout=5,
+            student_info = validate_student_credentials(control_number, password)
+        except CredentialsRateLimited:
+            current_app.logger.info("self-register limitado (%s)", control_number)
+            return jsonify({"message": RATE_LIMIT_MESSAGE}), 429
+        except InvalidCredentials:
+            return jsonify({"message": "Credenciales inválidas"}), 401
+        except CredentialServiceUnavailable:
+            current_app.logger.warning(
+                "self-register: sistema externo no disponible (%s)", control_number
             )
-        except requests.RequestException as e:
-            return jsonify(
-                {
-                    "message": "Error conectando al servicio de validación de credenciales",
-                    "error": str(e),
-                }
-            ), 503
-
-        if r.status_code != 200:
-            # propagate 401 or 503 as appropriate
-            if r.status_code == 401:
-                return jsonify({"message": "Credenciales inválidas"}), 401
-            return jsonify({"message": "Error en la validación de credenciales"}), 503
-
-        auth_data = r.json()
-        student_info = auth_data.get("student")
-        if not student_info:
-            return jsonify(
-                {
-                    "message": "No se obtuvo información del estudiante tras validar credenciales"
-                }
-            ), 503
-
-        # Ensure student exists/updated in DB
-        student = Student.query.filter_by(control_number=control_number).first()
-        if not student:
-            student = Student()
-            student.control_number = control_number
-            student.full_name = (
-                student_info.get("full_name") or student_info.get("name") or ""
+            return (
+                jsonify(
+                    {
+                        "message": (
+                            "Servicio de validación no disponible. "
+                            "Intenta de nuevo en unos minutos."
+                        )
+                    }
+                ),
+                503,
             )
-            student.email = student_info.get("email") or ""
-            db.session.add(student)
-            db.session.commit()
-        else:
-            # update small fields
-            student.full_name = (
-                student_info.get("full_name")
-                or student_info.get("name")
-                or student.full_name
-            )
-            student.email = student_info.get("email") or student.email
-            db.session.add(student)
-            db.session.commit()
 
-        # Check existing attendance for this student+activity and refuse duplicates
+        # Asegurar que el estudiante exista/esté actualizado en la BD local
+        student = upsert_student(control_number, student_info)
+        db.session.commit()
+
+        # Rechazar duplicados: una sola sesión de asistencia por actividad
         existing_att = Attendance.query.filter_by(
             student_id=student.id, activity_id=activity.id
         ).first()
         if existing_att:
-            return jsonify(
-                {"message": "Ya existe un registro de asistencia para esta actividad"}
-            ), 409
+            return (
+                jsonify(
+                    {
+                        "message": "Ya existe un registro de asistencia para esta actividad"
+                    }
+                ),
+                409,
+            )
 
-        # Create attendance (self check-in). For magistral activities we record
-        # a check-in time and mark as 'Parcial' (same behavior as admin check-in).
+        # Self check-in: abre la sesión. 'Parcial' = presente pero sin cerrar.
         now = datetime.now(timezone.utc)
         attendance = Attendance()
         attendance.student_id = student.id
@@ -258,38 +235,42 @@ def self_register_api():
         attendance.status = "Parcial"
         db.session.add(attendance)
 
-        # If there's an existing registration, mark it as attended/confirmed
+        # Si había preregistro NO se cambia su estado aquí: el resultado
+        # final se decide en el checkout del admin. Solo se marca `attended`
+        # para que la lista pública muestre "Confirmado" (y no "No asistió")
+        # mientras la sesión sigue abierta.
         registration = Registration.query.filter_by(
             student_id=student.id, activity_id=activity.id
         ).first()
         if registration:
             registration.attended = True
-            registration.status = "Asistió"
-            registration.confirmation_date = db.func.now()
             db.session.add(registration)
 
         try:
             db.session.commit()
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            return jsonify(
-                {"message": "Error al crear registro de asistencia", "error": str(e)}
-            ), 500
+            current_app.logger.exception(
+                "self-register: error creando la asistencia (%s)", activity.id
+            )
+            return jsonify({"message": "Error al crear registro de asistencia"}), 500
 
         try:
             db.session.refresh(attendance)
         except Exception:
             pass
 
-        return jsonify(
-            {
-                "message": "Asistencia registrada",
-                "attendance": attendance_schema.dump(attendance),
-            }
-        ), 201
+        return (
+            jsonify(
+                {
+                    "message": "Asistencia registrada",
+                    "attendance": attendance_schema.dump(attendance),
+                }
+            ),
+            201,
+        )
 
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        return jsonify(
-            {"message": "Error al procesar registro in situ", "error": str(e)}
-        ), 500
+        current_app.logger.exception("Error al procesar registro in situ")
+        return jsonify({"message": "Error al procesar el registro in situ"}), 500
