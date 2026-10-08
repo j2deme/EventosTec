@@ -4,7 +4,6 @@ from app import db
 from app.models.event import Event
 from app.models.attendance import Attendance
 from app.models.student import Student
-from datetime import datetime
 
 
 stats_bp = Blueprint("stats", __name__, url_prefix="/api/stats")
@@ -39,14 +38,15 @@ def get_general_stats():
 
     stats_data["total_students"] = Student.query.count()
 
-    # Agregar estadísticas específicas de registros
-    from datetime import timezone as _tz
-
-    today = datetime.now(_tz.utc).date()
+    # Agregar estadísticas específicas de registros. "Hoy" se calcula en la
+    # zona de la app: `created_at` guarda hora local y el servidor suele estar
+    # en UTC, con `datetime.now(utc).date()` el corte de "hoy" ocurría a las
+    # 18:00 h (hora de México) en lugar de a medianoche.
+    from app.utils.datetime_utils import app_today
 
     # Asistencias de hoy
     stats_data["today_attendances"] = Attendance.query.filter(
-        db.func.date(Attendance.created_at) == today
+        db.func.date(Attendance.created_at) == app_today()
     ).count()
 
     return jsonify(stats_data), 200

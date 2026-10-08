@@ -137,6 +137,41 @@ def db_now_local(app_timezone=None):
     return db_wall_local(datetime.now(timezone.utc), app_timezone)
 
 
+def app_timezone_info(app_timezone=None):
+    """Devuelve el ``tzinfo`` de la aplicación (``APP_TIMEZONE``).
+
+    Fallback a UTC si ni ``zoneinfo`` ni ``pytz`` están disponibles.
+    """
+    if app_timezone is None:
+        try:
+            app_timezone = AppSettings.app_timezone()
+        except Exception:
+            app_timezone = "America/Mexico_City"
+
+    try:
+        import zoneinfo
+
+        return zoneinfo.ZoneInfo(app_timezone)
+    except Exception:
+        try:
+            import pytz
+
+            return pytz.timezone(app_timezone)
+        except Exception:
+            return timezone.utc
+
+
+def app_today(app_timezone=None):
+    """Fecha de hoy (``date``) en la zona horaria de la aplicación.
+
+    Los filtros "registros de hoy" deben usar esta fecha y no
+    ``date.today()``/``datetime.now().date()``: dependen de la zona del
+    servidor (normalmente UTC) y con la columna ya en hora local dejaban
+    fuera —o de más— las filas del atardecer (18:00–24:00 h).
+    """
+    return datetime.now(timezone.utc).astimezone(app_timezone_info(app_timezone)).date()
+
+
 def safe_iso(dt):
     """Return an ISO 8601 string for a datetime-like value in a safe way.
 

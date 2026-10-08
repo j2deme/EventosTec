@@ -1,6 +1,20 @@
 from app import db
 
 
+def _now_local_default():
+    """Default de `created_at`/`updated_at`: hora local naive.
+
+    Las columnas `datetime` guardan wall time local (ver `docs/TIMEZONE_FIX.md`).
+    `db.func.now()` usa el reloj del servidor MySQL (UTC en producción), y como
+    la "Fecha registro" de asistencias se muestra en el admin, salía 6 h
+    adelantada (13:19 reales → 19:19 en pantalla). El import se hace dentro de
+    la función para evitar ciclos al cargar los modelos.
+    """
+    from app.utils.datetime_utils import db_now_local
+
+    return db_now_local()
+
+
 class Attendance(db.Model):
     __tablename__ = "attendances"
 
@@ -18,11 +32,19 @@ class Attendance(db.Model):
     # Campos calculados
     attendance_percentage = db.Column(db.Float, default=0.0)
     status = db.Column(db.Enum("Asistió", "Parcial", "Ausente"), default="Ausente")
-    created_at = db.Column(db.DateTime, server_default=db.func.now(), nullable=False)
+    created_at = db.Column(
+        db.DateTime,
+        # Calculado en Python (hora local). `server_default` queda solo como
+        # respaldo para INSERTs hechos con SQL crudo.
+        default=_now_local_default,
+        server_default=db.func.now(),
+        nullable=False,
+    )
     updated_at = db.Column(
         db.DateTime,
+        default=_now_local_default,
         server_default=db.func.now(),
-        onupdate=db.func.now(),
+        onupdate=_now_local_default,
         nullable=False,
     )
 

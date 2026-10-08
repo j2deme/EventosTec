@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 from datetime import datetime, timezone
 from marshmallow import ValidationError
 from app.utils.datetime_utils import (
+    app_today,
     db_now_local,
     db_wall_local,
     parse_datetime_with_timezone,
@@ -161,11 +162,11 @@ def get_attendances():
 
         # Estadísticas agregadas sobre toda la consulta (no solo la página)
         try:
-            from datetime import date
-
-            # contar asistencias creadas hoy
+            # Contar asistencias creadas hoy. La columna guarda hora local de
+            # la app, así que "hoy" se calcula en APP_TIMEZONE y no en la zona
+            # del servidor (normalmente UTC), que desfasaba el conteo.
             stats_today = base_query.filter(
-                db.func.date(Attendance.created_at) == date.today()
+                db.func.date(Attendance.created_at) == app_today()
             ).count()
         except Exception:
             stats_today = 0

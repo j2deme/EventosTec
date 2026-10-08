@@ -117,9 +117,42 @@ Write sites converted:
 
 - 12 assignment sites converted (`db.func.now()` → `db_now_local()`) in `registrations_bp`, `public_registrations_bp`, `attendances_bp`, `attendance_service` and `registration_service`.
 - `Registration.registration_date` gained a **Python-side default** (`_registration_date_default()`, lazy import so the models don't create an import cycle). New preregistrations no longer depend on the MySQL clock; `server_default` is kept as a fallback for raw-SQL inserts (there are no bulk inserts of `Registration`, so the client-side default is safe).
-- `created_at` / `updated_at` still use `server_default=db.func.now()` (UTC): they are metadata and only show up as a display fallback when `registration_date` is null.
+- `created_at` / `updated_at` still use `server_default=db.func.now()` (UTC): they are metadata and only show up as a display fallback when `registration_date` is null. Exception: `attendances.created_at`, see the next follow-up.
 
 - Tests: `tests/test_registration_dates_wall_local.py` — default value, re-register, checkout confirmation, plus a guard that fails if either field is ever assigned with `db.func.now()` again.
+
+### Follow-up (2026-10-07, tarde): `attendances.created_at`
+
+`Attendance.created_at` **is** the **Fecha registro** column of the admin
+assistances table, so the UTC `server_default` showed check-ins recorded before
+2 PM as `19:19` (+6 h):
+
+- **Write**: `Attendance.created_at` / `updated_at` gained Python-side defaults
+  (`_now_local_default()` → `db_now_local()`), same pattern as
+  `Registration.registration_date`. `server_default=db.func.now()` is kept only
+  as a fallback for raw-SQL inserts. Every `Attendance(...)` insert (10 sites)
+  picks it up automatically.
+- **Read/aggregate**: the "hoy" filters now use `app_today()`
+  (`app/utils/datetime_utils.py`), i.e. the date in `APP_TIMEZONE` instead of
+  the server's (`date.today()` / `datetime.now(utc).date()`), otherwise the
+  cutoff fell at 18:00 h local. Applied in `GET /api/attendances/`
+  (`stats.today`) and `GET /api/stats/` (`today_attendances`).
+- **Existing rows**: they still hold UTC wall time. Correct them with
+  `tools/backfill_attendance_created_at_local.py` (dry-run by default). It
+  classifies every row — `utc_confirmed` when `created_at == check_in_time + 6 h`
+  or when only the shifted value fits the activity window, `local_confirmed`
+  when it is already local (never touched), `ambiguous` when there is no
+  signal — and marks the run in `app_settings` so it cannot be applied twice.
+  On the 2026-10-07 dump: 4804 rows, 351 with a hard signal (all 307 rows of
+  that day included) and 4453 without one; the latter are still UTC *by
+  construction* (no code path ever assigns `created_at`), so they are fixed by
+  default and left out with `--strict`.
+  **Order matters**: run it before deploying the write fix (or pass
+  `--cutoff` with the deploy time); after the deploy, new rows arrive in local
+  time and only the cutoff separates them from the old ones.
+- Tests: `tests/test_attendance_created_at_wall_local.py` (defaults, API round
+  trip, `app_today()`), plus `tests/api/test_stats.py` now computes "hoy" with
+  the same helper as the endpoint.
 
 **Payload values are not converted.** `parse_datetime_with_timezone()` keeps the wall time the client sent (an `<input type="datetime-local">` value is naive local and is deliberately tagged as UTC), so wrapping it in `db_wall_local()` would subtract 6 hours from every manual check-in. Comparisons keep using aware UTC (`datetime.now(timezone.utc)`); only _assignments_ are converted.
 

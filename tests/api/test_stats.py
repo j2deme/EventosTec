@@ -211,8 +211,11 @@ def test_get_stats_today_attendances_only_counts_today(client, sample_data, app)
         att_yesterday.created_at = datetime.now(timezone.utc) - timedelta(days=1)
         db.session.commit()
 
-        # Contar asistencias de hoy en la base de datos
-        today = datetime.now().date()
+        # Contar asistencias de hoy en la base de datos. "Hoy" se calcula en
+        # la zona de la app: es el mismo criterio que usa el endpoint.
+        from app.utils.datetime_utils import app_today
+
+        today = app_today()
         today_count = Attendance.query.filter(
             db.func.date(Attendance.created_at) == today
         ).count()
