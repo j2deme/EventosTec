@@ -210,11 +210,16 @@ def get_registrations():
                 # Si falla el filtro de búsqueda, no rompemos la consulta; seguir sin filtro
                 pass
 
+        # Filtros con columna explícita: `filter_by()` resuelve el nombre en
+        # el namespace de la entidad raíz y falla con InvalidRequestError
+        # ("Entity namespace ... has no property") cuando `search` ya unió
+        # activities/students con aliases → 500 en el listado del portal y
+        # del admin. Con la columna calificada el SQL es inequívoco.
         if student_id:
-            query = query.filter_by(student_id=student_id)
+            query = query.filter(Registration.student_id == student_id)
 
         if activity_id:
-            query = query.filter_by(activity_id=activity_id)
+            query = query.filter(Registration.activity_id == activity_id)
 
         # Filtrar por evento (actividad.event_id)
         if event_id:
@@ -238,7 +243,7 @@ def get_registrations():
                 pass
 
         if status:
-            query = query.filter_by(status=status)
+            query = query.filter(Registration.status == status)
 
         # Ordenar por fecha de registro
         query = query.order_by(Registration.registration_date.desc())
