@@ -11,7 +11,6 @@ from openpyxl import Workbook
 from typing import Any
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
-from datetime import datetime, timezone
 from app.utils.datetime_utils import (
     db_now_local,
     localize_naive_datetime,
@@ -1056,7 +1055,7 @@ def export_complementary_credits():
             if len(events) == 1
             else f"multi_{len(events)}_eventos"
         )
-        filename = f"creditos_complementarios_{scope_slug}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.xlsx"
+        filename = f"creditos_complementarios_{scope_slug}_{db_now_local().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
         return send_file(
             output,

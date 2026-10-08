@@ -1,10 +1,14 @@
 from flask import Blueprint, request, jsonify, render_template, current_app
 from flask import Response
 from flask_jwt_extended import jwt_required
-from datetime import datetime, timezone
+from datetime import datetime
 from app import db
 from app.utils.auth_helpers import require_admin
-from app.utils.datetime_utils import app_timezone_info, localize_naive_datetime
+from app.utils.datetime_utils import (
+    app_timezone_info,
+    db_now_local,
+    localize_naive_datetime,
+)
 from app.services.attendance_list_service import build_attendance_list_context
 from app.models.registration import Registration
 from app.models.activity import Activity
@@ -427,9 +431,8 @@ def event_registrations_txt():
 
         content = "\n".join(lines)
 
-        # Generar filename seguro
-        # Use UTC-aware timestamp for filename
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        # Generar filename seguro (timestamp en hora local de la app)
+        ts = db_now_local().strftime("%Y%m%dT%H%M%S")
         safe_event_name = (event.name or "evento").replace(" ", "_").replace("/", "_")
         filename = f"{safe_event_name}_{ts}.txt"
 
@@ -587,8 +590,8 @@ def hours_compliance_excel():
         ws.column_dimensions["D"].width = 30
         ws.column_dimensions["E"].width = 18
 
-        # Generar filename con slug del evento y timestamp
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        # Generar filename con slug del evento y timestamp (hora local)
+        ts = db_now_local().strftime("%Y%m%dT%H%M%S")
         # Crear slug del nombre del evento
         event_slug = re.sub(r"[^\w\s-]", "", event.name.lower())
         event_slug = re.sub(r"[-\s]+", "-", event_slug).strip("-")

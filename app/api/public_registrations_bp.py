@@ -1401,8 +1401,8 @@ def api_export_registrations_xlsx():
             t = t[:maxlen].rstrip("-")
         return t or "actividad"
 
-    # Use UTC-aware timestamp for filename
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    # Timestamp del filename en hora local de la app
+    ts = db_now_local().strftime("%Y%m%d_%H%M%S")
     slug = slugify(getattr(activity, "name", "")[:50])
     filename = f"{slug}-{ts}.xlsx"
 
