@@ -245,8 +245,50 @@ def get_registrations():
         if status:
             query = query.filter(Registration.status == status)
 
-        # Ordenar por fecha de registro
-        query = query.order_by(Registration.registration_date.desc())
+        # Orden por el parámetro `sort` (formato "campo:dirección").
+        #
+        # - Sin parámetro (o con un valor no soportado) se mantiene el orden
+        #   histórico `registration_date DESC`: el panel de admin no envía
+        #   `sort`, así que su listado no cambia de comportamiento.
+        # - El portal del estudiante envía `activity.start_datetime:asc`
+        #   (cronológico: la actividad más próxima primero).
+        sort_param = (request.args.get("sort") or "").strip()
+        sort_field, _, sort_dir = sort_param.partition(":")
+        sort_field = sort_field.strip()
+        sort_dir = sort_dir.strip().lower()
+
+        if sort_field == "registration_date" and sort_dir in ("asc", "desc"):
+            sort_col = Registration.registration_date
+            query = query.order_by(
+                sort_col.is_(None),
+                sort_col.desc() if sort_dir == "desc" else sort_col.asc(),
+            )
+        elif sort_field in ("activity.name", "activity.start_datetime") and (
+            sort_dir in ("asc", "desc")
+        ):
+            # Alias propio para el JOIN: `search` ya une activities con otro
+            # alias y un JOIN sin alias rompería con MySQL ("Not unique
+            # table/alias") cuando vienen juntos en la misma petición.
+            ActivitySort = aliased(Activity)
+            query = query.outerjoin(
+                ActivitySort, ActivitySort.id == Registration.activity_id
+            )
+            sort_col = (
+                ActivitySort.name
+                if sort_field == "activity.name"
+                else ActivitySort.start_datetime
+            )
+            # Sin actividad (o sin fecha) el registro queda al final en ambos
+            # sentidos; `Registration.id` desempata para que la paginación
+            # sea estable cuando varias actividades comparten fecha de inicio.
+            query = query.order_by(
+                sort_col.is_(None),
+                sort_col.desc() if sort_dir == "desc" else sort_col.asc(),
+                Registration.id.asc(),
+            )
+        else:
+            # Orden histórico / valor desconocido: no romper el listado.
+            query = query.order_by(Registration.registration_date.desc())
 
         registrations = query.paginate(page=page, per_page=per_page, error_out=False)
 

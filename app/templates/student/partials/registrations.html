@@ -54,16 +54,17 @@
           @change="loadRegistrations()"
           class="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md p-2"
         >
-          <option value="registration_date:desc">Más recientes</option>
-          <option value="registration_date:asc">Más antiguos</option>
-          <option value="activity.name:asc">Nombre (A-Z)</option>
-          <option value="activity.name:desc">Nombre (Z-A)</option>
+          <!-- Por defecto: cronológico (la actividad más próxima primero) -->
           <option value="activity.start_datetime:asc">
-            Fecha inicio (asc)
+            Fecha inicio (cronológico)
           </option>
           <option value="activity.start_datetime:desc">
             Fecha inicio (desc)
           </option>
+          <option value="registration_date:desc">Más recientes</option>
+          <option value="registration_date:asc">Más antiguos</option>
+          <option value="activity.name:asc">Nombre (A-Z)</option>
+          <option value="activity.name:desc">Nombre (Z-A)</option>
         </select>
       </div>
 

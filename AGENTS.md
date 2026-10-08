@@ -62,6 +62,13 @@ Contratos y convenciones JSON importantes
 - `GET /api/registrations/<id>`:
   - Respuesta por defecto: `{ registration: <object> }` (anidado, serializado por Marshmallow).
   - Con `?synth=1`: respuesta adicional `synthesized: { registration_id, student_name, student_identifier, email, activity_name, event_name, ... }`.
+- `GET /api/registrations/` (listado):
+  - Filtros: `page`, `per_page`, `student_id`, `activity_id`, `status`, `event_id`, `search`.
+  - Orden: `sort=campo:direccion` con whitelist de campos (`registration_date`, `activity.name`, `activity.start_datetime`) y direcciones `asc|desc`.
+    - Sin parámetro o con un valor no soportado ⇒ `registration_date:desc` (orden histórico: **el panel de admin no envía `sort` y no cambia**).
+    - El portal del estudiante usa `activity.start_datetime:asc` (cronológico, lo más próximo primero entre las futuras).
+    - El orden por actividad usa un **alias propio** del JOIN a `activities`, porque `search` ya une esa tabla con otro alias (en MySQL, un JOIN sin alias fallaría con "Not unique table/alias").
+  - Respuesta: `{ registrations, total, pages, current_page, page }`; cada item incluye `attendance` (ver `docs/SELF_REGISTER.md` §4).
 - `POST /api/attendances/sync-related`:
   - Body esperado: `{ source_activity_id, student_ids: [ids]|null, dry_run: boolean }`.
   - Si `student_ids === null`, backend debe interpretar que sincronice todos desde la actividad fuente.

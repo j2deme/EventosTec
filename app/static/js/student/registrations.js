@@ -18,7 +18,9 @@ function studentRegistrationsManager() {
     filters: {
       search: "",
       status: "",
-      sort: "registration_date:desc",
+      // Cronológico: la actividad más próxima primero (lo soporta el backend
+      // como `sort=activity.start_datetime:asc`; ver app/api/registrations_bp.py)
+      sort: "activity.start_datetime:asc",
     },
 
     init() {
@@ -87,7 +89,9 @@ function studentRegistrationsManager() {
       this.errorMessage = "";
 
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -190,7 +194,9 @@ function studentRegistrationsManager() {
       if (!this.registrationToCancel) return;
 
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -228,7 +234,9 @@ function studentRegistrationsManager() {
 
     async reRegisterForActivity(registration) {
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;
@@ -532,7 +540,9 @@ function studentRegistrationsManager() {
 
     getCurrentStudentId() {
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) return null;
 
         const payload = JSON.parse(atob(token.split(".")[1]));
