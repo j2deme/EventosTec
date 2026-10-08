@@ -328,7 +328,7 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   <span
-                    x-text="registration.created_at_formatted || (window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(registration.created_at) : formatDate(registration.created_at))"
+                    x-text="registration.created_at_formatted || (window.dateHelpers && window.dateHelpers.formatDate ? window.dateHelpers.formatDate(registration.registration_date || registration.created_at) : formatDate(registration.registration_date || registration.created_at))"
                   ></span>
                 </td>
                 <td
