@@ -515,3 +515,103 @@ def test_batch_checkout_dry_run_reports_paused_without_changes(
             student_id=sample_data["student_id"], activity_id=activity_id
         ).first()
         assert reg.status == "Confirmado"
+
+
+def _activity_with_open_attendance(sample_data, app):
+    """Crea una actividad de 2 h con una asistencia abierta y devuelve ids."""
+    with app.app_context():
+        activity = Activity(
+            event_id=sample_data["event_id"],
+            department="TEST",
+            name="Actividad cierre real",
+            start_datetime=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+            end_datetime=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+            duration_hours=2.0,
+            activity_type="Taller",
+            location="Aula 101",
+            modality="Presencial",
+        )
+        db.session.add(activity)
+        db.session.commit()
+
+        attendance = Attendance(
+            student_id=sample_data["student_id"],
+            activity_id=activity.id,
+            check_in_time=datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc),
+        )
+        db.session.add(attendance)
+        db.session.commit()
+        return activity.id, attendance.id
+
+
+def test_batch_checkout_persists_actual_end_time(
+    client, auth_headers, sample_data, app
+):
+    """La hora REAL de cierre se registra en la actividad (informativa)."""
+    activity_id, _attendance_id = _activity_with_open_attendance(sample_data, app)
+
+    response = client.post(
+        "/api/attendances/batch-checkout",
+        headers=auth_headers,
+        json={
+            "activity_id": activity_id,
+            "dry_run": False,
+            # datetime-local del form: hora local naive
+            "actual_end_time": "2024-01-01T13:15",
+        },
+    )
+
+    assert response.status_code == 200
+    summary = json.loads(response.data)["summary"]
+    assert summary["actual_end_saved"] is True
+    assert summary["actual_end_time"]
+
+    with app.app_context():
+        activity = db.session.get(Activity, activity_id)
+        # Se persiste como wall time local, igual que el resto de columnas
+        assert activity.actual_end_datetime == datetime(2024, 1, 1, 13, 15)
+
+
+def test_batch_checkout_dry_run_does_not_persist_actual_end(
+    client, auth_headers, sample_data, app
+):
+    """La vista previa ecoa la hora de cierre pero no escribe."""
+    activity_id, _attendance_id = _activity_with_open_attendance(sample_data, app)
+
+    response = client.post(
+        "/api/attendances/batch-checkout",
+        headers=auth_headers,
+        json={
+            "activity_id": activity_id,
+            "dry_run": True,
+            "actual_end_time": "2024-01-01T13:15",
+        },
+    )
+
+    assert response.status_code == 200
+    summary = json.loads(response.data)["summary"]
+    assert summary["actual_end_saved"] is False
+    assert summary["actual_end_time"]
+
+    with app.app_context():
+        activity = db.session.get(Activity, activity_id)
+        assert activity.actual_end_datetime is None
+
+
+def test_batch_checkout_rejects_invalid_actual_end(
+    client, auth_headers, sample_data, app
+):
+    """Un valor ilegible no dispara un 500: se responde 400."""
+    activity_id, _attendance_id = _activity_with_open_attendance(sample_data, app)
+
+    response = client.post(
+        "/api/attendances/batch-checkout",
+        headers=auth_headers,
+        json={
+            "activity_id": activity_id,
+            "dry_run": True,
+            "actual_end_time": "no-es-una-fecha",
+        },
+    )
+
+    assert response.status_code == 400

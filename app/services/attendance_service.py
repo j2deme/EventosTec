@@ -5,6 +5,7 @@ from typing import Iterable, cast
 
 from app.models.attendance import Attendance
 from app.models.activity import Activity
+from app.services.self_register_service import arrival_tolerance_minutes
 
 
 def _normalize_external_json(obj):
@@ -89,6 +90,67 @@ def _activity_window_utc(activity):
         return (start, start + timedelta(hours=float(duration)))
     except Exception:
         return (start, None)
+
+
+def _arrival_utc(attendance):
+    """Llegada real del estudiante en UTC aware.
+
+    Usa ``arrival_time`` (columna nueva, fijada una sola vez en el primer
+    check-in). En filas antiguas cae al **menor** de ``created_at`` y
+    ``check_in_time``: el ``check_in_time`` puede venir plegado por una pausa
+    (queda más tarde que la llegada) y el ``created_at`` puede ser posterior
+    si la fila se creó antes del check-in (sync/batch), así que el mínimo es
+    la cota conservadora: nunca *inventa* un retraso.
+
+    Nota: en filas anteriores al backfill de ``created_at``
+    (``tools/backfill_attendance_created_at_local.py``) esa columna todavía
+    está en UTC y se lee 6 h tarde; el mínimo con ``check_in_time`` (local)
+    amortigua el caso típico.
+    """
+    arrival = getattr(attendance, "arrival_time", None)
+    if arrival is not None:
+        return _ensure_utc(arrival)
+
+    candidates = [
+        utc
+        for utc in (
+            _ensure_utc(getattr(attendance, "created_at", None)),
+            _ensure_utc(getattr(attendance, "check_in_time", None)),
+        )
+        if utc is not None
+    ]
+    return min(candidates) if candidates else None
+
+
+def _forgiven_late_seconds(attendance, activity, act_start):
+    """Segundos de retraso que se **perdonan** al calcular el porcentaje.
+
+    Tolerancia = ``arrival_tolerance_minutes(activity)``: el mismo número que
+    cierra la ventana de auto-registro, así la puerta y el crédito no pueden
+    divergir. Regla de negocio:
+
+    - El perdón es **incondicional** (no exige haber llegado hasta el final).
+      Quien llega dentro de la tolerancia y se queda hasta el final acredita
+      el 100% aunque el evento se cierre a la hora programada.
+    - Sólo se perdona el *retraso*, nunca la pausa: una salida y regreso
+      sigue descontando presencia, aunque el evento se desborde.
+    - El crédito se recorta a la duración programada (ver
+      ``compute_attendance_metrics``), de modo que el desborde no genera
+      horas extra dentro del porcentaje.
+    """
+    arrival = _arrival_utc(attendance)
+    if arrival is None or act_start is None:
+        return 0.0
+
+    late_seconds = (arrival - act_start).total_seconds()
+    if late_seconds <= 0:
+        return 0.0
+
+    try:
+        tolerance_seconds = float(arrival_tolerance_minutes(activity)) * 60.0
+    except Exception:
+        tolerance_seconds = 0.0
+    return min(late_seconds, tolerance_seconds)
 
 
 def _fold_paused_seconds(attendance, until):
@@ -204,6 +266,23 @@ def compute_attendance_metrics(
     divergía (usaba duración neta en vez de la intersección con la ventana
     de la actividad, y no aplicaba la regla de "pausa >= duración").
 
+    Fórmula (denominador fijo = duración programada, para que nadie que hoy
+    acredita "Asistió" baje de categoría):
+
+    ==========  ==========================================================
+    presencia   ``|[llegada, salida] ∩ [inicio, fin] programados| - pausas``
+    perdón      ``min(max(0, llegada - inicio), tolerancia)`` (incondicional)
+    crédito     ``min(duración programada, presencia + perdón)``
+    porcentaje  ``100 * crédito / duración programada``
+    ==========  ==========================================================
+
+    La **tolerancia** es la misma que cierra la ventana de auto-registro
+    (``self_register_service.arrival_tolerance_minutes``), y el retraso se
+    mide con ``arrival_time`` (no con ``check_in_time``, que las pausas
+    desplazan). El tope en el fin programado hace que un evento que se
+    desborda no "rescate" pausas ni salidas tempranas: el desborde queda como
+    dato informativo (``activities.actual_end_datetime``).
+
     Args:
         attendance: fila a evaluar (no se modifica).
         activity: actividad a evaluar; por defecto ``attendance.activity``.
@@ -280,7 +359,18 @@ def compute_attendance_metrics(
         # Si algo falla al comparar la pausa, seguimos con el cálculo usual.
         pass
 
-    percentage = round(max(0, (net_seconds / expected_seconds) * 100), 2)
+    # Crédito = presencia + retraso perdonado (tolerancia de llegada),
+    # recortado a la duración programada:
+    #   * el retraso dentro de la tolerancia no se cobra (llegada "a tiempo"),
+    #   * una pausa NUNCA se rescata con el desborde del evento (el tope en el
+    #     fin programado lo impide: sólo se acredita hasta 100%),
+    #   * llegar tarde y pausar sólo perdona el retraso, no la pausa.
+    credit_seconds = min(
+        expected_seconds,
+        net_seconds + _forgiven_late_seconds(attendance, activity, act_start),
+    )
+
+    percentage = round(max(0, (credit_seconds / expected_seconds) * 100), 2)
     return (percentage, _status_for_percentage(percentage))
 
 

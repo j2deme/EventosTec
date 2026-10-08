@@ -30,6 +30,10 @@ class Activity(db.Model):
     )
     # Public slug para URL pública (e.g. 'atr-vete-a-innovar')
     public_slug = db.Column(db.String(200), nullable=True)
+    # Hora REAL en que se cerró la actividad (se registra al hacer el checkout
+    # batch). Informativa: el porcentaje de asistencia se sigue recortando a
+    # la ventana programada, de modo que un desborde nunca "rescata" ausencias.
+    actual_end_datetime = db.Column(db.DateTime, nullable=True)
 
     # Relaciones
     attendances = db.relationship(
@@ -63,6 +67,7 @@ class Activity(db.Model):
             "description": self.description,
             "start_datetime": safe_iso(self.start_datetime),
             "end_datetime": safe_iso(self.end_datetime),
+            "actual_end_datetime": safe_iso(self.actual_end_datetime),
             "duration_hours": self.duration_hours,
             "activity_type": self.activity_type,
             "location": self.location,

@@ -286,5 +286,10 @@ class AppSettings:
 
     @staticmethod
     def public_self_register_close_minutes_after_start() -> int:
-        """Minutos después del inicio en que cierra el auto-registro (default: 20)."""
-        return SettingsManager.get("public_self_register_close_minutes_after_start", 20)
+        """Minutos después del inicio en que cierra el auto-registro (default: 15).
+
+        Es el **tope** de la tolerancia de llegada: el valor efectivo es
+        ``min(este_setting, 20% de la duración)``; ver
+        ``self_register_service.arrival_tolerance_minutes``.
+        """
+        return SettingsManager.get("public_self_register_close_minutes_after_start", 15)

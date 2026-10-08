@@ -27,6 +27,7 @@ class AttendanceSchema(ma.SQLAlchemyAutoSchema):
 
     # Campos de solo lectura
     id = fields.Int(dump_only=True)
+    arrival_time = fields.DateTime(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
 

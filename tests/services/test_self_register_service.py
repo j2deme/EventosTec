@@ -13,10 +13,12 @@ from app.services.self_register_service import (
 
 
 class _FakeActivity:
-    """Mínimo interlocutor: el servicio solo lee ``start_datetime``."""
+    """Mínimo interlocutor: el servicio lee ``start_datetime`` (y, si existe,
+    ``duration_hours`` para acotar la tolerancia a 20% de la duración)."""
 
-    def __init__(self, start_datetime):
+    def __init__(self, start_datetime, duration_hours=None):
         self.start_datetime = start_datetime
+        self.duration_hours = duration_hours
 
 
 def _activity_start(delta: timedelta) -> _FakeActivity:
@@ -40,11 +42,22 @@ def test_window_defaults_without_settings(app):
     opens, closes = self_register_window(_FakeActivity(start))
 
     assert opens == start - timedelta(minutes=30)
-    assert closes == start + timedelta(minutes=20)
+    assert closes == start + timedelta(minutes=15)
+
+
+def test_window_closes_at_twenty_percent_of_a_short_activity(app):
+    """Tolerancia = min(setting, 20% de la duración): 60 min -> 12, 4 h -> 15."""
+    start = datetime(2026, 10, 5, 7, 0, tzinfo=timezone.utc)
+
+    _opens, closes = self_register_window(_FakeActivity(start, duration_hours=1.0))
+    assert closes == start + timedelta(minutes=12)
+
+    _opens, closes = self_register_window(_FakeActivity(start, duration_hours=4.0))
+    assert closes == start + timedelta(minutes=15)
 
 
 def test_state_open_inside_window(app):
-    # empieza en 5 min -> la ventana (abre -30 / cierra +20) ya está abierta
+    # empieza en 5 min -> la ventana (abre -30 / cierra +15) ya está abierta
     state, opens_at, closes_at = self_register_state(
         _activity_start(timedelta(minutes=5))
     )

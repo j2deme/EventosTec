@@ -5,7 +5,9 @@ solo permite marcarse presente dentro de un rango configurable alrededor del
 inicio de la actividad::
 
     abre   = inicio - public_self_register_open_minutes_before_start   (default 30)
-    cierra = inicio + public_self_register_close_minutes_after_start   (default 20)
+    cierra = inicio + arrival_tolerance_minutes(activity)              (default 15,
+             acotado además a 20% de la duración: una conferencia de 60 min
+             cierra a los 12 min)
 
 Antes solo existía el límite superior, hardcodeado en tres lugares (GET, POST
 y el countdown del frontend). Con eso un QR generado días antes dejaba el
@@ -15,6 +17,12 @@ Esta función es la **única** fuente de la ventana: la usan la vista del
 formulario (para habilitar/ocultar el form y pasar el deadline al countdown)
 y el endpoint POST (para aceptar o rechazar el registro), de modo que no
 pueden divergir.
+
+**La tolerancia es un solo número con dos caras** (ver
+``arrival_tolerance_minutes``): además de cerrar la puerta del auto-registro,
+esos mismos minutos se **perdonan** en el porcentaje de asistencia
+(``attendance_service.compute_attendance_metrics``), de modo que quien llega
+dentro de la tolerancia y se queda hasta el final acredita el 100%.
 """
 
 from __future__ import annotations
@@ -29,6 +37,11 @@ from app.utils.datetime_utils import localize_naive_datetime
 OPEN = "open"
 NOT_OPEN = "not_open"
 CLOSED = "closed"
+
+# Tolerancia de llegada: valor por defecto (minutos) y fracción de la duración
+# programada que puede perdonarse. Ver `arrival_tolerance_minutes()`.
+CLOSE_MINUTES_AFTER_START_DEFAULT = 15
+ARRIVAL_TOLERANCE_DURATION_RATIO = 0.20
 
 GENERIC_NOT_AVAILABLE_MESSAGE = (
     "El auto-registro para esta actividad ha finalizado o no está disponible."
@@ -64,6 +77,70 @@ def _local_hhmm(value_utc: Optional[datetime], tz_name: str) -> str:
     return local.strftime("%H:%M")
 
 
+def _duration_minutes(activity) -> Optional[float]:
+    """Duración programada de la actividad en minutos, o ``None``.
+
+    Prefiere ``duration_hours`` (es la misma fuente que usa
+    ``attendance_service._activity_window_utc`` para armar la ventana de la
+    actividad) y cae a ``end_datetime - start_datetime`` si falta.
+    """
+    if activity is None:
+        return None
+
+    try:
+        duration = getattr(activity, "duration_hours", None)
+        if duration is not None and float(duration) > 0:
+            return float(duration) * 60.0
+    except (TypeError, ValueError):
+        pass
+
+    start = getattr(activity, "start_datetime", None)
+    end = getattr(activity, "end_datetime", None)
+    try:
+        if start is not None and end is not None and end > start:
+            return (end - start).total_seconds() / 60.0
+    except Exception:
+        return None
+    return None
+
+
+def arrival_tolerance_minutes(activity) -> int:
+    """Minutos de **tolerancia de llegada** de la actividad (>= 0).
+
+    Un solo número que gobierna las dos caras de la tolerancia:
+
+    1. **Puerta**: ``self_register_window()`` cierra el auto-registro en
+       ``inicio + tolerancia``.
+    2. **Crédito**: ``attendance_service.compute_attendance_metrics()`` perdona
+       hasta ``tolerancia`` minutos de retraso al calcular el porcentaje, de
+       modo que quien llega dentro de la tolerancia y se queda hasta el final
+       acredita el 100%, aunque el evento termine a la hora programada.
+
+    Regla: ``min(configurado, 20% de la duración programada)``. La fracción
+    mantiene la tolerancia coherente con el umbral del 80% en actividades
+    cortas: para llegar al 80% de una conferencia de 60 min el límite
+    matemático es llegar 12 min tarde, así que allí mandan 12 y no 15; en un
+    taller de 4 h manda el valor configurado.
+
+    Returns:
+        Minutos enteros. Si la actividad no tiene duración conocida devuelve
+        ``max(0, configurado)``.
+    """
+    try:
+        configured = int(AppSettings.public_self_register_close_minutes_after_start())
+    except Exception:
+        configured = CLOSE_MINUTES_AFTER_START_DEFAULT
+    configured = max(0, configured)
+
+    minutes = _duration_minutes(activity)
+    if not minutes:
+        return configured
+
+    # Piso: la tolerancia nunca supera el 20% de la duración programada.
+    proportional = int(minutes * ARRIVAL_TOLERANCE_DURATION_RATIO)
+    return max(0, min(configured, proportional))
+
+
 def self_register_window(activity) -> Optional[Tuple[datetime, datetime]]:
     """Devuelve ``(abre, cierra)`` en UTC aware para la actividad.
 
@@ -87,10 +164,7 @@ def self_register_window(activity) -> Optional[Tuple[datetime, datetime]]:
         before = int(AppSettings.public_self_register_open_minutes_before_start())
     except Exception:
         before = 30
-    try:
-        after = int(AppSettings.public_self_register_close_minutes_after_start())
-    except Exception:
-        after = 20
+    after = arrival_tolerance_minutes(activity)
 
     return (
         start_utc - timedelta(minutes=max(0, before)),

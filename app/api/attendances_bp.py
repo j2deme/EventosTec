@@ -7,6 +7,8 @@ from app.utils.datetime_utils import (
     db_now_local,
     db_wall_local,
     parse_datetime_with_timezone,
+    parse_wall_local,
+    safe_iso,
 )
 from app import db
 from app.schemas import attendance_schema
@@ -815,12 +817,19 @@ def batch_checkout():
         {
           "activity_id": <int>,
           "student_ids": [<int>, ...],   # opcional
-          "dry_run": true|false          # opcional, default true
+          "dry_run": true|false,         # opcional, default true
+          "actual_end_time": "ISO"       # opcional, hora REAL de cierre
         }
 
-    Returns: ``{ processed, updated, related_created, resumed_paused, details }``
-    ``details`` incluye ``percentage``, ``related_created`` y
-    ``registration_status`` (estado que quedará en la preregistro, si existe).
+    ``actual_end_time`` se guarda en ``activities.actual_end_datetime`` como
+    **dato informativo** (no entra en el porcentaje: ese se recorta a la
+    ventana programada) y se devuelve en ``summary.actual_end_time``. En
+    ``dry_run`` sólo se ecoa el valor, no se persiste.
+
+    Returns: ``{ processed, updated, related_created, resumed_paused,
+    actual_end_time, details }``. ``details`` incluye ``percentage``,
+    ``related_created`` y ``registration_status`` (estado que quedará en la
+    preregistro, si existe).
     """
     try:
         payload = request.get_json() or {}
@@ -843,6 +852,20 @@ def batch_checkout():
         activity = db.session.get(Activity, activity_id)
         if not activity:
             return jsonify({"message": "Actividad no encontrada"}), 404
+
+        # Hora REAL en que se cerró la actividad (dato informativo: el
+        # porcentaje se sigue recortando a la ventana programada). En dry_run
+        # no se toca la fila, sólo se ecoa lo que se aplicaría.
+        actual_end_value = payload.get("actual_end_time")
+        actual_end_wall = None
+        if actual_end_value not in (None, ""):
+            try:
+                actual_end_wall = parse_wall_local(actual_end_value)
+            except ValidationError as exc:
+                return jsonify({"message": exc.messages}), 400
+            if not dry_run:
+                activity.actual_end_datetime = actual_end_wall
+                db.session.add(activity)
 
         query = Attendance.query.filter_by(activity_id=activity_id)
         if student_ids:
@@ -975,9 +998,17 @@ def batch_checkout():
             summary["updated"] += 1
             summary["related_created"] += created_related
 
-        if not dry_run:
-            # commit already performed per-attendance
-            pass
+        if not dry_run and actual_end_wall is not None:
+            # El commit del loop sólo corre si había asistencias que cerrar.
+            db.session.commit()
+
+        # Se ecoa lo que quedó vigente (o lo que se aplicaría en dry-run).
+        summary["actual_end_time"] = safe_iso(
+            actual_end_wall
+            if actual_end_wall is not None
+            else getattr(activity, "actual_end_datetime", None)
+        )
+        summary["actual_end_saved"] = actual_end_wall is not None and not dry_run
 
         return (
             jsonify(

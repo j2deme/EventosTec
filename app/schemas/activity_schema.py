@@ -25,6 +25,8 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
     description = fields.Str(load_default=None)
     start_datetime = fields.DateTime(required=True)
     end_datetime = fields.DateTime(required=True)
+    # Hora real de cierre: sólo la escribe batch-checkout (informativa).
+    actual_end_datetime = fields.DateTime(dump_only=True)
     duration_hours = fields.Float(required=True, validate=validate.Range(min=0))
     activity_type = fields.Str(
         required=True,
@@ -143,6 +145,7 @@ class ActivitySchema(ma.SQLAlchemyAutoSchema):
                 "description",
                 "start_datetime",
                 "end_datetime",
+                "actual_end_datetime",
                 "duration_hours",
                 "activity_type",
                 "location",

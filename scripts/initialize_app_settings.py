@@ -103,14 +103,15 @@ def init_settings():
             {
                 "key": "public_self_register_close_minutes_after_start",
                 "value": os.environ.get(
-                    "PUBLIC_SELF_REGISTER_CLOSE_MINUTES_AFTER_START", "20"
+                    "PUBLIC_SELF_REGISTER_CLOSE_MINUTES_AFTER_START", "15"
                 ),
                 "description": (
-                    "Minutos después del inicio en que cierra el auto-registro "
-                    "(self check-in)"
+                    "Tope de la tolerancia de llegada (minutos): cierra el "
+                    "auto-registro y perdona el retraso en el % de asistencia. "
+                    "El valor efectivo es min(este, 20% de la duración)."
                 ),
                 "data_type": "integer",
-                "default_value": "20",
+                "default_value": "15",
                 "is_editable": True,
             },
         ]

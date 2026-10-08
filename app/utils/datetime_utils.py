@@ -35,9 +35,40 @@ def parse_datetime_with_timezone(dt_string):
     raise ValidationError(f"Valor de fecha no reconocido: {dt_string}")
 
 
-def localize_naive_datetime(dt, app_timezone="America/Mexico_City"):
+def parse_wall_local(value):
+    """Interpreta un valor de formulario como **hora local** (wall time).
+
+    Devuelve un datetime **naive** en hora local, la forma en que se
+    persisten las columnas ``datetime`` (ver ``db_wall_local``).
+
+    Acepta:
+
+    - naive (``2026-10-07T13:00`` o ``2026-10-07 13:00``): ya es hora local;
+    - aware con offset (``2026-10-07T13:00-06:00`` o ``...Z``): se convierte
+      a ``APP_TIMEZONE``.
+
+    A diferencia de ``parse_datetime_with_timezone`` —que etiqueta los naive
+    como UTC para obtener un instante absoluto— aquí lo que importa es el
+    reloj de pared que escribió el usuario, porque así es como se guarda el
+    dato. Lanza ``ValidationError`` si no se puede interpretar.
     """
-    Localiza un datetime naive al timezone de la aplicación y lo convierte a UTC.
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        text = str(value).strip().replace("Z", "+00:00")
+        # ``datetime-local`` manda 'YYYY-MM-DDTHH:MM' (sin segundos), que
+        # ``fromisoformat`` no acepta antes de Python 3.11.
+        if len(text) == 16:
+            text += ":00"
+        try:
+            dt = datetime.fromisoformat(text)
+        except (TypeError, ValueError):
+            raise ValidationError(f"Formato de fecha inválido: {value}")
+    return db_wall_local(dt)
+
+
+def localize_naive_datetime(dt, app_timezone="America/Mexico_City"):
+    """Localiza un datetime naive al timezone de la aplicación y lo convierte a UTC.
 
     Args:
         dt: datetime object (puede ser naive o timezone-aware)
