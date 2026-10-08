@@ -29,7 +29,31 @@ Archivos y rutas clave
 - `app/static/js/helpers/dateHelpers.js` — única fuente de formateo de fechas (expone `window.dateHelpers`).
 - `app/static/js/helpers/activityTypeHelpers.js` — única fuente de presentación por TIPO de actividad (paleta, iconos y duración por sesión; expone `window.activityTypeHelpers`). La usan el calendario de admin, la lista de actividades, la vista pública de Jefes de Carrera y la vista del estudiante: al cambiarla, todos los roles cambian juntos.
 - `app/services/` — lugar recomendado para extraer lógica reutilizable del backend (por ejemplo `synth` extraction).
+- `tailwind.config.js`, `scripts/vendor_static.mjs` y `docs/STATIC_ASSETS.md` — build de assets estáticos: `npm run build:static` genera `app/static/vendor/` y `app/static/css/tailwind.css` (no versionados) y no hay CDNs en `base.html`.
 - `tests/` — tests backend (pytest) organizados por módulos; `app/static/js/admin/__tests__` contiene tests Jest para frontend.
+
+### Assets estáticos: build obligatorio
+
+El CSS de Tailwind y los JS/CSS de terceros **no se versionan**: se generan con
+
+```bash
+npm ci && npm run build:static
+```
+
+(los ejecutan el Dockerfile y CI; en local, antes de arrancar el servidor o
+de correr pytest). Si faltan, `create_app()` avisa por log y la app se sirve
+**sin estilos**; el test `tests/test_static_assets.py` lo detecta con la
+instrucción de regenerar.
+
+Dos reglas que no se rompen:
+
+1. **Sin CDNs**: el único host externo permitido es Google Fonts
+   (`fonts.googleapis.com` / `fonts.gstatic.com`).
+2. **Clases Tailwind literales**, nunca `bg-${color}-100` (el escáner lee el
+   código fuente).
+
+Versiones pineadas (sin `^` ni `~`), cómo actualizarlas, tests y bugs
+conocidos en `docs/STATIC_ASSETS.md`.
 
 ### Standalone scripts: patrón recomendado
 

@@ -73,11 +73,15 @@ Ausente_ (`tests/api/test_public_confirm_slug.py`).
 
 ## Anti-FOUC (red lenta)
 
-- `base.html` sirve el CDN de Tailwind con `defer` y aplica su config en
-  `DOMContentLoaded` (con guard si el CDN no carga); la fuente global vive
-  además en CSS puro. Añade `{% block head %}` para CSS crítico por plantilla.
-- La plantilla mete su CSS crítico en ese bloque: se pinta antes de que
-  lleguen ~400 KB de Tailwind.
+- `base.html` sirve `app/static/css/tailwind.css` **precompilado y local**
+  (bloqueante): el primer pintado ya sale con estilos y la fuente global
+  vive en el preflight + CSS propio. Antes cargaba `cdn.tailwindcss.com`
+  (~400 KB de JS que compilaban utilidades en el navegador): con `defer`
+  dejaba la página sin estilos y sin él se quedaba en blanco en red lenta.
+  Ver `docs/STATIC_ASSETS.md` (cómo regenerar vendor/tailwind.css).
+- La plantilla **ya no lleva su CSS crítico**: con Tailwind local era
+  redundante (duplicaba el preflight). `{% block head %}` sigue existiendo en
+  `base.html` por si alguna plantilla necesita CSS propio.
 - `x-cloak` en todos los `x-show` (el estado `idle` queda sin cloakear a
   propósito, como guía inicial); el `<h1>` lleva el nombre renderizado por
   servidor para no salir en blanco.
