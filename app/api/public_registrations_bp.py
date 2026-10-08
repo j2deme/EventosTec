@@ -379,14 +379,16 @@ def api_confirm_registration(reg_id):
     if not activity_id:
         return jsonify({"message": "activity_id es requerido"}), 400
 
-    reg = db.session.get(Registration, reg_id)
-    if not reg or reg.activity_id != int(activity_id):
-        return jsonify({"message": "Registro no encontrado para esta actividad"}), 404
-
-    # enforce confirmation window
-    activity = db.session.get(Activity, int(activity_id))
+    # Los frontends públicos (staff-walkin y portal de registros) envían el
+    # public_slug; resolver con resolve_activity_by_id acepta slug o ID numérico.
+    # Antes aquí había un int(activity_id) que reventaba con ValueError -> 500.
+    activity = resolve_activity_by_id(activity_id)
     if not activity:
         return jsonify({"message": "Actividad no encontrada"}), 404
+
+    reg = db.session.get(Registration, reg_id)
+    if not reg or reg.activity_id != activity.id:
+        return jsonify({"message": "Registro no encontrado para esta actividad"}), 404
 
     window_days = int(AppSettings.public_confirm_window_days())
     if getattr(activity, "end_datetime", None) is not None:
