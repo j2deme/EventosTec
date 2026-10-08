@@ -11,8 +11,16 @@ de la actividad:
 
 ```
 abre   = inicio - public_self_register_open_minutes_before_start   (default 30)
-cierra = inicio + public_self_register_close_minutes_after_start   (default 20)
+cierra = inicio + arrival_tolerance_minutes(actividad)              (default 15)
+       = inicio + min(configurado, 20% de la duración programada)  (12 en 60 min)
 ```
+
+**La tolerancia es un solo número con dos caras**: además de cerrar la puerta
+del auto-registro, esos mismos minutos se **perdonan** en el porcentaje de
+asistencia (ver [`docs/ATTENDANCE_PERCENTAGE.md`](ATTENDANCE_PERCENTAGE.md)),
+de modo que quien llega dentro de la tolerancia y se queda hasta el final
+acredita el 100%. Fuente única:
+`app/services/self_register_service.py::arrival_tolerance_minutes`.
 
 - **Fuente única**: `app/services/self_register_service.py`
   (`self_register_state()`), usada tanto por la vista `GET` (habilita/oculta
@@ -40,10 +48,13 @@ Configuración (ENV o `scripts/initialize_app_settings.py`):
 | Key                                              | Default | ENV                                                  |
 | ------------------------------------------------ | ------- | ---------------------------------------------------- |
 | `public_self_register_open_minutes_before_start` | 30      | `APP_PUBLIC_SELF_REGISTER_OPEN_MINUTES_BEFORE_START` |
-| `public_self_register_close_minutes_after_start` | 20      | `APP_PUBLIC_SELF_REGISTER_CLOSE_MINUTES_AFTER_START` |
+| `public_self_register_close_minutes_after_start` | 15      | `APP_PUBLIC_SELF_REGISTER_CLOSE_MINUTES_AFTER_START` |
 
-> Para editarlas desde la UI de Settings hay que sembrarlas:
-> `python scripts/initialize_app_settings.py`.
+> El segundo valor es un **tope**: el efectivo es
+> `min(setting, 20% de la duración)` (una conferencia de 60 min cierra a los
+> 12 min). Para editarlo desde la UI de Settings hay que sembrarlo:
+> `python scripts/initialize_app_settings.py`; si la fila ya existe con el
+> valor viejo (`20`) hay que cambiarla en `Admin → Settings`.
 
 ### Ejemplo: adelantar la apertura de una actividad
 
@@ -62,8 +73,10 @@ No hay que tocar código ni migrar. Dos notas:
 - El valor es **global**: todas las actividades abrirían 70 min antes de su
   inicio. Eso no altera el porcentaje de asistencia, porque la presencia se
   recorta a la ventana real de la actividad (`calculate_attendance_percentage`).
-- El cierre sigue siendo `inicio + public_self_register_close_minutes_after_start`
-  (default 20). Conviene regresar el default a 30 al terminar el evento.
+- El cierre sigue siendo `inicio + arrival_tolerance_minutes(actividad)`
+  (tope 15 min, acotado además a 20% de la duración: 12 min en una
+  conferencia de 60 min) y es el mismo número que se perdona en el porcentaje
+  de asistencia. Conviene regresar el default a 30 al terminar el evento.
 
 ## 2. Rate limit
 

@@ -85,6 +85,7 @@
         <label class="block text-sm">Actividad</label>
         <select
           x-model="batchActivityId"
+          @change="batchActualEnd = batchActualEndDefault($event.target.value)"
           class="mt-1 block w-full rounded border-gray-300"
         >
           <option value="">-- Selecciona una actividad --</option>
@@ -95,6 +96,19 @@
             ></option>
           </template>
         </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-sm">Hora real de cierre (informativa)</label>
+        <input
+          type="datetime-local"
+          x-model="batchActualEnd"
+          class="mt-1 block w-full rounded border-gray-300"
+        />
+        <p class="text-xs text-gray-500 mt-1">
+          Se registra cuándo se cerró realmente la actividad. El porcentaje de
+          asistencia se calcula contra la ventana programada.
+        </p>
       </div>
 
       <div class="mb-3">
@@ -129,6 +143,15 @@
             Actualizados: <span x-text="batchResult.updated || 0"></span>,
             Relacionadas creadas:
             <span x-text="batchResult.related_created || 0"></span>
+          </div>
+          <div
+            class="text-xs text-gray-600"
+            x-show="batchResult.actual_end_time"
+          >
+            Cierre real:
+            <span
+              x-text="batchResult.actual_end_time ? ((window.dateHelpers && window.dateHelpers.formatDateTimeShort) ? window.dateHelpers.formatDateTimeShort(batchResult.actual_end_time) : batchResult.actual_end_time) : '—'"
+            ></span>
           </div>
           <div class="mt-2 max-h-48 overflow-auto text-xs text-gray-700">
             <template

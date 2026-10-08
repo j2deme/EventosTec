@@ -85,6 +85,8 @@ function attendancesAdmin() {
     batchActivityId: null,
     batchEventId: null,
     batchResult: null,
+    // Hora real de cierre de la actividad (informativa, se manda al backend)
+    batchActualEnd: "",
     // Batch upload modal state
     showBatchUploadModal: false,
     batchUploadEventId: "",
@@ -317,7 +319,9 @@ function attendancesAdmin() {
         // derive activityTypes from activities (API uses `activity_type`)
         this.activityTypes = Array.from(
           new Set(
-            this.activities.map((a) => a.activity_type || a.type).filter(Boolean),
+            this.activities
+              .map((a) => a.activity_type || a.type)
+              .filter(Boolean),
           ),
         );
         // initial refresh of attendances
@@ -482,11 +486,34 @@ function attendancesAdmin() {
     },
 
     // Batch checkout modal helpers
+    // Valor por defecto del "hora real de cierre": el fin programado si aún
+    // no pasó; si el evento ya se desbordó (o ya terminó), la hora actual.
+    batchActualEndDefault(activityId) {
+      const wanted =
+        activityId !== undefined ? activityId : this.batchActivityId;
+      const act = (this.activities || []).find(
+        (a) => String(a.id) === String(wanted),
+      );
+      let when = new Date();
+      if (act && act.end_datetime) {
+        const end = new Date(act.end_datetime);
+        if (!isNaN(end.getTime()) && end > when) when = end;
+      }
+      const pad = (n) => String(n).padStart(2, "0");
+      return (
+        `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}` +
+        `T${pad(when.getHours())}:${pad(when.getMinutes())}`
+      );
+    },
+
     openBatchCheckoutModal() {
       this.showBatchCheckoutModal = true;
       this.batchDryRun = true;
       this.batchEventId = this.filters.event_id || null;
       this.batchActivityId = this.filters.activity_id || null;
+      this.batchActualEnd = this.batchActivityId
+        ? this.batchActualEndDefault()
+        : "";
       this.batchResult = null;
     },
 
@@ -514,6 +541,8 @@ function attendancesAdmin() {
         const payload = {
           activity_id: this.batchActivityId,
           dry_run: !!this.batchDryRun,
+          // Hora real de cierre (informativa; no entra en el porcentaje)
+          actual_end_time: this.batchActualEnd || null,
         };
         const res = await this.sf("/api/attendances/batch-checkout", {
           method: "POST",

@@ -206,3 +206,30 @@ Objetivo: evitar que al re-exportar la lista a la plataforma externa se acredite
 - Nuevos: `tests/api/test_self_register_api.py` (400 faltantes / 404 / ventana no-abierta y cerrada / 401 / 503 / 429 sin volver a llamar al externo / 201 con sesión `Parcial` y preregistro intacto / 409 duplicado / alta de estudiante), `tests/services/test_self_register_service.py`, `tests/services/test_student_auth_service.py` (mapeo de errores y rate-limit por control e IP), `tests/test_datetime_utils_wall_local.py` (round-trip escritura→lectura), `app/static/js/public/__tests__/self_register.test.js` (ventana, countdown con deadline del servidor, ramas 201/401/409/429/400/503/red).
 - Actualizados por la nueva política: `tests/api/test_batch_checkout.py` (pausa abierta descuenta + cierre de la preregistro en `Ausente`; dry-run comparte calculador), `tests/api/test_attendances_register.py`, `tests/test_attendance_service.py` (plegado de la pausa, 2ª pausa y no doble descuento), `tests/test_public_slug_views.py`, `tests/api/test_auth_type_claim.py`.
 - Resultado de la ronda: **pytest 334 passed / 1 xpassed**, **jest 27 suites / 357 tests**, `ruff check` + `ruff format` + `prettier` limpios en los archivos tocados.
+
+## Porcentaje de asistencia con tolerancia de llegada (ronda 2026-10-07)
+
+### 1. Fórmula
+
+- `compute_attendance_metrics` pasó a `crédito = min(duración programada, presencia + perdón)` y `porcentaje = 100 × crédito / duración`. El perdón es `min(max(0, llegada − inicio), tolerancia)` y es **incondicional**: quien llega dentro de la tolerancia y se queda hasta el final acredita 100% aunque el evento se cierre a la hora programada. El denominador sigue siendo fijo, así que ningún porcentaje baja (nadie que acreditaba `Asistió` pasa a `Parcial`).
+- Tolerancia = `min(public_self_register_close_minutes_after_start, 20% de la duración)` (`self_register_service.arrival_tolerance_minutes`): **12 min** en una conferencia de 60, tope de 15 en talleres largos. Es el **mismo número** que cierra la ventana de auto-registro (puerta == perdón), así no pueden divergir.
+- El desborde del evento no suma ni rescata pausas (tope en el fin programado); la hora real de cierre queda como dato informativo en `activities.actual_end_datetime`.
+- Consecuencia a vigilar: en una conferencia de 60 min, con 12 de perdón, llegar hasta 24 min tarde y quedarse al final sigue llegando al 80%. El gate de 12 min sólo restringe al auto-registro público (walk-ins y altas manuales no lo tienen).
+
+### 2. Datos y migración
+
+- `alembic upgrade head` → `20261007_add_arrival_time_and_actual_end`: agrega `attendances.arrival_time` (la llegada real; se congela una sola vez en el primer check-in con listeners `before_insert`/`before_update`, porque `resume_attendance` desplaza `check_in_time` al plegar cada pausa) y `activities.actual_end_datetime`.
+- `public_self_register_close_minutes_after_start`: default `20` → `15` (`settings_manager` y `scripts/initialize_app_settings.py`). El seed **sólo inserta faltantes**: si la fila ya existe con `20` hay que cambiarla en `Admin → Settings` (o `UPDATE app_settings SET value='15', default_value='15' WHERE key='public_self_register_close_minutes_after_start';`).
+- Filas antiguas sin `arrival_time` usan `min(created_at, check_in_time)` como cota conservadora; conviene correr `tools/backfill_attendance_created_at_local.py` (ver `docs/TIMEZONE_FIX.md`).
+
+### 3. API y frontend
+
+- `POST /api/attendances/batch-checkout` acepta `actual_end_time` (ISO local, opcional) y devuelve `summary.actual_end_time` + `summary.actual_end_saved`; en `dry_run` sólo se ecoa y no escribe; valor ilegible → 400 (`datetime_utils.parse_wall_local`).
+- Modal **Batch checkout** del admin: campo "Hora real de cierre" (`datetime-local`) prellenado con `max(ahora, fin programado)` y se muestra en el resumen.
+- `GET /api/activities` expone `actual_end_datetime` (`dump_only`) y las asistencias exponen `arrival_time`.
+
+### 4. Tests
+
+- Nuevos: `tests/test_attendance_percentage_tolerance.py` (17: matriz A–G, tolerancia 12/6/15, congelado de `arrival_time` y su supervivencia al pliegue, fallback, tope 100%), `tests/services/test_self_register_service.py` (puerta 15 y corte al 20%), `tests/api/test_batch_checkout.py` (3 de `actual_end_time`) y 6 en `app/static/js/admin/__tests__/attendances.consolidated.test.js`.
+- Resultado de la ronda: **pytest 404 passed / 1 xpassed**, **jest (admin) 12 suites / 251 tests**, `ruff check` + `ruff format` + `prettier` limpios en los archivos tocados.
+- Doc nueva: `docs/ATTENDANCE_PERCENTAGE.md` (fórmula, matriz de escenarios y checklist de despliegue); `docs/SELF_REGISTER.md` §1 actualizado.

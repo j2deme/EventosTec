@@ -309,3 +309,91 @@ describe("attendancesAdmin helpers", () => {
     });
   });
 });
+
+describe("attendancesAdmin batch checkout — hora real de cierre", () => {
+  test("batchActualEndDefault usa el fin programado si aún no pasó", () => {
+    const a = attendancesAdmin();
+    a.batchActivityId = 7;
+    a.activities = [{ id: 7, end_datetime: "2099-10-08T13:00:00+00:00" }];
+
+    const out = a.batchActualEndDefault();
+    // Formato de <input type="datetime-local">, en hora local
+    expect(out).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    const end = new Date("2099-10-08T13:00:00+00:00");
+    expect(new Date(out).getTime()).toBeGreaterThanOrEqual(
+      end.getTime() - 60000,
+    );
+  });
+
+  test("batchActualEndDefault usa la hora actual si el evento ya terminó", () => {
+    const a = attendancesAdmin();
+    a.batchActivityId = 7;
+    a.activities = [{ id: 7, end_datetime: "2020-01-01T00:00:00+00:00" }];
+
+    const out = a.batchActualEndDefault();
+    // Recortado al minuto: no puede quedar antes de "ahora"
+    expect(new Date(out).getTime()).toBeGreaterThanOrEqual(Date.now() - 120000);
+  });
+
+  test("batchActualEndDefault acepta el id explícito (cambio del select)", () => {
+    const a = attendancesAdmin();
+    a.batchActivityId = "";
+    a.activities = [{ id: 9, end_datetime: "2099-01-01T10:00:00+00:00" }];
+
+    expect(a.batchActualEndDefault(9)).toMatch(/T\d{2}:\d{2}$/);
+    expect(a.batchActualEndDefault("desconocido")).toMatch(/T\d{2}:\d{2}$/);
+  });
+
+  test("openBatchCheckoutModal prellena la hora de cierre con la actividad filtrada", () => {
+    const a = attendancesAdmin();
+    a.filters = { activity_id: 3, event_id: "" };
+    a.activities = [{ id: 3, end_datetime: "2099-10-08T13:00:00+00:00" }];
+
+    a.openBatchCheckoutModal();
+
+    expect(a.showBatchCheckoutModal).toBe(true);
+    expect(a.batchActualEnd).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  });
+
+  test("performBatchCheckout envía actual_end_time en el payload", async () => {
+    const a = attendancesAdmin();
+    a.batchEventId = 1;
+    a.batchActivityId = 2;
+    a.batchDryRun = true;
+    a.batchActualEnd = "2026-10-08T13:15";
+    a.sf = jest.fn(() =>
+      Promise.resolve({
+        json: () => Promise.resolve({ summary: { processed: 1 } }),
+      }),
+    );
+
+    await a.performBatchCheckout();
+
+    expect(a.sf).toHaveBeenCalledWith("/api/attendances/batch-checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        activity_id: 2,
+        dry_run: true,
+        actual_end_time: "2026-10-08T13:15",
+      }),
+    });
+    expect(a.batchResult).toEqual({ processed: 1 });
+  });
+
+  test("performBatchCheckout omite actual_end_time cuando el campo está vacío", async () => {
+    const a = attendancesAdmin();
+    a.batchEventId = 1;
+    a.batchActivityId = 2;
+    a.batchDryRun = true;
+    a.batchActualEnd = "";
+    a.sf = jest.fn(() =>
+      Promise.resolve({ json: () => Promise.resolve({ summary: {} }) }),
+    );
+
+    await a.performBatchCheckout();
+
+    const body = JSON.parse(a.sf.mock.calls[0][1].body);
+    expect(body.actual_end_time).toBeNull();
+  });
+});
