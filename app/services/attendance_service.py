@@ -102,10 +102,13 @@ def _arrival_utc(attendance):
     si la fila se creó antes del check-in (sync/batch), así que el mínimo es
     la cota conservadora: nunca *inventa* un retraso.
 
-    Nota: en filas anteriores al backfill de ``created_at``
-    (``tools/backfill_attendance_created_at_local.py``) esa columna todavía
-    está en UTC y se lee 6 h tarde; el mínimo con ``check_in_time`` (local)
-    amortigua el caso típico.
+    Nota sobre las filas anteriores al backfill de ``created_at``
+    (``tools/backfill_attendance_created_at_local.py``, ya aplicado): esa
+    columna ya está en hora local, pero ``check_in_time`` **no se tocó** y en
+    esas filas sigue en UTC — leído como local, viene 6 h tarde. El ``min()``
+    de abajo lo resuelve: ``created_at`` (local) es el menor, así que se
+    devuelve la llegada correcta y el retraso no se infla. Ojo con leer esto
+    al revés: la que está en UTC es ``check_in_time``, no ``created_at``.
     """
     arrival = getattr(attendance, "arrival_time", None)
     if arrival is not None:
