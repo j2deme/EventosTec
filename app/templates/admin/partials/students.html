@@ -282,7 +282,7 @@
 
     <!-- Empty state -->
     <div x-show="students.length === 0" class="text-center py-12">
-      <i class="ti ti-users-off text-4xl text-gray-400 mb-4"></i>
+      <i class="ti ti-users-minus text-4xl text-gray-400 mb-4"></i>
       <p class="text-gray-600">No se encontraron estudiantes</p>
     </div>
   </div>
@@ -1028,7 +1028,7 @@
             x-show="!loadingExport && exportData.length === 0 && exportStats.events.length > 0"
             class="mt-6 text-center py-8 text-gray-500"
           >
-            <i class="ti ti-users-off text-4xl mb-2"></i>
+            <i class="ti ti-users-minus text-4xl mb-2"></i>
             <p>
               No se encontraron estudiantes con 10+ horas para los filtros
               seleccionados
@@ -1092,9 +1092,9 @@
               Forzar inclusión de un estudiante
             </label>
             <p class="text-xs text-gray-500 mb-2">
-              Busca por número de control a un estudiante omitido (ya
-              acreditado en un evento anterior o sin horas suficientes) para
-              incluirlo con un override manual.
+              Busca por número de control a un estudiante omitido (ya acreditado
+              en un evento anterior o sin horas suficientes) para incluirlo con
+              un override manual.
             </p>
             <div class="flex gap-2">
               <input

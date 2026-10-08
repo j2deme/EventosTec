@@ -197,12 +197,12 @@ _KNOWN_MISSING_CLASSES = frozenset(
     }
 )
 
-# Iconos que @tabler/icons-webfont@2.47.0 (pineado) no define. Tampoco
-# existen hoy en producción: el CDN `@latest` servía ese mismo CSS byte a
-# byte. Se revisan al actualizar Tabler (D-…): bórralos de aquí entonces.
-_KNOWN_MISSING_ICONS = frozenset(
-    {"ti-book-open", "ti-spin", "ti-spinner", "ti-users-off"}
-)
+# Iconos usados que @tabler/icons-webfont no define: SIN excepciones. Los 4
+# que había (`ti-book-open`, `ti-spin`, `ti-spinner`, `ti-users-off`) no
+# existían en ninguna versión de Tabler (comprobado en 1.35.0, 2.47.0 y la
+# última, 3.49.0): se sustituyeron por equivalentes que sí existen
+# (`ti-book-2`, `ti-loader` + `animate-spin`, `ti-users-minus`).
+_KNOWN_MISSING_ICONS = frozenset()
 
 
 def _class_tokens():

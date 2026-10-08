@@ -251,7 +251,7 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
           :disabled="busy"
           class="w-full inline-flex justify-center items-center gap-2 rounded-md border border-transparent shadow-sm px-4 py-2 bg-violet-600 text-base font-medium text-white hover:bg-violet-700 disabled:opacity-60 sm:ml-3 sm:w-auto sm:text-sm"
         >
-          <i class="ti ti-spinner ti-spin" x-show="busy"></i>
+          <i class="ti ti-loader animate-spin" x-show="busy"></i>
           <span x-text="busy ? 'Generando…' : 'Abrir sesión'"></span>
         </button>
         <button
@@ -387,7 +387,7 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
           :disabled="busy"
           class="w-full inline-flex justify-center items-center gap-2 rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 disabled:opacity-60 sm:ml-3 sm:w-auto sm:text-sm"
         >
-          <i class="ti ti-spinner ti-spin" x-show="busy"></i>
+          <i class="ti ti-loader animate-spin" x-show="busy"></i>
           <span x-text="busy ? 'Guardando…' : 'Guardar contraseña'"></span>
         </button>
         <button
