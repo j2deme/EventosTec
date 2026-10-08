@@ -4,7 +4,7 @@ from flask_jwt_extended import jwt_required
 from datetime import datetime, timezone
 from app import db
 from app.utils.auth_helpers import require_admin
-from app.utils.datetime_utils import localize_naive_datetime
+from app.utils.datetime_utils import app_timezone_info, localize_naive_datetime
 from app.services.attendance_list_service import build_attendance_list_context
 from app.models.registration import Registration
 from app.models.activity import Activity
@@ -77,17 +77,21 @@ def participation_matrix():
 
         rows = q.all()
 
-        # Determinar la fecha de referencia para calcular semestre
-        # Use timezone-aware UTC now as reference date and localize DB datetimes
-        ref_date = datetime.now(timezone.utc)
+        # Determinar la fecha de referencia para calcular semestre.
+        # Siempre en hora local de la app: con `datetime.now(timezone.utc)` el
+        # corte de mes/año caía a las 18:00 h locales y, cerca de un cambio de
+        # mes o de año, un evento de la tarde se clasificaba en el semestre
+        # equivocado.
         app_tz = current_app.config.get("APP_TIMEZONE", "America/Mexico_City")
+        app_tz_info = app_timezone_info(app_tz)
+        ref_date = datetime.now(app_tz_info)
         if activity_id:
             try:
                 act = db.session.get(Activity, activity_id)
                 if act and getattr(act, "start_datetime", None):
                     rd = localize_naive_datetime(act.start_datetime, app_tz)
                     if rd is not None:
-                        ref_date = rd
+                        ref_date = rd.astimezone(app_tz_info)
             except Exception:
                 pass
         elif event_id:
@@ -96,7 +100,7 @@ def participation_matrix():
                 if ev and getattr(ev, "start_date", None):
                     rd = localize_naive_datetime(ev.start_date, app_tz)
                     if rd is not None:
-                        ref_date = rd
+                        ref_date = rd.astimezone(app_tz_info)
             except Exception:
                 pass
 
@@ -123,7 +127,7 @@ def participation_matrix():
                 try:
                     gy = int(gen)
                     ingreso_year = 2000 + gy
-                    month = getattr(ref_date, "month", datetime.now(timezone.utc).month)
+                    month = ref_date.month
                     # Definimos: semestre 1 = Ago-Dic del año de ingreso; semestre 2 = Ene-Jun siguiente
                     event_sem_offset = 1 if 8 <= month <= 12 else 2
                     years_since = max(0, ref_date.year - ingreso_year)
