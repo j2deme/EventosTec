@@ -156,4 +156,16 @@ def create_app(config_name=None):
         )
         return Response(svg, mimetype="image/svg+xml")
 
+    # Assets estáticos generados por `npm run build:static` (NO se versionan:
+    # ver .gitignore y docs/STATIC_ASSETS.md). Si faltan, la app se sirve sin
+    # estilos: casi siempre es una imagen construida sin este paso.
+    static_dir = app.static_folder or os.path.join(app.root_path, "static")
+    for rel in ("css/tailwind.css", "vendor"):
+        if not os.path.exists(os.path.join(static_dir, rel)):
+            app.logger.warning(
+                "Falta app/static/%s: ejecuta `npm run build:static` antes de "
+                "arrancar (en Docker este paso está en el Dockerfile).",
+                rel,
+            )
+
     return app

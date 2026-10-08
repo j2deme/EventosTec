@@ -36,22 +36,22 @@ def test_base_defines_x_cloak_css():
     assert "display: none !important" in css
 
 
-def test_base_tailwind_cdn_does_not_block_first_paint():
-    """El CDN de Tailwind va con `defer`: sin él, red lenta = pantalla en blanco.
+def test_base_uses_local_precompiled_tailwind():
+    """Tailwind llega precompilado y local: ni CDN ni FOUC.
 
-    La config se aplica en `DOMContentLoaded` (los scripts `defer` corren justo
-    antes), porque un script inline con `defer` se ignora y `tailwind` aún no
-    existiría. La fuente global vive además en CSS puro como respaldo.
+    Antes `cdn.tailwindcss.com` inyectaba ~400 KB de JS que compilaban las
+    utilidades en el navegador: con `defer` la página pintaba sin estilos y
+    sin él salía en blanco en red lenta. Ahora el `<link>` apunta al artefacto
+    de `npm run build:static` y va bloqueante y local a propósito: es lo que
+    garantiza que el primer pintado ya salga con estilos.
     """
     base = _read("base.html")
 
-    assert '<script defer src="https://cdn.tailwindcss.com"></script>' in base
-    # El CDN no debe quedar como script bloqueante en el <head>
-    assert '<script src="https://cdn.tailwindcss.com"></script>' not in base
-    # Config protegida: solo corre si el CDN de Tailwind llegó a cargar
-    assert 'addEventListener("DOMContentLoaded"' in base
-    assert "if (!window.tailwind) return;" in base
-    # Fuente global como CSS propio (no depende del JIT de Tailwind)
+    assert "cdn.tailwindcss.com" not in base
+    # La config (fuente global) vive en tailwind.config.js, no en JS inline
+    assert "tailwind.config =" not in base
+    assert "{{ url_for('static', filename='css/tailwind.css') }}" in base
+    # Fuente global como CSS propio (no depende de un script en ejecución)
     assert '"Google Sans"' in base
 
 

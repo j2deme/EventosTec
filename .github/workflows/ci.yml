@@ -38,10 +38,10 @@ jobs:
           # run pre-commit only on files changed in the PR/branch relative to origin/main
           pre-commit run --from-ref=origin/main --to-ref=HEAD
 
-      - name: Run pytest
-        run: |
-          python -m pytest -q
-
+      # Los assets estáticos (vendor + tailwind.css) se generan en el build y
+      # NO se versionan, así que hay que construirlos ANTES de pytest: el test
+      # tests/test_static_assets.py comprueba que existen y que cubren todas
+      # las clases e iconos usados.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -50,6 +50,14 @@ jobs:
       - name: Install Node deps
         run: |
           npm ci
+
+      - name: Build static assets
+        run: |
+          npm run build:static
+
+      - name: Run pytest
+        run: |
+          python -m pytest -q
 
       - name: Run Jest
         run: |

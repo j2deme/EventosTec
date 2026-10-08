@@ -33,6 +33,10 @@ RUN (npm ci --no-audit --no-fund) || (npm install --no-audit --no-fund)
 # Copy project
 COPY . .
 
+# Genera los assets estáticos NO versionados (app/static/vendor/ y
+# app/static/css/tailwind.css). Sin este paso la app se sirve sin estilos.
+RUN npm run build:static
+
 ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
 

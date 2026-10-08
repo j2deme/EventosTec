@@ -13,9 +13,15 @@
       href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"
     />
 
-    <!-- Tailwind CSS CDN. Con `defer` no bloquea el parseo ni el primer
-         pintado: en red lenta la página dejaba de esperar ~400 KB en blanco. -->
-    <script defer src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS precompilado (npm run build:static -> app/static/css/
+         tailwind.css, no versionado). LOCAL y bloqueante a propósito: es lo
+         que evita el FOUC. El antiguo CDN (~400 KB de JS que compilaba en el
+         navegador) dejaba la página en blanco en red lenta y, en defer, la
+         pintaba sin estilos. -->
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/tailwind.css') }}"
+    />
 
     <!-- Google Sans (OFL, oficial de Google Fonts) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -24,35 +30,6 @@
       href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400..700&display=swap"
       rel="stylesheet"
     />
-
-    <!-- Config de Tailwind (debe ir después del CDN). Va en DOMContentLoaded:
-         los scripts con `defer` se ejecutan justo antes de ese evento, así que
-         window.tailwind ya existe. Asignar `config` en el Play CDN re-genera
-         los estilos al instante. -->
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        // CDN bloqueado o caído: no rompemos la página (la fuente ya está en CSS)
-        if (!window.tailwind) return;
-        tailwind.config = {
-          theme: {
-            extend: {
-              fontFamily: {
-                sans: [
-                  "Google Sans",
-                  "ui-sans-serif",
-                  "system-ui",
-                  "Segoe UI",
-                  "Roboto",
-                  "Helvetica Neue",
-                  "Arial",
-                  "sans-serif",
-                ],
-              },
-            },
-          },
-        };
-      });
-    </script>
 
     <!-- Tabler Icons CDN -->
     <link
@@ -94,9 +71,9 @@
 
     <!-- Custom styles -->
     <style>
-      /* Fuente global. Cubre el periodo previo a que el CDN de Tailwind (defer)
-         inyecte su preflight `html { font-family: ... }`, y sigue funcionando
-         si ese CDN no llega a cargar. */
+      /* Fuente global. El preflight de tailwind.css ya la trae (viene de
+         tailwind.config.js); esta regla la garantiza aunque ese CSS no llegue
+         a cargarse. */
       html,
       body {
         font-family:
@@ -143,7 +120,7 @@
         accent-color: #4f46e5; /* indigo-600 */
       }
 
-      /* Mejorar indicador de foco para accesibilidad (se ve bien con Tailwind CDN) */
+      /* Mejorar indicador de foco para accesibilidad */
       input[type="checkbox"]:focus,
       input[type="radio"]:focus {
         outline: none;
