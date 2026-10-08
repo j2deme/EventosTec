@@ -6,11 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Eventos Tec{% endblock %}</title>
 
-    <!-- Toastify CSS -->
+    <!-- Toastify CSS (vendor: toastify-js 1.12.0) -->
     <link
       rel="stylesheet"
       type="text/css"
-      href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css"
+      href="{{ url_for('static', filename='vendor/css/toastify.css') }}"
     />
 
     <!-- Tailwind CSS precompilado (npm run build:static -> app/static/css/
@@ -31,10 +31,11 @@
       rel="stylesheet"
     />
 
-    <!-- Tabler Icons CDN -->
+    <!-- Tabler Icons (vendor: @tabler/icons-webfont 2.47.0, la versión cuyo
+         CSS es byte-idéntico al que servía el CDN) -->
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"
+      href="{{ url_for('static', filename='vendor/tabler/tabler-icons.min.css') }}"
     />
 
     <!-- Favicon -->
@@ -44,18 +45,21 @@
       href="{{ url_for('static', filename='favicon.svg') }}"
     />
 
-    <!-- Alpine.js CDN -->
+    <!-- Alpine.js (vendor: alpinejs 3.17.4). Sigue con `defer`: no bloquea el
+         pintado y debe ejecutarse después del parseo (Alpine inicializa
+         x-data de las plantillas). -->
     <script
       defer
-      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+      src="{{ url_for('static', filename='vendor/js/alpine.min.js') }}"
     ></script>
 
-    <!-- Day.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <!-- Day.js (vendor: dayjs 1.11.23). Bloqueantes y locales: ~13 KB y la
+         init inline de abajo depende de que dayjs exista al ejecutarse. -->
+    <script src="{{ url_for('static', filename='vendor/js/dayjs.min.js') }}"></script>
     <!-- Plugin para formato localizado en español -->
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/locale/es.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/js/dayjs.locale.es.js') }}"></script>
     <!-- Plugin duration (necesario para dayjs.duration) -->
-    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/duration.js"></script>
+    <script src="{{ url_for('static', filename='vendor/js/dayjs.plugin.duration.js') }}"></script>
     <script>
       if (typeof dayjs !== "undefined" && dayjs && dayjs.extend) {
         try {
@@ -133,10 +137,10 @@
   <body class="bg-gray-50">
     {% block content %}{% endblock %}
 
-    <!-- Toastify JS -->
+    <!-- Toastify JS (vendor: toastify-js 1.12.0) -->
     <script
       type="text/javascript"
-      src="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.js"
+      src="{{ url_for('static', filename='vendor/js/toastify.js') }}"
     ></script>
     <!-- JS -->
     <script src="{{ url_for('static', filename='js/helpers/dateHelpers.js') }}"></script>
