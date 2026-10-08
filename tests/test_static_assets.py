@@ -280,7 +280,7 @@ def test_tabler_icons_css_covers_used_icons():
     """Todo icono `ti ti-*` que se pide existe en el CSS de Tabler.
 
     Un nombre inventado o renombrado no falla en runtime: el `<i>` queda
-    vacío. La versión está pineada (2.47.0) precisamente para que el set de
+    vacío. La versión está pineada (3.49.0) precisamente para que el set de
     iconos no cambie sin que se diga aquí.
     """
     assert TABLER_CSS.is_file(), (

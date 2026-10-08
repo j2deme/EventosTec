@@ -14,7 +14,7 @@
  *     a @tabler/icons-webfont le pasó (el CSS pasó de la raíz a /dist en
  *     3.x) y el `@latest` del CDN seguía sirviendo un build antiguo.
  *  2. Copia las fuentes referenciadas por `url(...)` de los CSS copiados
- *     (sin query strings como `?v2.47.0`), respetando la estructura relativa
+ *     (sin query strings como `?v3.49.0`), respetando la estructura relativa
  *     que el propio CSS espera.
  *
  * Uso:  npm run vendor
@@ -45,12 +45,24 @@ const FILES = [
   ["dayjs/plugin/duration.js", "js/dayjs.plugin.duration.js"],
   ["toastify-js/src/toastify.js", "js/toastify.js"],
   ["toastify-js/src/toastify.css", "css/toastify.css"],
-  ["@tabler/icons-webfont/tabler-icons.min.css", "tabler/tabler-icons.min.css"],
+  // En 3.x el CSS vive en dist/ (antes, en la raíz del paquete).
+  [
+    "@tabler/icons-webfont/dist/tabler-icons.min.css",
+    "tabler/tabler-icons.min.css",
+  ],
 ];
 
-/** [paquete npm, CSS ya copiado cuyos url(...) hay que copiar junto a él] */
+/**
+ * [CSS de origen en node_modules, CSS ya copiado en vendor cuyos url(...)
+ * hay que copiar junto a él]. Los `url()` de un CSS se resuelven relativos a
+ * su propia ubicación, por eso se pasa el origen del CSS y no solo el
+ * paquete: en 3.x el CSS está en `dist/` y las fuentes en `dist/fonts/`.
+ */
 const CSS_WITH_FONTS = [
-  ["@tabler/icons-webfont", "tabler/tabler-icons.min.css"],
+  [
+    "@tabler/icons-webfont/dist/tabler-icons.min.css",
+    "tabler/tabler-icons.min.css",
+  ],
 ];
 
 const missing = [];
@@ -83,9 +95,10 @@ for (const [src, dest] of FILES) {
 }
 
 // Fuentes referenciadas por url(...) en los CSS copiados.
-for (const [pkg, relCss] of CSS_WITH_FONTS) {
+for (const [relOrigin, relCss] of CSS_WITH_FONTS) {
   const cssPath = join(vendorRoot, relCss);
   if (!existsSync(cssPath)) continue; // ya reportado arriba
+  const originPath = join(nodeModules, relOrigin);
 
   const css = readFileSync(cssPath, "utf8");
   const refs = new Set(
@@ -94,14 +107,16 @@ for (const [pkg, relCss] of CSS_WITH_FONTS) {
 
   for (const ref of refs) {
     if (ref.startsWith("data:") || /^(?:[a-z]+:)?\/\//i.test(ref)) continue;
-    const clean = ref.split(/[?#]/)[0]; // quita ?v2.47.0 y anclas
+    const clean = ref.split(/[?#]/)[0]; // quita ?v3.49.0 y anclas
     // Solo formatos vivos: .eot (IE<=9) y .ttf (muy legacy) pesan 4.2 MB y
     // ningún navegador actual los pide (el navegador elige el primer formato
     // soportado de la lista: woff2 -> woff). El CSS no se toca.
     if (/\.(eot|ttf)$/i.test(clean)) continue;
-    const src = join(nodeModules, pkg, clean);
+    const src = resolve(dirname(originPath), clean); // url() relativo al CSS
     if (!existsSync(src)) {
-      missing.push(`${pkg}/${clean} (referenciado por ${relCss})`);
+      missing.push(
+        `${relative(nodeModules, src)} (referenciado por ${relCss})`,
+      );
       continue;
     }
     const dest = join(dirname(relCss), clean);

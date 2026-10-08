@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@tabler/icons-webfont": "2.47.0",
+    "@tabler/icons-webfont": "3.49.0",
     "@testing-library/dom": "^8.20.0",
     "alpinejs": "3.17.4",
     "dayjs": "1.11.23",

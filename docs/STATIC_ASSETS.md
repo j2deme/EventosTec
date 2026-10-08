@@ -63,7 +63,7 @@ npm run build:static                # regenerar
 | Paquete                 | Versión   | Notas                                                                                     |
 | ----------------------- | --------- | ----------------------------------------------------------------------------------------- |
 | `tailwindcss`           | `3.4.17`  | la misma que redirigía `cdn.tailwindcss.com`: mismo lenguaje/utilidades que en producción |
-| `@tabler/icons-webfont` | `2.47.0`  | su `tabler-icons.min.css` es **byte-idéntico** (203.693 B) al que servía el CDN           |
+| `@tabler/icons-webfont` | `3.49.0`  | la última; desde 3.x su CSS está en `dist/` (213.236 B)                                   |
 | `alpinejs`              | `3.17.4`  | resolvía `@3.x.x`                                                                         |
 | `dayjs`                 | `1.11.23` | resolvía `@1`                                                                             |
 | `toastify-js`           | `1.12.0`  | antes `@1.12.0`                                                                           |
@@ -74,7 +74,10 @@ Detalles que ya costaron:
   `toastify.min.js` **no existen** en los paquetes; se copian las versiones
   originales (`locale/es.js`, `src/toastify.js`). Mismo código, ~10 KB más.
 - **Layout de paquetes**: si una dependencia mueve ficheros al actualizar,
-  `scripts/vendor_static.mjs` **aborta** listando los orígenes que faltan.
+  `scripts/vendor_static.mjs` **aborta** listando los orígenes que faltan. Ya
+  pasó: al subir Tabler de `2.47.0` a `3.49.0` el CSS bajó de la raíz del
+  paquete a `dist/`, y los `url()` de las fuentes se resuelven relativos a
+  ese CSS (el script los copia teniéndolo en cuenta).
 - **Fuentes**: solo se copian `woff2` y `woff` (el `eot` de IE≤9 y el `ttf`
   suman 4.2 MB y ningún navegador actual los pide: elige el primer formato
   soportado de la lista). El CSS no se toca.
@@ -118,8 +121,8 @@ borras).
 Los 8 casos que hubo se corrigieron, porque no eran de versión sino erratas
 que el CDN JIT ignoraba igualmente:
 
-- Iconos (no existen ni en Tabler 1.35.0, ni en la 2.47.0 pineada, ni en la
-  3.49.0 actual): `ti-book-open` → `ti-book-2`,
+- Iconos (no existen ni en Tabler 1.35.0, ni en 2.47.0, ni en la 3.49.0
+  actual): `ti-book-open` → `ti-book-2`,
   `ti-spinner`/`ti-spin` → `ti-loader animate-spin`, `ti-users-off` →
   `ti-users-minus`.
 - Clases: `border-1` → `border`, `ml-13` → `ml-[52px]`, `text-md` →
@@ -128,5 +131,5 @@ que el CDN JIT ignoraba igualmente:
 ## Tamaños
 
 - `tailwind.css`: ~46 KB (vs ~400 KB del JS del CDN).
-- `app/static/vendor/`: ~2.1 MB, de los que ~1.9 MB son las fuentes de
-  Tabler (`woff2` 779 KB + `woff` 1.1 MB).
+- `app/static/vendor/`: ~1.6 MB, de los que ~1.29 MB son las fuentes de
+  Tabler (`woff2` 495 KB + `woff` 762 KB).
