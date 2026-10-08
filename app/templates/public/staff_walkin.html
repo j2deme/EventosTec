@@ -1,5 +1,241 @@
 {% extends 'base.html' %} {% block title %}Registro rápido - Staff{% endblock %}
-{% block content %}
+{% set staff_title = activity_name or 'Actividad' %} {% block head %}
+<!-- CSS crítico de esta vista: con el CDN de Tailwind en `defer`, la página se
+     pinta antes de que esos ~400 KB lleguen. Reglas mínimas con LOS MISMOS
+     valores de las utilidades que usa la plantilla, para que no haya saltos
+     cuando Tailwind tome el control. -->
+<style>
+  .min-h-screen {
+    min-height: 100vh;
+  }
+  .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, #eff6ff, #e0e7ff);
+  }
+  .bg-white {
+    background-color: #fff;
+  }
+  .bg-indigo-50 {
+    background-color: #eef2ff;
+  }
+  .bg-indigo-100 {
+    background-color: #e0e7ff;
+  }
+  .bg-red-100 {
+    background-color: #fee2e2;
+  }
+  .flex {
+    display: flex;
+  }
+  .inline-flex {
+    display: inline-flex;
+  }
+  .flex-1 {
+    flex: 1 1 0%;
+  }
+  .flex-col {
+    flex-direction: column;
+  }
+  .items-start {
+    align-items: flex-start;
+  }
+  .items-center {
+    align-items: center;
+  }
+  .justify-center {
+    justify-content: center;
+  }
+  .w-full {
+    width: 100%;
+  }
+  .max-w-md {
+    max-width: 28rem;
+  }
+  .w-6 {
+    width: 1.5rem;
+  }
+  .h-6 {
+    height: 1.5rem;
+  }
+  .w-14 {
+    width: 3.5rem;
+  }
+  .h-14 {
+    height: 3.5rem;
+  }
+  .mx-auto {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .mt-1 {
+    margin-top: 0.25rem;
+  }
+  .mt-2 {
+    margin-top: 0.5rem;
+  }
+  .mt-3 {
+    margin-top: 0.75rem;
+  }
+  .mt-6 {
+    margin-top: 1.5rem;
+  }
+  .mb-1 {
+    margin-bottom: 0.25rem;
+  }
+  .mb-2 {
+    margin-bottom: 0.5rem;
+  }
+  .mb-3 {
+    margin-bottom: 0.75rem;
+  }
+  .mb-6 {
+    margin-bottom: 1.5rem;
+  }
+  .p-3 {
+    padding: 0.75rem;
+  }
+  .p-4 {
+    padding: 1rem;
+  }
+  .px-3 {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .px-4 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .py-1 {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  .py-2 {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+  .py-3 {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+  .py-4 {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+  .py-6 {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+  .space-x-2 > * + * {
+    margin-left: 0.5rem;
+  }
+  .border {
+    border-width: 1px;
+    border-style: solid;
+    border-color: #e5e7eb;
+  }
+  .border-red-400 {
+    border-color: #f87171;
+  }
+  .rounded {
+    border-radius: 0.25rem;
+  }
+  .rounded-full {
+    border-radius: 9999px;
+  }
+  .rounded-xl {
+    border-radius: 0.75rem;
+  }
+  .shadow {
+    box-shadow:
+      0 1px 3px 0 rgb(0 0 0 / 0.1),
+      0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  .text-center {
+    text-align: center;
+  }
+  .text-xs {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+  .text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  .text-xl {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+  .text-2xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+  .text-4xl {
+    font-size: 2.25rem;
+    line-height: 2.5rem;
+  }
+  .font-semibold {
+    font-weight: 600;
+  }
+  .font-bold {
+    font-weight: 700;
+  }
+  .text-gray-400 {
+    color: #9ca3af;
+  }
+  .text-gray-500 {
+    color: #6b7280;
+  }
+  .text-gray-600 {
+    color: #4b5563;
+  }
+  .text-gray-900 {
+    color: #111827;
+  }
+  .text-indigo-600 {
+    color: #4f46e5;
+  }
+  .text-indigo-700 {
+    color: #4338ca;
+  }
+  .text-green-600 {
+    color: #16a34a;
+  }
+  .text-red-600 {
+    color: #dc2626;
+  }
+  .text-red-700 {
+    color: #b91c1c;
+  }
+  .opacity-50 {
+    opacity: 0.5;
+  }
+  .cursor-not-allowed {
+    cursor: not-allowed;
+  }
+  .relative {
+    position: relative;
+  }
+  /* Preflight mínimo: mismas intenciones que Tailwind para los controles */
+  input,
+  button {
+    font: inherit;
+  }
+  button {
+    background-color: transparent;
+    border: 0;
+    cursor: pointer;
+    color: inherit;
+  }
+  /* Spinner de "Buscando..." (Tailwind define .animate-spin al llegar) */
+  .animate-spin {
+    animation: sw-spin 1s linear infinite;
+  }
+  @keyframes sw-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>
+{% endblock %} {% block content %}
 <div
   class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-start"
 >
@@ -21,7 +257,9 @@
       <h1
         class="text-2xl font-bold text-gray-900 mb-1"
         x-text="activityName || 'Actividad'"
-      ></h1>
+      >
+        {{ staff_title }}
+      </h1>
       <div
         class="inline-flex items-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-sm font-semibold"
       >
@@ -31,7 +269,7 @@
     </div>
 
     {% if activity_allowed %}
-    <div class="mb-3" x-show="staffWindowOpen">
+    <div class="mb-3" x-show="staffWindowOpen" x-cloak>
       <label for="ctrl-input" class="sr-only">Número de control</label>
       <div class="flex">
         <input
@@ -50,7 +288,11 @@
       </div>
     </div>
 
-    <div x-show="!staffWindowOpen" class="py-6 text-center text-gray-600">
+    <div
+      x-show="!staffWindowOpen"
+      x-cloak
+      class="py-6 text-center text-gray-600"
+    >
       <div class="flex flex-col items-center">
         <i
           class="ti ti-hourglass-empty text-4xl text-gray-400 mb-2"
@@ -62,21 +304,14 @@
         <div class="text-xs text-gray-500 mt-1">
           Solo el personal administrativo puede gestionar asistencias ahora.
         </div>
-        {% else %}
-        <div
-          class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
-          role="alert"
-        >
-          <strong class="font-bold">Error:</strong>
-          <span class="block sm:inline"
-            >{{ error_message or 'Actividad no válida o no disponible.' }}</span
-          >
-        </div>
-        {% endif %}
       </div>
     </div>
 
-    <div x-show="state === 'searching'" class="py-6 text-center text-gray-500">
+    <div
+      x-show="state === 'searching'"
+      x-cloak
+      class="py-6 text-center text-gray-500"
+    >
       <svg
         class="animate-spin h-6 w-6 mx-auto text-indigo-600"
         viewBox="0 0 24 24"
@@ -99,7 +334,7 @@
       <div class="text-sm mt-2">Buscando...</div>
     </div>
 
-    <div x-show="state === 'found'" class="border rounded p-3 mb-3">
+    <div x-show="state === 'found'" x-cloak class="border rounded p-3 mb-3">
       <div class="text-sm text-gray-600">Nombre</div>
       <div class="font-medium text-gray-900" x-text="student.full_name"></div>
       <div
@@ -142,19 +377,36 @@
       </div>
     </div>
 
-    <div x-show="state === 'not_found'" class="text-sm text-red-600 py-4">
+    <div
+      x-show="state === 'not_found'"
+      x-cloak
+      class="text-sm text-red-600 py-4"
+    >
       Estudiante no encontrado. Verifique el número o contacte al administrador.
     </div>
+    <!-- Sin x-cloak: es el estado por defecto y debe verse antes de que Alpine cargue -->
     <div x-show="state === 'idle'" class="text-sm text-gray-500 py-4">
       Ingrese número de control; la búsqueda se realiza automáticamente.
     </div>
 
     <div
       x-show="message"
+      x-cloak
       class="mt-3 text-sm text-center"
       :class="msgClass"
       x-text="message"
     ></div>
+    {% else %}
+    <div
+      class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4"
+      role="alert"
+    >
+      <strong class="font-bold">Error:</strong>
+      <span class="block sm:inline"
+        >{{ error_message or 'Actividad no válida o no disponible.' }}</span
+      >
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %} {% block scripts %}
