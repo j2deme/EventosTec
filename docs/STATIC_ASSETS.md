@@ -108,18 +108,22 @@ comprueba que `base.html` no volvió al CDN de Tailwind.
 Si el test 3 o 4 falla tras añadir algo, casi siempre es solo cuestión de
 regenerar: `npm run build:static`.
 
-### Bugs preexistentes que los tests documentan
+### Sin excepciones pendientes
 
-No son fallos del build: **hoy tampoco funcionan en producción** (el CDN
-servía ese mismo CSS). Están listados en `_KNOWN_MISSING_ICONS` y
-`_KNOWN_MISSING_CLASSES`; si los corriges, borra la entrada de la lista.
+`_KNOWN_MISSING_CLASSES` y `_KNOWN_MISSING_ICONS` están **vacíos**: el test
+exige cobertura total de clases e iconos y, además, detecta entradas
+obsoletas (si corriges un nombre que estaba listado, se queja hasta que lo
+borras).
 
-- Iconos que `@tabler/icons-webfont@2.47.0` no define:
-  `ti-book-open` (activities), `ti-spinner`/`ti-spin` (spinners de admin),
-  `ti-users-off` (estado vacío de estudiantes).
-- Clases que Tailwind no genera: `border-1` (el ancho 1 px es `border`),
-  `ml-13` (la escala salta de 12 a 14), `text-md` (no existe: `text-base`),
-  `whitespace-preline` (el nombre es `whitespace-pre-line`).
+Los 8 casos que hubo se corrigieron, porque no eran de versión sino erratas
+que el CDN JIT ignoraba igualmente:
+
+- Iconos (no existen ni en Tabler 1.35.0, ni en la 2.47.0 pineada, ni en la
+  3.49.0 actual): `ti-book-open` → `ti-book-2`,
+  `ti-spinner`/`ti-spin` → `ti-loader animate-spin`, `ti-users-off` →
+  `ti-users-minus`.
+- Clases: `border-1` → `border`, `ml-13` → `ml-[52px]`, `text-md` →
+  `text-base`, `whitespace-preline` → `whitespace-pre-line`.
 
 ## Tamaños
 

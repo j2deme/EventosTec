@@ -184,18 +184,12 @@ _STANDALONE = frozenset(
     """.split()
 )
 
-# Clases que el escáner detecta pero que Tailwind NO genera. No es un fallo
-# del build: son clases inválidas ya hoy (el CDN JIT las ignoraba igual), o
-# sea, no hacen nada en producción. Bugs de UI preexistentes, documentados
-# aquí en lugar de romper este test. Si los corriges, borra la entrada.
-_KNOWN_MISSING_CLASSES = frozenset(
-    {
-        "border-1",  # no existe: el ancho de 1px es `border` (activities/events)
-        "ml-13",  # la escala no tiene 13; cerca: ml-12 (3rem) / ml-14 (3.5rem)
-        "text-md",  # no existe: xs, sm, base, lg... (student/partials)
-        "whitespace-preline",  # el nombre real es whitespace-pre-line (calendar)
-    }
-)
+# Clases usadas que Tailwind NO genera: SIN excepciones. Las 4 que había
+# (`border-1`, `ml-13`, `text-md`, `whitespace-preline`) eran erratas que el
+# CDN JIT también ignoraba; se corrigieron por las válidas (`border`,
+# `ml-[52px]`, `text-base`, `whitespace-pre-line`). Si detecta una nueva,
+# añádela aquí con su motivo y regenera con `npm run build:css`.
+_KNOWN_MISSING_CLASSES = frozenset()
 
 # Iconos usados que @tabler/icons-webfont no define: SIN excepciones. Los 4
 # que había (`ti-book-open`, `ti-spin`, `ti-spinner`, `ti-users-off`) no
