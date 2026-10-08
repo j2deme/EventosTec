@@ -144,8 +144,8 @@ assistances table, so the UTC `server_default` showed check-ins recorded before
   when it is already local (never touched), `ambiguous` when there is no
   signal — and marks the run in `app_settings` so it cannot be applied twice.
   On the 2026-10-07 dump: 4804 rows, 351 with a hard signal (all 307 rows of
-  that day included) and 4453 without one; the latter are still UTC *by
-  construction* (no code path ever assigns `created_at`), so they are fixed by
+  that day included) and 4453 without one; the latter are still UTC _by
+  construction_ (no code path ever assigns `created_at`), so they are fixed by
   default and left out with `--strict`.
   **Order matters**: run it before deploying the write fix (or pass
   `--cutoff` with the deploy time); after the deploy, new rows arrive in local
