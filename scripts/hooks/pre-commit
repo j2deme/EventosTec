@@ -1,0 +1,79 @@
+#!/bin/sh
+# Hook `pre-commit` multiplataforma para EventosTec — COPIA VERSIONADA.
+#
+# Instalar/restaurar el hook local (git lo ejecuta desde `.git/hooks/pre-commit`;
+# `pre-commit install` lo regenera y pierde estos ajustes):
+#     cp scripts/hooks/pre-commit .git/hooks/pre-commit
+#     chmod +x .git/hooks/pre-commit
+# Respaldos: `.git/hooks/pre-commit.orig-crlf` (versión original, CRLF, solo Windows).
+#
+# Basado en el generado por pre-commit (https://pre-commit.com) y adaptado para
+# que corra igual en:
+#   - Windows (Git Bash / VS Code): usa venv\Scripts\python.exe
+#   - WSL: usa el MISMO venv de Windows vía /mnt/c/.../python.exe
+#     (el venv no tiene intérprete Linux y WSL puede lanzar .exe nativos)
+#
+# Compatible con `sh` puro (sin arrays): Git for Windows ejecuta los hooks con sh.
+
+set -e
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+[ -n "$ROOT" ] || ROOT="$(cd "$HERE/../.." && pwd)"
+
+# Ejecuta `pre-commit hook-impl` con el intérprete dado ($1) reenviando los
+# argumentos que git pase al hook ($@ después de shift).
+run_hook() {
+    PY="$1"
+    shift
+
+    HOOK_DIR="$HERE"
+    case "$PY" in
+        *.exe)
+            # Python de Windows invocado desde WSL: --hook-dir debe ser ruta Win32
+            if [ -n "${WSL_DISTRO_NAME:-}" ] && command -v wslpath >/dev/null 2>&1; then
+                if WIN_DIR="$(wslpath -w "$HERE" 2>/dev/null)"; then
+                    HOOK_DIR="$WIN_DIR"
+                fi
+            fi
+            ;;
+    esac
+
+    exec "$PY" -mpre_commit hook-impl \
+        --config=.pre-commit-config.yaml \
+        --hook-type=pre-commit \
+        --hook-dir "$HOOK_DIR" -- "$@"
+}
+
+# 1) Virtualenv del repo (nativo si existe, si no el de Windows) — en Windows
+#    Git Bash $ROOT es /c/... y en WSL es /mnt/c/...; ambos resuelven bien.
+for PY in \
+    "$ROOT/venv/bin/python" \
+    "$ROOT/venv/Scripts/python.exe" \
+    "$ROOT/.venv/bin/python" \
+    "$ROOT/.venv/Scripts/python.exe" \
+    "$ROOT/env/bin/python" \
+    "$ROOT/env/Scripts/python.exe"
+do
+    if [ -f "$PY" ] && "$PY" -c "import pre_commit" >/dev/null 2>&1; then
+        run_hook "$PY" "$@"
+    fi
+done
+
+# 2) Intérprete del sistema con pre-commit instalado
+for PY in python3 python; do
+    if command -v "$PY" >/dev/null 2>&1 && "$PY" -c "import pre_commit" >/dev/null 2>&1; then
+        run_hook "$PY" "$@"
+    fi
+done
+
+# 3) Binario suelto de pre-commit
+if command -v pre-commit >/dev/null 2>&1; then
+    exec pre-commit hook-impl \
+        --config=.pre-commit-config.yaml \
+        --hook-type=pre-commit \
+        --hook-dir "$HERE" -- "$@"
+fi
+
+echo '`pre-commit` no encontrado: activa el virtualenv (venv) o instala pre-commit.' 1>&2
+exit 1
