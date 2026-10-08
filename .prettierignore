@@ -1,0 +1,3 @@
+# Archivos vendorizados/minificados: no reformatear (romperían el bundle)
+*.min.js
+app/static/js/vendor/

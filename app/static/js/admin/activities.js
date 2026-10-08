@@ -49,6 +49,9 @@ function activitiesManager() {
     tokenUrlStaffWalkin: "",
     tokenLoading: false,
     tokenError: "",
+    // QR del enlace de auto-registro (se muestra/oculta en el modal de vista)
+    qrVisible: false,
+    qrError: "",
     // Batch import modal
     showBatchModal: false,
     batchUploading: false,
@@ -965,6 +968,10 @@ function activitiesManager() {
       this.tokenPublic = "";
       this.tokenUrlPause = "";
       this.tokenUrlStaffWalkin = "";
+      // El QR pertenece a la actividad anterior: se oculta y se limpia el
+      // error; se vuelve a renderizar solo cuando el admin lo pide.
+      this.qrVisible = false;
+      this.qrError = "";
       try {
         // Use slug-based URLs instead of tokens. Fallback al ID numérico:
         // el backend acepta slug o ID en todas las vistas públicas, así que
@@ -1029,6 +1036,152 @@ function activitiesManager() {
         this.tokenError = e && e.message ? e.message : String(e);
       } finally {
         this.tokenLoading = false;
+      }
+    },
+
+    // --- QR del enlace de auto-registro -----------------------------------
+    // Genera el QR del enlace público de auto-registro (tokenUrl) para
+    // proyectarlo o imprimirlo en el evento. Usa la librería vendorizada
+    // static/js/vendor/qrcode.min.js (qrcodejs, MIT): sin CDN y sin carga de
+    // red en el salón. Si la librería no carga, se muestra un error y el
+    // enlace copiable sigue disponible como alternativa.
+    qrOptions(size) {
+      const side = size || 320;
+      return {
+        text: this.tokenUrl || "",
+        width: side,
+        height: side,
+        colorDark: "#111827",
+        colorLight: "#ffffff",
+        // correctLevel se omite: la librería usa por defecto el nivel H
+        // (máxima redundancia), el más robusto para escanear un cartel.
+      };
+    },
+
+    showSelfRegisterQr() {
+      this.qrVisible = true;
+      if (typeof this.$nextTick === "function") {
+        // En Alpine el contenedor se pinta después del toggle de x-show.
+        this.$nextTick(() => this.renderSelfRegisterQr());
+      } else {
+        // Fuera de Alpine (tests) no hay $nextTick: renderiza directo.
+        this.renderSelfRegisterQr();
+      }
+    },
+
+    hideSelfRegisterQr() {
+      this.qrVisible = false;
+      this.qrError = "";
+    },
+
+    renderSelfRegisterQr(target) {
+      this.qrError = "";
+      const container = target || document.getElementById("self-register-qr");
+      const url = this.tokenUrl || "";
+      if (!container) return false;
+      container.innerHTML = "";
+      if (!url) {
+        this.qrError = "No hay enlace de auto-registro para generar el QR.";
+        return false;
+      }
+      if (typeof window.QRCode === "undefined") {
+        this.qrError =
+          "No se pudo cargar la librería QR: copia el enlace y genera el QR con otra herramienta.";
+        return false;
+      }
+      try {
+        new window.QRCode(container, this.qrOptions(320));
+        return true;
+      } catch (e) {
+        this.qrError =
+          "No se pudo generar el QR: " +
+          (e && e.message ? e.message : String(e));
+        return false;
+      }
+    },
+
+    printSelfRegisterQr() {
+      this.qrError = "";
+      const url = this.tokenUrl || "";
+      const name =
+        (this.activityToView && this.activityToView.name) || "Actividad";
+      if (!url) {
+        this.qrError = "No hay enlace de auto-registro para imprimir.";
+        return false;
+      }
+
+      let win = null;
+      try {
+        win = window.open("", "_blank", "width=640,height=860");
+      } catch (e) {
+        win = null;
+      }
+      if (!win) {
+        this.qrError =
+          "El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes e inténtalo de nuevo.";
+        return false;
+      }
+
+      // Escapado mínimo del texto inyectado en la ventana de impresión.
+      const esc = (s) =>
+        String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+
+      try {
+        win.document.open();
+        win.document.write(
+          "<!doctype html><html><head><meta charset='utf-8'>" +
+            "<title>QR auto-registro</title><style>" +
+            "body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;" +
+            "text-align:center;padding:40px;color:#111827;margin:0}" +
+            ".title{font-size:26px;font-weight:700;margin:0 0 6px}" +
+            ".name{font-size:18px;font-weight:600;margin:0 0 28px}" +
+            "#print-qr{display:inline-block}" +
+            ".url{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;" +
+            "word-break:break-all;margin-top:24px}" +
+            ".hint{font-size:13px;color:#6b7280;margin-top:10px}" +
+            "</style></head><body>" +
+            '<p class="title">Auto-registro</p>' +
+            '<p class="name">' +
+            esc(name) +
+            "</p>" +
+            "<div id='print-qr'></div>" +
+            '<p class="url">' +
+            esc(url) +
+            "</p>" +
+            '<p class="hint">Escanea el QR para registrar tu entrada.</p>' +
+            "</body></html>",
+        );
+        win.document.close();
+
+        const target = win.document.getElementById("print-qr");
+        if (target && typeof window.QRCode !== "undefined") {
+          try {
+            // 460px: tamaño de cartel legible desde cierta distancia.
+            new window.QRCode(target, this.qrOptions(460));
+          } catch (e) {
+            // El enlace en texto queda en la hoja como fallback.
+          }
+        }
+
+        const w = win;
+        setTimeout(() => {
+          try {
+            w.focus();
+            w.print();
+          } catch (e) {
+            // El usuario puede imprimir manualmente con Ctrl+P.
+          }
+        }, 400);
+        return true;
+      } catch (e) {
+        this.qrError =
+          "No se pudo preparar la impresión: " +
+          (e && e.message ? e.message : String(e));
+        return false;
       }
     },
 

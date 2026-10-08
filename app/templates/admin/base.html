@@ -405,6 +405,8 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
 <script src="{{ url_for('static', filename='js/impersonation.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/events.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/calendar.js') }}"></script>
+<!-- QR del enlace de auto-registro (solo admin; vendorizado, MIT) -->
+<script src="{{ url_for('static', filename='js/vendor/qrcode.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/activities.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/registrations.js') }}"></script>
 <script src="{{ url_for('static', filename='js/admin/attendances.js') }}"></script>

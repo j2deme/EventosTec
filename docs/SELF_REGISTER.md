@@ -190,6 +190,8 @@ Respuestas de éxito y de duplicado:
 - `tests/test_public_slug_views.py` — vistas `GET`.
 - `app/static/js/public/__tests__/self_register.test.js` — countdown y
   mensajes del frontend.
+- `app/static/js/admin/__tests__/activities.qr.test.js` — QR del enlace
+  (sección 8): render, fallbacks, impresión y reset entre actividades.
 - `tests/test_datetime_utils_wall_local.py` — convención de escritura
   (sección 7).
 
@@ -210,3 +212,23 @@ instantes que genera el servidor se persisten con `db_wall_local()` /
   sitios convertidos en `docs/TIMEZONE_FIX.md`.
 - Los valores que vienen del payload **no** se convierten:
   `parse_datetime_with_timezone()` conserva el wall time del cliente.
+
+## 8. QR del enlace (operación en el evento)
+
+El QR se genera desde el **panel de Actividades**, sin servicios externos:
+
+- Abrir la actividad (modal de vista) → junto al "Enlace de
+  auto-registro": botón **Ver QR** (pinta el QR del `tokenUrl`, 320 px, con
+  la URL en texto debajo) e **Imprimir** (ventana emergente con cartel:
+  "Auto-registro", nombre de la actividad, QR de 460 px y la URL, listo para
+  imprimir o proyectar en la entrada).
+- Librería **vendorizada** en `app/static/js/vendor/qrcode.min.js`
+  (`qrcodejs`, MIT): sin CDN ni red en el salón. Si no carga, la UI muestra
+  un aviso y el enlace copiable sigue disponible como alternativa.
+- El QR se resetea al cambiar de actividad (`fetchActivityToken()`), y el
+  botón está deshabilitado mientras no haya enlace.
+- Un **mismo QR cubre todo el ciclo**: registrar entrada mientras la ventana
+  está abierta y verificar la asistencia cuando ya cerró (§1, §4).
+- Tests: `app/static/js/admin/__tests__/activities.qr.test.js`.
+- Exclusión de formato: `.prettierignore` evita que el minificado se
+  reescriba con Prettier (hook pre-commit).
