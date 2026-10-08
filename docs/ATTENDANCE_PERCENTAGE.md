@@ -108,16 +108,29 @@ llegar hasta 24 min.
 
 ## 6. Despliegue
 
-1. **Migración**: `alembic upgrade head`
+> **Estado: desplegado en producción el 2026-10-08** con `./deploy.sh`
+> (`git pull` → `docker compose build --pull --no-cache web` →
+> `docker compose up -d --force-recreate --no-deps web` → `docker image prune`).
+>
+> ⚠️ `deploy.sh` **no corre migraciones**. Cuando `main` traiga una revisión de
+> esquema hay que aplicarla a mano antes de reiniciar:
+> `docker compose exec web flask db upgrade` (equivale a `alembic upgrade head`).
+
+Historial de la primera pasada (2026-10-07/08):
+
+1. **Migración** ✔: `alembic upgrade head`
    (`20261007_add_arrival_time_and_actual_end` agrega
    `attendances.arrival_time` y `activities.actual_end_datetime`).
-2. **Setting**: el default pasó de `20` a `15`. Si la fila ya existe en
-   `app_settings`, hay que actualizarla en `Admin → Settings` (el seed
+2. **Setting** ✔: el default pasó de `20` a `15`. La fila ya existía en
+   `app_settings`, así que había que actualizarla a mano (el seed
    `scripts/initialize_app_settings.py` sólo inserta faltantes):
    `UPDATE app_settings SET value='15', default_value='15' WHERE key='public_self_register_close_minutes_after_start';`
-3. **Backfill pendiente** (relacionado, ver `docs/TIMEZONE_FIX.md`):
-   `python tools/backfill_attendance_created_at_local.py --verbose` y luego
-   `--apply`. Afecta el fallback de `arrival_time` descrito en §3.
+3. **Backfill de `attendances.created_at`** ✔ (antes "pendiente"): hecho el
+   2026-10-08 con
+   `python tools/backfill_attendance_created_at_local.py --apply --cutoff "2026-10-08 04:17:45"`
+   — 4804 filas, corrida marcada en `app_settings` (no se puede repetir).
+   Detalle y por qué hace falta el `--cutoff`: `docs/TIMEZONE_FIX.md`.
+   **Nunca** `--apply --force`. Afecta el fallback de `arrival_time` de §3.
 4. **Recálculo**: los porcentajes se recalculan al hacer checkout / batch
    checkout de cada actividad. Sólo pueden subir (el perdón es aditivo y el
    crédito está techo al 100%), así que nadie pierde la `Asistió` que ya

@@ -1,5 +1,10 @@
 # Timezone Handling Fix Documentation
 
+> **Estado (2026-10-08): todo desplegado en producción** con `./deploy.sh`
+> (migración, setting `15`, backfill de `attendances.created_at` y los
+> follow-ups de lectura de abajo). Checklist completo en
+> `docs/ATTENDANCE_PERCENTAGE.md` §6.
+
 ## Problem
 
 The public pause-attendance view was showing error messages like "La ventana pública de control ha expirado" (The public control window has expired) even during ongoing activities.
@@ -179,6 +184,12 @@ only change what a human sees.
 - `app/api/students_bp.py` — the `Generado el:` header of the _Crédito
   Complementario_ XLSX now uses `db_now_local()` instead of
   `datetime.now(timezone.utc)` (+6 h inside the exported file).
+- **Download filenames** (`students_bp`, `reports_bp`,
+  `public_registrations_bp`) also switched to `db_now_local()`, so the stamp
+  in the downloaded file matches the `Generado el:` header and the local
+  date. The `Z` suffix was dropped from the `reports_bp` names — a UTC
+  marker on a local timestamp would be a lie. Nothing parses them; they are
+  only for sorting/uniqueness.
 - Tests: `tests/api/test_reports.py`
   (`test_participation_matrix_semester_uses_local_reference_date` — the
   year-boundary case fails with the old code: 32 vs 29 — and
@@ -187,9 +198,6 @@ only change what a human sees.
 
 Left as-is on purpose:
 
-- **Download filenames** (`students_bp`, `reports_bp`,
-  `public_registrations_bp`) keep the UTC timestamp: they exist only for
-  sorting/uniqueness.
 - **`created_at` / `updated_at` of the other models** (`Student`, `User`,
   `Event`, `Activity`, `CreditGrant`, `CreditOverride`, `AppSetting`) are
   still `db.func.now()` / `datetime.utcnow()` metadata and **no template
