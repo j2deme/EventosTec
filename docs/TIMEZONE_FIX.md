@@ -117,7 +117,7 @@ Write sites converted:
 
 - 12 assignment sites converted (`db.func.now()` → `db_now_local()`) in `registrations_bp`, `public_registrations_bp`, `attendances_bp`, `attendance_service` and `registration_service`.
 - `Registration.registration_date` gained a **Python-side default** (`_registration_date_default()`, lazy import so the models don't create an import cycle). New preregistrations no longer depend on the MySQL clock; `server_default` is kept as a fallback for raw-SQL inserts (there are no bulk inserts of `Registration`, so the client-side default is safe).
-- `created_at` / `updated_at` still use `server_default=db.func.now()` (UTC): they are metadata and only show up as a display fallback when `registration_date` is null. Exception: `attendances.created_at`, see the next follow-up.
+- `created_at` / `updated_at` still use `server_default=db.func.now()` (UTC): they are metadata. **Correction (2026-10-08):** the admin registrations table rendered `created_at` as the _primary_ **Fecha Registro** value, not as a fallback — see the last follow-up. Exception: `attendances.created_at`, see the next follow-up.
 
 - Tests: `tests/test_registration_dates_wall_local.py` — default value, re-register, checkout confirmation, plus a guard that fails if either field is ever assigned with `db.func.now()` again.
 
@@ -155,6 +155,47 @@ assistances table, so the UTC `server_default` showed check-ins recorded before
   the same helper as the endpoint.
 
 **Payload values are not converted.** `parse_datetime_with_timezone()` keeps the wall time the client sent (an `<input type="datetime-local">` value is naive local and is deliberately tagged as UTC), so wrapping it in `db_wall_local()` would subtract 6 hours from every manual check-in. Comparisons keep using aware UTC (`datetime.now(timezone.utc)`); only _assignments_ are converted.
+
+### Follow-up (2026-10-08): remaining read-side leftovers
+
+Same class of bug, but **read-only**: none of these feeds a comparison, they
+only change what a human sees.
+
+- `app/templates/admin/partials/registrations.html` — admin registrations
+  table, **Fecha Registro** column: the cell rendered
+  `registration.created_at` (UTC `server_default`) as the _primary_ value, so
+  registrations made between 18:00–24:00 local showed the **next day** (the
+  value is a naive ISO string, which the browser parses as browser-local
+  time). It now renders `registration.registration_date` (local wall time,
+  already in the dump) and falls back to `created_at` only when that is
+  missing.
+- `app/api/reports_bp.py` — `/api/reports/participation_matrix`: the
+  semester reference date was `datetime.now(timezone.utc)`, and the
+  activity/event branches kept `localize_naive_datetime()`'s **aware-UTC**
+  result, so `ref_date.month` read the _UTC_ month and the 18:00 h local
+  cutoff could put an event on the 31st into the following month.
+  `ref_date` is now built in `APP_TIMEZONE` and normalized with
+  `astimezone(app_timezone_info(app_tz))` before reading `.month` / `.year`.
+- `app/api/students_bp.py` — the `Generado el:` header of the _Crédito
+  Complementario_ XLSX now uses `db_now_local()` instead of
+  `datetime.now(timezone.utc)` (+6 h inside the exported file).
+- Tests: `tests/api/test_reports.py`
+  (`test_participation_matrix_semester_uses_local_reference_date` — the
+  year-boundary case fails with the old code: 32 vs 29 — and
+  `test_participation_matrix_default_reference_is_local_today`) and
+  `tests/api/test_complementary_credits_export_header.py`.
+
+Left as-is on purpose:
+
+- **Download filenames** (`students_bp`, `reports_bp`,
+  `public_registrations_bp`) keep the UTC timestamp: they exist only for
+  sorting/uniqueness.
+- **`created_at` / `updated_at` of the other models** (`Student`, `User`,
+  `Event`, `Activity`, `CreditGrant`, `CreditOverride`, `AppSetting`) are
+  still `db.func.now()` / `datetime.utcnow()` metadata and **no template
+  renders them** (they are only used for `created_at:desc` ordering). If one
+  of them is ever displayed, remember that `safe_iso()` reads a naive value
+  as _local_, so a UTC-stored column would come out +6 h off.
 
 ### Migration notes
 
