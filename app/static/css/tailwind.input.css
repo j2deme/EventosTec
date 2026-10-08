@@ -1,0 +1,10 @@
+/* Fuente de entrada de Tailwind (precompilado).
+ *
+ * `npm run build:css` la convierte en app/static/css/tailwind.css, que es lo
+ * que sirve la app en <head> (bloqueante y local: así no hay FOUC). El
+ * resultado NO se versiona: se genera en el build de Docker y en local con
+ * `npm run build:static`.
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

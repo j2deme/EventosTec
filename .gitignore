@@ -11,6 +11,9 @@ node_modules/
 # Coverage reports
 coverage/
 scripts/references/
+# Assets estáticos generados por `npm run build:static` (ver docs/STATIC_ASSETS.md)
+app/static/vendor/
+app/static/css/tailwind.css
 # Muestras HTML generadas localmente para revisión (desechables: no se
 # commitean aunque se vuelvan a generar)
 /samples/

@@ -1,3 +1,6 @@
 # Archivos vendorizados/minificados: no reformatear (romperían el bundle)
 *.min.js
 app/static/js/vendor/
+# Generados por `npm run build:static` (no versionados)
+app/static/vendor/
+app/static/css/tailwind.css
