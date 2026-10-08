@@ -289,7 +289,11 @@ def get_event_calendar(event_id):
         # sesiones fuera de la ventana quedan en el bloque "fuera" del
         # frontend (day no pertenece a days).
         days = sorted(
-            {item["day"] for item in items if item["day"] and item["day"] in window_days}
+            {
+                item["day"]
+                for item in items
+                if item["day"] and item["day"] in window_days
+            }
         )
 
         return (

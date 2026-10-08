@@ -1,6 +1,9 @@
 // Tests de impersonation.js: ingesta del hash, banner y modal admin (Fase B2)
 
-const { impersonationBanner, impersonationAdminModal } = require("../impersonation");
+const {
+  impersonationBanner,
+  impersonationAdminModal,
+} = require("../impersonation");
 
 function flush() {
   return new Promise((resolve) => setTimeout(resolve, 0));

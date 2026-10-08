@@ -98,7 +98,10 @@ describe("app.js impersonación", () => {
       // llamada real recursaría; la revocación es best-effort de todos modos.
       safeFetchSpy = jest.fn().mockResolvedValue({ ok: true });
       window.safeFetch = safeFetchSpy;
-      fakeLocation = { href: "/dashboard/student", pathname: "/dashboard/student" };
+      fakeLocation = {
+        href: "/dashboard/student",
+        pathname: "/dashboard/student",
+      };
       Object.defineProperty(window, "location", {
         value: fakeLocation,
         writable: true,

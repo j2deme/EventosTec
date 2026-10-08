@@ -336,8 +336,7 @@
         } catch (error) {
           console.error("Error:", error);
           this.forgotError = true;
-          this.forgotMessage =
-            "Error de conexión. Por favor intenta de nuevo.";
+          this.forgotMessage = "Error de conexión. Por favor intenta de nuevo.";
           showToast(this.forgotMessage, "error");
         } finally {
           this.forgotLoading = false;

@@ -342,9 +342,7 @@ describe("studentsAdmin", () => {
 
     await mgr.removeCreditOverride(5);
 
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      "/api/students/credit-overrides/5",
-    );
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/students/credit-overrides/5");
     expect(fetchMock.mock.calls[0][1]).toEqual(
       expect.objectContaining({ method: "DELETE" }),
     );

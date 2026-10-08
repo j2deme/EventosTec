@@ -1,4 +1,5 @@
 """Tests de POST /api/admin/impersonate (Fase B2)."""
+
 import base64
 import json
 import logging
@@ -46,9 +47,7 @@ def test_impersonate_requires_admin(client, app, db_session):
 
 
 def test_impersonate_missing_or_invalid_student_id(client, auth_headers):
-    response = client.post(
-        "/api/admin/impersonate", headers=auth_headers, json={}
-    )
+    response = client.post("/api/admin/impersonate", headers=auth_headers, json={})
     assert response.status_code == 400
 
     response = client.post(

@@ -131,10 +131,7 @@ function impersonationAdminModal() {
         }
       } catch (e) {
         if (window.showToast) {
-          window.showToast(
-            (e && e.message) || "Error al impersonar",
-            "error",
-          );
+          window.showToast((e && e.message) || "Error al impersonar", "error");
         }
       } finally {
         this.busy = false;

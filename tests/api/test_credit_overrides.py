@@ -192,9 +192,7 @@ def test_credit_overrides_require_auth(client):
 # ---------------------------------------------------------------------------
 
 
-def test_override_exclude_removes_student_from_credits_list(
-    app, client, auth_headers
-):
+def test_override_exclude_removes_student_from_credits_list(app, client, auth_headers):
     """'exclude' omite incluso a un estudiante que cumple la regla."""
     event_id = _create_event(app)
     student_id = _create_student(app, "OV010", "Alumno Excluido")
@@ -232,9 +230,7 @@ def test_override_exclude_removes_student_from_credits_list(
     assert resp.get_json()["total_students"] == 1
 
 
-def test_override_include_forces_early_crossed_student(
-    app, client, auth_headers
-):
+def test_override_include_forces_early_crossed_student(app, client, auth_headers):
     """'include' fuerza la inclusión aunque la regla derivada lo excluya."""
     ev1 = _create_event(app, "Override Crono 1")
     ev2 = _create_event(app, "Override Crono 2")

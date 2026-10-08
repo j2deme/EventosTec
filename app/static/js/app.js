@@ -67,7 +67,9 @@ function isAuthenticated() {
 // Función para hacer logout de una impersonación sin tocar la sesión admin
 function logoutImpersonation() {
   if (
-    !confirm("¿Salir de la vista del estudiante y volver al panel de administración?")
+    !confirm(
+      "¿Salir de la vista del estudiante y volver al panel de administración?",
+    )
   ) {
     return;
   }

@@ -197,9 +197,7 @@ describe("registrationsManager (admin) — guard de attendance:changed", () => {
     expect(mgr.loadRegistrations).not.toHaveBeenCalled();
 
     // listener registrado pero la pestaña no ha sido visitada: se omite
-    window.dispatchEvent(
-      new CustomEvent("attendance:changed", { detail: {} }),
-    );
+    window.dispatchEvent(new CustomEvent("attendance:changed", { detail: {} }));
     await flush();
     expect(mgr.loadRegistrations).not.toHaveBeenCalled();
 
@@ -211,9 +209,7 @@ describe("registrationsManager (admin) — guard de attendance:changed", () => {
     expect(mgr.loadRegistrations).toHaveBeenCalledTimes(1);
 
     // tras el boot el listener vuelve a recargar normalmente
-    window.dispatchEvent(
-      new CustomEvent("attendance:changed", { detail: {} }),
-    );
+    window.dispatchEvent(new CustomEvent("attendance:changed", { detail: {} }));
     await flush();
     expect(mgr.loadRegistrations).toHaveBeenCalledTimes(2);
   });

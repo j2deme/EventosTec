@@ -69,9 +69,7 @@ def _make_activity(event, hours, name="Actividad"):
 
 
 def _register(student, activity, status):
-    reg = Registration(
-        student_id=student.id, activity_id=activity.id, status=status
-    )
+    reg = Registration(student_id=student.id, activity_id=activity.id, status=status)
     db.session.add(reg)
     db.session.flush()
     return reg
@@ -264,7 +262,9 @@ def test_multi_event_breakdown(app):
 def test_career_filter_is_case_insensitive_substring(app):
     with app.app_context():
         event = _make_event()
-        s1 = _make_student("H008", "Ana", career="Ingeniería en Sistemas Computacionales")
+        s1 = _make_student(
+            "H008", "Ana", career="Ingeniería en Sistemas Computacionales"
+        )
         s2 = _make_student("H009", "Beto", career="Ingeniería Mecánica")
         _register(student=s1, activity=_make_activity(event, 11.0), status="Asistió")
         _register(student=s2, activity=_make_activity(event, 11.0), status="Asistió")

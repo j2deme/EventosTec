@@ -384,9 +384,7 @@ def test_export_complementary_credits_generates_excel(
     )
 
 
-def test_complementary_credits_include_walkins(
-    app, client, auth_headers, sample_event
-):
+def test_complementary_credits_include_walkins(app, client, auth_headers, sample_event):
     """Los walk-ins (solo Attendance, sin Registration) sí acreditan.
 
     Regresión de la unificación: antes la lista solo consultaba Registrations
@@ -499,9 +497,7 @@ def test_complementary_credits_dedup_reg_and_attendance(
         db.session.flush()
 
         db.session.add(
-            Registration(
-                student_id=student.id, activity_id=shared.id, status="Asistió"
-            )
+            Registration(student_id=student.id, activity_id=shared.id, status="Asistió")
         )
         db.session.add_all(
             [
@@ -530,9 +526,7 @@ def test_complementary_credits_dedup_reg_and_attendance(
     assert resp.status_code == 200
     data = resp.get_json()
 
-    row = next(
-        (s for s in data["students"] if s["control_number"] == "DEDUP01"), None
-    )
+    row = next((s for s in data["students"] if s["control_number"] == "DEDUP01"), None)
     assert row is not None
     # 6h (contadas una vez) + 5h walk-in = 11h (no 17h)
     assert row["total_hours"] == 11.0
@@ -669,9 +663,7 @@ def test_event_details_total_and_flag_include_walkins(
         )
         db.session.commit()
 
-    resp = client.get(
-        f"/api/students/{sample_student}/event/{sample_event}/details"
-    )
+    resp = client.get(f"/api/students/{sample_student}/event/{sample_event}/details")
     assert resp.status_code == 200
     data = resp.get_json()
 
@@ -754,9 +746,7 @@ def test_complementary_credits_event_ids_accumulates_across_events(
     ev1 = _create_credits_event(app, "Aniversario 45")
     ev2 = _create_credits_event(app, "Aniversario 46")
     _create_student_with_hours(app, [(ev1, 6.0), (ev2, 4.0)], "MULT01", "Alumno Combo")
-    _create_student_with_hours(
-        app, [(ev1, 8.0)], "MULT02", "Alumno Insuficiente"
-    )
+    _create_student_with_hours(app, [(ev1, 8.0)], "MULT02", "Alumno Insuficiente")
 
     resp = client.get(
         f"/api/students/complementary-credits?event_ids={ev1},{ev2}",
@@ -781,9 +771,7 @@ def test_complementary_credits_event_ids_accumulates_across_events(
     assert data["excluded_already_credited"] == 0
 
 
-def test_already_credited_in_earlier_event_is_excluded(
-    app, client, auth_headers
-):
+def test_already_credited_in_earlier_event_is_excluded(app, client, auth_headers):
     """Exclusión derivada (earliest-crossing): si la suma cruza 10h en un
     evento ANTERIOR al último seleccionado, el estudiante ya acreditado se
     omite de la lista combinada."""
@@ -957,15 +945,11 @@ def test_complementary_credits_event_ids_accepts_repeated_param(
     assert data["students"][0]["total_hours"] == 10.0
 
 
-def test_complementary_credits_merges_event_id_and_event_ids(
-    app, client, auth_headers
-):
+def test_complementary_credits_merges_event_id_and_event_ids(app, client, auth_headers):
     """Enviar event_id y event_ids juntos produce la unión de ambos."""
     ev1 = _create_credits_event(app, "Evento Union A")
     ev2 = _create_credits_event(app, "Evento Union B")
-    _create_student_with_hours(
-        app, [(ev1, 7.0), (ev2, 3.0)], "UNI01", "Alumno Union"
-    )
+    _create_student_with_hours(app, [(ev1, 7.0), (ev2, 3.0)], "UNI01", "Alumno Union")
 
     resp = client.get(
         f"/api/students/complementary-credits?event_id={ev1}&event_ids={ev2}",

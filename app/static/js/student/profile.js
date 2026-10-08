@@ -29,7 +29,9 @@ function studentProfileManager() {
       this.errorMessage = "";
 
       try {
-        const token = window.getAuthToken ? window.getAuthToken() : localStorage.getItem("authToken");
+        const token = window.getAuthToken
+          ? window.getAuthToken()
+          : localStorage.getItem("authToken");
         if (!token) {
           this.redirectToLogin();
           return;

@@ -1,4 +1,5 @@
 """Tests de GET /api/events/<id>/calendar (vista calendario del admin)."""
+
 import json
 from datetime import datetime
 
@@ -136,7 +137,9 @@ def test_calendar_registered_count_uses_registrado_status(
 
     db_session.add_all(
         [
-            Registration(student_id=s1.id, activity_id=activity.id, status="Registrado"),
+            Registration(
+                student_id=s1.id, activity_id=activity.id, status="Registrado"
+            ),
             Registration(student_id=s2.id, activity_id=activity.id, status="Cancelado"),
         ]
     )

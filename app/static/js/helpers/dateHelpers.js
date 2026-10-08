@@ -120,9 +120,7 @@
       });
     } catch (e) {
       if (hasDayjs) return dayjs(dateString).format("DD/MM/YYYY HH:mm");
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${
-        d.getFullYear()
-      } ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
   }
 
@@ -164,8 +162,18 @@
       if (hasDayjs) return dayjs(dateString).format("D MMM YYYY, HH:mm");
       // Fallback manual: Intl acaba de fallar, no volver a usarlo
       const MONTHS_SHORT = [
-        "ene", "feb", "mar", "abr", "may", "jun",
-        "jul", "ago", "sept", "oct", "nov", "dic",
+        "ene",
+        "feb",
+        "mar",
+        "abr",
+        "may",
+        "jun",
+        "jul",
+        "ago",
+        "sept",
+        "oct",
+        "nov",
+        "dic",
       ];
       return `${d.getDate()} ${
         MONTHS_SHORT[d.getMonth()]

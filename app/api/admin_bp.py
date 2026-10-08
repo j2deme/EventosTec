@@ -1,5 +1,6 @@
 # app/api/admin_bp.py
 """Endpoints administrativos de operación interna (impersonación, etc.)."""
+
 from datetime import timedelta
 
 from flask import Blueprint, current_app, jsonify, request
