@@ -12,7 +12,11 @@ from typing import Any
 from openpyxl.styles import Font, PatternFill, Alignment
 from io import BytesIO
 from datetime import datetime, timezone
-from app.utils.datetime_utils import localize_naive_datetime, safe_iso
+from app.utils.datetime_utils import (
+    db_now_local,
+    localize_naive_datetime,
+    safe_iso,
+)
 
 
 # use centralized safe_iso from app.utils.datetime_utils
@@ -977,9 +981,7 @@ def export_complementary_credits():
         # Información adicional
         ws.merge_cells(f"A2:{last_col_letter}2")
         info_cell = ws["A2"]
-        info_cell.value = (
-            f"Generado el: {datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M')}"
-        )
+        info_cell.value = f"Generado el: {db_now_local().strftime('%d/%m/%Y %H:%M')}"
         info_cell.alignment = Alignment(horizontal="center")
 
         if career:
