@@ -106,7 +106,7 @@ When clicked, a modal opens with:
 ✅ **Responsive Modal**: Works on desktop and mobile devices
 ✅ **Multi-event accumulation**: Hours add up across every selected event
 ✅ **Grant tracking**: Recording a grant marks its events as consumed so the
-   student cannot be exported twice (see *Credit granting* below)
+student cannot be exported twice (see _Credit granting_ below)
 
 ## Usage Workflow
 
@@ -129,7 +129,7 @@ When clicked, a modal opens with:
 The XLSX is uploaded by hand to the external platform, so downloading the same
 list twice would credit the same student twice. `credit_grants` prevents that:
 
-- A **grant** stores one row per `student + event` that was *consumed*: every
+- A **grant** stores one row per `student + event` that was _consumed_: every
   event that contributed **unspent** hours from the start up to the moment the
   10 h threshold was crossed. Events after the crossing stay untouched and can
   feed a **second** credit later.
