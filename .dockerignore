@@ -13,3 +13,5 @@ instance/test_eventostec.db
 dist/
 build/
 *.egg-info
+.env
+.env.*

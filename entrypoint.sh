@@ -1,15 +1,21 @@
 #!/bin/sh
 set -e
 
-# Copy .env if missing (convenience for dev); do NOT overwrite an existing .env
-if [ ! -f ".env" ] && [ -f ".env.example" ]; then
-  echo "Creating .env from .env.example"
-  cp .env.example .env
+# NOTA: la imagen NO incluye .env (excluido en .dockerignore por seguridad) y
+# tampoco lo generamos aquí: copiar .env.example dentro del contenedor dejaria
+# un /app/.env con valores de EJEMPLO (localhost) que load_dotenv() podria
+# confundir con la configuracion real si faltara alguna variable de entorno.
+# La configuracion la inyecta docker-compose (env_file: .env) o el entorno.
+if [ -z "${DATABASE_URL:-}" ] && [ -z "${DB_HOST:-}" ]; then
+  echo "WARN: no DATABASE_URL/DB_HOST in environment; config.py will fall back to localhost defaults"
 fi
 
-# Simple TCP wait-for (host:port) - fallback if DB vars are present
+# Simple TCP wait-for (host:port) - fallback if DB vars are present.
+# Usa Python (incluido en la imagen) en lugar de `nc`, que NO está instalado:
+# sin esto el chequeo fallaba siempre con "command not found" y el contenedor
+# perdía 60 s (30 reintentos x 2 s) en cada arranque.
 wait_for_db() {
-  DB_HOST=${DB_HOST:-${DB_HOST}}
+  DB_HOST=${DB_HOST}
   DB_PORT=${DB_PORT:-3306}
   if [ -z "$DB_HOST" ]; then
     echo "DB_HOST not set, skipping wait-for-db"
@@ -18,7 +24,7 @@ wait_for_db() {
 
   echo "Waiting for DB $DB_HOST:$DB_PORT to be available..."
   retries=0
-  until nc -z "$DB_HOST" "$DB_PORT" >/dev/null 2>&1; do
+  until python -c "import socket, sys; s = socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=5); s.close()" "$DB_HOST" "$DB_PORT" >/dev/null 2>&1; do
     retries=$((retries+1))
     if [ $retries -ge 30 ]; then
       echo "Timeout waiting for DB after $retries attempts"
