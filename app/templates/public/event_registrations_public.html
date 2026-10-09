@@ -241,45 +241,8 @@ endblock %} {% block content %}
                 </template>
               </tbody>
             </table>
-            <!-- Pagination controls -->
-            <div
-              class="mt-4 flex items-center justify-between"
-              x-show="pagination.total > 0"
-            >
-              <div class="text-sm text-gray-700">
-                Mostrando <span x-text="pagination.from"></span> a
-                <span x-text="pagination.to"></span> de
-                <span x-text="pagination.total"></span> resultados
-              </div>
-              <div class="flex space-x-2">
-                <button
-                  @click.prevent="changePage(pagination.current_page - 1)"
-                  :disabled="pagination.current_page === 1"
-                  class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Anterior
-                </button>
-                <template x-for="page in pagination.pages" :key="page">
-                  <button
-                    @click.prevent="changePage(page)"
-                    :class="{
-                  'bg-indigo-600 text-white': page === pagination.current_page,
-                  'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
-                }"
-                    class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md"
-                  >
-                    <span x-text="page"></span>
-                  </button>
-                </template>
-                <button
-                  @click.prevent="changePage(pagination.current_page + 1)"
-                  :disabled="pagination.current_page === pagination.last_page"
-                  class="relative inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Siguiente
-                </button>
-              </div>
-            </div>
+            <!-- Pagination controls (partial compartido: ver app/templates/partials/pagination.html) -->
+            {% include 'partials/pagination.html' %}
           </div>
         </div>
       </div>

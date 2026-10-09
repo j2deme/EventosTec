@@ -1,0 +1,157 @@
+{# Partial: paginador con ventana acotada.
+─────────────────────────────────────────────────────────────────────────────
+ÚNICA copia del markup del paginador en la aplicación. Antes estaba copiado y
+pegado en 8 vistas, y ya había divergido (cada una con su estilo de página
+activa). El bug original —renderizar un botón por cada página, 226 con
+estudiantes— vino de ahí. Contrato que el componente Alpine que lo incluye DEBE
+exponer: pagination.window → resultado de paginationHelpers.buildWindow()
+pagination.current_page, pagination.last_page pagination.from, pagination.to,
+pagination.total pagination.showJump → ¿mostrar el input "Ir a página"?
+pagination.showPerPage → ¿mostrar el selector de filas? (default: sí; solo se
+oculta en vistas con volumen bajo) pagination.perPage → filas por página
+actuales (lo expone buildState) changePage(n) → navega a la página n (recibe
+número o string) setPerPage(n) → cambia filas por página y vuelve a la página 1
+Lo más sencillo es construir el objeto con paginationHelpers.buildState(), que
+calcula todo lo anterior (incluido from/to, que antes estaba hardcodeado con "*
+10" en cada vista y se desincronizaba al cambiar las filas por página). Uso: {%
+include 'partials/pagination.html' %} (Alpine hereda el scope del x-data
+envolvente, por eso no hace falta pasar nada) #}
+<div
+  x-data="{ jumpValue: '' }"
+  x-cloak
+  class="mt-6 bg-white px-4 py-3 border-t border-gray-200 sm:px-6 rounded-lg shadow"
+  x-show="pagination.last_page > 1"
+>
+  <!-- Móvil: solo Anterior / Siguiente -->
+  <div class="flex items-center justify-between sm:hidden">
+    <button
+      type="button"
+      @click="changePage(pagination.current_page - 1)"
+      :disabled="pagination.current_page <= 1"
+      class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Anterior
+    </button>
+    <span class="text-sm text-gray-700">
+      Página
+      <span class="font-medium" x-text="pagination.current_page"></span> de
+      <span class="font-medium" x-text="pagination.last_page"></span>
+    </span>
+    <button
+      type="button"
+      @click="changePage(pagination.current_page + 1)"
+      :disabled="pagination.current_page >= pagination.last_page"
+      class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      Siguiente
+    </button>
+  </div>
+
+  <!-- Escritorio -->
+  <div class="hidden sm:flex sm:items-center sm:justify-between sm:gap-4">
+    <!-- Resumen + selector de filas -->
+    <div class="flex items-center gap-4 shrink-0">
+      <p class="text-sm text-gray-700 whitespace-nowrap">
+        Mostrando
+        <span class="font-medium" x-text="pagination.from"></span>
+        a
+        <span class="font-medium" x-text="pagination.to"></span>
+        de
+        <span class="font-medium" x-text="pagination.total"></span>
+        resultados
+      </p>
+
+      <label
+        class="flex items-center gap-2 text-sm text-gray-600 whitespace-nowrap"
+        x-show="pagination.showPerPage !== false"
+      >
+        Filas por página
+        <select
+          @change="setPerPage($event.target.value)"
+          :value="String(pagination.perPage)"
+          class="px-2 py-1 border border-gray-300 rounded text-sm text-gray-700 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        >
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- Navegación -->
+    <div class="flex items-center gap-3 min-w-0">
+      <!-- overflow-x-auto es la red de seguridad: aunque el helper falle,
+           la página nunca vuelve a crecer hacia la derecha. -->
+      <nav
+        class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px overflow-x-auto"
+        aria-label="Paginación"
+      >
+        <button
+          type="button"
+          @click="changePage(pagination.current_page - 1)"
+          :disabled="pagination.current_page <= 1"
+          class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Página anterior"
+        >
+          <i class="ti ti-chevron-left"></i>
+        </button>
+
+        <template x-for="item in pagination.window" :key="item.key">
+          <button
+            type="button"
+            @click="item.isEllipsis
+              ? ($refs.jumpInput && $refs.jumpInput.focus())
+              : changePage(item.page)"
+            :class="item.isEllipsis
+              ? 'bg-white border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-50 px-3'
+              : (item.isActive
+                  ? 'bg-indigo-50 border-indigo-500 text-indigo-600'
+                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50')"
+            :aria-current="item.isActive ? 'page' : null"
+            :aria-label="item.isEllipsis
+              ? ('Ir a una página entre 1 y ' + pagination.last_page)
+              : ('Ir a la página ' + item.page)"
+            class="relative inline-flex items-center px-4 py-2 border text-sm font-medium"
+            x-text="item.isEllipsis ? '…' : item.page"
+          ></button>
+        </template>
+
+        <button
+          type="button"
+          @click="changePage(pagination.current_page + 1)"
+          :disabled="pagination.current_page >= pagination.last_page"
+          class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Página siguiente"
+        >
+          <i class="ti ti-chevron-right"></i>
+        </button>
+      </nav>
+
+      <!-- Salto directo: solo aparece cuando el listado es largo -->
+      <form
+        x-show="pagination.showJump"
+        @submit.prevent="changePage(jumpValue); jumpValue = ''"
+        class="flex items-center gap-2 shrink-0"
+      >
+        <label class="text-sm text-gray-600 whitespace-nowrap"
+          >Ir a página</label
+        >
+        <input
+          x-ref="jumpInput"
+          type="number"
+          min="1"
+          :max="pagination.last_page"
+          x-model="jumpValue"
+          class="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+        />
+        <button
+          type="submit"
+          class="px-3 py-1 border border-gray-300 rounded text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+        >
+          Ir
+        </button>
+      </form>
+    </div>
+  </div>
+</div>

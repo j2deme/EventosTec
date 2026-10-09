@@ -7,13 +7,16 @@ function studentsAdmin() {
     errorMessage: "",
 
     // Paginación
+    perPage: 25,
     pagination: {
       current_page: 1,
       last_page: 1,
       total: 0,
       from: 0,
       to: 0,
-      pages: [],
+      window: [],
+      showJump: false,
+      perPage: 25,
     },
 
     // Filtros
@@ -94,7 +97,7 @@ function studentsAdmin() {
       try {
         const params = new URLSearchParams({
           page: page,
-          per_page: 10,
+          per_page: this.perPage,
         });
 
         if (this.filters.search) {
@@ -125,14 +128,10 @@ function studentsAdmin() {
         const data = await response.json();
         this.students = data.students || [];
 
-        this.pagination = {
-          current_page: data.current_page || 1,
-          last_page: data.pages || 1,
-          total: data.total || 0,
-          from: this.students.length > 0 ? (data.current_page - 1) * 10 + 1 : 0,
-          to: Math.min(data.current_page * 10, data.total || 0),
-          pages: Array.from({ length: data.pages || 1 }, (_, i) => i + 1),
-        };
+        this.pagination = window.paginationHelpers.buildState(
+          data,
+          this.perPage,
+        );
       } catch (error) {
         console.error("Error loading students:", error);
         this.errorMessage = "Error al cargar estudiantes";
@@ -214,11 +213,28 @@ function studentsAdmin() {
       this.loadStudents(1);
     },
 
-    // Cambiar página
+    // Cambiar página. Acepta número o string (el input "Ir a página" y el
+    // select de filas envían string): normalizar antes de validar, o el
+    // `page >= 1` compara un string contra un número y nunca coincide.
     changePage(page) {
-      if (page >= 1 && page <= this.pagination.last_page) {
-        this.loadStudents(page);
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n)) return;
+      if (
+        n >= 1 &&
+        n <= this.pagination.last_page &&
+        n !== this.pagination.current_page
+      ) {
+        this.loadStudents(n);
       }
+    },
+
+    // Cambiar filas por página: siempre se vuelve a la primera, porque el
+    // usuario puede estar en una página que deje de existir.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.perPage) return;
+      this.perPage = n;
+      this.loadStudents(1);
     },
 
     // Ver detalle de estudiante

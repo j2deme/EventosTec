@@ -33,6 +33,20 @@ function attendancesAdmin() {
     per_page: 10,
     total: 0,
     pages: 1,
+    // Contrato del partial compartido de paginación
+    // (app/templates/partials/pagination.html). `page/pages/total` de arriba
+    // siguen siendo la fuente de verdad de esta vista; `pagination` se
+    // recalcula en refresh() para que el partial pueda renderizar.
+    pagination: {
+      current_page: 1,
+      last_page: 1,
+      total: 0,
+      from: 0,
+      to: 0,
+      perPage: 10,
+      window: [],
+      showJump: false,
+    },
     loading: false,
     filters: {
       search: "",
@@ -380,6 +394,14 @@ function attendancesAdmin() {
             body.pages ||
             Math.max(1, Math.ceil((this.total || 0) / (this.per_page || 10)));
           this.page = body.current_page || this.page || 1;
+
+          // Contrato del partial compartido: se reconstruye desde el estado
+          // plano de arriba (page/pages/total/per_page), que sigue siendo la
+          // fuente de verdad de esta vista.
+          this.pagination = window.paginationHelpers.buildState(
+            { pages: this.pages, current_page: this.page, total: this.total },
+            this.per_page,
+          );
         } catch (e) {
           // ignore if response shape unexpected
         }

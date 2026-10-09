@@ -8,12 +8,67 @@ describe("registrationsManager (consolidated)", () => {
       mgr = registrationsManager();
     });
 
-    test("getVisiblePages returns sensible window", () => {
+    test("getVisiblePages delegates al helper compartido (alias)", () => {
+      // La ventana ahora la calcula paginationHelpers.buildWindow; este
+      // método queda como alias para no romper llamadas existentes.
       mgr.currentPage = 5;
       mgr.totalPages = 10;
+      mgr.pagination = window.paginationHelpers.buildState(
+        { current_page: 5, pages: 10, total: 100 },
+        mgr.perPage,
+      );
+
       const pages = mgr.getVisiblePages();
+
       expect(pages.length).toBeGreaterThan(0);
       expect(pages).toContain(5);
+      // Nunca expone los puntos suspensivos como si fueran páginas.
+      expect(pages.every((p) => Number.isInteger(p))).toBe(true);
+    });
+
+    test("la ventana de páginas queda acotada (regresión del bug original)", () => {
+      // 5790 registros a 50 por página = 116 páginas. Antes de unificar,
+      // registrations usaba su propia ventana ±2 y el resto de vistas
+      // renderizaba TODAS las páginas.
+      mgr.currentPage = 58;
+      mgr.totalPages = 116;
+      mgr.pagination = window.paginationHelpers.buildState(
+        { current_page: 58, pages: 116, total: 5790 },
+        mgr.perPage,
+      );
+
+      expect(mgr.pagination.window.length).toBeLessThanOrEqual(11);
+      expect(mgr.pagination.showJump).toBe(true);
+    });
+
+    test("setPerPage vuelve a la primera página", async () => {
+      const spy = jest.spyOn(mgr, "loadRegistrations").mockResolvedValue();
+      mgr.currentPage = 7;
+      mgr.perPage = 50;
+
+      mgr.setPerPage("100");
+
+      expect(mgr.perPage).toBe(100);
+      expect(mgr.currentPage).toBe(1);
+      expect(spy).toHaveBeenCalledWith(1);
+      spy.mockRestore();
+    });
+
+    test("changePage normaliza strings y respeta los límites", async () => {
+      const spy = jest.spyOn(mgr, "loadRegistrations").mockResolvedValue();
+      mgr.currentPage = 1;
+      mgr.totalPages = 5;
+
+      mgr.changePage("3");
+      expect(spy).toHaveBeenCalledWith(3);
+      expect(mgr.currentPage).toBe(3);
+
+      spy.mockClear();
+      mgr.changePage("abc");
+      mgr.changePage(0);
+      mgr.changePage(99);
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
     });
 
     test("previousPage and nextPage call loadRegistrations appropriately", () => {
@@ -115,10 +170,11 @@ describe("registrationsManager (consolidated)", () => {
         }),
       });
       await comp.loadRegistrations(1);
-      // accept parameter order variations (page/per_page)
+      // accept parameter order variations (page/per_page). per_page=50 porque
+      // esta vista maneja el mayor volumen (5790 registros en producción).
       expect(global.fetch).toHaveBeenCalledWith(
         expect.stringMatching(
-          /\/api\/registrations.*(?:per_page=10.*page=1|page=1.*per_page=10)/,
+          /\/api\/registrations.*(?:per_page=50.*page=1|page=1.*per_page=50)/,
         ),
         expect.any(Object),
       );

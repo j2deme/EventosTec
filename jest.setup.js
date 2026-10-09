@@ -1,6 +1,28 @@
 // Global Jest setup for jsdom environment
 // Provides minimal mocks for fetch, safeFetch, localStorage, alert, confirm,
 // Toastify and window.showToast used throughout frontend modules.
+//
+// Los helpers de app/static/js/helpers/ se cargan aquí con require() porque
+// en el navegador los sirve base.html y en Jest no hay HTML. Sin esto, los
+// módulos que hacen `window.<helper>.algo()` lanzan TypeError dentro de su
+// propio try/catch y el test pasa en falso: el estado sí se asigna antes del
+// punto de fallo, así que las aserciones se cumplen igual. Es exactamente lo
+// que pasó con paginationHelpers al refactorizar el paginador.
+[
+  "dateHelpers",
+  "activityTypeHelpers",
+  "registrationStatus",
+  "paginationHelpers",
+].forEach((name) => {
+  if (typeof window !== "undefined" && typeof window[name] === "undefined") {
+    try {
+      // eslint-disable-next-line global-require, import/no-dynamic-require
+      window[name] = require(`./app/static/js/helpers/${name}`);
+    } catch (e) {
+      // Helper aún inexistente: los tests que lo necesiten fallarán solos.
+    }
+  }
+});
 
 // Mock fetch to a controllable function. Tests can override global.fetch
 // per-suite if they need custom responses.

@@ -12,11 +12,24 @@ function registrationsManager() {
     deleting: false,
     errorMessage: "",
 
-    // Paginación
+    // Paginación. `currentPage/totalPages/totalItems` son el estado plano que
+    // ya usaban el resto de métodos; `pagination` es el contrato del partial
+    // compartido (ver app/templates/partials/pagination.html).
     currentPage: 1,
     totalPages: 1,
     totalItems: 0,
-    perPage: 10,
+    // 5790 registros en producción: a 10 por página eran 580 páginas.
+    perPage: 50,
+    pagination: {
+      current_page: 1,
+      last_page: 1,
+      total: 0,
+      from: 0,
+      to: 0,
+      window: [],
+      showJump: false,
+      perPage: 50,
+    },
 
     // Filtros
     filters: {
@@ -120,9 +133,20 @@ function registrationsManager() {
 
         const data = await response.json();
         this.registrations = data.registrations || [];
-        this.currentPage = data.page || 1;
+        this.currentPage = data.page || data.current_page || 1;
         this.totalPages = data.pages || 1;
         this.totalItems = data.total || 0;
+
+        // Contrato del partial compartido. Este endpoint además de
+        // `current_page` expone `page`, así que se lo pasamos normalizado.
+        this.pagination = window.paginationHelpers.buildState(
+          {
+            pages: this.totalPages,
+            current_page: this.currentPage,
+            total: this.totalItems,
+          },
+          this.perPage,
+        );
 
         // Si el servidor envía estadísticas agregadas, úsalas; si no, recalcúlalas localmente
         if (data.stats && typeof data.stats === "object") {
@@ -289,36 +313,45 @@ function registrationsManager() {
 
     // Navegación de páginas
     previousPage() {
-      if (this.currentPage > 1) {
-        this.currentPage--;
-        this.loadRegistrations(this.currentPage);
-      }
+      this.changePage(this.currentPage - 1);
     },
 
     nextPage() {
-      if (this.currentPage < this.totalPages) {
-        this.currentPage++;
-        this.loadRegistrations(this.currentPage);
-      }
+      this.changePage(this.currentPage + 1);
     },
 
     goToPage(page) {
-      if (page >= 1 && page <= this.totalPages) {
-        this.currentPage = page;
-        this.loadRegistrations(page);
+      this.changePage(page);
+    },
+
+    // Contrato del partial compartido de paginación. Acepta número o string
+    // (el input "Ir a página" envía string): normalizar antes de validar.
+    changePage(page) {
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n)) return;
+      if (n >= 1 && n <= this.totalPages && n !== this.currentPage) {
+        this.currentPage = n;
+        this.loadRegistrations(n);
       }
     },
 
+    // Cambiar filas por página: siempre se vuelve a la primera, porque la
+    // página actual puede dejar de existir.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.perPage) return;
+      this.perPage = n;
+      this.currentPage = 1;
+      this.loadRegistrations(1);
+    },
+
+    // La ventana de páginas ahora la calcula el helper compartido
+    // (app/static/js/helpers/paginationHelpers.js). Este método se mantiene
+    // como alias para no romper llamadas existentes.
     getVisiblePages() {
-      const pages = [];
-      const start = Math.max(1, this.currentPage - 2);
-      const end = Math.min(this.totalPages, this.currentPage + 2);
-
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
-
-      return pages;
+      return this.pagination.window
+        .filter((item) => !item.isEllipsis)
+        .map((item) => item.page);
     },
 
     // Modal de crear/editar

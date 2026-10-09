@@ -6,13 +6,18 @@ function studentRegistrationsManager() {
     showCancelModal: false,
     registrationToCancel: null,
 
+    // Paginación (volumen por estudiante: se queda en 20 y sin selector)
+    perPage: 20,
     pagination: {
       current_page: 1,
       last_page: 1,
       total: 0,
       from: 0,
       to: 0,
-      pages: [],
+      window: [],
+      showJump: false,
+      showPerPage: false,
+      perPage: 20,
     },
 
     filters: {
@@ -104,7 +109,7 @@ function studentRegistrationsManager() {
 
         const params = new URLSearchParams({
           page: page,
-          per_page: 20,
+          per_page: this.perPage,
           student_id: studentId,
           ...(this.filters.search && { search: this.filters.search }),
           ...(this.filters.status && { status: this.filters.status }),
@@ -146,14 +151,12 @@ function studentRegistrationsManager() {
           },
         }));
 
-        this.pagination = {
-          current_page: data.current_page || 1,
-          last_page: data.pages || 1,
-          total: data.total || 0,
-          from: (data.current_page - 1) * 20 + 1,
-          to: Math.min(data.current_page * 20, data.total || 0),
-          pages: Array.from({ length: data.pages || 1 }, (_, i) => i + 1),
-        };
+        this.pagination = window.paginationHelpers.buildState(
+          data,
+          this.perPage,
+        );
+        // Volumen por estudiante: sin selector de filas (se fija en 20).
+        this.pagination.showPerPage = false;
       } catch (error) {
         this.errorMessage = error.message || "Error al cargar preregistros";
         showToast(this.errorMessage, "error");
@@ -162,10 +165,26 @@ function studentRegistrationsManager() {
       }
     },
 
+    // Acepta número o string (el input "Ir a página" envía string).
     changePage(page) {
-      if (page >= 1 && page <= this.pagination.last_page) {
-        this.loadRegistrations(page);
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n)) return;
+      if (
+        n >= 1 &&
+        n <= this.pagination.last_page &&
+        n !== this.pagination.current_page
+      ) {
+        this.loadRegistrations(n);
       }
+    },
+
+    // El selector de filas está oculto en esta vista (showPerPage: false),
+    // pero el método debe existir porque el partial compartido lo referencia.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.perPage) return;
+      this.perPage = n;
+      this.loadRegistrations(1);
     },
 
     canCancelRegistration(registration) {

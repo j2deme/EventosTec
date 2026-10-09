@@ -14,14 +14,19 @@ function activitiesManager() {
     maxDate: "",
     calculatedDuration: 0,
 
-    // Paginación
+    // Paginación (111 actividades: volumen bajo, se queda en 10 y sin
+    // selector de filas — `showPerPage: false`)
+    perPage: 10,
     pagination: {
       current_page: 1,
       last_page: 1,
       total: 0,
       from: 0,
       to: 0,
-      pages: [],
+      window: [],
+      showJump: false,
+      showPerPage: false,
+      perPage: 10,
     },
 
     // Filtros
@@ -157,7 +162,10 @@ function activitiesManager() {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
 
-        const params = new URLSearchParams({ page: page, per_page: 10 });
+        const params = new URLSearchParams({
+          page: page,
+          per_page: this.perPage,
+        });
         if (this.filters.search) params.set("search", this.filters.search);
         if (this.filters.event_id)
           params.set("event_id", this.filters.event_id);
@@ -284,18 +292,12 @@ function activitiesManager() {
         });
         // removed debug inspection block
 
-        const pages = data.pages || 1;
-        const current = data.current_page || 1;
-        const total = data.total || 0;
-
-        this.pagination = {
-          current_page: current,
-          last_page: pages,
-          total: total,
-          from: (current - 1) * 10 + 1,
-          to: Math.min(current * 10, total),
-          pages: Array.from({ length: pages }, (_, i) => i + 1),
-        };
+        this.pagination = window.paginationHelpers.buildState(
+          data,
+          this.perPage,
+        );
+        // Volumen bajo: sin selector de filas (se fija en 10).
+        this.pagination.showPerPage = false;
       } catch (error) {
         console.error("Error loading activities:", error);
         showToast("Error al cargar actividades", "error");
@@ -944,10 +946,26 @@ function activitiesManager() {
     },
 
     // Cambiar página
+    // Acepta número o string (el input "Ir a página" envía string).
     changePage(page) {
-      if (page >= 1 && page <= this.pagination.last_page) {
-        this.loadActivities(page);
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n)) return;
+      if (
+        n >= 1 &&
+        n <= this.pagination.last_page &&
+        n !== this.pagination.current_page
+      ) {
+        this.loadActivities(n);
       }
+    },
+
+    // Las vistas con volumen bajo ocultan el selector (showPerPage: false),
+    // pero el método debe existir porque el partial lo referencia.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.perPage) return;
+      this.perPage = n;
+      this.loadActivities(1);
     },
 
     // Ver detalles de la actividad (opcional)

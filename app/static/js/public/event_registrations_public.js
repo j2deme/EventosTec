@@ -19,7 +19,10 @@ function eventRegistrationsPublic() {
       total: 0,
       from: 0,
       to: 0,
-      pages: [],
+      window: [],
+      showJump: false,
+      showPerPage: false,
+      perPage: 20,
     },
     departments: [],
     // track whether we've already fetched the full departments list for the current event
@@ -234,18 +237,17 @@ function eventRegistrationsPublic() {
           // ignore
         }
 
-        // pagination (align with admin format)
-        const pages = data.pages || 1;
-        const current = data.current_page || page;
-        const total = data.total || 0;
-        this.pagination = {
-          current_page: current,
-          last_page: pages,
-          total: total,
-          from: (current - 1) * per_page + 1,
-          to: Math.min(current * per_page, total),
-          pages: Array.from({ length: pages }, (_, i) => i + 1),
-        };
+        // pagination (helper compartido; usa el per_page real de la petición)
+        this.pagination = window.paginationHelpers.buildState(
+          {
+            pages: data.pages || 1,
+            current_page: data.current_page || page,
+            total: data.total || 0,
+          },
+          per_page,
+        );
+        // Vista pública: sin selector de filas (fija en 20).
+        this.pagination.showPerPage = false;
         // finished loading
         this.loadingActivities = false;
       } catch (e) {
@@ -631,9 +633,24 @@ function eventRegistrationsPublic() {
       }
     },
 
+    // Acepta número o string (el input "Ir a página" envía string): se
+    // normaliza y se acota al total, que antes no se comprobaba.
     changePage(page) {
-      if (!page || page < 1) return;
-      this.filters.page = page;
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n) || n < 1) return;
+      const last = this.pagination.last_page || 1;
+      if (n > last || n === this.filters.page) return;
+      this.filters.page = n;
+      this.fetchActivities();
+    },
+
+    // Vista pública: el selector de filas está oculto (showPerPage: false),
+    // pero el método debe existir porque el partial compartido lo referencia.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.filters.per_page) return;
+      this.filters.per_page = n;
+      this.filters.page = 1;
       this.fetchActivities();
     },
 

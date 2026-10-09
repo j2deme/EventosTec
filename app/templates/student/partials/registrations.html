@@ -275,53 +275,8 @@
       </template>
     </div>
 
-    <!-- Paginación -->
-    <div class="mt-6 flex items-center justify-between">
-      <div class="text-sm text-gray-700">
-        Mostrando <span x-text="pagination.from"></span> a
-        <span x-text="pagination.to"></span> de
-        <span x-text="pagination.total"></span> preregistros
-      </div>
-
-      <div class="flex space-x-2">
-        <button
-          @click="changePage(pagination.current_page - 1)"
-          :disabled="pagination.current_page === 1"
-          :class="{
-                  'opacity-50 cursor-not-allowed': pagination.current_page === 1,
-                  'bg-indigo-600 text-white': pagination.current_page !== 1
-                }"
-          class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md"
-        >
-          Anterior
-        </button>
-
-        <template x-for="page in pagination.pages" :key="page">
-          <button
-            @click="changePage(page)"
-            :class="{
-                    'bg-indigo-600 text-white': page === pagination.current_page,
-                    'bg-white text-gray-700 hover:bg-gray-50': page !== pagination.current_page
-                  }"
-            class="relative inline-flex items-center px-3 py-1.5 border text-sm font-medium rounded-md"
-          >
-            <span x-text="page"></span>
-          </button>
-        </template>
-
-        <button
-          @click="changePage(pagination.current_page + 1)"
-          :disabled="pagination.current_page === pagination.last_page"
-          :class="{
-                  'opacity-50 cursor-not-allowed': pagination.current_page === pagination.last_page,
-                  'bg-indigo-600 text-white': pagination.current_page !== pagination.last_page
-                }"
-          class="relative inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md"
-        >
-          Siguiente
-        </button>
-      </div>
-    </div>
+    <!-- Paginación (partial compartido: ver app/templates/partials/pagination.html) -->
+    {% include 'partials/pagination.html' %}
   </div>
 
   <!-- Mensaje cuando no hay preregistros -->

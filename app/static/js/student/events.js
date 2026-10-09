@@ -7,14 +7,17 @@ function studentEventsManager() {
     loading: false,
     errorMessage: "",
 
-    // Paginación
+    // Paginación (local: se pagina en memoria, 6 tarjetas por página)
+    perPage: 6,
     pagination: {
       current_page: 1,
       last_page: 1,
       total: 0,
       from: 0,
       to: 0,
-      pages: [],
+      window: [],
+      showJump: false,
+      perPage: 6,
     },
 
     // Filtros
@@ -113,8 +116,8 @@ function studentEventsManager() {
           });
         }
 
-        // Implementar paginación manual
-        const perPage = 6;
+        // Implementar paginación manual (en memoria)
+        const perPage = this.perPage;
         const totalPages = Math.ceil(filteredEvents.length / perPage);
         const currentPageEvents = filteredEvents.slice(
           (page - 1) * perPage,
@@ -128,15 +131,16 @@ function studentEventsManager() {
           end_date: this.formatDateTimeForInput(event.end_date),
         }));
 
-        // Actualizar paginación
-        this.pagination = {
-          current_page: page,
-          last_page: totalPages || 1,
-          total: filteredEvents.length,
-          from: filteredEvents.length > 0 ? (page - 1) * perPage + 1 : 0,
-          to: Math.min(page * perPage, filteredEvents.length),
-          pages: Array.from({ length: totalPages || 1 }, (_, i) => i + 1),
-        };
+        // Actualizar paginación (helper compartido; aquí el total de páginas
+        // se calcula localmente, no viene del backend)
+        this.pagination = window.paginationHelpers.buildState(
+          {
+            pages: totalPages || 1,
+            current_page: page,
+            total: filteredEvents.length,
+          },
+          perPage,
+        );
       } catch (error) {
         console.error("Error loading events:", error);
         this.errorMessage = error.message || "Error al cargar eventos";
@@ -147,10 +151,25 @@ function studentEventsManager() {
     },
 
     // Cambiar página
+    // Acepta número o string (el input "Ir a página" envía string).
     changePage(page) {
-      if (page >= 1 && page <= this.pagination.last_page) {
-        this.loadEvents(page);
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n)) return;
+      if (
+        n >= 1 &&
+        n <= this.pagination.last_page &&
+        n !== this.pagination.current_page
+      ) {
+        this.loadEvents(n);
       }
+    },
+
+    // Paginación local: cambiar filas por página re-slicea la lista en memoria.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.perPage) return;
+      this.perPage = n;
+      this.loadEvents(1);
     },
 
     async viewEventDetails(event) {

@@ -7,14 +7,19 @@ function eventsManager() {
     deleting: false,
     errorMessage: "",
 
-    // Paginación
+    // Paginación (2 eventos: volumen mínimo, se queda en 10 y sin selector
+    // de filas — `showPerPage: false`)
+    perPage: 10,
     pagination: {
       current_page: 1,
       last_page: 1,
       total: 0,
       from: 0,
       to: 0,
-      pages: [],
+      window: [],
+      showJump: false,
+      showPerPage: false,
+      perPage: 10,
     },
 
     // Filtros
@@ -84,7 +89,7 @@ function eventsManager() {
 
         const params = new URLSearchParams({
           page: page,
-          per_page: 10,
+          per_page: this.perPage,
         });
         if (this.filters.search) params.set("search", this.filters.search);
         if (this.filters.status) params.set("status", this.filters.status);
@@ -105,18 +110,12 @@ function eventsManager() {
           end_date: this.formatDateTimeForInput(event.end_date),
         }));
 
-        const pages = data.pages || 1;
-        const current = data.current_page || 1;
-        const total = data.total || 0;
-
-        this.pagination = {
-          current_page: current,
-          last_page: pages,
-          total: total,
-          from: (current - 1) * 10 + 1,
-          to: Math.min(current * 10, total),
-          pages: Array.from({ length: pages }, (_, i) => i + 1),
-        };
+        this.pagination = window.paginationHelpers.buildState(
+          data,
+          this.perPage,
+        );
+        // Volumen mínimo: sin selector de filas (se fija en 10).
+        this.pagination.showPerPage = false;
       } catch (error) {
         console.error("Error loading events:", error);
         if (typeof showToast === "function")
@@ -349,11 +348,27 @@ function eventsManager() {
       }
     },
 
-    // Cambiar página
+    // Cambiar página. Acepta número o string (el input "Ir a página" envía
+    // string): normalizar antes de validar o `page >= 1` nunca coincide.
     changePage(page) {
-      if (page >= 1 && page <= this.pagination.last_page) {
-        this.loadEvents(page);
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n)) return;
+      if (
+        n >= 1 &&
+        n <= this.pagination.last_page &&
+        n !== this.pagination.current_page
+      ) {
+        this.loadEvents(n);
       }
+    },
+
+    // El selector de filas está oculto en esta vista (showPerPage: false),
+    // pero el método debe existir porque el partial compartido lo referencia.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.perPage) return;
+      this.perPage = n;
+      this.loadEvents(1);
     },
 
     // Ver detalles del evento (opcional)

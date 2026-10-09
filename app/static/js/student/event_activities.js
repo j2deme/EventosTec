@@ -12,14 +12,19 @@ function studentEventActivitiesManager() {
     // Evitar múltiples peticiones concurrentes para la misma actividad
     inflightRegistrations: new Set(),
 
-    // Paginación
+    // Paginación. En la práctica son 2 páginas (carga con per_page=2000),
+    // pero from/to debe usar el per_page real: antes estaba hardcodeado con
+    // "* 20" y con más de 20 actividades el "a" mostraba 20 en vez del total.
+    perPage: 2000,
     pagination: {
       current_page: 1,
       last_page: 1,
       total: 0,
       from: 0,
       to: 0,
-      pages: [],
+      window: [],
+      showJump: false,
+      perPage: 2000,
     },
 
     // Filtros
@@ -204,7 +209,7 @@ function studentEventActivitiesManager() {
         // Construir parámetros de consulta - usar un per_page alto para mostrar todas las actividades
         const params = new URLSearchParams({
           page: page,
-          per_page: 2000, // Cargar todas las actividades en una sola página
+          per_page: this.perPage, // cargar todas las actividades en una sola página
           event_id: this.currentEvent.id,
           ...(this.filters.search && { search: this.filters.search }),
           ...(this.filters.activity_type && {
@@ -255,15 +260,11 @@ function studentEventActivitiesManager() {
         // Cargar preregistros del estudiante
         await this.loadStudentRegistrations();
 
-        // Actualizar paginación
-        this.pagination = {
-          current_page: data.current_page || 1,
-          last_page: data.pages || 1,
-          total: data.total || 0,
-          from: (data.current_page - 1) * 20 + 1,
-          to: Math.min(data.current_page * 20, data.total || 0),
-          pages: Array.from({ length: data.pages || 1 }, (_, i) => i + 1),
-        };
+        // Actualizar paginación (helper compartido; usa el per_page real)
+        this.pagination = window.paginationHelpers.buildState(
+          data,
+          this.perPage,
+        );
       } catch (error) {
         console.error("Error loading activities:", error);
         this.errorMessage = error.message || "Error al cargar actividades";
@@ -315,11 +316,27 @@ function studentEventActivitiesManager() {
       }
     },
 
-    // Cambiar página
+    // Cambiar página. Acepta número o string (el input "Ir a página" envía
+    // string): normalizar antes de validar.
     changePage(page) {
-      if (page >= 1 && page <= this.pagination.last_page) {
-        this.loadActivities(page);
+      const n = parseInt(page, 10);
+      if (!Number.isFinite(n)) return;
+      if (
+        n >= 1 &&
+        n <= this.pagination.last_page &&
+        n !== this.pagination.current_page
+      ) {
+        this.loadActivities(n);
       }
+    },
+
+    // El selector de filas está oculto en esta vista (showPerPage: false),
+    // pero el método debe existir porque el partial compartido lo referencia.
+    setPerPage(value) {
+      const n = parseInt(value, 10);
+      if (!Number.isFinite(n) || n === this.perPage) return;
+      this.perPage = n;
+      this.loadActivities(1);
     },
 
     // Preregistrar a una actividad

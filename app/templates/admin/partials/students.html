@@ -287,66 +287,9 @@
     </div>
   </div>
 
-  <!-- Paginación -->
-  <div
-    x-show="!loading && students.length > 0"
-    class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-6 rounded-lg shadow"
-  >
-    <div class="flex-1 flex justify-between sm:hidden">
-      <button
-        @click="changePage(pagination.current_page - 1)"
-        :disabled="pagination.current_page === 1"
-        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-      >
-        Anterior
-      </button>
-      <button
-        @click="changePage(pagination.current_page + 1)"
-        :disabled="pagination.current_page === pagination.last_page"
-        class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-      >
-        Siguiente
-      </button>
-    </div>
-    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-      <div>
-        <p class="text-sm text-gray-700">
-          Mostrando
-          <span class="font-medium" x-text="pagination.from"></span>
-          a
-          <span class="font-medium" x-text="pagination.to"></span>
-          de
-          <span class="font-medium" x-text="pagination.total"></span>
-          resultados
-        </p>
-      </div>
-      <div>
-        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-          <button
-            @click="changePage(pagination.current_page - 1)"
-            :disabled="pagination.current_page === 1"
-            class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <i class="ti ti-chevron-left"></i>
-          </button>
-          <template x-for="page in pagination.pages" :key="page">
-            <button
-              @click="changePage(page)"
-              :class="page === pagination.current_page ? 'bg-indigo-50 border-indigo-500 text-indigo-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'"
-              class="relative inline-flex items-center px-4 py-2 border text-sm font-medium"
-              x-text="page"
-            ></button>
-          </template>
-          <button
-            @click="changePage(pagination.current_page + 1)"
-            :disabled="pagination.current_page === pagination.last_page"
-            class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <i class="ti ti-chevron-right"></i>
-          </button>
-        </nav>
-      </div>
-    </div>
+  <!-- Paginación (partial compartido: ver app/templates/partials/pagination.html) -->
+  <div x-show="!loading && students.length > 0">
+    {% include 'partials/pagination.html' %}
   </div>
 
   <!-- Modal de detalle del estudiante -->

@@ -69,6 +69,111 @@ describe("studentsAdmin", () => {
     expect(mgr.students).toHaveLength(2);
     expect(mgr.students[0].full_name).toBe("John Doe");
     expect(mgr.loading).toBe(false);
+
+    // La paginación se construye con el helper compartido. Antes este test
+    // pasaba en falso: `this.students` se asigna antes de la línea del
+    // helper, así que un TypeError tragado por el catch no se notaba.
+    expect(mgr.pagination.window).toEqual([
+      expect.objectContaining({ page: 1, isActive: true }),
+    ]);
+    expect(mgr.pagination.last_page).toBe(1);
+    expect(mgr.pagination.showJump).toBe(false);
+    expect(mgr.pagination.from).toBe(1);
+    expect(mgr.pagination.to).toBe(2);
+  });
+
+  test("loadStudents pide per_page=25 y no 10 (volumen: 2252 estudiantes)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        students: [],
+        total: 2252,
+        pages: 91,
+        current_page: 1,
+      }),
+    });
+
+    await mgr.loadStudents(1);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("per_page=25"),
+      expect.any(Object),
+    );
+  });
+
+  test("la ventana de páginas queda acotada aunque el total sea enorme", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        students: [],
+        total: 2252,
+        pages: 226,
+        current_page: 13,
+      }),
+    });
+
+    await mgr.loadStudents(13);
+
+    // Regresión del bug original: se renderizaba un botón por página (226).
+    expect(mgr.pagination.window.length).toBeLessThanOrEqual(11);
+    expect(mgr.pagination.window.map((i) => i.page)).toContain(13);
+    expect(mgr.pagination.showJump).toBe(true);
+    // from/to usa el perPage real (25), no un "* 10" hardcodeado.
+    expect(mgr.pagination.from).toBe(301);
+    expect(mgr.pagination.to).toBe(325);
+  });
+
+  test("setPerPage vuelve a la primera página y recalcula from/to", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        students: [],
+        total: 2252,
+        pages: 91,
+        current_page: 1,
+      }),
+    });
+
+    await mgr.loadStudents(1);
+    fetchMock.mockClear();
+
+    mgr.setPerPage("50");
+
+    expect(mgr.perPage).toBe(50);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("per_page=50"),
+      expect.any(Object),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("page=1"),
+      expect.any(Object),
+    );
+  });
+
+  test("changePage normaliza strings y respeta los límites", async () => {
+    mgr.pagination.last_page = 5;
+    mgr.pagination.current_page = 1;
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        students: [],
+        total: 50,
+        pages: 5,
+        current_page: 3,
+      }),
+    });
+
+    mgr.changePage("3");
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("page=3"),
+      expect.any(Object),
+    );
+
+    fetchMock.mockClear();
+    mgr.changePage("abc"); // inválido: no debe llamar
+    mgr.changePage(0); // fuera de rango
+    mgr.changePage(99);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   test("applyFilters updates activities and reloads students", async () => {
