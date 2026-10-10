@@ -114,6 +114,9 @@ def get_attendances():
     try:
         page = request.args.get("page", 1, type=int)
         per_page = request.args.get("per_page", 10, type=int)
+        # Esta vista pagina a mano con limit/offset (no usa paginate()), así
+        # que el tope se aplica a mano. Los selectores ya usan /lookup.
+        per_page = max(1, min(per_page, 100))
         student_id = request.args.get("student_id", type=int)
         activity_id = request.args.get("activity_id", type=int)
         status = request.args.get("status")

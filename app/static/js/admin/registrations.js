@@ -182,12 +182,14 @@ function registrationsManager() {
 
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        // Si hay un filtro de evento activo, prefiera pedir solo las actividades
-        // de ese evento al backend para reducir payload. Si no, solicitar todas.
-        const params = new URLSearchParams({ per_page: 1000 });
+        // Endpoint de lookup: devuelve solo los campos del selector y sin
+        // paginar, en lugar de descargar 111 objetos completos con per_page=1000.
+        // Si hay un filtro de evento activo, se piden solo las de ese evento.
+        const params = new URLSearchParams();
         if (this.filters.event_id)
           params.set("event_id", this.filters.event_id);
-        const response = await f(`/api/activities?${params.toString()}`);
+        const qs = params.toString();
+        const response = await f(`/api/activities/lookup${qs ? `?${qs}` : ""}`);
         if (response && response.ok) {
           const data = await response.json();
           this.activities = data.activities || [];
@@ -205,7 +207,8 @@ function registrationsManager() {
 
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const response = await f("/api/events?per_page=1000");
+        // Endpoint de lookup: lista completa sin paginar (solo 2 eventos).
+        const response = await f("/api/events/lookup");
         if (response && response.ok) {
           const data = await response.json();
           this.events = data.events || [];
@@ -232,7 +235,10 @@ function registrationsManager() {
 
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const response = await f("/api/students?per_page=1000");
+        // Endpoint de lookup: devuelve solo id/número de control/nombre/carrera
+        // de los 2253 estudiantes, sin paginar. Antes se pedía
+        // `/api/students?per_page=1000`, que descargaba los objetos completos.
+        const response = await f("/api/students/lookup");
         if (response && response.ok) {
           const data = await response.json();
           this.students = data.students || [];

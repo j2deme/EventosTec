@@ -190,6 +190,9 @@ def api_list_registrations():
     activity_id = request.args.get("activity_id")
     page = int(request.args.get("page") or 1)
     per_page = int(request.args.get("per_page") or 20)
+    # Tope a mano: esta vista pagina con limit/offset en vez de paginate().
+    # La vista pública pide 20 por página, así que 100 no la afecta.
+    per_page = max(1, min(per_page, 100))
 
     if not activity_id:
         return jsonify({"message": "activity_id es requerido"}), 400

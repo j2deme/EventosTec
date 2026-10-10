@@ -733,7 +733,9 @@ function attendancesAdmin() {
 
     async loadEvents() {
       try {
-        const res = await this.sf("/api/events?per_page=100", {
+        // Endpoint de lookup: lista completa sin paginar. Devuelve
+        // `{events: [...]}`, que ya cubre el `body.data || body.events` de abajo.
+        const res = await this.sf("/api/events/lookup", {
           method: "GET",
         });
         const body = await (res && res.json
@@ -752,7 +754,9 @@ function attendancesAdmin() {
 
     async loadActivities() {
       try {
-        const res = await this.sf("/api/activities?per_page=500", {
+        // Endpoint de lookup: solo los campos del selector, sin paginar.
+        // Antes pedía per_page=500 al listado genérico.
+        const res = await this.sf("/api/activities/lookup", {
           method: "GET",
         });
         const body = await (res && res.json

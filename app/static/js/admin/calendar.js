@@ -91,9 +91,7 @@ function calendarAdmin() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const response = await f(
-          "/api/events/?page=1&per_page=100&sort=start_date:desc",
-        );
+        const response = await f("/api/events/lookup?sort=start_date:desc");
         if (!response.ok) {
           throw new Error("Error al cargar los eventos");
         }

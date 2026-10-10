@@ -402,9 +402,7 @@ function adminDashboard() {
         // recientes quedarían en páginas posteriores y nunca se verían).
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const response = await f(
-          "/api/events?sort=start_date:asc&per_page=100",
-        );
+        const response = await f("/api/events/lookup?sort=start_date:asc");
         if (response && response.ok) {
           const data = await response.json();
           const events = Array.isArray(data) ? data : data.events || [];

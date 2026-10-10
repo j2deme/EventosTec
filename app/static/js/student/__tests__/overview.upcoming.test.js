@@ -83,15 +83,16 @@ describe("studentOverviewManager (Próximos Eventos)", () => {
     expect(mgr.upcomingEvents).toEqual([]);
   });
 
-  test("pide más allá de la página por defecto (10) para no perder eventos", async () => {
+  test("usa el endpoint de lookup: lista completa sin paginar", async () => {
     const capture = {};
     mockEventsResponse([], capture);
 
     await mgr.loadUpcomingEvents();
 
-    expect(capture.url).toContain("per_page=");
-    expect(Number(String(capture.url).split("per_page=")[1])).toBeGreaterThan(
-      10,
-    );
+    // Antes se subía per_page para no perder eventos más allá de la página 1.
+    // El lookup devuelve la lista completa, así que no hay paginación que
+    // ajustar: no debe llevar per_page=.
+    expect(capture.url).toContain("/api/events/lookup");
+    expect(capture.url).not.toContain("per_page=");
   });
 });

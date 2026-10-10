@@ -102,6 +102,11 @@ Contratos y convenciones JSON importantes
   - Devuelve un XLSX (`attachment`) con la estructura esperada por `POST /api/activities/batch`.
   - **Sin autenticación a propósito**: solo expone encabezados, límites y filas de ejemplo (sin datos reales) para que el `<a download>` del modal funcione sin cabecera Authorization.
   - Fuente única de la estructura: `BATCH_COLUMNS` en `app/services/activity_service.py` (la usan el importador, el generador de la plantilla y la ayuda del modal).
+- Endpoints de **lookup** para selectores (`students/lookup`, `students/careers`, `activities/lookup`, `events/lookup`, `activities/by-event/<id>`):
+  - Devuelven la lista **completa y sin paginar**, con un payload reducido a lo que consume un `<select>`. **No uses `per_page=1000` sobre los listados genéricos**: están limitados a `max_per_page=100`.
+  - `activities/by-event/<id>` es el único que devuelve campos ricos (`current_capacity`, `max_capacity`, `duration_hours`, `event` anidado) y existe porque la vista del estudiante agrupa por día y necesita el conjunto completo de un evento.
+  - Contratos completos y rationale en `docs/LOOKUP_ENDPOINTS.md`.
+- **Paginación**: la ventana de páginas se calcula SIEMPRE con `paginationHelpers.buildState()` (`app/static/js/helpers/paginationHelpers.js`) y el markup vive en `app/templates/partials/pagination.html` (se incluye con `{% include %}`). **No copies el markup del paginador ni construyas `Array.from({length: total_pages})`**: con 2252 estudiantes eso renderizaba 226 botones y la pantalla crecía hacia la derecha. El objeto `pagination` usa `window` (no `pages`).
 
 Pruebas y validación rápida
 

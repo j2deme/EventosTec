@@ -12,10 +12,12 @@ function studentEventActivitiesManager() {
     // Evitar múltiples peticiones concurrentes para la misma actividad
     inflightRegistrations: new Set(),
 
-    // Paginación. En la práctica son 2 páginas (carga con per_page=2000),
-    // pero from/to debe usar el per_page real: antes estaba hardcodeado con
-    // "* 20" y con más de 20 actividades el "a" mostraba 20 en vez del total.
-    perPage: 2000,
+    // Paginación (residual). Esta vista carga TODAS las actividades de un
+    // evento de una sola vez vía /api/activities/by-event/<id>, que no pagina
+    // porque la entrada ya viene acotada por event_id. Se mantiene el objeto
+    // `pagination` porque el partial compartido lo exige, pero siempre tendrá
+    // una sola página.
+    perPage: 100,
     pagination: {
       current_page: 1,
       last_page: 1,
@@ -24,7 +26,7 @@ function studentEventActivitiesManager() {
       to: 0,
       window: [],
       showJump: false,
-      perPage: 2000,
+      perPage: 100,
     },
 
     // Filtros
@@ -206,11 +208,12 @@ function studentEventActivitiesManager() {
           return;
         }
 
-        // Construir parámetros de consulta - usar un per_page alto para mostrar todas las actividades
+        // Endpoint dedicado: devuelve TODAS las actividades del evento con los
+        // campos ricos (duración, aforo y `current_capacity`) que esta vista
+        // necesita para agruparlas por día. Antes usaba el listado genérico con
+        // per_page=2000, que con el nuevo tope de 100 habría truncado la
+        // respuesta en silencio.
         const params = new URLSearchParams({
-          page: page,
-          per_page: this.perPage, // cargar todas las actividades en una sola página
-          event_id: this.currentEvent.id,
           ...(this.filters.search && { search: this.filters.search }),
           ...(this.filters.activity_type && {
             activity_type: this.filters.activity_type,
@@ -221,9 +224,13 @@ function studentEventActivitiesManager() {
         // Add for_student flag so backend can exclude forbidden activity types
         params.append("for_student", "true");
 
-        const response = await fetch(`/api/activities?${params.toString()}`, {
-          headers: window.getAuthHeaders(),
-        });
+        const qs = params.toString();
+        const response = await fetch(
+          `/api/activities/by-event/${this.currentEvent.id}${qs ? `?${qs}` : ""}`,
+          {
+            headers: window.getAuthHeaders(),
+          },
+        );
 
         if (!response.ok) {
           if (response.status === 401) {
@@ -260,11 +267,15 @@ function studentEventActivitiesManager() {
         // Cargar preregistros del estudiante
         await this.loadStudentRegistrations();
 
-        // Actualizar paginación (helper compartido; usa el per_page real)
+        // Actualizar paginación. El endpoint por evento devuelve el conjunto
+        // COMPLETO sin paginar, así que siempre hay una sola página; el
+        // helper lo deduce de `pages` ausente y lo normaliza a 1.
         this.pagination = window.paginationHelpers.buildState(
-          data,
+          { pages: 1, current_page: 1, total: data.total || 0 },
           this.perPage,
         );
+        // Sin paginación real no procede ofrecer el input "Ir a página".
+        this.pagination.showJump = false;
       } catch (error) {
         console.error("Error loading activities:", error);
         this.errorMessage = error.message || "Error al cargar actividades";

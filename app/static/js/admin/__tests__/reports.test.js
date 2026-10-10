@@ -74,7 +74,7 @@ describe("reportsManager", () => {
       const mgr = reportsManager();
       await mgr.loadEvents();
 
-      expect(mockFetch).toHaveBeenCalledWith("/api/events?per_page=1000");
+      expect(mockFetch).toHaveBeenCalledWith("/api/events/lookup");
       expect(mgr.events).toEqual(mockEvents);
     });
 
@@ -456,32 +456,31 @@ describe("reportsManager", () => {
     });
 
     describe("loadCareers", () => {
-      test("should load unique careers from students", async () => {
-        const mockStudents = [
-          { id: 1, career: "Ingeniería en Sistemas" },
-          { id: 2, career: "Ingeniería Mecánica" },
-          { id: 3, career: "Ingeniería en Sistemas" },
-          { id: 4, career: "Ingeniería Industrial" },
+      test("should load unique careers from the dedicated endpoint", async () => {
+        // El backend devuelve las carreras distintas ya normalizadas; antes
+        // el frontend descargaba los estudiantes y montaba un Set.
+        const mockCareers = [
+          "Ingeniería en Sistemas",
+          "Ingeniería Mecánica",
+          "Ingeniería Industrial",
         ];
 
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ students: mockStudents }),
+          json: async () => ({ careers: mockCareers }),
         });
 
         const mgr = reportsManager();
         await mgr.loadCareers();
 
-        expect(mgr.uniqueCareers).toHaveLength(3);
-        expect(mgr.uniqueCareers).toContain("Ingeniería en Sistemas");
-        expect(mgr.uniqueCareers).toContain("Ingeniería Mecánica");
-        expect(mgr.uniqueCareers).toContain("Ingeniería Industrial");
+        expect(mockFetch).toHaveBeenCalledWith("/api/students/careers");
+        expect(mgr.uniqueCareers).toEqual(mockCareers);
       });
 
-      test("should handle empty student list", async () => {
+      test("should handle empty careers list", async () => {
         mockFetch.mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ students: [] }),
+          json: async () => ({ careers: [] }),
         });
 
         const mgr = reportsManager();

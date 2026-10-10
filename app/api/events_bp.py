@@ -65,7 +65,12 @@ def get_events():
         else:
             query = query.order_by(desc(getattr(Event, sort_field)))
 
-        events = query.paginate(page=page, per_page=per_page, error_out=False)
+        # max_per_page=100: los selectores ya no necesitan descargar todo el
+        # listado (usan /lookup), así que se limita el impacto de una petición
+        # con un per_page desorbitado.
+        events = query.paginate(
+            page=page, per_page=per_page, error_out=False, max_per_page=100
+        )
 
         total = events.total or 0
         items = events_schema.dump(events.items)
@@ -89,6 +94,74 @@ def get_events():
 
     except Exception as e:
         return jsonify({"message": "Error al obtener eventos", "error": str(e)}), 500
+
+
+# Lookup de eventos para selectores
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/events/lookup[?status=active]
+#
+# Devuelve la lista COMPLETA de eventos sin paginar. Los selectores y el
+# dashboard/overview la usan para poblar sus <select>; antes lo conseguían
+# con `per_page=1000`.
+#
+# Se devuelve el dict completo del evento (más `public_url` si tiene slug),
+# porque el dashboard y el portal del estudiante necesitan `start_date`,
+# `end_date` e `is_active` para filtrar y formatear.
+#
+# Contrato: { events: [<Event.to_dict()> + {public_url?}], total }
+@events_bp.route("/lookup", methods=["GET"])
+def lookup_events():
+    try:
+        from app.schemas import events_schema
+
+        status = request.args.get("status")
+        search = (request.args.get("search") or "").strip()
+
+        query = Event.query
+
+        if status:
+            query = query.filter_by(is_active=status.lower() == "active")
+
+        if search:
+            query = query.filter(
+                or_(
+                    Event.name.ilike(f"%{search}%"),
+                    Event.description.ilike(f"%{search}%"),
+                )
+            )
+
+        rows = query
+        # Ordenamiento opcional para preservar la intención de cada caller
+        # (calendar pedía start_date:desc; dashboard/overview asc).
+        sort = request.args.get("sort")
+        if sort and ":" in sort:
+            key, direction = sort.split(":", 1)
+            key = key.strip()
+            direction = direction.strip().lower()
+            if key in ("id", "name", "start_date", "end_date", "created_at"):
+                col = getattr(Event, key)
+                rows = rows.order_by(col.desc() if direction == "desc" else col.asc())
+            else:
+                rows = rows.order_by(Event.start_date.asc(), Event.name.asc())
+        else:
+            rows = rows.order_by(Event.start_date.asc(), Event.name.asc())
+
+        rows = rows.all()
+        items = events_schema.dump(rows)
+
+        # Igual que el listado genérico: exponer public_url cuando hay slug.
+        for ev in items:
+            if isinstance(ev, dict) and ev.get("public_slug"):
+                ev["public_url"] = (
+                    request.host_url.rstrip("/") + "/public/event/" + ev["public_slug"]
+                )
+
+        return jsonify({"events": items, "total": len(items)}), 200
+
+    except Exception as e:
+        return jsonify(
+            {"message": "Error al obtener el listado de eventos", "error": str(e)}
+        ), 500
 
 
 # Crear evento

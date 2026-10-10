@@ -12,7 +12,7 @@ from app.models import activity_relations
 from app.utils.slug_utils import slugify, generate_unique_slug
 from app.utils.auth_helpers import require_admin
 from typing import cast, Iterable
-from app.utils.datetime_utils import parse_datetime_with_timezone
+from app.utils.datetime_utils import parse_datetime_with_timezone, safe_iso
 import traceback
 
 activities_bp = Blueprint("activities", __name__, url_prefix="/api/activities")
@@ -162,7 +162,12 @@ def get_activities():
             # Ordenar por fecha de creación (más recientes primero) por defecto
             query = query.order_by(Activity.created_at.desc())
 
-        activities = query.paginate(page=page, per_page=per_page, error_out=False)
+        # max_per_page=100: los selectores ya no necesitan descargar todo el
+        # listado (usan /lookup), así que se limita el impacto de una petición
+        # con un per_page desorbitado.
+        activities = query.paginate(
+            page=page, per_page=per_page, error_out=False, max_per_page=100
+        )
 
         total = activities.total or 0
 
@@ -227,6 +232,222 @@ def get_activities():
         # Include stack trace in response to help debugging in dev
         return jsonify(
             {"message": "Error al obtener actividades", "error": str(e), "trace": tb}
+        ), 500
+
+
+# Lookup de actividades para selectores y filtros
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/activities/lookup[?event_id=&search=&type=&department=]
+#
+# Devuelve la lista COMPLETA de actividades con solo los campos que usan los
+# selectores y filtros del admin (nombre, departamento, tipo y el evento al
+# que pertenecen, que la plantilla muestra junto al nombre). No pagina.
+#
+# Antes estas vistas pedían `/api/activities?per_page=1000`, que serializaba
+# 111 objetos COMPLETOS (descripción, requisitos, ponentes en JSON, fechas de
+# creación...) por cada visita, solo para poblar un <select>.
+#
+# Contrato: { activities: [ {id, name, event_id, department, activity_type,
+#                            start_datetime, end_datetime,
+#                            event: {id, name}} ], total }
+@activities_bp.route("/lookup", methods=["GET"])
+def lookup_activities():
+    try:
+        from sqlalchemy.orm import joinedload
+
+        event_id = request.args.get("event_id", type=int)
+        activity_type = request.args.get("activity_type")
+        department = request.args.get("department")
+        search = (request.args.get("search") or "").strip()
+
+        query = Activity.query.options(joinedload(Activity.event))
+
+        if event_id:
+            query = query.filter(Activity.event_id == event_id)
+
+        if activity_type:
+            query = query.filter(Activity.activity_type == activity_type)
+
+        if department:
+            query = query.filter(Activity.department.ilike(department.strip()))
+
+        if search:
+            search_filter = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Activity.name.ilike(search_filter),
+                    Activity.department.ilike(search_filter),
+                )
+            )
+
+        rows = query.order_by(Activity.start_datetime.asc(), Activity.name.asc()).all()
+
+        activities = []
+        for a in rows:
+            ev = getattr(a, "event", None)
+            activities.append(
+                {
+                    "id": a.id,
+                    "name": a.name,
+                    "code": a.code,
+                    "event_id": a.event_id,
+                    "department": a.department,
+                    "activity_type": a.activity_type,
+                    "start_datetime": safe_iso(a.start_datetime),
+                    "end_datetime": safe_iso(a.end_datetime),
+                    "event": {
+                        "id": getattr(ev, "id", None),
+                        "name": getattr(ev, "name", None),
+                    }
+                    if ev is not None
+                    else None,
+                }
+            )
+
+        return jsonify({"activities": activities, "total": len(activities)}), 200
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        return jsonify(
+            {
+                "message": "Error al obtener el listado de actividades",
+                "error": str(e),
+                "trace": tb,
+            }
+        ), 500
+
+
+# Todas las actividades de UN evento (portal estudiante)
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/activities/by-event/<int:event_id>[?for_student=1&exclude_types=A,B&search=]
+#
+# Devuelve TODAS las actividades de un evento, sin paginar, con los campos
+# ricos que la vista del estudiante necesita para agruparlas por día y
+# mostrar la ocupación: duración, aforo máximo y `current_capacity`.
+#
+# Existe porque esa vista necesita el conjunto COMPLETO de un solo evento (el
+# más grande hoy tiene 66 actividades) y `max_per_page=100` en el listado
+# genérico habría truncado el resultado en silencio. Al limitar por event_id
+# la carga queda acotada de por sí, así que no hace falta paginar.
+#
+# Contrato: { activities: [Activity.to_dict() + {event, current_capacity}],
+#             total, event: {id, name} }
+@activities_bp.route("/by-event/<int:event_id>", methods=["GET"])
+def activities_by_event(event_id):
+    try:
+        from sqlalchemy.orm import joinedload
+
+        for_student = request.args.get("for_student", default=None)
+        exclude_types = request.args.get("exclude_types")
+        activity_type = request.args.get("activity_type")
+        sort = request.args.get("sort")
+        search = (request.args.get("search") or "").strip()
+
+        # db.session.get en vez de Event.query.get: esta última es legacy en
+        # SQLAlchemy 2.0 y emite LegacyAPIWarning (que el entorno de test
+        # convierte en error).
+        event = db.session.get(Event, event_id)
+        if event is None:
+            return jsonify({"message": "Evento no encontrado"}), 404
+
+        query = Activity.query.options(joinedload(Activity.event)).filter(
+            Activity.event_id == event_id
+        )
+
+        # Mismas reglas que el listado genérico: los estudiantes no ven
+        # las "Magistrales".
+        if for_student is not None and str(for_student).lower() in ("1", "true", "yes"):
+            query = query.filter(~Activity.activity_type.in_(["Magistral"]))
+
+        if exclude_types:
+            types_list = [t.strip() for t in exclude_types.split(",") if t.strip()]
+            if types_list:
+                query = query.filter(~Activity.activity_type.in_(types_list))
+
+        if search:
+            search_filter = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Activity.name.ilike(search_filter),
+                    Activity.department.ilike(search_filter),
+                )
+            )
+
+        if activity_type:
+            query = query.filter(Activity.activity_type == activity_type)
+
+        # Ordenamiento opcional: name:asc|name:desc. Por defecto, cronológico
+        # (la vista del estudiante agrupa por día, así que el orden importa).
+        if sort and ":" in sort:
+            key, direction = sort.split(":", 1)
+            key = key.strip()
+            direction = direction.strip().lower()
+            if key == "name":
+                query = query.order_by(
+                    Activity.name.desc()
+                    if direction == "desc"
+                    else Activity.name.asc(),
+                    Activity.start_datetime.asc(),
+                )
+            else:
+                query = query.order_by(
+                    Activity.start_datetime.asc(), Activity.name.asc()
+                )
+        else:
+            query = query.order_by(Activity.start_datetime.asc(), Activity.name.asc())
+
+        rows = query.all()
+
+        # Conteo de preregistros vigentes por actividad en UNA sola consulta
+        # (evita el N+1 que supondría preguntar actividad por actividad).
+        activity_ids = [a.id for a in rows]
+        counts = {}
+        if activity_ids:
+            count_rows = (
+                db.session.query(
+                    Registration.activity_id, db.func.count(Registration.id)
+                )
+                .filter(
+                    Registration.activity_id.in_(activity_ids),
+                    ~Registration.status.in_(["Ausente", "Cancelado"]),
+                )
+                .group_by(Registration.activity_id)
+                .all()
+            )
+            counts = {r[0]: int(r[1]) for r in count_rows}
+
+        activities = []
+        for a in rows:
+            item = a.to_dict()
+            ev = getattr(a, "event", None)
+            item["event"] = (
+                {"id": getattr(ev, "id", None), "name": getattr(ev, "name", None)}
+                if ev is not None
+                else None
+            )
+            val = counts.get(a.id, 0)
+            # `current_capacity` es el que usa el portal; el alias histórico
+            # se mantiene por compatibilidad con vistas antiguas.
+            item["current_capacity"] = val
+            item["current_registrations"] = val
+            activities.append(item)
+
+        return jsonify(
+            {
+                "activities": activities,
+                "total": len(activities),
+                "event": {"id": event.id, "name": event.name},
+            }
+        ), 200
+
+    except Exception as e:
+        tb = traceback.format_exc()
+        return jsonify(
+            {
+                "message": "Error al obtener las actividades del evento",
+                "error": str(e),
+                "trace": tb,
+            }
         ), 500
 
 

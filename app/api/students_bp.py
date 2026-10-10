@@ -74,7 +74,12 @@ def get_students():
         # Ordenar por nombre
         query = query.order_by(Student.full_name)
 
-        students = query.paginate(page=page, per_page=per_page, error_out=False)
+        # max_per_page=100: los selectores ya no necesitan descargar todo el
+        # listado (usan /lookup), así que se limita el impacto de una petición
+        # con un per_page desorbitado.
+        students = query.paginate(
+            page=page, per_page=per_page, error_out=False, max_per_page=100
+        )
 
         return jsonify(
             {
@@ -88,6 +93,81 @@ def get_students():
     except Exception as e:
         return jsonify(
             {"message": "Error al obtener estudiantes", "error": str(e)}
+        ), 500
+
+
+# Lookup de estudiantes para selectores
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/students/lookup
+#
+# Devuelve la lista COMPLETA de estudiantes con solo los campos que necesitan
+# los selectores (número de control, nombre). A diferencia de `/`, NO pagina
+# ni expone datos sensibles: los selectores del admin necesitan todas las
+# opciones de una sola vez y antes lo conseguían con `per_page=1000`, que
+# descargaba 2252 objetos completos por cada visita a la página.
+#
+# Contrato: { students: [ {id, control_number, full_name, career} ], total }
+@students_bp.route("/lookup", methods=["GET"])
+def lookup_students():
+    try:
+        search = (request.args.get("search") or "").strip()
+
+        query = Student.query
+
+        if search:
+            search_filter = f"%{search}%"
+            query = query.filter(
+                db.or_(
+                    Student.control_number.ilike(search_filter),
+                    Student.full_name.ilike(search_filter),
+                )
+            )
+
+        rows = query.order_by(Student.full_name).all()
+
+        students = [
+            {
+                "id": s.id,
+                "control_number": s.control_number,
+                "full_name": s.full_name,
+                "career": s.career,
+            }
+            for s in rows
+        ]
+
+        return jsonify({"students": students, "total": len(students)}), 200
+
+    except Exception as e:
+        return jsonify(
+            {"message": "Error al obtener el listado de estudiantes", "error": str(e)}
+        ), 500
+
+
+# Lookup de carreras únicas
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/students/careers
+#
+# Devuelve las carreras distintas ya normalizadas en la base. El informe de
+# horas las derivaba descargando los 2252 estudiantes con `per_page=1000` y
+# montando un Set en el navegador, solo para poblar un <select>.
+#
+# Contrato: { careers: [str] }
+@students_bp.route("/careers", methods=["GET"])
+def lookup_student_careers():
+    try:
+        rows = (
+            db.session.query(Student.career)
+            .filter(Student.career.isnot(None), Student.career != "")
+            .distinct()
+            .all()
+        )
+        careers = sorted((r[0] for r in rows if r[0]), key=lambda c: c.lower())
+
+        return jsonify({"careers": careers, "total": len(careers)}), 200
+
+    except Exception as e:
+        return jsonify(
+            {"message": "Error al obtener las carreras", "error": str(e)}
         ), 500
 
 

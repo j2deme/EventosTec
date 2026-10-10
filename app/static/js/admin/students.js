@@ -160,7 +160,8 @@ function studentsAdmin() {
     // Cargar todas las actividades
     async loadAllActivities() {
       try {
-        const response = await fetch("/api/activities?per_page=1000", {
+        // Endpoint de lookup: solo los campos del filtro, sin paginar.
+        const response = await fetch("/api/activities/lookup", {
           headers: window.getAuthHeaders(),
         });
 

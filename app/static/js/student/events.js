@@ -186,9 +186,11 @@ function studentEventsManager() {
           return;
         }
 
-        // Solicitar actividades filtradas para estudiantes (excluir 'Magistral')
+        // Endpoint dedicado: todas las actividades del evento, con las
+        // Magistrales ya excluidas en el backend (`for_student=true`).
+        // Antes se usaba el listado genérico con per_page=1000.
         const response = await fetch(
-          `/api/activities?event_id=${event.id}&per_page=1000&for_student=true`,
+          `/api/activities/by-event/${event.id}?for_student=true`,
           {
             headers: window.getAuthHeaders(),
           },

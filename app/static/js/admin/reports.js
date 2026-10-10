@@ -66,7 +66,8 @@ function reportsManager() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const res = await f("/api/events?per_page=1000");
+        // Endpoint de lookup: lista completa sin paginar.
+        const res = await f("/api/events/lookup");
         if (res && res.ok) {
           const d = await res.json();
           this.events = d.events || [];
@@ -80,7 +81,9 @@ function reportsManager() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const res = await f("/api/activities?per_page=1000");
+        // Endpoint de lookup: solo los campos del filtro (incluye department,
+        // que de aquí se deriva para el selector de departamentos).
+        const res = await f("/api/activities/lookup");
         if (res && res.ok) {
           const d = await res.json();
           this.activities = d.activities || [];
@@ -364,15 +367,13 @@ function reportsManager() {
       try {
         const f =
           typeof window.safeFetch === "function" ? window.safeFetch : fetch;
-        const res = await f("/api/students?per_page=1000");
+        // Endpoint dedicado: el backend devuelve las carreras distintas ya
+        // normalizadas. Antes se descargaban los 2253 estudiantes con
+        // per_page=1000 y se montaba un Set en el navegador solo para esto.
+        const res = await f("/api/students/careers");
         if (res && res.ok) {
           const d = await res.json();
-          const students = d.students || [];
-          const careerSet = new Set();
-          students.forEach((s) => {
-            if (s.career) careerSet.add(s.career);
-          });
-          this.uniqueCareers = Array.from(careerSet).sort();
+          this.uniqueCareers = d.careers || [];
         }
       } catch (e) {
         console.error("Error loading careers", e);

@@ -290,7 +290,12 @@ def get_registrations():
             # Orden histórico / valor desconocido: no romper el listado.
             query = query.order_by(Registration.registration_date.desc())
 
-        registrations = query.paginate(page=page, per_page=per_page, error_out=False)
+        # max_per_page=100: los selectores ya no necesitan descargar todo el
+        # listado (usan /lookup), así que se limita el impacto de una petición
+        # con un per_page desorbitado.
+        registrations = query.paginate(
+            page=page, per_page=per_page, error_out=False, max_per_page=100
+        )
 
         # Asegurar que la relación activity está presente en cada registro
         for registration in registrations.items:

@@ -184,7 +184,7 @@ function studentOverviewManager() {
         // activos) caerían en páginas posteriores y no aparecerían aquí.
         const now = new Date().toISOString();
         const response = await fetch(
-          `/api/events?status=active&sort=start_date:asc&per_page=100`,
+          `/api/events/lookup?status=active&sort=start_date:asc`,
           {
             headers: window.getAuthHeaders(),
           },

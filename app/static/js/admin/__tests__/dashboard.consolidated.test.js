@@ -205,9 +205,11 @@ describe("adminDashboard consolidated tests", () => {
       expect(mgr.upcomingEvents.some((e) => e.id === 10)).toBe(true);
       expect(mgr.upcomingEvents.some((e) => e.id === 11)).toBe(false);
       expect(mgr.upcomingEvents.some((e) => e.id === 12)).toBe(false);
-      // Debe pedir más de la página por defecto (10) para no perder eventos
-      expect(requestedUrl).toContain("per_page=");
-      expect(Number(requestedUrl.split("per_page=")[1])).toBeGreaterThan(10);
+      // Antes se compensaba subiendo per_page para no perder eventos más allá
+      // de la primera página. Ahora usa el endpoint de lookup, que devuelve
+      // la lista completa sin paginar, así que no hay página que perder.
+      expect(requestedUrl).toContain("/api/events/lookup");
+      expect(requestedUrl).not.toContain("per_page=");
     });
 
     test("loadRecentActivities filters last 7 days", async () => {
