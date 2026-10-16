@@ -303,12 +303,19 @@
                   </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap">
+                  <!-- Ancho acotado: sin esto, un nombre de actividad largo
+                       ensanchaba la columna y forzaba scroll horizontal en la
+                       tabla. Misma convención que activities.html
+                       (truncate max-w-xs); el texto completo se ve con el
+                       tooltip (title) al pasar el cursor. -->
                   <div
-                    class="text-sm font-medium text-gray-900"
+                    class="text-sm font-medium text-gray-900 truncate max-w-xs"
+                    :title="registration.activity?.name"
                     x-text="registration.activity?.name || 'Actividad desconocida'"
                   ></div>
                   <div
-                    class="text-sm text-gray-500"
+                    class="text-sm text-gray-500 truncate max-w-xs"
+                    :title="registration.activity?.event?.name"
                     x-text="registration.activity?.event?.name || 'Evento desconocido'"
                   ></div>
                 </td>
