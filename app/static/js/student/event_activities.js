@@ -1,4 +1,20 @@
 // static/js/student/event_activities.js
+
+// Escape de valores interpolados en HTML de texto.
+// `activity.name` lo escribe el administrador: sin esto, un nombre como
+// `<img src=x onerror=...>` llega a `insertAdjacentHTML` sin escapar y se
+// ejecuta en el navegador del estudiante (hallazgo C-0, XSS almacenado).
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ],
+  );
+}
+
 function studentEventActivitiesManager() {
   return {
     // Estado
@@ -11,6 +27,8 @@ function studentEventActivitiesManager() {
     studentRegistrations: [],
     // Evitar múltiples peticiones concurrentes para la misma actividad
     inflightRegistrations: new Set(),
+    // El modal multídías está abierto: evita abrir dos a la vez (C-0)
+    multiDayModalOpen: false,
 
     // Paginación (residual). Esta vista carga TODAS las actividades de un
     // evento de una sola vez vía /api/activities/by-event/<id>, que no pagina
@@ -352,6 +370,14 @@ function studentEventActivitiesManager() {
 
     // Preregistrar a una actividad
     async registerForActivity(activity) {
+      // El guard `inflight` de más abajo entra DESPUÉS de abrir el modal de
+      // confirmación multídías, así que un doble clic abría dos modales con
+      // el mismo `id`: el primero se cableaba y el segundo quedaba huérfano
+      // cubriendo la pantalla (C-0). Este guard va delante, sobre el modal.
+      if (this.multiDayModalOpen) {
+        return;
+      }
+
       // ✨ Obtener la actividad original para verificación precisa
       const originalActivity = this.getOriginalActivityById(activity.id);
 
@@ -870,17 +896,21 @@ function studentEventActivitiesManager() {
                     <h3 class="text-lg leading-6 font-medium text-gray-900">Confirmar Preregistro</h3>
                     <div class="mt-2">
                       <p class="text-sm text-gray-500">
-                        La actividad <strong>${
-                          activity.name
-                        }</strong> es una actividad multídias.
+                        La actividad <strong>${escapeHtml(
+                          activity.name,
+                        )}</strong> es una actividad multídias.
                       </p>
                       <p class="mt-2 text-sm text-gray-500">
                         Esto significa que tendrás sesiones los días:
                       </p>
                       <div class="mt-2 p-2 bg-gray-50 rounded-md">
                         <p class="text-xs font-medium text-gray-700">
-                          Del ${this.formatOnlyDate(activity.start_datetime)} 
-                          al ${this.formatOnlyDate(activity.end_datetime)}
+                          Del ${escapeHtml(
+                            this.formatOnlyDate(activity.start_datetime),
+                          )}
+                          al ${escapeHtml(
+                            this.formatOnlyDate(activity.end_datetime),
+                          )}
                         </p>
                       </div>
                       <p class="mt-3 text-sm text-gray-500">
@@ -907,8 +937,14 @@ function studentEventActivitiesManager() {
         </div>
       `;
 
-      // Agregar el modal al body
+      // Agregar el modal al body. Si quedara un nodo huérfano de un clic
+      // anterior (mismo `id`), se retira antes: dos nodos con el mismo id
+      // dejaban `getElementById` cableando siempre al primero y el segundo
+      // quedaba sin botones, tapando la pantalla.
+      const stale = document.getElementById("multiday-confirm-modal");
+      if (stale) stale.remove();
       document.body.insertAdjacentHTML("beforeend", modalHtml);
+      this.multiDayModalOpen = true;
 
       // Mostrar el modal
       const modal = document.getElementById("multiday-confirm-modal");
@@ -918,12 +954,28 @@ function studentEventActivitiesManager() {
       return new Promise((resolve) => {
         const confirmBtn = document.getElementById("confirm-multiday-register");
         const cancelBtn = document.getElementById("cancel-multiday-register");
+
+        // Tanto Escape como cancelar pasan por `closeModal`, que libera el
+        // handler de teclado. Antes se asignaba `document.onkeydown` y nunca
+        // se quitaba: el handler seguía vivo después del modal y pisaba
+        // cualquier otro manejo global de teclado (C-0). Ahora es un listener
+        // propio retirado al cerrar, por lo que no afecta a nadie más.
         const closeModal = () => {
+          document.removeEventListener("keydown", onKeydown);
+          this.multiDayModalOpen = false;
           modal.remove();
           resolve(false);
         };
 
+        const onKeydown = (e) => {
+          if (e.key === "Escape") {
+            closeModal();
+          }
+        };
+
         confirmBtn.onclick = () => {
+          document.removeEventListener("keydown", onKeydown);
+          this.multiDayModalOpen = false;
           modal.remove();
           resolve(true);
         };
@@ -931,11 +983,7 @@ function studentEventActivitiesManager() {
         cancelBtn.onclick = closeModal;
 
         // También cerrar con Escape
-        document.onkeydown = (e) => {
-          if (e.key === "Escape") {
-            closeModal();
-          }
-        };
+        document.addEventListener("keydown", onKeydown);
       });
     },
 
