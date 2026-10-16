@@ -5,7 +5,7 @@ import uuid
 from app import db
 from app.schemas import student_schema, students_schema
 from app.models.student import Student
-from app.utils.auth_helpers import require_admin
+from app.utils.auth_helpers import require_admin, get_user_or_403
 from app.services.settings_manager import AppSettings
 from openpyxl import Workbook
 from typing import Any
@@ -24,7 +24,43 @@ from app.utils.datetime_utils import (
 students_bp = Blueprint("students", __name__, url_prefix="/api/students")
 
 
+def _authorize_student_access(student_id):
+    """Autoriza el acceso a los datos de un estudiante concreto.
+
+    Devuelve ``(user, user_type, None)`` si procede, o
+    ``(None, None, (response, status))`` con la respuesta lista para
+    retornar.
+
+    Regla: el estudiante solo puede consultar sus propios datos; el
+    administrador, los de cualquiera. Sin este chequeo, un token de
+    estudiante bastaba para leer las horas acumuladas o el detalle por
+    evento de cualquier otra persona (hallazgo B-1 del plan de revisión
+    del módulo estudiante).
+    """
+    user, user_type, err = get_user_or_403()
+    if err:
+        return None, None, err
+
+    if user_type == "student" and getattr(user, "id", None) != student_id:
+        return None, None, (jsonify({"message": "Acceso denegado."}), 403)
+
+    return user, user_type, None
+
+
+# Listar estudiantes
+# ─────────────────────────────────────────────────────────────────────────────
+# Protegido: `students_schema` anida `registrations` y `attendances`, así que
+# este listado expone el historial académico completo del padrón. Antes no
+# llevaba ninguna protección y la app no tiene `before_request` global, de
+# modo que cualquiera podía enumerarlo por nombre o número de control
+# (hallazgo §1.1 del plan de revisión del módulo estudiante).
+#
+# Los flujos que antes lo llamaban sin token (preregistración pública y
+# walk-in de staff) ahora usan `/api/students/public-lookup`, que devuelve
+# un solo estudiante por coincidencia exacta y sin datos académicos.
 @students_bp.route("/", methods=["GET"])
+@jwt_required()
+@require_admin
 def get_students():
     try:
         # Parámetros de búsqueda y paginación
@@ -107,7 +143,11 @@ def get_students():
 # descargaba 2252 objetos completos por cada visita a la página.
 #
 # Contrato: { students: [ {id, control_number, full_name, career} ], total }
+# Solo el panel de admin lo usa (registrations.js); protegido por la misma
+# razón que el listado: expone número de control y nombre del padrón completo.
 @students_bp.route("/lookup", methods=["GET"])
+@jwt_required()
+@require_admin
 def lookup_students():
     try:
         search = (request.args.get("search") or "").strip()
@@ -152,7 +192,11 @@ def lookup_students():
 # montando un Set en el navegador, solo para poblar un <select>.
 #
 # Contrato: { careers: [str] }
+# Solo el panel de admin lo usa (reports.js); sin datos personales, pero se
+# protege por coherencia con el resto de rutas de estudiantes.
 @students_bp.route("/careers", methods=["GET"])
+@jwt_required()
+@require_admin
 def lookup_student_careers():
     try:
         rows = (
@@ -387,8 +431,66 @@ def validate_student_proxy():
         return jsonify({"message": "Error desde servicio externo"}), 503
 
 
+# Búsqueda pública por número de control (preregistración pública y walk-in)
+# ─────────────────────────────────────────────────────────────────────────────
+# GET /api/students/public-lookup?control_number=<n>
+#
+# Existe para poder proteger `GET /api/students/` (ver §1.1 del plan de
+# revisión del módulo estudiante). Ese listado devolvía `students_schema`,
+# que anida `registrations` y `attendances`: sin token y solo enumerando por
+# nombre o número de control se obtenía quién se preregistró a qué actividad
+# y con qué horario de entrada/salida.
+#
+# La preregistración pública y el walk-in de staff necesitaban ese listado
+# SOLO para resolver un número de control a datos básicos, y por eso no se
+# podía proteger a ciegas. Este endpoint resuelve esa necesidad de forma
+# acotada:
+#
+#   - Coincidencia EXACTA por número de control: devuelve 0 o 1 estudiante,
+#     de modo que no sirve para enumerar el padrón (antes un prefijo corto
+#     devolvía hasta 10 registros).
+#   - Solo los 4 campos que esos flujos leen; nada de `registrations`,
+#     `attendances` ni fechas.
+#   - Sin token, a propósito, y documentado como público (si algún día se
+#     protege, este es el único que debe seguirlo).
+#
+# El contrato replica el de `/api/students/validate` (que sí consulta el
+# servicio EXTERNO, por eso no puede sustituirlo) para que los dos call
+# sites compartan el mismo parsing.
+#
+# Contrato: 200 { student: {control_number, full_name, career, email} }
+#           404 { message }
+#           400 { message } si falta control_number
+@students_bp.route("/public-lookup", methods=["GET"])
+def public_lookup_student():
+    control = (request.args.get("control_number") or "").strip()
+    if not control:
+        return jsonify({"message": "control_number es requerido"}), 400
+
+    # Coincidencia exacta (igual que la comparación `===` que los callers
+    # hacían en el navegador sobre el resultado del listado).
+    student = Student.query.filter_by(control_number=control).first()
+    if student is None:
+        return jsonify({"message": "Estudiante no encontrado"}), 404
+
+    return (
+        jsonify(
+            {
+                "student": {
+                    "control_number": student.control_number,
+                    "full_name": student.full_name,
+                    "career": student.career,
+                    "email": student.email,
+                }
+            }
+        ),
+        200,
+    )
+
+
 # Obtener horas acumuladas por evento de un estudiante
 @students_bp.route("/<int:student_id>/hours-by-event", methods=["GET"])
+@jwt_required()
 def get_student_hours_by_event(student_id):
     """
     Calcula las horas confirmadas de un estudiante agrupadas por evento.
@@ -396,6 +498,10 @@ def get_student_hours_by_event(student_id):
     con dedup por actividad (inluye walk-ins).
     """
     try:
+        _, _, err = _authorize_student_access(student_id)
+        if err:
+            return err
+
         student = db.session.get(Student, student_id)
         if not student:
             return jsonify({"message": "Estudiante no encontrado"}), 404
@@ -473,12 +579,17 @@ def get_student_hours_by_event(student_id):
 
 # Obtener detalle de participación de un estudiante en un evento específico
 @students_bp.route("/<int:student_id>/event/<int:event_id>/details", methods=["GET"])
+@jwt_required()
 def get_student_event_details(student_id, event_id):
     """
     Obtiene el detalle cronológico de participación del estudiante en un evento.
     Incluye todas las actividades registradas y su status.
     """
     try:
+        _, _, err = _authorize_student_access(student_id)
+        if err:
+            return err
+
         student = db.session.get(Student, student_id)
         if not student:
             return jsonify({"message": "Estudiante no encontrado"}), 404

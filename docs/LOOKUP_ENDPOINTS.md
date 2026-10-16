@@ -26,6 +26,8 @@ reducido**, y no pagan el peaje de la paginación.
 
 ### `GET /api/students/lookup[?search=]`
 
+> **Requiere token de admin** (ver §4).
+
 ```json
 { "students": [ { "id", "control_number", "full_name", "career" } ], "total": 2253 }
 ```
@@ -33,7 +35,40 @@ reducido**, y no pagan el peaje de la paginación.
 Solo los cuatro campos del selector. **No** incluye `email` ni fechas.
 `search` filtra por número de control o nombre (case-insensitive).
 
+### `GET /api/students/public-lookup?control_number=<n>`
+
+> **Único endpoint de estudiantes SIN autenticación, a propósito.**
+
+```json
+{
+  "student": {
+    "control_number": "26690330",
+    "full_name": "Ana López",
+    "career": "ISC",
+    "email": "..."
+  }
+}
+```
+
+Existe porque la preregistración pública y el registro rápido de staff
+necesitaban resolver un número de control a datos básicos, y ese era el
+único motivo por el que no se podía proteger `GET /api/students/`
+(hallazgo §1.1: ese listado anida `registrations` y `attendances`).
+
+Características que lo hacen seguro para dejarlo abierto:
+
+- **Coincidencia exacta** por número de control: devuelve 0 o 1, así que
+  no sirve para enumerar el padrón. Un prefijo (`2669033`) devuelve `404`.
+- Solo los cuatro campos que esos flujos leen; nada de `id`, historial ni
+  fechas.
+- `404` cuando no existe y `400` si falta el parámetro.
+
+Sus dos únicos call sites: `public/registrations_public.js` y
+`public/staff_walkin.js`.
+
 ### `GET /api/students/careers`
+
+> **Requiere token de admin** (ver §4).
 
 ```json
 { "careers": ["Ingeniería Ambiental", "..."], "total": 10 }
@@ -104,21 +139,30 @@ Cualquier `per_page` mayor que 100 queda en 100.
 
 ## 4. Nota sobre autenticación
 
-Estos endpoints **no** llevan `@jwt_required()`, igual que los listados
-genéricos de los que derivan (`/api/students/`, `/api/activities/`,
-`/api/events/` tampoco lo llevan; no hay protección JWT global en la app).
-El payload de `students/lookup` es más pequeño que el del listado, pero
-expone los mismos campos que ya estaban accesibles sin autenticación.
+No hay protección JWT global en la app (no existe `before_request`), así
+que cada endpoint se defiende solo. La regla quedó así:
 
-Si algún día se protegen los listados, hay que proteger los lookup a la vez.
+| Endpoint                                                           | Token                                            | Por qué                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `students/` (listado), `students/lookup`, `students/careers`       | **admin** (`@jwt_required()` + `@require_admin`) | Son datos personales del padrón. El listado además anidaba `registrations` y `attendances`: sin token, enumerar por nombre o número de control bastaba para reconstruir el historial académico de cualquiera (hallazgo §1.1). Se exige admin y no solo `@jwt_required()` porque un estudiante autenticado también podría descargar el padrón entero. |
+| `students/public-lookup`                                           | **ninguno, a propósito**                         | Ver §2. Es el sustituto público del listado para la preregistración y el walk-in de staff.                                                                                                                                                                                                                                                           |
+| `students/<id>/hours-by-event`, `students/<id>/event/<id>/details` | **cualquiera + propiedad**                       | Antes no llevaban token: con el mío se leían las horas de otra persona (B-1). Ahora el estudiante solo accede a las suyas; el admin, a las que quiera.                                                                                                                                                                                               |
+| `activities/lookup`, `events/lookup`, `activities/by-event/<id>`   | **ninguno**                                      | No contienen datos personales (nombre, horario, tipo y aforo de la actividad) y esa misma información se publica en las páginas de preregistración abiertas. Si algún día se protegen, hacerlo con `@jwt_required()` basta: los únicos consumidores son el panel del admin y el portal del estudiante, ambos con token.                              |
 
 ## 5. Pruebas
 
-`tests/api/test_lookup_endpoints.py` cubre el contrato de los cinco
-endpoints, los filtros, el `404`, la exclusión de `Magistral`, el conteo de
+`tests/api/test_lookup_endpoints.py` cubre el contrato de los endpoints de
+esta guía, los filtros, el `404`, la exclusión de `Magistral`, el conteo de
 `current_capacity` (incluida la exclusión de `Ausente`/`Cancelado`) y el
-tope de `max_per_page=100`.
+tope de `max_per_page=100`. Como los dos lookups de estudiantes ya exigen
+token, esos tests autentican con `auth_headers`.
+
+`tests/api/test_students_api_security.py` cubre lo que §4 describe: que el
+listado y los lookups de estudiantes responden `401` sin token y `403` con
+token de estudiante, que `public-lookup` devuelve solo los cuatro campos y
+no admite enumeración por prefijo, y la propiedad de los datos en
+`hours-by-event`, `event/<id>/details` y el listado de preregistros.
 
 ```bash
-python -m pytest -q tests/api/test_lookup_endpoints.py
+python -m pytest -q tests/api/test_lookup_endpoints.py tests/api/test_students_api_security.py
 ```

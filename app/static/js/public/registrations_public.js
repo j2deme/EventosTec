@@ -696,20 +696,16 @@ function registrationsPublic() {
         this.walkinFoundSource = null;
         this.walkinLookupState = "searching";
 
-        // First try local search endpoint (exact match)
+        // Búsqueda local por coincidencia EXACTA de número de control: el
+        // backend devuelve 0 o 1 estudiante. Antes se pedía el listado
+        // completo (`/api/students/?search=`) y se filtraba en el navegador,
+        // lo que además exponía el padrón entero sin autenticación.
         const local = await fetch(
-          `/api/students/?search=${encodeURIComponent(control)}&per_page=1`,
+          `/api/students/public-lookup?control_number=${encodeURIComponent(control)}`,
         );
         if (local && local.ok) {
           const j = await local.json().catch(() => ({}));
-          const students = j.students || [];
-          // try exact control_number match
-          const exact =
-            (students.find &&
-              students.find(
-                (s) => String(s.control_number) === String(control),
-              )) ||
-            null;
+          const exact = (j && j.student) || null;
           if (exact) {
             this.walkin.full_name = exact.full_name || "";
             this.walkin.email = exact.email || "";

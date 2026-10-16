@@ -162,6 +162,19 @@ def get_registrations():
         # Nuevo: filtrar por evento padre (actividad.event_id)
         event_id = request.args.get("event_id", type=int)
 
+        # B-2 (IDOR de lectura): con token de estudiante, el listado se
+        # limita SIEMPRE a sus propios preregistros, ignorando el parámetro
+        # `student_id`. Antes bastaba con cambiarlo en la query para leer y
+        # paginar los de cualquier otra persona (id, actividad, fechas y
+        # estado); ahora mismo el portal estudiante solo pide los suyos, así
+        # que no cambia ningún flujo legítimo. Mismo patrón que ya aplica
+        # `GET /api/attendances/` (attendances_bp.py).
+        user, user_type, err = get_user_or_403()
+        if err:
+            return err
+        if user_type == "student" and user is not None:
+            student_id = user.id
+
         # Avoid using joinedload on backref-created attributes because static
         # analyzers may not see those attributes and raise type errors.
         # We'll keep the base query simple and lazily load missing relations

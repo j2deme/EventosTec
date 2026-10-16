@@ -125,13 +125,11 @@ describe("staffWalkin (registro rápido de staff)", () => {
     test("match local: NO consulta el servicio externo", async () => {
       global.fetch.mockResolvedValueOnce(
         jsonRes(200, {
-          students: [
-            {
-              control_number: "12345678",
-              full_name: "Juan Pérez",
-              career: "ISC",
-            },
-          ],
+          student: {
+            control_number: "12345678",
+            full_name: "Juan Pérez",
+            career: "ISC",
+          },
         }),
       );
       state.controlNumber = "12345678";
@@ -140,7 +138,9 @@ describe("staffWalkin (registro rápido de staff)", () => {
 
       // Una sola petición: sin /api/students/validate
       expect(global.fetch).toHaveBeenCalledTimes(1);
-      expect(global.fetch.mock.calls[0][0]).toContain("/api/students/?search=");
+      expect(global.fetch.mock.calls[0][0]).toContain(
+        "/api/students/public-lookup?control_number=",
+      );
       expect(state.state).toBe("found");
       expect(state.student.full_name).toBe("Juan Pérez");
       expect(state.actionMode).toBe("create");
@@ -148,7 +148,9 @@ describe("staffWalkin (registro rápido de staff)", () => {
 
     test("sin match local y 404 externo -> not_found", async () => {
       global.fetch
-        .mockResolvedValueOnce(jsonRes(200, { students: [] }))
+        .mockResolvedValueOnce(
+          jsonRes(404, { message: "Estudiante no encontrado" }),
+        )
         .mockResolvedValueOnce(jsonRes(404, { message: "no existe" }));
       state.controlNumber = "12345678";
 
@@ -160,7 +162,9 @@ describe("staffWalkin (registro rápido de staff)", () => {
 
     test("servicio externo caído (503) NO se reporta como 'no encontrado'", async () => {
       global.fetch
-        .mockResolvedValueOnce(jsonRes(200, { students: [] }))
+        .mockResolvedValueOnce(
+          jsonRes(404, { message: "Estudiante no encontrado" }),
+        )
         .mockResolvedValueOnce(jsonRes(503, { message: "externo caído" }));
       state.controlNumber = "12345678";
 
@@ -172,7 +176,9 @@ describe("staffWalkin (registro rápido de staff)", () => {
 
     test("error de red en el externo -> estado de reintento, no not_found", async () => {
       global.fetch
-        .mockResolvedValueOnce(jsonRes(200, { students: [] }))
+        .mockResolvedValueOnce(
+          jsonRes(404, { message: "Estudiante no encontrado" }),
+        )
         .mockRejectedValueOnce(new Error("timeout"));
       state.controlNumber = "12345678";
 
@@ -186,7 +192,7 @@ describe("staffWalkin (registro rápido de staff)", () => {
       // el match local no se pierde.
       global.fetch.mockResolvedValueOnce(
         jsonRes(200, {
-          students: [{ control_number: "87654321", full_name: "Ana Loca" }],
+          student: { control_number: "87654321", full_name: "Ana Loca" },
         }),
       );
       state.controlNumber = "87654321";
@@ -203,7 +209,7 @@ describe("staffWalkin (registro rápido de staff)", () => {
       global.fetch
         .mockResolvedValueOnce(
           jsonRes(200, {
-            students: [{ control_number: "12345678", full_name: "Juan Pérez" }],
+            student: { control_number: "12345678", full_name: "Juan Pérez" },
           }),
         )
         .mockResolvedValueOnce(
@@ -232,7 +238,7 @@ describe("staffWalkin (registro rápido de staff)", () => {
       global.fetch
         .mockResolvedValueOnce(
           jsonRes(200, {
-            students: [{ control_number: "12345678", full_name: "Juan Pérez" }],
+            student: { control_number: "12345678", full_name: "Juan Pérez" },
           }),
         )
         .mockResolvedValueOnce(
@@ -260,7 +266,7 @@ describe("staffWalkin (registro rápido de staff)", () => {
       global.fetch
         .mockResolvedValueOnce(
           jsonRes(200, {
-            students: [{ control_number: "12345678", full_name: "Juan Pérez" }],
+            student: { control_number: "12345678", full_name: "Juan Pérez" },
           }),
         )
         .mockResolvedValueOnce(
@@ -291,7 +297,7 @@ describe("staffWalkin (registro rápido de staff)", () => {
       global.fetch
         .mockResolvedValueOnce(
           jsonRes(200, {
-            students: [{ control_number: "12345678", full_name: "Juan Pérez" }],
+            student: { control_number: "12345678", full_name: "Juan Pérez" },
           }),
         )
         .mockResolvedValueOnce(
@@ -318,17 +324,18 @@ describe("staffWalkin (registro rápido de staff)", () => {
     test("respuesta vieja no pisa a la más reciente (Enter + debounce)", async () => {
       let resolveFirst;
       global.fetch.mockImplementation((url) => {
-        if (String(url).includes("search=11111111")) {
+        if (String(url).includes("control_number=11111111")) {
           return new Promise((resolve) => {
             resolveFirst = resolve;
           });
         }
-        if (String(url).includes("search=22222222")) {
+        if (String(url).includes("control_number=22222222")) {
           return Promise.resolve(
             jsonRes(200, {
-              students: [
-                { control_number: "22222222", full_name: "Segundo Alumno" },
-              ],
+              student: {
+                control_number: "22222222",
+                full_name: "Segundo Alumno",
+              },
             }),
           );
         }
@@ -347,9 +354,7 @@ describe("staffWalkin (registro rápido de staff)", () => {
 
       resolveFirst(
         jsonRes(200, {
-          students: [
-            { control_number: "11111111", full_name: "Primer Alumno" },
-          ],
+          student: { control_number: "11111111", full_name: "Primer Alumno" },
         }),
       );
       await first;
@@ -373,7 +378,7 @@ describe("staffWalkin (registro rápido de staff)", () => {
       state.clearSearch();
       resolveFirst(
         jsonRes(200, {
-          students: [{ control_number: "12345678", full_name: "Juan Pérez" }],
+          student: { control_number: "12345678", full_name: "Juan Pérez" },
         }),
       );
       await pending;

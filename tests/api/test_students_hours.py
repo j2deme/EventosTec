@@ -89,11 +89,16 @@ def sample_registration(app, sample_student, sample_activity):
 
 
 def test_get_students_with_filters(
-    client, sample_event, sample_student, sample_activity, sample_registration
+    client,
+    sample_event,
+    sample_student,
+    sample_activity,
+    sample_registration,
+    auth_headers,
 ):
     """Test getting students with event filter."""
-    # This endpoint doesn't require auth for basic GET
-    resp = client.get(f"/api/students/?event_id={sample_event}")
+    # Listado de estudiantes: ahora exige token (hallazgo §1.1).
+    resp = client.get(f"/api/students/?event_id={sample_event}", headers=auth_headers)
     assert resp.status_code == 200
     data = resp.get_json()
     assert "students" in data
@@ -101,10 +106,12 @@ def test_get_students_with_filters(
 
 
 def test_get_student_hours_by_event(
-    client, sample_student, sample_event, sample_registration
+    client, sample_student, sample_event, sample_registration, auth_headers
 ):
     """Test getting student hours grouped by event."""
-    resp = client.get(f"/api/students/{sample_student}/hours-by-event")
+    resp = client.get(
+        f"/api/students/{sample_student}/hours-by-event", headers=auth_headers
+    )
     assert resp.status_code == 200
     data = resp.get_json()
     assert "events_hours" in data
@@ -120,10 +127,13 @@ def test_get_student_hours_by_event(
 
 
 def test_get_student_event_details(
-    client, sample_student, sample_event, sample_registration
+    client, sample_student, sample_event, sample_registration, auth_headers
 ):
     """Test getting detailed student participation in an event."""
-    resp = client.get(f"/api/students/{sample_student}/event/{sample_event}/details")
+    resp = client.get(
+        f"/api/students/{sample_student}/event/{sample_event}/details",
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     data = resp.get_json()
     assert "student" in data
@@ -140,7 +150,7 @@ def test_get_student_event_details(
 
 
 def test_student_hours_counts_confirmed_and_attended(
-    app, client, sample_student, sample_event
+    app, client, sample_student, sample_event, auth_headers
 ):
     """Test de la semántica unificada: 'Confirmado' y 'Asistió' cuentan;
     'Registrado' no (fuente única: app/services/hours_service.py)."""
@@ -181,7 +191,9 @@ def test_student_hours_counts_confirmed_and_attended(
         db.session.commit()
 
     # Get hours by event
-    resp = client.get(f"/api/students/{sample_student}/hours-by-event")
+    resp = client.get(
+        f"/api/students/{sample_student}/hours-by-event", headers=auth_headers
+    )
     assert resp.status_code == 200
     data = resp.get_json()
 
@@ -197,7 +209,9 @@ def test_student_hours_counts_confirmed_and_attended(
     assert test_event["has_complementary_credit"] is True
 
 
-def test_complementary_credit_badge_logic(app, client, sample_student, sample_event):
+def test_complementary_credit_badge_logic(
+    app, client, sample_student, sample_event, auth_headers
+):
     """Test that complementary credit badge appears correctly."""
     from app.models.activity import Activity
     from app.models.registration import Registration
@@ -226,7 +240,9 @@ def test_complementary_credit_badge_logic(app, client, sample_student, sample_ev
         db.session.add(registration)
         db.session.commit()
 
-    resp = client.get(f"/api/students/{sample_student}/hours-by-event")
+    resp = client.get(
+        f"/api/students/{sample_student}/hours-by-event", headers=auth_headers
+    )
     assert resp.status_code == 200
     data = resp.get_json()
 
@@ -238,17 +254,19 @@ def test_complementary_credit_badge_logic(app, client, sample_student, sample_ev
     assert test_event["has_complementary_credit"] is True
 
 
-def test_get_student_hours_not_found(client):
+def test_get_student_hours_not_found(client, auth_headers):
     """Test getting hours for non-existent student returns 404."""
-    resp = client.get("/api/students/99999/hours-by-event")
+    resp = client.get("/api/students/99999/hours-by-event", headers=auth_headers)
     assert resp.status_code == 404
     data = resp.get_json()
     assert "message" in data
 
 
-def test_get_student_event_details_not_found(client, sample_student):
+def test_get_student_event_details_not_found(client, sample_student, auth_headers):
     """Test getting event details for non-existent event returns 404."""
-    resp = client.get(f"/api/students/{sample_student}/event/99999/details")
+    resp = client.get(
+        f"/api/students/{sample_student}/event/99999/details", headers=auth_headers
+    )
     assert resp.status_code == 404
     data = resp.get_json()
     assert "message" in data
@@ -534,7 +552,7 @@ def test_complementary_credits_dedup_reg_and_attendance(
 
 
 def test_hours_by_event_includes_walkins_alongside_registrations(
-    app, client, sample_student, sample_event
+    app, client, sample_student, sample_event, auth_headers
 ):
     """Regresión del fallback parcial: los walk-ins cuentan aunque existan
     Registrations para el mismo estudiante."""
@@ -591,7 +609,9 @@ def test_hours_by_event_includes_walkins_alongside_registrations(
         )
         db.session.commit()
 
-    resp = client.get(f"/api/students/{sample_student}/hours-by-event")
+    resp = client.get(
+        f"/api/students/{sample_student}/hours-by-event", headers=auth_headers
+    )
     assert resp.status_code == 200
     data = resp.get_json()
 
@@ -606,7 +626,7 @@ def test_hours_by_event_includes_walkins_alongside_registrations(
 
 
 def test_event_details_total_and_flag_include_walkins(
-    app, client, sample_student, sample_event
+    app, client, sample_student, sample_event, auth_headers
 ):
     """El total y has_complementary_credit del detalle se calculan sobre el
     total final (antes el flag se evaluaba antes de integrar walk-ins)."""
@@ -663,7 +683,10 @@ def test_event_details_total_and_flag_include_walkins(
         )
         db.session.commit()
 
-    resp = client.get(f"/api/students/{sample_student}/event/{sample_event}/details")
+    resp = client.get(
+        f"/api/students/{sample_student}/event/{sample_event}/details",
+        headers=auth_headers,
+    )
     assert resp.status_code == 200
     data = resp.get_json()
 

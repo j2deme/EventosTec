@@ -45,20 +45,20 @@ def _make_registration(student, activity, status="Registrado"):
 
 
 class TestStudentsLookup:
-    def test_returns_200_with_expected_contract(self, client, app):
+    def test_returns_200_with_expected_contract(self, client, app, auth_headers):
         with app.app_context():
             _make_student("Ana López", "ISC", "A1")
             _make_student("Beto Ruiz", "IM", "B2")
             db.session.commit()
 
-        res = client.get("/api/students/lookup")
+        res = client.get("/api/students/lookup", headers=auth_headers)
 
         assert res.status_code == 200
         body = res.get_json()
         assert set(body.keys()) == {"students", "total"}
         assert body["total"] == len(body["students"]) == 2
 
-    def test_items_are_slim_not_full_objects(self, client, app):
+    def test_items_are_slim_not_full_objects(self, client, app, auth_headers):
         """El payload debe limitarse a lo que consume un <select>.
 
         Antes se descargaba el objeto completo por estudiante; el punto de
@@ -68,7 +68,7 @@ class TestStudentsLookup:
             _make_student("Ana López", "ISC", "A1")
             db.session.commit()
 
-        res = client.get("/api/students/lookup")
+        res = client.get("/api/students/lookup", headers=auth_headers)
         item = res.get_json()["students"][0]
 
         assert set(item.keys()) == {"id", "control_number", "full_name", "career"}
@@ -76,30 +76,36 @@ class TestStudentsLookup:
         assert "email" not in item
         assert "created_at" not in item
 
-    def test_search_filters_by_name_and_control(self, client, app):
+    def test_search_filters_by_name_and_control(self, client, app, auth_headers):
         with app.app_context():
             _make_student("Ana López", "ISC", "A1")
             _make_student("Beto Ruiz", "IM", "B2")
             db.session.commit()
 
-        by_name = client.get("/api/students/lookup?search=Beto").get_json()
-        by_control = client.get("/api/students/lookup?search=A1").get_json()
+        by_name = client.get(
+            "/api/students/lookup?search=Beto", headers=auth_headers
+        ).get_json()
+        by_control = client.get(
+            "/api/students/lookup?search=A1", headers=auth_headers
+        ).get_json()
 
         assert by_name["total"] == 1
         assert by_name["students"][0]["full_name"] == "Beto Ruiz"
         assert by_control["total"] == 1
         assert by_control["students"][0]["control_number"] == "A1"
 
-    def test_search_is_case_insensitive(self, client, app):
+    def test_search_is_case_insensitive(self, client, app, auth_headers):
         with app.app_context():
             _make_student("Ana López", "ISC", "A1")
             db.session.commit()
 
-        res = client.get("/api/students/lookup?search=ana").get_json()
+        res = client.get(
+            "/api/students/lookup?search=ana", headers=auth_headers
+        ).get_json()
         assert res["total"] == 1
 
-    def test_empty_database_returns_empty_list_not_error(self, client):
-        res = client.get("/api/students/lookup")
+    def test_empty_database_returns_empty_list_not_error(self, client, auth_headers):
+        res = client.get("/api/students/lookup", headers=auth_headers)
 
         assert res.status_code == 200
         body = res.get_json()
@@ -113,7 +119,7 @@ class TestStudentsLookup:
 
 
 class TestStudentsCareers:
-    def test_returns_distinct_careers_only(self, client, app):
+    def test_returns_distinct_careers_only(self, client, app, auth_headers):
         """Reemplaza el Set() que el informe montaba en el navegador."""
         with app.app_context():
             _make_student("Ana", "ISC", "A1")
@@ -121,36 +127,36 @@ class TestStudentsCareers:
             _make_student("Caro", "IM", "C3")
             db.session.commit()
 
-        body = client.get("/api/students/careers").get_json()
+        body = client.get("/api/students/careers", headers=auth_headers).get_json()
 
         assert set(body.keys()) == {"careers", "total"}
         assert sorted(body["careers"]) == ["IM", "ISC"]
         assert body["total"] == 2
 
-    def test_careers_are_sorted_case_insensitively(self, client, app):
+    def test_careers_are_sorted_case_insensitively(self, client, app, auth_headers):
         with app.app_context():
             _make_student("Ana", "ingeniería", "A1")
             _make_student("Beto", "ISC", "B2")
             db.session.commit()
 
-        body = client.get("/api/students/careers").get_json()
+        body = client.get("/api/students/careers", headers=auth_headers).get_json()
 
         assert body["careers"] == sorted(body["careers"], key=lambda c: c.lower())
 
-    def test_null_and_blank_careers_are_excluded(self, client, app):
+    def test_null_and_blank_careers_are_excluded(self, client, app, auth_headers):
         with app.app_context():
             _make_student("Ana", None, "A1")
             _make_student("Beto", "", "B2")
             _make_student("Caro", "ISC", "C3")
             db.session.commit()
 
-        body = client.get("/api/students/careers").get_json()
+        body = client.get("/api/students/careers", headers=auth_headers).get_json()
 
         assert body["careers"] == ["ISC"]
         assert body["total"] == 1
 
-    def test_empty_database_returns_empty_list(self, client):
-        body = client.get("/api/students/careers").get_json()
+    def test_empty_database_returns_empty_list(self, client, auth_headers):
+        body = client.get("/api/students/careers", headers=auth_headers).get_json()
 
         assert body["careers"] == []
         assert body["total"] == 0
@@ -448,13 +454,15 @@ class TestActivitiesByEvent:
 class TestMaxPerPageCap:
     """El tope solo es viable porque los selectores ya usan /lookup."""
 
-    def test_students_list_caps_per_page_at_100(self, client, app):
+    def test_students_list_caps_per_page_at_100(self, client, app, auth_headers):
         with app.app_context():
             for i in range(120):
                 _make_student(f"Est {i}", "ISC", f"C{i}")
             db.session.commit()
 
-        body = client.get("/api/students/?per_page=1000&page=1").get_json()
+        body = client.get(
+            "/api/students/?per_page=1000&page=1", headers=auth_headers
+        ).get_json()
 
         assert len(body["students"]) == 100
         assert body["total"] == 120
@@ -480,14 +488,16 @@ class TestMaxPerPageCap:
         assert len(body["events"]) == 100
         assert body["total"] == 105
 
-    def test_per_page_below_cap_is_respected(self, client, app):
+    def test_per_page_below_cap_is_respected(self, client, app, auth_headers):
         """El tope no debe interferir con los valores normales."""
         with app.app_context():
             for i in range(30):
                 _make_student(f"Est {i}", "ISC", f"C{i}")
             db.session.commit()
 
-        body = client.get("/api/students/?per_page=10&page=2").get_json()
+        body = client.get(
+            "/api/students/?per_page=10&page=2", headers=auth_headers
+        ).get_json()
 
         assert len(body["students"]) == 10
         assert body["total"] == 30

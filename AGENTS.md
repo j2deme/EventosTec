@@ -106,6 +106,11 @@ Contratos y convenciones JSON importantes
   - Devuelven la lista **completa y sin paginar**, con un payload reducido a lo que consume un `<select>`. **No uses `per_page=1000` sobre los listados genéricos**: están limitados a `max_per_page=100`.
   - `activities/by-event/<id>` es el único que devuelve campos ricos (`current_capacity`, `max_capacity`, `duration_hours`, `event` anidado) y existe porque la vista del estudiante agrupa por día y necesita el conjunto completo de un evento.
   - Contratos completos y rationale en `docs/LOOKUP_ENDPOINTS.md`.
+- **Autenticación de los endpoints** (no hay protección JWT global: no existe `before_request`, cada endpoint se defiende solo; regla completa en `docs/LOOKUP_ENDPOINTS.md` §4):
+  - `students/`, `students/lookup`, `students/careers` → `@jwt_required()` + `@require_admin`. El listado anida `registrations` y `attendances`, así que exponerlo reconstruía el historial académico del padrón entero (§1.1).
+  - `students/public-lookup?control_number=` → **el único de estudiantes sin token, a propósito**: coincidencia exacta (0 o 1, sin enumeración) y solo `{control_number, full_name, career, email}`. Lo usan `registrations_public.js` y `staff_walkin.js`; es el sustituto público del listado.
+  - `students/<id>/hours-by-event` y `students/<id>/event/<id>/details` → token + propiedad: el estudiante solo accede a los suyos (`_authorize_student_access`), el admin a cualquiera. El chequeo va ANTES del 404 para no filtrar qué ids existen.
+  - `registrations/` (listado) → con token de estudiante se ignora `student_id` ajeno y siempre vuelven los propios (mismo patrón que `attendances_bp`).
 - **Paginación**: la ventana de páginas se calcula SIEMPRE con `paginationHelpers.buildState()` (`app/static/js/helpers/paginationHelpers.js`) y el markup vive en `app/templates/partials/pagination.html` (se incluye con `{% include %}`). **No copies el markup del paginador ni construyas `Array.from({length: total_pages})`**: con 2252 estudiantes eso renderizaba 226 botones y la pantalla crecía hacia la derecha. El objeto `pagination` usa `window` (no `pages`).
 
 Pruebas y validación rápida

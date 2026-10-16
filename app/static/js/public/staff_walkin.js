@@ -91,16 +91,15 @@ function staffWalkin() {
       //    lo conocía, se tiraba el match local y decía "no encontrado".
       let localMatch = null;
       try {
+        // Búsqueda local por coincidencia EXACTA: el backend devuelve 0 o 1
+        // estudiante. Antes se pedían hasta 10 con `/api/students/?search=`
+        // y se comparaba en el navegador.
         const local = await fetch(
-          `/api/students/?search=${encodeURIComponent(num)}&per_page=10`,
+          `/api/students/public-lookup?control_number=${encodeURIComponent(num)}`,
         );
         if (local && local.ok) {
           const j = await local.json().catch(() => ({}));
-          const students = j.students || [];
-          localMatch =
-            (students.find &&
-              students.find((s) => String(s.control_number) === String(num))) ||
-            null;
+          localMatch = (j && j.student) || null;
         }
       } catch (e) {
         console.debug("local lookup failed", e);
