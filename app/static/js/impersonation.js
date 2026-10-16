@@ -71,8 +71,10 @@ function impersonationBanner() {
 }
 
 // Modal compartido de impersonación (lado admin). Escucha el evento global
-// 'impersonate:request' — que despachan students.js y registrations.js — para
+// 'impersonate:request' — que hoy despacha únicamente students.js — para
 // confirmar y abrir la pestaña del estudiante con el token de corta duración.
+// (Antes también lo despachaba registrations.js desde cada fila; se retiró
+// de ahí porque en la gestión de registros no aportaba nada.)
 function impersonationAdminModal() {
   return {
     active: false,
