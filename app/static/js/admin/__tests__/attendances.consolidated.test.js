@@ -397,3 +397,99 @@ describe("attendancesAdmin batch checkout — hora real de cierre", () => {
     expect(body.actual_end_time).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Paginación (contrato de app/templates/partials/pagination.html)
+//
+// Esta vista es la de mayor volumen (6 098 asistencias en producción). Con
+// `per_page: 10` paginaba en 610 páginas y su ventana de páginas no estaba
+// cubierta por ningún test, a diferencia de estudiantes y registros.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("attendancesAdmin — paginación", () => {
+  let origFetch, origLs, origToast;
+
+  beforeEach(() => {
+    origFetch = global.fetch;
+    origLs = global.localStorage;
+    origToast = global.showToast;
+    global.fetch = jest.fn();
+    global.localStorage = {
+      _store: {},
+      getItem(k) {
+        return this._store[k] || null;
+      },
+      setItem(k, v) {
+        this._store[k] = String(v);
+      },
+      removeItem(k) {
+        delete this._store[k];
+      },
+    };
+    global.showToast = jest.fn();
+  });
+
+  afterEach(() => {
+    global.fetch = origFetch;
+    global.localStorage = origLs;
+    global.showToast = origToast;
+    jest.restoreAllMocks();
+  });
+
+  const payload = (over = {}) => ({
+    ok: true,
+    json: async () => ({ attendances: [], total: 6098, ...over }),
+  });
+
+  test("refresh pide per_page=50 (con 10 eran 610 páginas)", async () => {
+    const a = attendancesAdmin();
+    global.fetch.mockResolvedValueOnce(
+      payload({ pages: 122, current_page: 1 }),
+    );
+
+    await a.refresh();
+
+    expect(String(global.fetch.mock.calls[0][0])).toContain("per_page=50");
+    expect(a.per_page).toBe(50);
+    expect(a.pages).toBe(122);
+  });
+
+  test("la ventana de páginas queda acotada aunque haya 122 páginas", async () => {
+    const a = attendancesAdmin();
+    global.fetch.mockResolvedValueOnce(
+      payload({ pages: 122, current_page: 61 }),
+    );
+
+    await a.refresh();
+
+    // Regresión: el bug original era un botón por página.
+    expect(a.pagination.window.length).toBeLessThanOrEqual(11);
+    expect(a.pagination.window.map((i) => i.page)).toContain(61);
+    // from/to usa el perPage real (50), no un "* 10" hardcodeado.
+    expect(a.pagination.from).toBe(3001);
+    expect(a.pagination.to).toBe(3050);
+    expect(a.pagination.showJump).toBe(true);
+  });
+
+  test("setPerPage vuelve a la primera página y recarga con las filas elegidas", async () => {
+    const a = attendancesAdmin();
+    global.fetch.mockResolvedValue(payload({ pages: 122, current_page: 1 }));
+
+    await a.refresh();
+    a.page = 7;
+    global.fetch.mockClear();
+
+    await a.setPerPage("100");
+
+    expect(a.per_page).toBe(100);
+    expect(a.page).toBe(1);
+    expect(String(global.fetch.mock.calls[0][0])).toContain("per_page=100");
+    expect(String(global.fetch.mock.calls[0][0])).toContain("page=1");
+  });
+
+  test("el estado inicial de pagination pinta 50 en el selector de filas", () => {
+    const a = attendancesAdmin();
+
+    expect(a.pagination.perPage).toBe(50);
+    expect(a.pagination.last_page).toBe(1);
+  });
+});

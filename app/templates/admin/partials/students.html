@@ -178,9 +178,17 @@
                   >
                     <i class="ti ti-user text-indigo-600"></i>
                   </div>
-                  <div class="ml-4">
+                  <!-- Ancho acotado: sin esto, un nombre completo largo
+                       ensanchaba la columna Estudiante y forzaba scroll
+                       horizontal en la tabla. Misma convención que
+                       registrations.html y activities.html
+                       (truncate max-w-xs); el texto completo se ve con el
+                       tooltip (title) al pasar el cursor. El `min-w-0` del
+                       contenedor es lo que permite que el flex lo reduzca. -->
+                  <div class="ml-4 min-w-0">
                     <div
-                      class="text-sm font-medium text-gray-900"
+                      class="text-sm font-medium text-gray-900 truncate max-w-xs"
+                      :title="student.full_name"
                       x-text="student.full_name"
                     ></div>
                     <div
@@ -238,9 +246,10 @@
               >
                 <i class="ti ti-user text-indigo-600"></i>
               </div>
-              <div class="ml-3">
+              <div class="ml-3 min-w-0">
                 <div
-                  class="text-sm font-medium text-gray-900"
+                  class="text-sm font-medium text-gray-900 break-words"
+                  :title="student.full_name"
                   x-text="student.full_name"
                 ></div>
                 <div
@@ -287,10 +296,11 @@
     </div>
   </div>
 
-  <!-- Paginación (partial compartido: ver app/templates/partials/pagination.html) -->
-  <div x-show="!loading && students.length > 0">
-    {% include 'partials/pagination.html' %}
-  </div>
+  <!-- Paginación: include desnudo. La visibilidad la decide SOLO el partial
+       (x-show="pagination.last_page > 1"); antes había un contenedor
+       envolvente con su propio guard (`!loading && students.length > 0`)
+       que duplicaba esa lógica con vocabulario distinto por vista. -->
+  {% include 'partials/pagination.html' %}
 
   <!-- Modal de detalle del estudiante -->
   <div
@@ -537,9 +547,14 @@
                         <div
                           class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4"
                         >
-                          <div>
+                          <!-- `min-w-0` + truncate: sin ellos, un nombre de
+                               actividad largo empujaba la fecha de la derecha
+                               fuera de la línea (el contenedor flex no tiene
+                               wrap y la fecha es `whitespace-nowrap`). -->
+                          <div class="min-w-0">
                             <p
-                              class="text-sm font-medium text-gray-900"
+                              class="text-sm font-medium text-gray-900 truncate"
+                              :title="activity.activity_name"
                               x-text="activity.activity_name"
                             ></p>
                             <p class="text-xs text-gray-500 mt-0.5">

@@ -15,7 +15,16 @@ Lo más sencillo es construir el objeto con paginationHelpers.buildState(), que
 calcula todo lo anterior (incluido from/to, que antes estaba hardcodeado con "*
 10" en cada vista y se desincronizaba al cambiar las filas por página). Uso: {%
 include 'partials/pagination.html' %} (Alpine hereda el scope del x-data
-envolvente, por eso no hace falta pasar nada) #}
+envolvente, por eso no hace falta pasar nada) INCLUYELO DESNUDO, SIN CONTENEDOR
+PROPIO: la visibilidad la decide este mismo partial con
+`x-show="pagination.last_page > 1"` y nada más. Antes 4 vistas envolvían el
+include en su propio div con un guard distinto por vista (`!loading &&
+students.length > 0`, `!loading && totalPages > 1`, `pages && pages > 1`,
+`!loading && activitiesByDay.length > 0`): misma lógica duplicada con
+vocabularios incompatibles, y la ventana acotada podía romperse en una vista que
+tocara su guard sin tocar este partial. Los estados `loading`, `totalPages` o
+`pages` ya no se usan aquí; si hace falta una condición extra, se expone desde
+paginationHelpers.buildState() #}
 <div
   x-data="{ jumpValue: '' }"
   x-cloak

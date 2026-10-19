@@ -146,6 +146,73 @@ describe("eventsManager (consolidated)", () => {
       expect(comp.events.length).toBeGreaterThan(0);
     });
 
+    // ── Paginación ─────────────────────────────────────────────────────────
+    // Cubre que la VISTA construya bien el estado que recibe el partial
+    // compartido; antes solo estudiantes y registros lo tenían probado.
+
+    test("la ventana de páginas queda acotada aunque haya 116 páginas", async () => {
+      const comp = eventsManager();
+      global.localStorage.setItem("authToken", "t");
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          events: [],
+          current_page: 58,
+          pages: 116,
+          total: 1160,
+        }),
+      });
+
+      await comp.loadEvents(58);
+
+      expect(comp.pagination.window.length).toBeLessThanOrEqual(11);
+      expect(comp.pagination.window.map((i) => i.page)).toContain(58);
+      expect(comp.pagination.from).toBe(571);
+      expect(comp.pagination.to).toBe(580);
+    });
+
+    test("apaga el selector de filas: 2 eventos no justifican paginar", async () => {
+      const comp = eventsManager();
+      global.localStorage.setItem("authToken", "t");
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          events: [],
+          current_page: 1,
+          pages: 1,
+          total: 2,
+        }),
+      });
+
+      await comp.loadEvents(1);
+
+      expect(comp.pagination.showPerPage).toBe(false);
+      expect(comp.pagination.last_page).toBe(1);
+    });
+
+    test("setPerPage recarga en la página 1 con las filas elegidas", async () => {
+      const comp = eventsManager();
+      global.localStorage.setItem("authToken", "t");
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          events: [],
+          current_page: 1,
+          pages: 3,
+          total: 25,
+        }),
+      });
+
+      await comp.loadEvents(1);
+      global.fetch.mockClear();
+
+      comp.setPerPage("50");
+
+      expect(comp.perPage).toBe(50);
+      expect(String(global.fetch.mock.calls[0][0])).toContain("per_page=50");
+      expect(String(global.fetch.mock.calls[0][0])).toContain("page=1");
+    });
+
     test("deleteEvent sends DELETE and dispatches event-deleted", async () => {
       const comp = eventsManager();
       global.localStorage.setItem("authToken", "tok");

@@ -8,24 +8,6 @@ describe("registrationsManager (consolidated)", () => {
       mgr = registrationsManager();
     });
 
-    test("getVisiblePages delegates al helper compartido (alias)", () => {
-      // La ventana ahora la calcula paginationHelpers.buildWindow; este
-      // método queda como alias para no romper llamadas existentes.
-      mgr.currentPage = 5;
-      mgr.totalPages = 10;
-      mgr.pagination = window.paginationHelpers.buildState(
-        { current_page: 5, pages: 10, total: 100 },
-        mgr.perPage,
-      );
-
-      const pages = mgr.getVisiblePages();
-
-      expect(pages.length).toBeGreaterThan(0);
-      expect(pages).toContain(5);
-      // Nunca expone los puntos suspensivos como si fueran páginas.
-      expect(pages.every((p) => Number.isInteger(p))).toBe(true);
-    });
-
     test("la ventana de páginas queda acotada (regresión del bug original)", () => {
       // 5790 registros a 50 por página = 116 páginas. Antes de unificar,
       // registrations usaba su propia ventana ±2 y el resto de vistas

@@ -351,15 +351,6 @@ function registrationsManager() {
       this.loadRegistrations(1);
     },
 
-    // La ventana de páginas ahora la calcula el helper compartido
-    // (app/static/js/helpers/paginationHelpers.js). Este método se mantiene
-    // como alias para no romper llamadas existentes.
-    getVisiblePages() {
-      return this.pagination.window
-        .filter((item) => !item.isEllipsis)
-        .map((item) => item.page);
-    },
-
     // Modal de crear/editar
     openCreateModal() {
       this.editMode = false;

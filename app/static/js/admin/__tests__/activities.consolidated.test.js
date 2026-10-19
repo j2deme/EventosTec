@@ -291,6 +291,80 @@ describe("activitiesManager (consolidated)", () => {
       expect(comp.pagination.total).toBe(1);
     });
 
+    // ── Paginación ─────────────────────────────────────────────────────────
+    // La ventana acotada vive en paginationHelpers, pero es la VISTA quien le
+    // pasa `pages`/`current_page`; una que construya mal el estado devuelve
+    // al bug original (un botón por página). Antes solo estudiantes y
+    // registros tenían esta cobertura.
+
+    test("la ventana de páginas queda acotada aunque haya 116 páginas", async () => {
+      const comp = activitiesManager();
+      global.localStorage.setItem("authToken", "tok");
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          activities: [],
+          current_page: 58,
+          pages: 116,
+          total: 1160,
+        }),
+      });
+
+      await comp.loadActivities(58);
+
+      expect(comp.pagination.window.length).toBeLessThanOrEqual(11);
+      expect(comp.pagination.window.map((i) => i.page)).toContain(58);
+      // from/to con el perPage real, no un "* 10" hardcodeado
+      expect(comp.pagination.from).toBe(571);
+      expect(comp.pagination.to).toBe(580);
+    });
+
+    test("pide per_page=10 y apaga el selector de filas (volumen bajo)", async () => {
+      const comp = activitiesManager();
+      global.localStorage.setItem("authToken", "tok");
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          activities: [],
+          current_page: 1,
+          pages: 12,
+          total: 111,
+        }),
+      });
+
+      await comp.loadActivities(1);
+
+      expect(String(global.fetch.mock.calls[0][0])).toContain("per_page=10");
+      // 111 actividades: sin selector de filas por página
+      expect(comp.pagination.showPerPage).toBe(false);
+    });
+
+    test("setPerPage recarga en la página 1 con las filas elegidas", async () => {
+      const comp = activitiesManager();
+      global.localStorage.setItem("authToken", "tok");
+      global.fetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          activities: [],
+          current_page: 1,
+          pages: 3,
+          total: 25,
+        }),
+      });
+
+      await comp.loadActivities(1);
+      global.fetch.mockClear();
+
+      comp.setPerPage("50");
+
+      expect(comp.perPage).toBe(50);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("per_page=50"),
+        expect.any(Object),
+      );
+      expect(String(global.fetch.mock.calls[0][0])).toContain("page=1");
+    });
+
     test("createActivity posts data and triggers activity-created event on success", async () => {
       const comp = activitiesManager();
       global.localStorage.setItem("authToken", "tok");

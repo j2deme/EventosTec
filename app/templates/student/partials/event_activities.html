@@ -509,12 +509,11 @@
       </p>
     </div>
 
-    <!-- Paginación (partial compartido: ver app/templates/partials/pagination.html;
-         el wrapper conserva la condición original: oculta mientras carga y cuando
-         se muestran todas las actividades de una sola vez) -->
-    <div x-show="!loading && activitiesByDay.length > 0">
-      {% include 'partials/pagination.html' %}
-    </div>
+    <!-- Paginación: include desnudo (ver app/templates/partials/pagination.html).
+         Antes había un contenedor con `!loading && activitiesByDay.length > 0`,
+         redundante: esta vista carga todas las actividades de una sola vez, así
+         que `pagination.last_page` es siempre 1 y el partial ya se oculta solo. -->
+    {% include 'partials/pagination.html' %}
   </div>
 
   <!-- Mensaje de carga inicial del evento -->

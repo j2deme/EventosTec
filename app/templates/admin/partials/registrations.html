@@ -425,10 +425,10 @@
         </div>
       </div>
 
-      <!-- Paginación (partial compartido: ver app/templates/partials/pagination.html) -->
-      <div x-show="!loading && totalPages > 1">
-        {% include 'partials/pagination.html' %}
-      </div>
+      <!-- Paginación: include desnudo. La visibilidad la decide SOLO el
+           partial (x-show="pagination.last_page > 1"); antes este contenedor
+           duplicaba la guarda con `!loading && totalPages > 1`. -->
+      {% include 'partials/pagination.html' %}
     </div>
   </div>
 

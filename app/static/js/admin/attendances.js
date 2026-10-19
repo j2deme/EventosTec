@@ -30,7 +30,9 @@ function attendancesAdmin() {
     globalStats: null,
     // Pagination
     page: 1,
-    per_page: 10,
+    // 50 por página: con `per_page: 10` esta vista tenía 610 páginas para
+    // las 6 098 asistencias de producción. Alineado con Prerregistros (50).
+    per_page: 50,
     total: 0,
     pages: 1,
     // Contrato del partial compartido de paginación
@@ -43,7 +45,9 @@ function attendancesAdmin() {
       total: 0,
       from: 0,
       to: 0,
-      perPage: 10,
+      // Coincide con `per_page` de arriba: es lo que pinta el <select>
+      // "Filas por página" del partial antes de la primera respuesta.
+      perPage: 50,
       window: [],
       showJump: false,
     },
@@ -362,7 +366,7 @@ function attendancesAdmin() {
         const qs = new URLSearchParams();
         // include pagination params so backend returns correct page
         qs.set("page", String(this.page || 1));
-        qs.set("per_page", String(this.per_page || 10));
+        qs.set("per_page", String(this.per_page || 50));
         if (this.filters.search) qs.set("search", this.filters.search);
         if (this.filters.activity_id)
           qs.set("activity_id", this.filters.activity_id);
@@ -392,7 +396,7 @@ function attendancesAdmin() {
           this.total = body.total || body.count || this.total || 0;
           this.pages =
             body.pages ||
-            Math.max(1, Math.ceil((this.total || 0) / (this.per_page || 10)));
+            Math.max(1, Math.ceil((this.total || 0) / (this.per_page || 50)));
           this.page = body.current_page || this.page || 1;
 
           // Contrato del partial compartido: se reconstruye desde el estado
