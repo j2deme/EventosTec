@@ -17,3 +17,7 @@ app/static/css/tailwind.css
 # Muestras HTML generadas localmente para revisión (desechables: no se
 # commitean aunque se vuelvan a generar)
 /samples/
+# Volcados de la BD de producción y scripts de rollback puntuales: contienen
+# datos personales y solo viven en local (nunca van al repo)
+EventosTec-*.sql
+rollback_*.sql
