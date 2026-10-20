@@ -120,6 +120,24 @@ contra el contenedor y con pruebas que **fallan** contra el código anterior:
 
 ### Rendimiento
 
+- **Fin del N+1 en los listados del admin**: los cuatro listados más pesados
+  precargaban de golpe lo que serializaban fila a fila. Medido contra la BD
+  de producción, por página de 25–50 filas:
+
+  | Vista            | Antes                  | Después             |
+  | ---------------- | ---------------------- | ------------------- |
+  | Estudiantes      | 99 consultas · 11,5 s  | 7 consultas · 1,1 s |
+  | Asistencias      | 113 consultas · 13,4 s | 9 consultas · 2,1 s |
+  | Prerregistros    | 71 consultas · 8,2 s   | 8 consultas · 1,3 s |
+  | Lista imprimible | 39 consultas · 5,2 s   | 6 consultas · 0,8 s |
+
+  Con `selectinload` en las colecciones y `joinedload` solo en `many-to-one`
+  (para no tocar el `COUNT` del paginado). En Asistencias las
+  preregistraciones de la página pasan a resolverse en una sola consulta en
+  vez de una por fila. `tests/api/test_query_budget.py` fija un presupuesto
+  de consultas por petición para que no regrese: hoy 5/5 fallan contra el
+  código anterior.
+
 - **Sin CDNs**: Tailwind precompilado y los assets de terceros versionados y
   servidos desde el propio contenedor. Se acabó el FOUC (pantalla en blanco
   hasta que llegaban los CDNs) y la dependencia de red en el arranque.
@@ -154,8 +172,6 @@ declarado para no llevarlo por sorpresa a 1.1:
   eventos siguen sin token**: no contienen datos personales y esa misma
   información se publica en las páginas de preregistro abiertas. La regla
   completa está en `docs/LOOKUP_ENDPOINTS.md` §4.
-- **Reportes con N+1** en algunos cruces de datos (`per_page=1000` sobre un
-  schema con relaciones anidadas).
 - Inconsistencias menores heredadas: `canRegisterForActivity` y
   `availabilityCode` no coinciden cuando falta `max_capacity`, y algunas
   rutas declaradas con barra final se llaman sin ella (un `308` por

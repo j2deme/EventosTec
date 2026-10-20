@@ -2,9 +2,13 @@ from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import requests
 import uuid
+from sqlalchemy.orm import selectinload
+
 from app import db
 from app.schemas import student_schema, students_schema
 from app.models.student import Student
+from app.models.registration import Registration
+from app.models.activity import Activity
 from app.utils.auth_helpers import require_admin, get_user_or_403
 from app.services.settings_manager import AppSettings
 from openpyxl import Workbook
@@ -76,10 +80,12 @@ def get_students():
         query = Student.query
 
         # Filtro por evento o actividad (require joins)
+        #
+        # `Registration` y `Activity` se importan a nivel de módulo: un import
+        # aquí dentro los convertiría en variables LOCALES de esta función y
+        # rompería el `selectinload` de más abajo (UnboundLocalError) cuando el
+        # filtro no se ejecute.
         if event_id or activity_id:
-            from app.models.registration import Registration
-            from app.models.activity import Activity
-
             query = query.join(Registration, Registration.student_id == Student.id)
             query = query.join(Activity, Activity.id == Registration.activity_id)
 
@@ -109,6 +115,26 @@ def get_students():
 
         # Ordenar por nombre
         query = query.order_by(Student.full_name)
+
+        # Carga ansiosa de las relaciones que serializa StudentSchema.
+        #
+        # Sin esto, cada fila de la página disparaba su propia cadena de
+        # consultas perezosas (estudiante -> preregistros -> actividad ->
+        # evento -> asistencias): una página de 25 estudiantes costaba 97
+        # consultas y ~12 s contra la BD remota. Con `selectinload` salen 5
+        # consultas y la vista responde en ~1 s.
+        #
+        # Se usa `selectinload` (y no `joinedload`) en las colecciones porque
+        # SQLAlchemy prohíbe `joinedload` sobre relaciones many-to-many/one-to-
+        # many en una página paginada: multiplicaría las filas y rompería el
+        # `COUNT` de `paginate()`. Los `joinedload` solo caben en many-to-one
+        # (`Activity.event`).
+        query = query.options(
+            selectinload(Student.registrations)
+            .selectinload(Registration.activity)
+            .joinedload(Activity.event),
+            selectinload(Student.attendances),
+        )
 
         # max_per_page=100: los selectores ya no necesitan descargar todo el
         # listado (usan /lookup), así que se limita el impacto de una petición

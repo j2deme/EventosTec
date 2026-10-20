@@ -11,7 +11,7 @@ from app.utils.auth_helpers import get_user_or_403
 from app.utils.datetime_utils import db_now_local
 from sqlalchemy import cast, String
 from sqlalchemy import or_
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, selectinload
 
 registrations_bp = Blueprint("registrations", __name__, url_prefix="/api/registrations")
 
@@ -306,11 +306,18 @@ def get_registrations():
         # max_per_page=100: los selectores ya no necesitan descargar todo el
         # listado (usan /lookup), así que se limita el impacto de una petición
         # con un per_page desorbitado.
-        registrations = query.paginate(
-            page=page, per_page=per_page, error_out=False, max_per_page=100
-        )
+        # Carga ansiosa de lo que serializa cada fila (student, activity y
+        # activity.event). Sin esto eran dos consultas perezosas por fila: una
+        # página de 50 registros salía en 71 consultas. `selectinload` en las
+        # colecciones y `joinedload` solo en many-to-one, para no afectar al
+        # `COUNT` del paginado.
+        registrations = query.options(
+            selectinload(Registration.activity).joinedload(Activity.event),
+            selectinload(Registration.student),
+        ).paginate(page=page, per_page=per_page, error_out=False, max_per_page=100)
 
-        # Asegurar que la relación activity está presente en cada registro
+        # Red de seguridad: `activity` ya viene precargada de arriba, así que
+        # este bucle ya no consulta; solo cubre registros sin actividad.
         for registration in registrations.items:
             if not registration.activity:
                 registration.activity = db.session.get(

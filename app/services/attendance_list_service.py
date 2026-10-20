@@ -14,6 +14,7 @@ Al compartir el builder, ambas vistas imprimen exactamente la misma lista
 from datetime import timedelta
 
 from flask import current_app
+from sqlalchemy.orm import selectinload
 
 from app import db
 from app.models.event import Event
@@ -41,8 +42,13 @@ def build_attendance_list_context(activity) -> dict:
     event = db.session.get(Event, activity.event_id) if activity.event_id else None
 
     # Preregistros ordenados por apellido/nombre (student.full_name)
+    #
+    # `selectinload` del estudiante: antes cada fila hacía su propio
+    # `db.session.get(Student, ...)`, así que una actividad con 35
+    # preregistros costaba 35 consultas.
     regs = (
         db.session.query(Registration)
+        .options(selectinload(Registration.student))
         .filter(Registration.activity_id == activity.id)
         .join(Student)
         .order_by(Student.full_name)
@@ -51,8 +57,9 @@ def build_attendance_list_context(activity) -> dict:
 
     students = []
     for r in regs:
-        # Cargar explícitamente el estudiante para evitar supuestos del ORM
-        s = db.session.get(Student, r.student_id)
+        # El estudiante viene precargado arriba; la comprobación solo cubre un
+        # preregistro huérfano.
+        s = r.student
         if not s:
             continue
         students.append(

@@ -8,16 +8,21 @@ ellos se validan aquí a mano.
 **Tiempo estimado: 20 minutos.** La plataforma está parada, así que se puede
 hacer en cualquier momento.
 
+> Los totales de filas y páginas de los pasos B y E son los medidos al cerrar
+> la versión; si ha entrado algún registro desde entonces, lo que hay que
+> comprobar es la **proporción** (50 por página, el paginador al final, el
+> rango «Mostrando X–Y de Z» cuadrando), no la cifra exacta.
+
 ---
 
 ## 0. Lo que ya está verificado automáticamente (no hace falta repetirlo)
 
-| Suite                               | Resultado                                     |
-| ----------------------------------- | --------------------------------------------- |
-| `pytest`                            | **472 pasan** (+25 nuevos de seguridad)       |
-| `jest`                              | **465 pasan** en 33 suites (+9 de paginación) |
-| Plantillas Jinja                    | **30/30 compilan**                            |
-| Endpoints contra el contenedor vivo | **18/18**                                     |
+| Suite                               | Resultado                                                        |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| `pytest`                            | **477 pasan** (+25 de seguridad, +5 de presupuesto de consultas) |
+| `jest`                              | **465 pasan** en 33 suites (+9 de paginación)                    |
+| Plantillas Jinja                    | **30/30 compilan**                                               |
+| Endpoints contra el contenedor vivo | **18/18**                                                        |
 
 Los 18 checks en vivo, ejecutados contra `http://localhost:8092` con el
 contenedor reconstruido:
@@ -49,8 +54,8 @@ contenedor reconstruido:
 
 | #   | Paso                                 | Qué se espera                                                                                                                                              |
 | --- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Asistencias                          | Carga con **50** filas por página. El paginador dice **122 páginas** para las 6 098 filas (antes: 610).                                                    |
-| B2  | Asistencias → «Ir a página» a la 122 | Llega al final; el rango «Mostrando X–Y de Z» cuadra.                                                                                                      |
+| B1  | Asistencias                          | Carga con **50** filas por página. El paginador dice **123 páginas** para las 6 131 filas (antes: 610) y la tabla pinta en **2–3 s**, no en 13.            |
+| B2  | Asistencias → «Ir a página» a la 123 | Llega al final; el rango «Mostrando X–Y de Z» cuadra.                                                                                                      |
 | B3  | Filas por página → 100               | Vuelve a la **página 1** con 100 filas (61 páginas).                                                                                                       |
 | B4  | Estudiantes                          | **25** por página, 91 páginas. Con un nombre largo, la tabla **no** se ensancha ni aparece scroll horizontal; el nombre completo se ve al pasar el cursor. |
 | B5  | Prerregistros                        | La columna **Actividad** queda acotada con tooltip.                                                                                                        |

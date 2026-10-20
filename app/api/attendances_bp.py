@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timezone
 from marshmallow import ValidationError
+from sqlalchemy.orm import joinedload
 from app.utils.datetime_utils import (
     app_today,
     db_now_local,
@@ -11,7 +12,7 @@ from app.utils.datetime_utils import (
     safe_iso,
 )
 from app import db
-from app.schemas import attendance_schema
+from app.schemas import attendance_schema, registration_schema
 from app.models.attendance import Attendance
 from app.models.student import Student
 from app.models.activity import Activity
@@ -162,7 +163,18 @@ def get_attendances():
         base_query = query
 
         total = base_query.count()
-        items = query.limit(per_page).offset((page - 1) * per_page).all()
+        # Carga ansiosa de lo que el bucle de más abajo adjunta a cada fila
+        # (student, activity y activity.event). Sin esto eran tres consultas
+        # perezosas por fila: 50 filas -> 150 consultas.
+        items = (
+            query.options(
+                joinedload(Attendance.student),
+                joinedload(Attendance.activity).joinedload(Activity.event),
+            )
+            .limit(per_page)
+            .offset((page - 1) * per_page)
+            .all()
+        )
         pages = (total + per_page - 1) // per_page if per_page else 1
 
         # Estadísticas agregadas sobre toda la consulta (no solo la página)
@@ -224,6 +236,36 @@ def get_attendances():
         except Exception:
             errors = 0
 
+        # Preregistraciones de la PÁGINA en una sola consulta.
+        #
+        # Antes cada fila consultaba su propia preregistración (con dos
+        # `joinedload` y un `import` dentro del bucle): 50 filas eran 50
+        # consultas extra. Aquí se piden de golpe las de los estudiantes y
+        # actividades de la página y se indexan por la clave compuesta.
+        page_registrations: dict[tuple[int, int], Registration] = {}
+        try:
+            page_student_ids = sorted({a.student_id for a in items if a.student_id})
+            page_activity_ids = sorted({a.activity_id for a in items if a.activity_id})
+            if page_student_ids and page_activity_ids:
+                regs = (
+                    Registration.query.options(
+                        joinedload(Registration.student),
+                        joinedload(Registration.activity).joinedload(Activity.event),
+                    )
+                    .filter(
+                        Registration.student_id.in_(page_student_ids),
+                        Registration.activity_id.in_(page_activity_ids),
+                    )
+                    .all()
+                )
+                page_registrations = {(r.student_id, r.activity_id): r for r in regs}
+        except Exception:
+            # La vista sigue siendo útil sin la columna de preregistro.
+            current_app.logger.exception(
+                "No se pudieron precargar las preregistraciones de la página"
+            )
+            page_registrations = {}
+
         # Serializar y adjuntar objetos relacionados (student, activity) para
         # facilitar el consumo en el frontend sin múltiples requests.
         result = []
@@ -260,26 +302,16 @@ def get_attendances():
             except Exception:
                 pass
 
-            # Intentar adjuntar información de preregistro (registration)
+            # Intentar adjuntar información de preregistro (registration).
+            # Ya viene precargada para toda la página (ver `page_registrations`
+            # arriba); `None` es el caso normal de un walk-in.
             try:
-                # `Registration` fue importado en el módulo
-                from sqlalchemy.orm import joinedload
-
-                registration = (
-                    Registration.query.options(
-                        joinedload(getattr(Registration, "student")),
-                        joinedload(getattr(Registration, "activity")),
-                    )
-                    .filter_by(student_id=att.student_id, activity_id=att.activity_id)
-                    .first()
-                )
+                registration = page_registrations.get((att.student_id, att.activity_id))
                 if registration:
                     d["registration_id"] = registration.id
                     try:
                         # Preferir la serialización via marshmallow schema para incluir nested objects
-                        from app.schemas import registration_schema as _reg_schema
-
-                        d["registration"] = _reg_schema.dump(registration)
+                        d["registration"] = registration_schema.dump(registration)
                     except Exception:
                         # Fallback to to_dict and try to enrich with nested relations
                         rd = (
