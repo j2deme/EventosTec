@@ -17,12 +17,32 @@ hacer en cualquier momento.
 
 ## 0. Lo que ya está verificado automáticamente (no hace falta repetirlo)
 
-| Suite                               | Resultado                                                        |
-| ----------------------------------- | ---------------------------------------------------------------- |
-| `pytest`                            | **477 pasan** (+25 de seguridad, +5 de presupuesto de consultas) |
-| `jest`                              | **465 pasan** en 33 suites (+9 de paginación)                    |
-| Plantillas Jinja                    | **30/30 compilan**                                               |
-| Endpoints contra el contenedor vivo | **18/18**                                                        |
+| Suite                               | Resultado                                                            |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| `pytest`                            | **477 pasan** (+25 de seguridad, +5 de presupuesto de consultas)     |
+| `jest`                              | **465 pasan** en 33 suites (+9 de paginación)                        |
+| Plantillas Jinja                    | **30/30 compilan**                                                   |
+| Endpoints contra el contenedor vivo | **18/18**                                                            |
+| Humo de API (solo lectura)          | **16/16** (`api_smoke.py`, A2–A3, B1–B7, C1–C3, D1–D2, E1–E3)        |
+| Humo visual headless                | **14/14** (Chrome headless, `visual_smoke.js`: A2–A5, B1–B7, D1, E1) |
+| Regresión de layout                 | **21/21** (1280/1440/1920 px, 6 pestañas + calendario con datos)     |
+
+> **Ronda del 2026-10-21** (imagen reconstruida con `--no-cache`): los cuatro
+> bloques anteriores se re-ejecutaron contra el contenedor limpio. El humo de
+> API va con `127.0.0.1` en vez de `localhost` —desde Python en Windows
+> `localhost` resolvía a IPv6 y añadía ~20 s por petición—, y el D2 se corrobora
+> con el recuento de asistencias antes/después (6195 → 6195, sin cambios).
+>
+> Dos hallazgos salieron de esta ronda y quedaron **corregidos en el propio
+> commit de la release** (ver `CHANGELOG.md` → Corregido): los 12 `TypeError`
+> que el calendario lanzaba en cada carga del panel, y el scroll horizontal de
+> página que aparecía a 1280 px en Estudiantes y Prerregistros.
+
+> **Pasos de escritura pausados a decisión del administrador** (D3, D4, D5,
+> E4, E5, E6): no hay evento activo, así que no hay nada real que registrar o
+> cancelar. Se validaron los endpoints que sí son no destructivos (D1 y D2 con
+> `dry_run`), y los seis pasos quedan para probar en caliente la primera vez
+> que se use un evento nuevo —idealmente como hotfix verificado, no a ciegas.
 
 Los 18 checks en vivo, ejecutados contra `http://localhost:8092` con el
 contenedor reconstruido:

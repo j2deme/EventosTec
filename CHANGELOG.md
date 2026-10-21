@@ -10,10 +10,10 @@ publicada.
 
 ## [Unreleased]
 
-## [1.0.0] — 2026-10-19
+## [1.0.0] — 2026-10-21
 
 Primera versión estable y etiquetada. Cierra el ciclo `v0.9` → `1.0.0`
-(2026-09-25 → 2026-10-19, ~110 commits): los módulos de créditos
+(2026-09-25 → 2026-10-21, ~110 commits): los módulos de créditos
 complementarios, el auto-registro y la asistencia llegan a madurez, y los
 hallazgos que bloqueaban la etiqueta quedan resueltos y cubiertos por pruebas.
 
@@ -115,6 +115,21 @@ contra el contenedor y con pruebas que **fallan** contra el código anterior:
 - Iconos Tabler inexistentes y 4 clases Tailwind inválidas (`border-1`,
   `ml-13`, `text-md`, `preline`).
 - El botón «Editar evento» del overview abre el editor correcto.
+- **El panel ya no lanza 12 `TypeError` en cada carga.** `calendar.html`
+  evaluaba `calendar.event.name`, `calendar.days.length`, etc. con `calendar`
+  aún en `null`: `x-show` solo oculta el nodo, no impide que Alpine evalue la
+  expresión, así que el error aparecía en la consola en cada F5 sin romper la
+  interfaz. Ahora todas esas expresiones (resumen, `x-show` y los dos `x-for`
+  del índice de días) usan `?.`, y el `x-text` de `selectedActivity.duration_hours`
+  —cuyo `x-show` lo protegía solo a él— también.
+- **Sin scroll horizontal de página a 1280 px** en Estudiantes y
+  Prerregistros. Las tablas nunca desbordaban su contenedor `overflow-x-auto`:
+  el culpable era `<main class="flex-1">` sin `min-w-0`, cuyo `min-width:auto`
+  de hijo flex impedía que se encojiera, con lo que crecía hasta el ancho de la
+  tabla y el desborde ocurría en el documento (89 px y 191 px). Con `min-w-0`
+  el desborde baja a 0 px y el scroll ocurre dentro de la tabla, como está
+  diseñado; a 1440/1920 px ya funcionaba. No se añadió ninguna clase
+  `overflow-*`, que romperían el índice de días `sticky` del calendario.
 - El contenedor Docker apuntaba a la base local por un `.env` obsoleto.
 - `deploy.sh` aborta en el primer error y muestra el `HEAD` desplegado.
 
