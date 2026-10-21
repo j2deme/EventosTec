@@ -65,21 +65,21 @@
     >
       <span
         class="font-medium text-gray-800"
-        x-text="calendar.event.name"
+        x-text="calendar?.event?.name"
       ></span>
       <span class="text-gray-400">·</span>
       <span
         ><i class="ti ti-calendar mr-1"></i
-        ><span x-text="calendar.event.start_date"></span> →
-        <span x-text="calendar.event.end_date"></span
+        ><span x-text="calendar?.event?.start_date"></span> →
+        <span x-text="calendar?.event?.end_date"></span
       ></span>
       <span class="text-gray-400">·</span>
       <span
-        ><span x-text="calendar.total_activities"></span> actividades en
-        <span x-text="calendar.days.length"></span> días</span
+        ><span x-text="calendar?.total_activities"></span> actividades en
+        <span x-text="calendar?.days?.length"></span> días</span
       >
       <span
-        x-show="!calendar.event.is_active"
+        x-show="!calendar?.event?.is_active"
         class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600"
         >Inactivo</span
       >
@@ -87,7 +87,7 @@
 
     <!-- Selector de vista: rango de días (por defecto) o horario de un día -->
     <div
-      x-show="calendar.days && calendar.days.length > 0"
+      x-show="calendar?.days && calendar.days.length > 0"
       x-cloak
       class="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2"
     >
@@ -121,7 +121,7 @@
 
     <!-- Sin días con actividades (solo días vacíos o sin horario) -->
     <div
-      x-show="(!calendar.days || calendar.days.length === 0) && outsideActivities().length === 0"
+      x-show="(!calendar?.days || calendar.days.length === 0) && outsideActivities().length === 0"
       x-cloak
       class="py-10 text-center text-sm text-gray-500"
     >
@@ -132,7 +132,7 @@
          móvil (columnas con scroll horizontal) que en escritorio. En móvil
          la píldora del día cuya columna está a la vista se pinta de indigo. -->
     <div
-      x-show="calendar.days && calendar.days.length > 1"
+      x-show="calendar?.days && calendar.days.length > 1"
       x-cloak
       class="sticky top-[60px] md:top-0 z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2 bg-gray-50 border-b border-gray-200"
     >
@@ -141,7 +141,7 @@
           class="flex-shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-400"
           >Días</span
         >
-        <template x-for="day in calendar.days" :key="'idx-' + day">
+        <template x-for="day in (calendar?.days || [])" :key="'idx-' + day">
           <button
             @click="onDayPillClick(day)"
             :title="dayLabel(day) + ' · ' + dayCount(day) + ' actividades'"
@@ -170,13 +170,13 @@
          actividades —p. ej. el 07 oct— enterraban sus chips a media altura
          de la página; se descartó esa variante) -->
     <div
-      x-show="viewMode === 'range' && calendar.days && calendar.days.length > 0"
+      x-show="viewMode === 'range' && calendar?.days && calendar.days.length > 0"
       x-cloak
       data-cal-scroll
       class="overflow-x-auto pb-2"
     >
       <div class="grid gap-3" :style="gridStyle()">
-        <template x-for="day in calendar.days" :key="day">
+        <template x-for="day in (calendar?.days || [])" :key="day">
           <div
             :id="'cal-day-' + day"
             class="bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col min-h-[160px] scroll-mt-[110px] md:scroll-mt-20"
@@ -725,8 +725,8 @@
                 <span
                   x-show="selectedActivity && selectedActivity.duration_hours != null && (selectedActivity.session_total || 1) > 1"
                   class="text-gray-500"
-                  >· <span x-text="selectedActivity.duration_hours"></span> h en
-                  total</span
+                  >· <span x-text="selectedActivity?.duration_hours"></span> h
+                  en total</span
                 >
                 <!-- Multisesión: en qué sesión de la serie estamos -->
                 <span
