@@ -171,8 +171,13 @@ Eventos Tec{% endblock %}{% endblock %} {% block content %}
     <!-- Main Content -->
     <!-- ⚠️ Sin clases overflow-*: convertirían a <main> en scrollport y el
          position:sticky del índice de días se pegaría a main (que nunca
-         scrollea) en lugar de al viewport, es decir: no se pegaría nunca. -->
-    <main class="flex-1 p-4 md:p-6">
+         scrollea) en lugar de al viewport, es decir: no se pegaría nunca.
+         `min-w-0` sí hace falta: sin él, el min-width:auto de hijo flex
+         impide que <main> se encoja, la tabla de datos ensancha la página
+         entera (scroll horizontal global) en vez de scrollear dentro de su
+         contenedor overflow-x-auto. No es overflow: el scrollport sigue
+         siendo el viewport, así que el sticky de arriba no se afecta. -->
+    <main class="flex-1 min-w-0 p-4 md:p-6">
       {% block admin_content %}{% endblock %}
     </main>
   </div>
