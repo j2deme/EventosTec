@@ -10,10 +10,10 @@ publicada.
 
 ## [Unreleased]
 
-## [1.0.0] — 2026-10-21
+## [1.0.0] — 2026-10-22
 
 Primera versión estable y etiquetada. Cierra el ciclo `v0.9` → `1.0.0`
-(2026-09-25 → 2026-10-21, ~110 commits): los módulos de créditos
+(2026-09-25 → 2026-10-22, ~110 commits): los módulos de créditos
 complementarios, el auto-registro y la asistencia llegan a madurez, y los
 hallazgos que bloqueaban la etiqueta quedan resueltos y cubiertos por pruebas.
 
@@ -132,6 +132,18 @@ contra el contenedor y con pruebas que **fallan** contra el código anterior:
   `overflow-*`, que romperían el índice de días `sticky` del calendario.
 - El contenedor Docker apuntaba a la base local por un `.env` obsoleto.
 - `deploy.sh` aborta en el primer error y muestra el `HEAD` desplegado.
+- **Un corte de red ya no puede dejar el build colgado ~34 minutos.** El paso
+  de NodeSource hacía `curl … | bash -` sin límite de tiempo: con el DNS caído
+  la petición esperó 2030 s hasta rendirse (`Could not resolve host`). Ahora
+  `curl` baja el script a un fichero con `--connect-timeout 10 --max-time 60`
+  (que cubre también la resolución DNS, lo que `--connect-timeout` no siempre
+  hace) y `--retry 2 --retry-max-time 120`: el peor caso queda en ≤ ~2 min y
+  el fallo típico sale en segundos (6 s con NXDOMAIN, 36 s con TCP colgado,
+  medido). De paso, la descarga a fichero sustituye a la tubería `| bash`:
+  en `sh` sin `pipefail`, un `curl` fallido habría devuelto 0 y el error real
+  habría salido después, desplazado y engañoso, en el `apt-get` siguiente.
+  Los dos `apt-get` pasan a `Acquire::Retries=3` (por defecto, 0). pip y npm
+  ya traían sus propios límites (15 s/5 reintentos y 5 min/2 reintentos).
 
 ### Rendimiento
 

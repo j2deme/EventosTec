@@ -5,8 +5,8 @@ WORKDIR /app
 
 # System deps for building some Python packages (pandas optional compilation)
 # Also install curl/gnupg for NodeSource install script
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=3 update \
+  && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
   build-essential \
   gcc \
   libpq-dev \
@@ -21,9 +21,20 @@ COPY requirements.txt requirements-dev.txt ./
 RUN python -m pip install --upgrade pip \
   && pip install -r requirements.txt
 
-# Install Node.js (NodeSource). We keep it in the same image to produce node_modules
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-  && apt-get install -y --no-install-recommends nodejs \
+# Install Node.js (NodeSource). We keep it in the same image to produce node_modules.
+# La descarga va a fichero en vez de `| bash`: en `sh` (sin pipefail) un curl
+# fallido seguiría devolviendo 0 a través de la tubería y el error real saldría
+# después, desplazado y engañoso, en el apt-get de abajo.
+# Límites duros de red: --max-time cubre también la resolución DNS (que
+# --connect-timeout no siempre cubre), así que un corte de red en el build pasa
+# de ~34 min de colgue a ≤ ~2 min (reintentos incluidos) y el fallo típico sale
+# en segundos. apt reintenta con Acquire::Retries=3 (por defecto, 0).
+RUN curl -fsSL --connect-timeout 10 --max-time 60 --retry 2 --retry-delay 3 \
+      --retry-max-time 120 -o /tmp/nodesource_setup.sh \
+      https://deb.nodesource.com/setup_20.x \
+  && bash /tmp/nodesource_setup.sh \
+  && apt-get -o Acquire::Retries=3 install -y --no-install-recommends nodejs \
+  && rm -f /tmp/nodesource_setup.sh \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy package files and install Node dependencies
