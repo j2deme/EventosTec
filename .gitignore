@@ -21,3 +21,7 @@ app/static/css/tailwind.css
 # datos personales y solo viven en local (nunca van al repo)
 EventosTec-*.sql
 rollback_*.sql
+# Índices de CodeGraph (creados por `codegraph init`; .codegraph/ o .codegraph-wsl/)
+.codegraph*/
+# Logs de ejecución de deploy.sh (gitignored por diseño: solo viven en local)
+deploy-logs/
