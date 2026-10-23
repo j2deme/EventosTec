@@ -10,6 +10,29 @@ publicada.
 
 ## [Unreleased]
 
+### Añadido
+
+- **`deploy.sh` tolerante a la red y con diagnóstico pronto.** El punto de
+  decisión se desplaza al segundo 10, nunca a la hora:
+  - **Preflight de ~10 s** antes del `git pull`: daemon de Docker,
+    DNS/conectividad de los 6 hosts que el build necesita (GitHub, Debian,
+    NodeSource, PyPI, pythonhosted, npm) y aviso si el checkout tiene < 3 GB.
+  - **Compuerta de velocidad**: mide el throughput real contra
+    `deb.debian.org`; por debajo de 500 KB/s aborta con la medición y una
+    estimación del tiempo de build (se fuerza con `DEPLOY_ALLOW_SLOW_NET=1`).
+    El build de 38,9 min del 2026-10-22 habría sido cortado en ~10 s.
+  - **Tope duro de 15 min** por intento (`DEPLOY_BUILD_TIMEOUT`, `0` lo
+    desactiva): acota la única modalidad en la que nada falla —red viva pero
+    a gotas—. No se reintenta solo: reporta la capa actual y decides tú.
+  - **Reintentos solo para errores de red rápida** (hasta 3, backoff 15/30 s,
+    evaluados sobre el log **del intento actual**); un error determinista
+    aborta al primer intento.
+  - **`trap` con clasificación de causa** (RED / DISCO / DOCKER /
+    DESCONOCIDO), aviso de si producción sigue con la imagen anterior y
+    últimas 15 líneas del log.
+  - **Log persistente** por ejecución en `deploy-logs/` (gitignored).
+  - Baseline medido: build sano ≈ 6 min (red buena) vs 38,9 min (90 KB/s).
+
 ## [1.0.0] — 2026-10-22
 
 Primera versión estable y etiquetada. Cierra el ciclo `v0.9` → `1.0.0`
