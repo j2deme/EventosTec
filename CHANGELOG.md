@@ -24,9 +24,14 @@ publicada.
   - **Tope duro de 15 min** por intento (`DEPLOY_BUILD_TIMEOUT`, `0` lo
     desactiva): acota la única modalidad en la que nada falla —red viva pero
     a gotas—. No se reintenta solo: reporta la capa actual y decides tú.
-  - **Reintentos solo para errores de red rápida** (hasta 3, backoff 15/30 s,
-    evaluados sobre el log **del intento actual**); un error determinista
-    aborta al primer intento.
+  - **Reintentos para errores transitorios** (hasta 3, backoff 15/30 s,
+    evaluados sobre el log **del intento actual**): red rápida y blips de
+    infraestructura Docker/WSL — `error getting credentials`/vsock, la falla
+    real de la primera corrida de validación—; un error determinista aborta
+    al primer intento.
+  - El preflight comprueba también `registry-1.docker.io` (Docker Hub, que el
+    build necesita para `--pull`) y la clasificación **DOCKER** cubre daemon,
+    credenciales e interop WSL.
   - **`trap` con clasificación de causa** (RED / DISCO / DOCKER /
     DESCONOCIDO), aviso de si producción sigue con la imagen anterior y
     últimas 15 líneas del log.

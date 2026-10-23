@@ -9,13 +9,14 @@
 #   DEPLOY_MIN_SPEED_KBPS=500   Compuerta de velocidad: por debajo, aborta.
 #   DEPLOY_ALLOW_SLOW_NET=0     1 = fuerza el build aunque la red sea lenta.
 #   DEPLOY_BUILD_TIMEOUT=900    Tope por intento del build, en segundos (0 = sin tope).
-#   DEPLOY_BUILD_RETRIES=3      Intentos máximos para errores de RED rápida.
+#   DEPLOY_BUILD_RETRIES=3      Intentos máximos para errores transitorios.
 #   DEPLOY_PREFLIGHT=1          0 = salta el preflight (solo diagnóstico).
 #
 # Reglas:
 #   - El "✅" solo se imprime si TODO salió bien.
 #   - El tope de build NUNCA se reintenta solo: corta, diagnostica y decides tú.
-#   - Los errores de red rápida (segundos por intento) sí se reintentan solos.
+#   - Los errores transitorios (red rápida o blips Docker/WSL) sí se
+#     reintentan solos: segundos por intento, backoff 15/30 s.
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
@@ -29,6 +30,14 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 FASE="inicio"
 
+# Patrones de fallo TRANSITORIO (fuente única de verdad: alimentan la
+# clasificación del trap Y la decisión de reintento):
+#   - Red: DNS/conexión/descarga que fallan en segundos.
+#   - Infra Docker/WSL: el helper de credenciales o el vsock del interop se
+#     caen un instante (la falla real de la primera corrida de validación).
+PATRON_RED='could not resolve|name resolution|temporary failure|connection refused|connection timed out|connection reset|network is unreachable|no route to host|tls handshake|econnreset|etimedout|eai_again|failed to (fetch|download)|unexpected eof|50[234] (bad gateway|service unavailable|gateway time)'
+PATRON_INFRA='error getting credentials|utilacceptvsock|error during connect|cannot connect to the docker daemon|docker daemon not running|is the docker daemon running'
+
 # Clasifica la causa a partir de las últimas líneas del log: RED / DISCO /
 # DOCKER / DESCONOCIDO. Se usa en el reporte de fallo.
 clasificar_causa() {
@@ -36,10 +45,10 @@ clasificar_causa() {
   txt=$(tail -n 200 "$LOG_FILE" 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)
   if grep -qE 'no space left on device|disk quota exceeded|enospc' <<<"$txt"; then
     echo "DISCO — sin espacio en el filesystem"
-  elif grep -qE 'could not resolve|name resolution|temporary failure|connection refused|connection timed out|connection reset|network is unreachable|no route to host|tls handshake|econnreset|etimedout|eai_again|failed to (fetch|download)|unexpected eof|50[234] (bad gateway|service unavailable|gateway time)' <<<"$txt"; then
+  elif grep -qE "$PATRON_RED" <<<"$txt"; then
     echo "RED — fallo de conectividad/DNS/descarga"
-  elif grep -qE 'cannot connect to the docker daemon|docker daemon not running|is the docker daemon running|error during connect' <<<"$txt"; then
-    echo "DOCKER — el daemon no responde"
+  elif grep -qE "$PATRON_INFRA" <<<"$txt"; then
+    echo "DOCKER — daemon, credenciales o interop WSL"
   else
     echo "DESCONOCIDO — revisa las últimas líneas y el log completo"
   fi
@@ -81,10 +90,11 @@ if [ "${DEPLOY_PREFLIGHT:-1}" != "0" ]; then
     exit 1
   fi
 
-  # DNS + TCP + TLS contra los hosts que el build necesita. Un "000" es
-  # inalcanzable; cualquier código HTTP (aunque sea 4xx) significa "reachable".
+  # DNS + TCP + TLS contra los hosts que el build necesita (Docker Hub va
+  # incluido: `--pull` del base image). Un "000" es inalcanzable; cualquier
+  # código HTTP (aunque sea 4xx) significa "reachable".
   FALLIDOS=""
-  for host in github.com deb.debian.org deb.nodesource.com pypi.org files.pythonhosted.org registry.npmjs.org; do
+  for host in github.com deb.debian.org deb.nodesource.com pypi.org files.pythonhosted.org registry.npmjs.org registry-1.docker.io; do
     code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "https://$host/" || true)
     if [ "$code" = "000" ]; then
       FALLIDOS="$FALLIDOS $host"
@@ -146,8 +156,9 @@ echo "📌 HEAD: $(git log -1 --oneline)"
 #     ~6 min): lo único que acota la red "viva pero a gotas", donde ningún
 #     comando falla y todo se arrastra. NO se reintenta solo: corta,
 #     diagnostica y decides tú.
-#   - Reintentos: solo si el fallo huele a red rápida (segundos por intento,
-#     backoff 15 s / 30 s). Un SyntaxError no se reintenta: aborta al 1er intento.
+#   - Reintentos: solo si el fallo es transitorio — red rápida o blip de
+#     infraestructura Docker/WSL (segundos por intento, backoff 15 s / 30 s).
+#     Un SyntaxError no se reintenta: aborta al 1er intento.
 # ---------------------------------------------------------------------------
 FASE="build"
 BUILD_TIMEOUT=${DEPLOY_BUILD_TIMEOUT:-900}
@@ -161,8 +172,17 @@ con_tope() {
   fi
 }
 
-es_error_de_red() {
-  grep -qiE 'could not resolve|name resolution|temporary failure|connection refused|connection timed out|connection reset|network is unreachable|no route to host|tls handshake|econnreset|etimedout|eai_again|failed to (fetch|download)|unexpected eof|50[234] (bad gateway|service unavailable|gateway time)' "$1"
+es_error_transitorio() {
+  grep -qiE "$PATRON_RED|$PATRON_INFRA" "$1"
+}
+
+# Diagnostica qué clase de transitorio fue, para el mensaje de reintento.
+tipo_error_transitorio() {
+  if grep -qiE "$PATRON_RED" "$1"; then
+    echo "red rápida"
+  else
+    echo "infraestructura Docker/WSL"
+  fi
 }
 
 intento=1
@@ -204,15 +224,15 @@ while true; do
     exit 124
   fi
 
-  if [ "$intento" -lt "$INTENTOS_MAX" ] && es_error_de_red "$BUILD_LOG"; then
+  if [ "$intento" -lt "$INTENTOS_MAX" ] && es_error_transitorio "$BUILD_LOG"; then
     espera=$((15 * intento))   # 15 s tras el intento 1, 30 s tras el 2
-    echo "🌐 Fallo de red rápida (intento $intento). Reintento en ${espera}s..." >&2
+    echo "🌐 Fallo transitorio de $(tipo_error_transitorio "$BUILD_LOG") (intento $intento). Reintento en ${espera}s..." >&2
     sleep "$espera"
     intento=$((intento + 1))
     continue
   fi
 
-  echo "💥 Build falló (exit $status) sin apariencia de red reintentable: no se reintenta." | tee -a "$BUILD_LOG" >&2
+  echo "💥 Build falló (exit $status) sin apariencia de error transitorio: no se reintenta." | tee -a "$BUILD_LOG" >&2
   on_error "$status" "$LINENO"
   exit "$status"
 done
