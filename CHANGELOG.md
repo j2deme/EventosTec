@@ -18,17 +18,29 @@ publicada.
     DNS/conectividad de los 6 hosts que el build necesita (GitHub, Debian,
     NodeSource, PyPI, pythonhosted, npm) y aviso si el checkout tiene < 3 GB.
   - **Compuerta de velocidad**: mide el throughput real contra
-    `deb.debian.org`; por debajo de 500 KB/s aborta con la medición y una
-    estimación del tiempo de build (se fuerza con `DEPLOY_ALLOW_SLOW_NET=1`).
-    El build de 38,9 min del 2026-10-22 habría sido cortado en ~10 s.
-  - **Tope duro de 15 min** por intento (`DEPLOY_BUILD_TIMEOUT`, `0` lo
-    desactiva): acota la única modalidad en la que nada falla —red viva pero
-    a gotas—. No se reintenta solo: reporta la capa actual y decides tú.
+    `deb.debian.org` con una muestra de 9.7 MB (`Packages.xz` — antes el
+    `InRelease` de 137 KB: una medición de ~70 ms que no salía del
+    slow-start de TCP y leía ≤2 MB/s en líneas de 8.7 MB/s). Por debajo de
+    500 KB/s aborta con la medición y una estimación del tiempo de build
+    (se fuerza con `DEPLOY_ALLOW_SLOW_NET=1`); en línea lenta corta a los
+    6 s e imprime el promedio parcial. El build de 38,9 min del
+    2026-10-22 habría sido cortado en ~10 s.
+  - **Tope duro de 10 min** por intento (`DEPLOY_BUILD_TIMEOUT`, `0` lo
+    desactiva, `2400` para red lenta forzada): 2× el peor build legítimo
+    (~280 s en el piso del gate). Acota la única modalidad en la que nada
+    falla —red viva pero a gotas—. No se reintenta solo: reporta la capa
+    actual y decides tú.
   - **Reintentos para errores transitorios** (hasta 3, backoff 15/30 s,
     evaluados sobre el log **del intento actual**): red rápida y blips de
     infraestructura Docker/WSL — `error getting credentials`/vsock, la falla
     real de la primera corrida de validación—; un error determinista aborta
     al primer intento.
+  - **`git pull` acotado** (`DEPLOY_PULL_TIMEOUT`, 120 s por defecto, `0` lo
+    desactiva): el único paso de red que quedaba sin cota se corta con
+    diagnóstico propio en vez de colgarse para siempre.
+  - Un `ReadTimeoutError` (pip/urllib3) pertenece ahora al bucket
+    transitorio `RED` y se auto reintenta, en vez de clasificarse
+    DESCONOCIDO.
   - El preflight comprueba también `registry-1.docker.io` (Docker Hub, que el
     build necesita para `--pull`) y la clasificación **DOCKER** cubre daemon,
     credenciales e interop WSL.
@@ -37,6 +49,8 @@ publicada.
     últimas 15 líneas del log.
   - **Log persistente** por ejecución en `deploy-logs/` (gitignored).
   - Baseline medido: build sano ≈ 6 min (red buena) vs 38,9 min (90 KB/s).
+    Dos corridas completas el 2026-10-22: **185 s** y **260 s** de extremo
+    a extremo (build 160/222 s), ambas en verde con humo 19/19.
 
 ## [1.0.0] — 2026-10-22
 

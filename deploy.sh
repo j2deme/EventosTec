@@ -1,15 +1,17 @@
 #!/bin/bash
 # deploy.sh — despliegue de EventosTec
 #
-# Filosofía: el punto de decisión llega PRONTO. Red caída o lenta se detecta
-# en ~10 s (preflight); el tope duro del build es 15 min. Ningún escenario te
-# deja esperando una hora sin información.
+# Filosofía: el punto de decisión llega PRONTO, con holgura para el éxito y
+# estimación para el fracaso. Red caída o lenta se detecta en ~10 s
+# (preflight); el tope duro del build es 10 min — 2× el peor caso legítimo.
+# Ningún escenario te deja esperando una hora sin información.
 #
 # Variables de entorno (todas opcionales):
 #   DEPLOY_MIN_SPEED_KBPS=500   Compuerta de velocidad: por debajo, aborta.
 #   DEPLOY_ALLOW_SLOW_NET=0     1 = fuerza el build aunque la red sea lenta.
-#   DEPLOY_BUILD_TIMEOUT=900    Tope por intento del build, en segundos (0 = sin tope).
+#   DEPLOY_BUILD_TIMEOUT=600    Tope por intento del build, en segundos (0 = sin tope).
 #   DEPLOY_BUILD_RETRIES=3      Intentos máximos para errores transitorios.
+#   DEPLOY_PULL_TIMEOUT=120     Tope del git pull, en segundos (0 = sin tope).
 #   DEPLOY_PREFLIGHT=1          0 = salta el preflight (solo diagnóstico).
 #
 # Reglas:
@@ -32,10 +34,11 @@ FASE="inicio"
 
 # Patrones de fallo TRANSITORIO (fuente única de verdad: alimentan la
 # clasificación del trap Y la decisión de reintento):
-#   - Red: DNS/conexión/descarga que fallan en segundos.
+#   - Red: DNS/conexión/descarga o lectura cortada (ej. pip ReadTimeout)
+#     que fallan en segundos.
 #   - Infra Docker/WSL: el helper de credenciales o el vsock del interop se
 #     caen un instante (la falla real de la primera corrida de validación).
-PATRON_RED='could not resolve|name resolution|temporary failure|connection refused|connection timed out|connection reset|network is unreachable|no route to host|tls handshake|econnreset|etimedout|eai_again|failed to (fetch|download)|unexpected eof|50[234] (bad gateway|service unavailable|gateway time)'
+PATRON_RED='could not resolve|name resolution|temporary failure|connection refused|connection timed out|connection reset|network is unreachable|no route to host|tls handshake|econnreset|etimedout|eai_again|readtimeout|read timed out|failed to (fetch|download)|unexpected eof|50[234] (bad gateway|service unavailable|gateway time)'
 PATRON_INFRA='error getting credentials|utilacceptvsock|error during connect|cannot connect to the docker daemon|docker daemon not running|is the docker daemon running'
 
 # Clasifica la causa a partir de las últimas líneas del log: RED / DISCO /
@@ -115,15 +118,20 @@ if [ "${DEPLOY_PREFLIGHT:-1}" != "0" ]; then
     echo "⚠️  Poco espacio en el filesystem del checkout: ${libres_mb} MB libres (< 3 GB)."
   fi
 
-  # Compuerta de velocidad: mide el throughput real ~6 s contra deb.debian.org
-  # (el anfitrión que el build usa para apt). Aquí es donde la red lenta se
-  # detecta en 10 s en vez de a los 36 min de la capa apt:
+  # Compuerta de velocidad: mide el throughput real contra deb.debian.org
+  # (el anfitrión que el build usa para apt). La muestra es Packages.xz
+  # (~9.7 MB): con el InRelease (137 KB) la medición duraba ~70 ms, no
+  # salía del slow-start de TCP y leía ≤2 MB/s en una línea de 8.7 MB/s —
+  # ruido a la hora de decidir. -m 6 corta a los 6 s y en línea lenta
+  # imprime el promedio parcial (verificado: -w se evalúa aunque curl
+  # salga con 28). Aquí es donde la red lenta se detecta en ~10 s en vez
+  # de a los 36 min de la capa apt:
   #   < DEPLOY_MIN_SPEED_KBPS  → aborta con estimación (fuerza con DEPLOY_ALLOW_SLOW_NET=1)
-  #   500–1000 KB/s            → aviso y continúa
-  #   ≥ 1 MB/s                 → silencio (build sano ≈ 6 min)
+  #   500–1024 KB/s            → aviso y continúa
+  #   ≥ 1 MB/s                 → silencio (build sano ≈ 3-6 min)
   MIN_KBPS=${DEPLOY_MIN_SPEED_KBPS:-500}
-  bps=$(curl -s -m 6 -o /dev/null -w '%{speed_download}' -r 0-2097151 \
-        https://deb.debian.org/debian/dists/stable/InRelease || true)
+  bps=$(curl -s -m 6 -o /dev/null -w '%{speed_download}' \
+        https://deb.debian.org/debian/dists/stable/main/binary-amd64/Packages.xz || true)
   kbps=$(awk -v b="${bps:-0}" 'BEGIN { printf "%d", b / 1024 }')
   echo "   Velocidad medida contra deb.debian.org: ${kbps} KB/s"
   if [ "$kbps" -lt "$MIN_KBPS" ]; then
@@ -147,13 +155,40 @@ fi
 # ---------------------------------------------------------------------------
 FASE="pull"
 echo "🕗 Actualizando código..."
-git pull origin main
+PULL_TIMEOUT=${DEPLOY_PULL_TIMEOUT:-120}
+# El único paso de red que quedaba sin cota: un git pull colgado en el
+# helper de credenciales ya no puede bloquear el deploy para siempre.
+set +e
+trap - ERR
+if [ "$PULL_TIMEOUT" -gt 0 ]; then
+  timeout --kill-after=10 "$PULL_TIMEOUT" git pull origin main
+else
+  git pull origin main
+fi
+status_pull=$?
+trap 'on_error "$?" "$LINENO"' ERR
+set -e
+
+if [ "$status_pull" -eq 124 ]; then
+  echo "" >&2
+  echo "⏱  git pull sin respuesta tras ${PULL_TIMEOUT} s (red o helper de credenciales)." >&2
+  echo "   🛡️  Producción sigue sirviendo la imagen anterior." >&2
+  echo "   Decide tú: prueba  git pull origin main  a mano y relanza el deploy." >&2
+  echo "   (DEPLOY_PULL_TIMEOUT=0 desactiva el tope)" >&2
+  echo "🔍 Causa clasificada: RED — git pull sin respuesta (tope ${PULL_TIMEOUT}s)" >&2
+  exit 124
+fi
+if [ "$status_pull" -ne 0 ]; then
+  on_error "$status_pull" "$LINENO"
+  exit "$status_pull"
+fi
 echo "📌 HEAD: $(git log -1 --oneline)"
 
 # ---------------------------------------------------------------------------
 # Build: tope duro + reintentos solo para errores de red rápida.
-#   - Tope (DEPLOY_BUILD_TIMEOUT, por defecto 15 min = 2.5× el baseline de
-#     ~6 min): lo único que acota la red "viva pero a gotas", donde ningún
+#   - Tope (DEPLOY_BUILD_TIMEOUT, por defecto 10 min): 2× el peor build
+#     legítimo (~280 s en el piso del gate de 500 KB/s; sano ≈ 3-6 min).
+#     Es lo único que acota la red "viva pero a gotas", donde ningún
 #     comando falla y todo se arrastra. NO se reintenta solo: corta,
 #     diagnostica y decides tú.
 #   - Reintentos: solo si el fallo es transitorio — red rápida o blip de
@@ -161,7 +196,7 @@ echo "📌 HEAD: $(git log -1 --oneline)"
 #     Un SyntaxError no se reintenta: aborta al 1er intento.
 # ---------------------------------------------------------------------------
 FASE="build"
-BUILD_TIMEOUT=${DEPLOY_BUILD_TIMEOUT:-900}
+BUILD_TIMEOUT=${DEPLOY_BUILD_TIMEOUT:-600}
 INTENTOS_MAX=${DEPLOY_BUILD_RETRIES:-3}
 
 con_tope() {
@@ -210,6 +245,7 @@ while true; do
   if [ "$status" -eq 124 ]; then
     echo "" >&2
     echo "⏱  BUILD ANÓMALO: tope de ${BUILD_TIMEOUT} s alcanzado (baseline sano: ~6 min)." >&2
+    echo "   🛡️  Producción sigue sirviendo la imagen anterior." >&2
     echo "   Última capa con actividad en el log:" >&2
     ultima=$(grep -E '^#[0-9]+' "$BUILD_LOG" | tail -n 2 || true)
     if [ -n "$ultima" ]; then
@@ -218,7 +254,8 @@ while true; do
       echo "   │ (sin salida de capa: murió antes de emitir — típico de descarga colgada)" >&2
     fi
     echo "   Esto casi siempre es la red a gotas: nada falla, todo se arrastra." >&2
-    echo "   Decide tú: relanza cuando mejore, o sube el tope:  DEPLOY_BUILD_TIMEOUT=0 ./deploy.sh" >&2
+    echo "   Decide tú: relanza cuando mejore, o sube el tope para red lenta:" >&2
+    echo "     DEPLOY_BUILD_TIMEOUT=2400 ./deploy.sh   (sin tope: DEPLOY_BUILD_TIMEOUT=0)" >&2
     echo "   🔍 Causa clasificada: ESTANCAMIENTO/RED LENTA — tope de build" >&2
     echo "   📄 Log del build: $BUILD_LOG" >&2
     exit 124
